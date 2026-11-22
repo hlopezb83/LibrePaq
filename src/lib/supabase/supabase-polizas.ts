@@ -232,7 +232,7 @@ export const supabasePolizas = {
       }>;
     }
   ): Promise<{ updated: boolean }> {
-    if (!supabase) return { updated: false };
+    if (!supabase) throw new Error('Supabase no disponible');
 
     const { data: existingPol } = await supabase
       .from('polizas')
