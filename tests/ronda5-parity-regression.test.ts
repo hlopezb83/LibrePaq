@@ -175,7 +175,7 @@ describe('Ronda 5 — Parity & Accounting Rigor Regression Suite', () => {
     ];
 
     test('buildTaxProvisionMovements generates strictly balanced movements with 801-01-001', () => {
-      const mockWp = {
+      const mockWp: FiscalWorkpaperResponse = {
         company: {
           id: 'comp-1',
           name: 'TEST CORP SA DE CV',
@@ -201,42 +201,47 @@ describe('Ronda 5 — Parity & Accounting Rigor Regression Suite', () => {
         isrProvisional: {
           regimenClave: '601',
           esResico: false,
-          ingresosNominalesPeriodo: 100000,
-          ingresosNominalesAcumulados: 1000000,
-          coeficienteUtilidad: 0.2,
+          ingresosPeriodo: 100000,
+          ingresosAcumuladosEjercicio: 1000000,
+          deduccionesAutorizadasPeriodo: 50000,
+          coeficienteUtilidadAplicado: 0.2,
           utilidadFiscalEstimada: 200000,
-          perdidasFiscalesAmortizables: 0,
+          perdidasFiscalesAplicadas: 0,
           baseGravableIsr: 200000,
           tasaIsrPct: 30,
-          impuestoCausadoAcumulado: 60000,
-          pagosProvisionalesAcreditables: 50000,
-          retencionesIsrBancariasAcumuladas: 0,
+          isrCausado: 60000,
+          pagosProvisionalesPrevios: 50000,
+          isrRetenidoPeriodo: 0,
           isrNetoAPagar: 10000
         },
         ivaDefinitivo: {
+          actosGravadosCobrado16: 200000,
           ivaTrasladadoCobrado: 32000,
           ivaAcreditablePagado: 16000,
           ivaRetenidoAcreditable: 0,
           ivaRetenidoPorPagar: 0,
-          saldoFavorMesAnteriorAcreditado: 0,
+          saldoFavorIvaAcreditable: 0,
           ivaNetoAPagar: 16000,
-          saldoAFavorMes: 0
+          saldoFavorIvaRemanente: 0
         },
-        retencionesFederales: {
-          retencionIsrSueldos: 0,
-          retencionIsrAsimilados: 0,
-          retencionIsrServiciosProf: 0,
-          retencionIsrArrendamiento: 0,
-          retencionIsrResico: 0,
-          retencionIvaTotal: 0,
-          totalRetencionesAPagar: 0
+        fluctuacionCambiaria: {
+          cfdisUsdCount: 0,
+          saldoMonedaExtranjeraUsd: 0,
+          tipoCambioPromedioRegistro: 20,
+          tipoCambioDofCierre: 20,
+          valuacionLibrosMxn: 0,
+          valuacionCierreDofMxn: 0,
+          diferenciaCambiariaMxn: 0,
+          tipoDiferencia: 'SIN_CAMBIO'
         },
-        resumenObligaciones: {
-          totalFederalAPagar: 26000,
-          fechaLimitePago: '2026-11-17',
-          diasProrrogaSextoDigito: 0
+        resumenLineaCapturaSat: {
+          isrProvisionalAPagar: 10000,
+          ivaDefinitivoAPagar: 16000,
+          retencionesIsrPorEnterar: 0,
+          retencionesIvaPorEnterar: 0,
+          totalEstimadoDia17: 26000
         }
-      } as unknown as FiscalWorkpaperResponse;
+      };
 
       const movements = buildTaxProvisionMovements(mockWp, mockAccounts, 10, 2026);
       expect(movements.length).toBeGreaterThanOrEqual(2);

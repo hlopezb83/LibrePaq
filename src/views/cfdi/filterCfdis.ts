@@ -1,5 +1,14 @@
 import type { CfdiDocument } from '../../shared/types';
 
+export function isCfdiPendingForPoliza(doc: CfdiDocument): boolean {
+  return (
+    doc.polizaId === null &&
+    doc.statusSat !== 'CANCELADO' &&
+    (doc.tipoComprobante as string) !== 'T' &&
+    (doc.total > 0 || doc.subtotal > 0)
+  );
+}
+
 export function filterCfdis(
   cfdis: CfdiDocument[],
   tab: 'ALL' | 'EMITIDO' | 'RECIBIDO' | 'PENDING',
@@ -15,12 +24,7 @@ export function filterCfdis(
     }
     if (tab === 'EMITIDO' && doc.direction !== 'EMITIDO') return false;
     if (tab === 'RECIBIDO' && doc.direction !== 'RECIBIDO') return false;
-    if (
-      tab === 'PENDING' &&
-      (doc.polizaId !== null ||
-        doc.statusSat === 'CANCELADO' ||
-        (doc.tipoComprobante as string) === 'T')
-    ) {
+    if (tab === 'PENDING' && !isCfdiPendingForPoliza(doc)) {
       return false;
     }
 
