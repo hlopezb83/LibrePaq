@@ -1,0 +1,128 @@
+import { type RefObject } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '../../context/ToastContext';
+import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
+import { formatCurrency } from '../../lib/formatters';
+import type { PolizaType } from '../../shared/types';
+import type { DraftMovement } from './PolizaEditorModal';
+
+export interface UsePolizasMutationsParams {
+  activeCompanyId: string;
+  currentYear?: number;
+  currentPeriod?: number;
+  isPeriodLocked: boolean;
+  editingPolizaId: string | null;
+  tipo: PolizaType;
+  fecha: string;
+  concepto: string;
+  cfdiUuid: string;
+  movements: DraftMovement[];
+  dialogRef?: RefObject<HTMLDialogElement | null>;
+  onSaveSuccess?: () => void;
+  setFormError: (err: string | null) => void;
+  setConfirmDeleteId: (id: string | null) => void;
+}
+
+export function usePolizasMutations({
+  activeCompanyId,
+  currentYear,
+  currentPeriod,
+  isPeriodLocked,
+  editingPolizaId,
+  tipo,
+  fecha,
+  concepto,
+  cfdiUuid,
+  movements,
+  dialogRef,
+  onSaveSuccess,
+  setFormError,
+  setConfirmDeleteId
+}: UsePolizasMutationsParams) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const savePolizaMutation = useMutation({
+    mutationFn: async () => {
+      if (isPeriodLocked) {
+        throw new Error(
+          `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} se encuentra bloqueado ante el SAT. No se pueden registrar o modificar pólizas.`
+        );
+      }
+      if (editingPolizaId) {
+        return apiClient.updatePoliza(editingPolizaId, {
+          tipo,
+          fecha,
+          concepto,
+          cfdiUuid: cfdiUuid || null,
+          movements
+        });
+      }
+      return apiClient.createPoliza({
+        companyId: activeCompanyId,
+        tipo,
+        fecha,
+        concepto,
+        cfdiUuid: cfdiUuid || null,
+        origin: cfdiUuid ? 'ADD_AUTO' : 'MANUAL',
+        movements
+      });
+    },
+    onSuccess: (saved) => {
+      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      onSaveSuccess?.();
+      dialogRef?.current?.close();
+      if ('tipo' in saved) {
+        toast.success(
+          `Póliza ${saved.tipo} #${saved.folio} Registrada`,
+          `Sumas iguales cuadradas por ${formatCurrency(saved.totalCargos)}.`
+        );
+      } else {
+        toast.success(
+          'Póliza Actualizada',
+          'Los cambios en el asiento contable se guardaron correctamente.'
+        );
+      }
+    },
+    onError: (err: Error) => {
+      setFormError(err.message);
+      toast.error('Error al guardar póliza', err.message);
+    }
+  });
+
+  const deletePolizaMutation = useMutation({
+    mutationFn: (id: string) => {
+      if (isPeriodLocked) {
+        throw new Error('El periodo contable está bloqueado ante el SAT.');
+      }
+      return apiClient.deletePoliza(id);
+    },
+    onSuccess: () => {
+      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      setConfirmDeleteId(null);
+      toast.success('Póliza Eliminada', 'El asiento y sus movimientos fueron revertidos.');
+    },
+    onError: (err: Error) => {
+      toast.error('Error al eliminar póliza', err.message);
+    }
+  });
+
+  const closeYearMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentYear) throw new Error('Año no definido');
+      return apiClient.closeYearPoliza(activeCompanyId);
+    },
+    onSuccess: (res) => {
+      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      toast.success(
+        `Cierre Anual ${currentYear} Registrado`,
+        `Se generó la póliza de cierre en Periodo 13 con utilidad/pérdida de ${formatCurrency(res.utilidadTraspasada)}.`
+      );
+    },
+    onError: (err: Error) => {
+      toast.error('Error en Cierre Anual', err.message);
+    }
+  });
+
+  return { savePolizaMutation, deletePolizaMutation, closeYearMutation };
+}

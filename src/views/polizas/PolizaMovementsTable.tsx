@@ -1,0 +1,160 @@
+import React from 'react';
+import { Calculator, Plus, Scale } from 'lucide-react';
+import { formatCurrency } from '../../lib/formatters';
+import type { Account } from '../../shared/types';
+import type { DraftMovement } from './poliza-editor.types';
+import { PolizaMovementRow } from './PolizaMovementRow';
+
+interface PolizaMovementsTableProps {
+  movements: DraftMovement[];
+  setMovements: React.Dispatch<React.SetStateAction<DraftMovement[]>>;
+  accounts: Account[];
+  affectableAccounts: Account[];
+  concepto: string;
+  difference: number;
+  totalCargos: number;
+  totalAbonos: number;
+  referenciaRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
+  conceptoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
+  cargoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
+  abonoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
+  addIva16Line: (idx: number) => void;
+  autoBalanceDifference: () => void;
+  applyBalanceToRow: (idx: number, type: 'cargo' | 'abono') => void;
+  onLastRowSubmitFocus: () => void;
+}
+
+export function PolizaMovementsTable({
+  movements,
+  setMovements,
+  accounts,
+  affectableAccounts,
+  concepto,
+  difference,
+  totalCargos,
+  totalAbonos,
+  referenciaRefs,
+  conceptoRefs,
+  cargoRefs,
+  abonoRefs,
+  addIva16Line,
+  autoBalanceDifference,
+  applyBalanceToRow,
+  onLastRowSubmitFocus
+}: PolizaMovementsTableProps) {
+  const accountsById = React.useMemo(
+    () => new Map(accounts.map((a) => [a.id, a])),
+    [accounts]
+  );
+
+  return (
+    <div className="border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
+      <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-800">
+            Movimientos Contables ({movements.length} partidas)
+          </span>
+          <span className="text-[11px] text-slate-500 font-mono">
+            • Pulsa <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 font-bold">=</kbd> para cuadrar
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => addIva16Line(0)}
+            title="Calcula el 16% de IVA sobre la primera partida y genera el asiento automáticamente"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition"
+          >
+            <Calculator className="w-3.5 h-3.5" aria-hidden="true" />
+            + Desglosar IVA 16%
+          </button>
+
+          {Math.abs(difference) >= 0.01 && (
+            <button
+              type="button"
+              onClick={autoBalanceDifference}
+              title="Genera o completa la partida de contrapartida para igualar Cargos y Abonos"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 cursor-pointer transition"
+            >
+              <Scale className="w-3.5 h-3.5" aria-hidden="true" />
+              ⚡ Cuadrar Asiento ({formatCurrency(Math.abs(difference))})
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() =>
+              setMovements((prev) => [
+                ...prev,
+                {
+                  _rowId: crypto.randomUUID(),
+                  accountId: affectableAccounts[0]?.id || '',
+                  referencia: prev[prev.length - 1]?.referencia || 'REF',
+                  concepto: prev[prev.length - 1]?.concepto || concepto,
+                  cargo: 0,
+                  abono: 0
+                }
+              ])
+            }
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+            + Agregar Partida
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+        <table className="w-full text-left border-collapse erp-sticky-table">
+          <thead>
+            <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 bg-slate-50/90">
+              <th scope="col" className="py-2.5 px-3 min-w-[280px]">
+                Cuenta Contable Afectable (Buscar Código o Nombre)
+              </th>
+              <th scope="col" className="py-2.5 px-3 w-28">Referencia</th>
+              <th scope="col" className="py-2.5 px-3 min-w-[220px]">Concepto del Movimiento</th>
+              <th scope="col" className="py-2.5 px-3 w-36 text-right">Cargo (Debe)</th>
+              <th scope="col" className="py-2.5 px-3 w-36 text-right">Abono (Haber)</th>
+              <th scope="col" className="py-2.5 px-2 w-10 text-center">
+                <span className="visually-hidden">Quitar</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200 text-xs">
+            {movements.map((mov, idx) => (
+              <PolizaMovementRow
+                key={mov._rowId || `mov-${idx}`}
+                idx={idx}
+                mov={mov}
+                movementsCount={movements.length}
+                accounts={accounts}
+                accountsById={accountsById}
+                affectableAccounts={affectableAccounts}
+                concepto={concepto}
+                difference={difference}
+                referenciaRefs={referenciaRefs}
+                conceptoRefs={conceptoRefs}
+                cargoRefs={cargoRefs}
+                abonoRefs={abonoRefs}
+                setMovements={setMovements}
+                applyBalanceToRow={applyBalanceToRow}
+                autoBalanceDifference={autoBalanceDifference}
+                onLastRowSubmitFocus={onLastRowSubmitFocus}
+              />
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-slate-100 border-t border-slate-300 font-mono text-xs font-bold">
+              <td colSpan={3} className="py-2.5 px-4 text-right text-slate-700">
+                Sumas Iguales (Partida Doble):
+              </td>
+              <td className="py-2.5 px-3 text-right text-slate-900">{formatCurrency(totalCargos)}</td>
+              <td className="py-2.5 px-3 text-right text-slate-900">{formatCurrency(totalAbonos)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}

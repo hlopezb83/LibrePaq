@@ -1,0 +1,246 @@
+/* ============================================================================
+   Libre CONTPAQ (LibrePaq Pro) - Estilos Profesionales de Impresión / PDF
+   Calibración milimétrica para reportes financieros y dossiers ejecutivos SAT
+   ============================================================================ */
+
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 8mm 10mm;
+  }
+
+  body,
+  html {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10px !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ocultar elementos estándar de la app web */
+  aside,
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Si el modal de entregables ejecutivos o un dialog[open] está montado en el body, OCULTAR TODO EL #root */
+  body:has(#executive-deliverable-modal) > #root,
+  body:has(> dialog[open]) > #root {
+    display: none !important;
+  }
+
+  /* Aislamiento y expansión del Centro de Entregables */
+  #executive-deliverable-modal {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    inset: auto !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  #executive-deliverable-modal > .modal-inner-card {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  #executive-deliverable-modal .printable-dossier {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+  }
+
+  #executive-deliverable-modal article {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    border-radius: 6px !important;
+    padding: 6mm 6mm !important;
+    margin-bottom: 0 !important;
+    background: #ffffff !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  /* Calibración milimétrica para que el Balance General quepa completo en 1 hoja Carta */
+  #executive-deliverable-modal .balance-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 4mm !important;
+  }
+
+  #executive-deliverable-modal .dia17-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 4mm !important;
+  }
+
+  #executive-deliverable-modal .dia17-col-right {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3mm !important;
+  }
+
+  #executive-deliverable-modal .dia17-card {
+    padding: 2.5mm 3.5mm !important;
+    margin-bottom: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 4px !important;
+  }
+
+  #executive-deliverable-modal .dia17-row {
+    padding-top: 0.5mm !important;
+    padding-bottom: 0.5mm !important;
+    font-size: 9.5px !important;
+    line-height: 1.25 !important;
+  }
+
+  #executive-deliverable-modal .balance-col-right {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2.5mm !important;
+  }
+
+  #executive-deliverable-modal .balance-card {
+    padding: 2mm 3mm !important;
+    margin-bottom: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 4px !important;
+  }
+
+  #executive-deliverable-modal .balance-row {
+    padding-top: 0.4mm !important;
+    padding-bottom: 0.4mm !important;
+    font-size: 9.5px !important;
+    line-height: 1.25 !important;
+  }
+
+  #executive-deliverable-modal .balance-total {
+    padding-top: 1.5mm !important;
+    margin-top: 1.5mm !important;
+    font-size: 10px !important;
+  }
+
+  /* Bloque de firmas unificado y protegido contra rupturas huérfanas */
+  #executive-deliverable-modal .print-signatures {
+    padding-top: 4mm !important;
+    margin-top: 3.5mm !important;
+    border-top: 1px solid #cbd5e1 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #executive-deliverable-modal .print-signatures > div {
+    padding-top: 3.5mm !important;
+    border-top: 1px solid #64748b !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+    margin-bottom: 0 !important;
+  }
+
+  .avoid-page-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Control de tablas multipágina (thead repetido en cada página) */
+  table {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    width: 100% !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Aislamiento e impresión fluida de modales HTML5 (<dialog open>) */
+  body:has(dialog[open]) main > *:not(:has(dialog[open])) {
+    display: none !important;
+  }
+
+  dialog[open] {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+  }
+
+  dialog[open]::backdrop {
+    display: none !important;
+  }
+
+  dialog[open] .scrollable-panel,
+  dialog[open] [class*="max-h-"] {
+    max-height: none !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .print-only-signatures {
+    display: grid !important;
+  }
+}

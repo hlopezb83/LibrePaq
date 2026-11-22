@@ -1,0 +1,245 @@
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient, invalidateAccountingQueries } from '../lib/api-client';
+import {
+  getStoredAdAttribution,
+  trackWorkspaceSignupConversion
+} from '../lib/analytics';
+import { useAuth, checkIsSuperAdmin } from './AuthContext';
+import type { Company } from '../shared/types';
+
+export interface UserWorkspace {
+  id: string;
+  name: string;
+  ownerEmail: string;
+}
+
+interface CompanyContextValue {
+  workspace: UserWorkspace | null;
+  renameWorkspace: (nextName: string) => Promise<void>;
+  companies: Company[];
+  activeCompany: Company | null;
+  activeCompanyId: string;
+  setActiveCompanyId: (id: string, newCompany?: Company) => void;
+  updatePeriod: (year: number, period: number) => void;
+  isUpdatingPeriod: boolean;
+  isLoading: boolean;
+}
+
+const CompanyContext = createContext<CompanyContextValue | null>(null);
+
+export function CompanyProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isOwner = checkIsSuperAdmin(user);
+  const userScope = user?.id || 'demo';
+  const storageKey = `librepaq_company_id_${userScope}`;
+  const wsStorageKey = `librepaq_workspace_name_${userScope}`;
+  const provisionedUserRef = useRef<string | null>(null);
+
+  const [workspaceNameOverride, setWorkspaceNameOverride] = useState<string | null>(null);
+
+  const [activeCompanyId, setActiveCompanyIdState] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.location.search) {
+      const urlComp =
+        new URLSearchParams(window.location.search).get('companyId') ||
+        new URLSearchParams(window.location.search).get('company');
+      if (urlComp) return urlComp;
+    }
+    return localStorage.getItem(storageKey) || '';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search) {
+      const urlComp =
+        new URLSearchParams(window.location.search).get('companyId') ||
+        new URLSearchParams(window.location.search).get('company');
+      if (urlComp) {
+        setActiveCompanyIdState(urlComp);
+        localStorage.setItem(storageKey, urlComp);
+        return;
+      }
+    }
+    const saved = localStorage.getItem(storageKey) || '';
+    setActiveCompanyIdState(saved);
+    setWorkspaceNameOverride(localStorage.getItem(wsStorageKey));
+  }, [storageKey, wsStorageKey]);
+
+  const defaultWorkspaceName = user
+    ? `Despacho Contable — ${user.user_metadata?.full_name || user.email?.split('@')[0] || 'Mi Cartera'}`
+    : 'Mi Despacho Contable';
+
+  const rawWsName = workspaceNameOverride || user?.user_metadata?.workspace_name;
+  const resolvedWsName = rawWsName
+    ? String(rawWsName).replace(/^Workspace(\s*[-—]\s*|\s+)/i, 'Despacho Contable — ')
+    : defaultWorkspaceName;
+
+  const workspace: UserWorkspace | null = useMemo(() => {
+    if (!user || isOwner) return null;
+    return {
+      id: String(user.user_metadata?.workspace_id || `ws_${user.id.slice(0, 8)}`),
+      name: resolvedWsName,
+      ownerEmail: user.email || ''
+    };
+  }, [user, isOwner, resolvedWsName]);
+
+  // Aprovisionar automáticamente el Workspace + atribución de Google Ads al primer ingreso real
+  useEffect(() => {
+    if (!user || isOwner) return;
+    if (user.user_metadata?.workspace_id) return;
+    if (provisionedUserRef.current === user.id) return;
+
+    provisionedUserRef.current = user.id;
+    const wsId = `ws_${user.id.slice(0, 8)}`;
+    const wsName = defaultWorkspaceName;
+    const attribution = getStoredAdAttribution();
+    const provider = String(user.app_metadata?.provider || 'email');
+
+    void apiClient.updateUserProfileWorkspace({
+      userId: user.id,
+      workspaceId: wsId,
+      workspaceName: wsName,
+      acquisitionSource: attribution?.source || 'organic_or_direct',
+      gclid: attribution?.gclid || null,
+      utmCampaign: attribution?.utmCampaign || null,
+      utmTerm: attribution?.utmTerm || null
+    });
+
+    trackWorkspaceSignupConversion(provider, attribution);
+  }, [user, isOwner, defaultWorkspaceName]);
+
+  const renameWorkspace = useCallback(
+    async (nextName: string) => {
+      const clean = nextName.trim();
+      if (!clean || !user) return;
+      setWorkspaceNameOverride(clean);
+      try {
+        localStorage.setItem(wsStorageKey, clean);
+      } catch {
+        // ignore storage errors
+      }
+      const wsId = String(user.user_metadata?.workspace_id || `ws_${user.id.slice(0, 8)}`);
+      await apiClient.updateUserProfileWorkspace({
+        userId: user.id,
+        workspaceId: wsId,
+        workspaceName: clean
+      });
+    },
+    [user, wsStorageKey]
+  );
+
+  const { data: companies = [], isLoading, isError } = useQuery({
+    queryKey: ['companies', userScope],
+    queryFn: apiClient.getCompanies,
+    enabled: !isOwner
+  });
+
+  useEffect(() => {
+    if (isLoading || isError) return;
+    if (companies.length === 0) {
+      if (activeCompanyId !== '') {
+        setActiveCompanyIdState('');
+        localStorage.removeItem(storageKey);
+      }
+      return;
+    }
+    if (!companies.some((c) => c.id === activeCompanyId)) {
+      const firstCompany = companies[0];
+      if (firstCompany) {
+        setActiveCompanyIdState(firstCompany.id);
+        localStorage.setItem(storageKey, firstCompany.id);
+      }
+    }
+  }, [companies, activeCompanyId, isLoading, isError, storageKey]);
+
+  const setActiveCompanyId = useCallback(
+    (id: string, newCompany?: Company) => {
+      if (newCompany) {
+        queryClient.setQueryData<Company[]>(['companies', userScope], (prev = []) => {
+          const filtered = prev.filter((c) => c.id !== newCompany.id);
+          return [...filtered, newCompany];
+        });
+      }
+      setActiveCompanyIdState(id);
+      localStorage.setItem(storageKey, id);
+      if (typeof window !== 'undefined' && window.location.search) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('companyId') || url.searchParams.has('company')) {
+          url.searchParams.set('companyId', id);
+          url.searchParams.delete('company');
+          window.history.replaceState({}, '', url.toString());
+        }
+      }
+    },
+    [queryClient, userScope, storageKey]
+  );
+
+  const activeCompany =
+    companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null;
+
+  const resolvedActiveCompanyId = activeCompany?.id ?? '';
+
+  const periodMutation = useMutation({
+    mutationFn: ({ year, period }: { year: number; period: number }) =>
+      apiClient.updateCompanyPeriod(resolvedActiveCompanyId, year, period),
+    onSuccess: (updatedCompany) => {
+      if (updatedCompany) {
+        queryClient.setQueryData<Company[]>(['companies', userScope], (prev = []) =>
+          prev.map((c) => (c.id === updatedCompany.id ? updatedCompany : c))
+        );
+      }
+      if (resolvedActiveCompanyId) {
+        invalidateAccountingQueries(queryClient, resolvedActiveCompanyId);
+      }
+    }
+  });
+
+  const { mutate: mutatePeriod, isPending: isUpdatingPeriod } = periodMutation;
+
+  const updatePeriod = useCallback(
+    (year: number, period: number) => {
+      if (!resolvedActiveCompanyId) return;
+      mutatePeriod({ year, period });
+    },
+    [resolvedActiveCompanyId, mutatePeriod]
+  );
+
+  const contextValue = useMemo<CompanyContextValue>(
+    () => ({
+      workspace,
+      renameWorkspace,
+      companies,
+      activeCompany,
+      activeCompanyId: resolvedActiveCompanyId,
+      setActiveCompanyId,
+      updatePeriod,
+      isUpdatingPeriod,
+      isLoading
+    }),
+    [
+      workspace,
+      renameWorkspace,
+      companies,
+      activeCompany,
+      resolvedActiveCompanyId,
+      setActiveCompanyId,
+      updatePeriod,
+      isUpdatingPeriod,
+      isLoading
+    ]
+  );
+
+  return (
+    <CompanyContext.Provider value={contextValue}>
+      {children}
+    </CompanyContext.Provider>
+  );
+}
+
+export function useCompany() {
+  const ctx = useContext(CompanyContext);
+  if (!ctx) {
+    throw new Error('useCompany debe usarse dentro de CompanyProvider');
+  }
+  return ctx;
+}

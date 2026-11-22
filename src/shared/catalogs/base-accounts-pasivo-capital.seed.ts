@@ -1,0 +1,198 @@
+import type { Account } from '../types';
+
+export const BASE_ACCOUNTS_PASIVO_CAPITAL: ReadonlyArray<Omit<Account, 'id' | 'companyId'>> = [
+  // PASIVO
+  {
+    code: '200-00-000',
+    name: 'PASIVO',
+    parentCode: null,
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 1,
+    isAffectable: false,
+    satGroupCode: '200',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '201-00-000',
+    name: 'Proveedores Nacionales',
+    parentCode: '200-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 2,
+    isAffectable: false,
+    satGroupCode: '201',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '201-01-001',
+    name: 'Amazon Web Services México S. de R.L.',
+    parentCode: '201-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '201.01',
+    currency: 'MXN',
+    initialBalance: 120000
+  },
+  {
+    code: '201-01-002',
+    name: 'Inmobiliaria Reforma Centro S.A. de C.V.',
+    parentCode: '201-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '201.01',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '201-01-099',
+    name: 'Proveedores Nacionales General (ADD)',
+    parentCode: '201-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '201.01',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '208-00-000',
+    name: 'Impuestos Trasladados Cobrados',
+    parentCode: '200-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 2,
+    isAffectable: false,
+    satGroupCode: '208',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '208-01-001',
+    name: 'IVA Trasladado Cobrado 16%',
+    parentCode: '208-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '208.01',
+    currency: 'MXN',
+    initialBalance: 92000
+  },
+  {
+    code: '209-00-000',
+    name: 'Impuestos Trasladados No Cobrados',
+    parentCode: '200-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 2,
+    isAffectable: false,
+    satGroupCode: '209',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '209-01-001',
+    name: 'IVA Trasladado Pendiente de Cobro 16%',
+    parentCode: '209-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '209.01',
+    currency: 'MXN',
+    initialBalance: 56000
+  },
+  {
+    code: '216-00-000',
+    name: 'Impuestos Retenidos por Pagar',
+    parentCode: '200-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 2,
+    isAffectable: false,
+    satGroupCode: '216',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '216-01-001',
+    name: 'Retenciones de ISR por Pagar (Salarios, Honorarios, Arrend.)',
+    parentCode: '216-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '216.04',
+    currency: 'MXN',
+    initialBalance: 15200
+  },
+  {
+    code: '216-01-002',
+    name: 'Retenciones de IVA por Pagar',
+    parentCode: '216-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '216.10',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  // CAPITAL
+  {
+    code: '300-00-000',
+    name: 'CAPITAL CONTABLE',
+    parentCode: null,
+    type: 'CAPITAL',
+    nature: 'ACREEDORA',
+    level: 1,
+    isAffectable: false,
+    satGroupCode: '300',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '301-00-000',
+    name: 'Capital Social y Resultados Acumulados',
+    parentCode: '300-00-000',
+    type: 'CAPITAL',
+    nature: 'ACREEDORA',
+    level: 2,
+    isAffectable: false,
+    satGroupCode: '301',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '301-01-001',
+    name: 'Capital Social Fijo',
+    parentCode: '301-00-000',
+    type: 'CAPITAL',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '301.01',
+    currency: 'MXN',
+    initialBalance: 1500000
+  },
+  {
+    code: '301-02-001',
+    name: 'Utilidades Acumuladas de Ejercicios Anteriores',
+    parentCode: '301-00-000',
+    type: 'CAPITAL',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '304.01',
+    currency: 'MXN',
+    initialBalance: 875000
+  }
+];

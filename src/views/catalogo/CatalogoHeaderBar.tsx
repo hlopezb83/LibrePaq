@@ -1,0 +1,75 @@
+import React from 'react';
+import { Download, FolderTree, Plus, Upload } from 'lucide-react';
+
+export interface CatalogoHeaderBarProps {
+  csvImportRef: React.RefObject<HTMLInputElement | null>;
+  onImportCsv: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onExportCsv: () => void;
+  onOpenCreateModal: () => void;
+}
+
+export function CatalogoHeaderBar({
+  csvImportRef,
+  onImportCsv,
+  onExportCsv,
+  onOpenCreateModal
+}: CatalogoHeaderBarProps) {
+  return (
+    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs">
+      <div className="flex items-start gap-3.5 min-w-0">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
+          <FolderTree className="w-5 h-5" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-lg font-bold text-slate-900">
+            Catálogo de Cuentas SAT (Anexo 24) y Libro Mayor
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Árbol jerárquico plegable: haz clic en <strong>▼/▶</strong> para contraer nodos o en cualquier cuenta para abrir su <strong>Libro Mayor</strong>
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 shrink-0 no-print">
+        <input
+          ref={csvImportRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onImportCsv}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => csvImportRef.current?.click()}
+          title="Importar catálogo de cuentas desde archivo CSV o layout CONTPAQi"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+        >
+          <Upload className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+          Importar CSV / CONTPAQi
+        </button>
+
+        <button
+          type="button"
+          onClick={onExportCsv}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+          Exportar Excel (.CSV)
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenCreateModal}
+          title="Dar de alta nueva cuenta contable (Alt+N o Insert)"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white shadow-xs transition cursor-pointer shrink-0"
+        >
+          <Plus className="w-4 h-4 text-blue-100" aria-hidden="true" />
+          <span>Nueva Cuenta</span>
+          <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
+            Alt+N
+          </kbd>
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,28 @@
+# Secretos — nunca versionar
+.env
+.env.*
+!.env.example
+
+# Dependencias y builds
+node_modules/
+dist/
+.firebase/
+
+# Datos locales y temporales
+data/*.db
+data/*.sqlite*
+deploy-status.json
+test-db.sqlite*
+scratch/
+*.log
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+supabase/functions/.env
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

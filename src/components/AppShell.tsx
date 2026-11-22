@@ -1,0 +1,349 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCompany } from '../context/CompanyContext';
+import { apiClient } from '../lib/api-client';
+import { MESES_SAT } from '../shared/sat-catalog';
+import { useToast } from '../context/ToastContext';
+import type { Company } from '../shared/types';
+import { getCompanyTheme } from './company-switcher/companyThemes';
+import { useAuth, checkIsSuperAdmin } from '../context/AuthContext';
+import { useUIModal } from '../context/UIModalContext';
+import { AppShellSidebar } from './shell/AppShellSidebar';
+import { AppShellTopHeader } from './shell/AppShellTopHeader';
+import { AppShellFooter } from './shell/AppShellFooter';
+import { AppShellCompanyAlert } from './shell/AppShellCompanyAlert';
+import { APP_SHELL_NAV_ITEMS, SUPERADMIN_NAV_ITEMS } from './shell/appShellNavItems';
+import { useAppShellKeyboard } from './shell/useAppShellKeyboard';
+import { AppShellModals } from './shell/AppShellModals';
+import { useAppShellDocumentTitle } from './shell/useAppShellDocumentTitle';
+import { WhatsAppSupportButton } from './WhatsAppSupportButton';
+import { BroadcastBanner } from './shell/BroadcastBanner';
+import { ExecutiveTopHeader } from './shell/ExecutiveTopHeader';
+import { WorkspaceEmptyView } from './workspace/WorkspaceEmptyView';
+import { SandboxDemoBanner } from './workspace/SandboxDemoBanner';
+import { isSandboxDemoCompany } from '../lib/sandbox-demo-constants';
+import { GuestDemoBanner } from './shell/GuestDemoBanner';
+import { AppErrorBoundary } from './AppErrorBoundary';
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const {
+    workspace,
+    renameWorkspace,
+    companies,
+    activeCompany,
+    activeCompanyId,
+    setActiveCompanyId,
+    updatePeriod,
+    isLoading: companiesLoading
+  } = useCompany();
+  const activeYear = activeCompany?.currentYear;
+  const activePeriod = activeCompany?.currentPeriod;
+  const currentPath = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+
+  const wizardDialogRef = useRef<HTMLDialogElement>(null), switcherDialogRef = useRef<HTMLDialogElement>(null);
+  const cmdDialogRef = useRef<HTMLDialogElement>(null), cmdInputRef = useRef<HTMLInputElement>(null);
+  const shortcutsDialogRef = useRef<HTMLDialogElement>(null), authDialogRef = useRef<HTMLDialogElement>(null);
+
+  const { user, loading: authLoading, signOut } = useAuth();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const [hasOpenedCmd, setHasOpenedCmd] = useState(false);
+  const [hasOpenedWizard, setHasOpenedWizard] = useState(false);
+  const [hasOpenedSwitcher, setHasOpenedSwitcher] = useState(false);
+  const [hasOpenedShortcuts, setHasOpenedShortcuts] = useState(false);
+  const [hasOpenedAuth, setHasOpenedAuth] = useState(false);
+
+  const [lastSwitchedCompany, setLastSwitchedCompany] = useState<Company | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return (
+        (localStorage.getItem('librepaq_sidebar_collapsed') ??
+          localStorage.getItem('libre_contpaq_sidebar_collapsed')) === 'true'
+      );
+    } catch {
+      return false;
+    }
+  });
+  const [cmdQuery, setCmdQuery] = useState('');
+  const { globalLedgerAccountId, openLedger, closeLedger } = useUIModal();
+
+  const currentTheme = useMemo(
+    () => (activeCompany ? getCompanyTheme(activeCompany.rfc) : getCompanyTheme('')),
+    [activeCompany]
+  );
+
+  const openModalWithRef = (
+    ref: React.RefObject<HTMLDialogElement | null>,
+    hasOpened: boolean,
+    setHasOpened: (v: boolean) => void,
+    onOpened?: () => void
+  ) => {
+    if (!hasOpened) {
+      setHasOpened(true);
+      setTimeout(() => { ref.current?.showModal(); onOpened?.(); }, 20);
+    } else {
+      ref.current?.showModal();
+      onOpened?.();
+    }
+  };
+
+  const openCompanySwitcherModal = () => openModalWithRef(switcherDialogRef, hasOpenedSwitcher, setHasOpenedSwitcher);
+  const openShortcutsModal = () => openModalWithRef(shortcutsDialogRef, hasOpenedShortcuts, setHasOpenedShortcuts);
+  const openNewCompanyModal = () => openModalWithRef(wizardDialogRef, hasOpenedWizard, setHasOpenedWizard);
+  const openAuthModal = () => openModalWithRef(authDialogRef, hasOpenedAuth, setHasOpenedAuth);
+  const openCommandPaletteModal = () => {
+    setCmdQuery('');
+    openModalWithRef(cmdDialogRef, hasOpenedCmd, setHasOpenedCmd, () => cmdInputRef.current?.focus());
+  };
+
+  const { isModalOpen } = useUIModal();
+  useEffect(() => {
+    if (isModalOpen('COMPANY_WIZARD')) openNewCompanyModal();
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    try { localStorage.setItem('librepaq_sidebar_collapsed', String(sidebarCollapsed)); } catch {}
+  }, [sidebarCollapsed]);
+
+  const isPublicPage =
+    currentPath === '/landing' ||
+    currentPath === '/privacy' ||
+    currentPath === '/terms' ||
+    (!user && currentPath === '/');
+
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts', activeCompanyId, activeYear, activePeriod],
+    queryFn: () => apiClient.getAccounts(activeCompanyId, activeYear, activePeriod),
+    enabled: Boolean(activeCompanyId && !isPublicPage)
+  });
+
+  const { data: polizas = [] } = useQuery({
+    queryKey: ['polizas', activeCompanyId, activeYear, activePeriod],
+    queryFn: () => apiClient.getPolizas(activeCompanyId, activeYear, activePeriod),
+    enabled: Boolean(activeCompanyId && !isPublicPage && hasOpenedCmd)
+  });
+
+  const { data: periodLock } = useQuery({
+    queryKey: ['period-lock', activeCompanyId, activeYear, activePeriod],
+    queryFn: () => apiClient.getPeriodLock(activeCompanyId, activeYear ?? 2026, activePeriod ?? 10),
+    enabled: Boolean(activeCompanyId && activeYear && activePeriod && !isPublicPage)
+  });
+
+  const togglePeriodLockMutation = useMutation({
+    mutationFn: (nextLocked: boolean) =>
+      apiClient.setPeriodLock({
+        companyId: activeCompanyId,
+        ejercicio: activeYear ?? 2026,
+        periodo: activePeriod ?? 10,
+        isLocked: nextLocked
+      }),
+    onSuccess: (_, nextLocked) => {
+      queryClient.invalidateQueries({
+        queryKey: ['period-lock', activeCompanyId, activeYear, activePeriod]
+      });
+      const label = `P${String(activePeriod ?? 1).padStart(2, '0')}`;
+      if (nextLocked) {
+        toast.warning(`Periodo ${label} bloqueado contra cambios fiscales`);
+      } else {
+        toast.success(`Periodo ${label} reabierto para captura contable`);
+      }
+    }
+  });
+
+
+  const isOwner = checkIsSuperAdmin(user);
+  const navItems = isOwner ? SUPERADMIN_NAV_ITEMS : APP_SHELL_NAV_ITEMS;
+  const isWorkspaceEmpty = Boolean(user && !isOwner && !companiesLoading && companies.length === 0);
+
+  useEffect(() => {
+    if (!authLoading && user && isOwner && currentPath === '/') {
+      void navigate({ to: '/admin' });
+    }
+  }, [authLoading, user, isOwner, currentPath, navigate]);
+
+  useAppShellDocumentTitle({
+    currentPath,
+    activeCompany,
+    navItems,
+    isOwner,
+    user,
+    isWorkspaceEmpty,
+    onPathChange: useCallback(() => setMobileMenuOpen(false), [])
+  });
+
+  const stepPeriod = (delta: number) => {
+    if (!activeCompany) return;
+    const nextPeriod = Math.max(1, Math.min(13, activeCompany.currentPeriod + delta));
+    if (nextPeriod !== activeCompany.currentPeriod) {
+      updatePeriod(activeCompany.currentYear, nextPeriod);
+      const nextMes = MESES_SAT.find((m) => m.periodo === nextPeriod)?.nombre || `P${nextPeriod}`;
+      toast.info(`Periodo contable: ${nextMes} ${activeCompany.currentYear}`);
+    }
+  };
+
+  useAppShellKeyboard({
+    shortcutsDialogRef,
+    cmdDialogRef,
+    cmdInputRef,
+    switcherDialogRef,
+    setCmdQuery,
+    setSidebarCollapsed,
+    navItems,
+    navigate: (opts) => navigate({ to: opts.to }),
+    stepPeriod,
+    activeCompany
+  });
+
+  useEffect(() => {
+    if (!authLoading && !user && !isPublicPage) {
+      void navigate({ to: '/' });
+    }
+  }, [authLoading, user, isPublicPage, navigate]);
+
+  if (isPublicPage) {
+    return (
+      <main id="main-content" className="min-h-screen bg-white focus:outline-none relative" tabIndex={-1}>
+        {children}
+        <WhatsAppSupportButton />
+      </main>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row bg-[#F3F5F8] text-slate-900">
+      <a
+        href="#main-content"
+        className="visually-hidden focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2.5 focus:rounded-xl focus:bg-blue-700 focus:text-white focus:text-xs focus:font-bold focus:shadow-lg"
+      >
+        Saltar al contenido contable principal
+      </a>
+
+      <AppShellSidebar
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+        mobileMenuOpen={mobileMenuOpen}
+        setMobileMenuOpen={setMobileMenuOpen}
+        currentPath={currentPath}
+        navItems={navItems}
+        onOpenCommandPalette={openCommandPaletteModal}
+        isWorkspaceEmpty={isWorkspaceEmpty}
+        onEmptyModuleClick={(label) =>
+          toast.info(`Crea tu primera empresa o abre la Empresa Ejemplo para usar "${label}".`)
+        }
+        user={user}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <GuestDemoBanner
+          isGuest={Boolean(user?.user_metadata?.is_guest)}
+          onOpenAuth={openAuthModal}
+          onSignOut={signOut}
+        />
+        {isOwner ? (
+          <ExecutiveTopHeader user={user} onSignOut={signOut} />
+        ) : (
+          <AppShellTopHeader
+            workspaceName={workspace?.name}
+            activeCompany={activeCompany}
+            currentTheme={currentTheme}
+            onOpenCompanySwitcher={openCompanySwitcherModal}
+            onOpenNewCompany={openNewCompanyModal}
+            onOpenAuth={openAuthModal}
+            stepPeriod={stepPeriod}
+            updatePeriod={updatePeriod}
+            isPeriodLocked={Boolean(periodLock?.isLocked)}
+            isTogglingLock={togglePeriodLockMutation.isPending}
+            onTogglePeriodLock={(next) => togglePeriodLockMutation.mutate(next)}
+            user={user}
+            onSignOut={signOut}
+          />
+        )}
+
+        <BroadcastBanner />
+
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 p-3 sm:p-4 lg:p-5 max-w-[1800px] w-full mx-auto focus:outline-none"
+        >
+          {activeCompany && !isOwner && isSandboxDemoCompany(activeCompany) && (
+            <SandboxDemoBanner
+              company={activeCompany}
+              onOpenNewCompanyWizard={openNewCompanyModal}
+              onDemoDeleted={() => setLastSwitchedCompany(null)}
+            />
+          )}
+
+          {lastSwitchedCompany && !isOwner && (
+            <AppShellCompanyAlert
+              company={lastSwitchedCompany}
+              currentTheme={currentTheme}
+              onDismiss={() => setLastSwitchedCompany(null)}
+            />
+          )}
+
+          {isWorkspaceEmpty ? (
+            <WorkspaceEmptyView
+              workspace={workspace}
+              onRenameWorkspace={renameWorkspace}
+              onOpenNewCompanyWizard={openNewCompanyModal}
+              onCompanyRestored={(id, comp) => setActiveCompanyId(id, comp)}
+            />
+          ) : (
+            <AppErrorBoundary>
+              {children}
+            </AppErrorBoundary>
+          )}
+        </main>
+
+        {activeCompany && !isOwner && (
+          <AppShellFooter
+            activeCompany={activeCompany}
+            currentTheme={currentTheme}
+            onOpenShortcuts={openShortcutsModal}
+            accounts={accounts}
+          />
+        )}
+      </div>
+
+      <AppErrorBoundary>
+        <AppShellModals
+          activeCompanyId={activeCompanyId}
+          globalLedgerAccountId={globalLedgerAccountId}
+          setGlobalLedgerAccountId={(id) => (id ? openLedger(id) : closeLedger())}
+          cmdDialogRef={cmdDialogRef}
+          cmdInputRef={cmdInputRef}
+          cmdQuery={cmdQuery}
+          setCmdQuery={setCmdQuery}
+          navItems={navItems}
+          accounts={accounts}
+          companies={companies}
+          activeCompany={activeCompany}
+          polizas={polizas}
+          navigate={(opts) => navigate({ to: opts.to })}
+          setActiveCompanyId={setActiveCompanyId}
+          updatePeriod={updatePeriod}
+          openCompanySwitcherModal={openCompanySwitcherModal}
+          openNewCompanyModal={openNewCompanyModal}
+          wizardDialogRef={wizardDialogRef}
+          switcherDialogRef={switcherDialogRef}
+          shortcutsDialogRef={shortcutsDialogRef}
+          authDialogRef={authDialogRef}
+          setLastSwitchedCompany={setLastSwitchedCompany}
+          toast={toast}
+          hasOpenedCmd={hasOpenedCmd}
+          hasOpenedWizard={hasOpenedWizard}
+          hasOpenedSwitcher={hasOpenedSwitcher}
+          hasOpenedShortcuts={hasOpenedShortcuts}
+          hasOpenedAuth={hasOpenedAuth}
+        />
+      </AppErrorBoundary>
+
+      {!isOwner && <WhatsAppSupportButton />}
+    </div>
+  );
+}

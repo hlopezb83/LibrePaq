@@ -1,0 +1,31 @@
+name: LibrePaq Pro — SAT Background Sync Worker
+
+on:
+  schedule:
+    # Corre cada 15 minutos de forma desatendida en la nube
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    # Permite dispararlo manualmente en cualquier momento desde GitHub
+
+jobs:
+  sat-sync-worker:
+    name: SAT Masivo Background Sync & Unzip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun Runtime
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Run SAT Background Worker
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://utrtmhdoknthuitknfro.supabase.co' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run scripts/sat-cron-worker.ts

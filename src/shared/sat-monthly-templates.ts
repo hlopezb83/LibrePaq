@@ -1,0 +1,308 @@
+export interface MonthlyTemplate {
+  dayOffset: number;
+  emisorRfc: string;
+  emisorNombre: string;
+  receptorRfc?: string;
+  receptorNombre?: string;
+  concepto: string;
+  claveProdServ: string;
+  subtotal: number;
+  iva: number;
+  isrRet: number;
+  ivaRet: number;
+  tipoComprobante: 'I' | 'E' | 'N';
+  metodoPago: 'PUE' | 'PPD';
+  formaPago: string;
+  usoCfdi: string;
+  serie: string;
+}
+
+export const TEMPLATES_RECIBIDOS: MonthlyTemplate[] = [
+  {
+    dayOffset: 2,
+    emisorRfc: 'CFE370814QI0',
+    emisorNombre: 'COMISION FEDERAL DE ELECTRICIDAD',
+    concepto: 'SUMINISTRO DE ENERGÍA ELÉCTRICA MEDIA TENSIÓN',
+    claveProdServ: '83101800',
+    subtotal: 14200,
+    iva: 2272,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'CFE'
+  },
+  {
+    dayOffset: 5,
+    emisorRfc: 'TME840315KT6',
+    emisorNombre: 'TELEFONOS DE MEXICO S.A.B. DE C.V.',
+    concepto: 'SERVICIO DE INTERNET EMPRESARIAL DEDICADO Y TELEFONIA IP',
+    claveProdServ: '81161700',
+    subtotal: 3450,
+    iva: 552,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'TEL'
+  },
+  {
+    dayOffset: 7,
+    emisorRfc: 'SGM950714DC2',
+    emisorNombre: 'SERVICIOS GASOLINEROS DE MEXICO S.A. DE C.V.',
+    concepto: 'CONSUMO DE COMBUSTIBLE DIESEL FLOTILLA TRANSPORTE',
+    claveProdServ: '15101515',
+    subtotal: 18900,
+    iva: 3024,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '04',
+    usoCfdi: 'G03',
+    serie: 'GAS'
+  },
+  {
+    dayOffset: 10,
+    emisorRfc: 'ODM950324V2A',
+    emisorNombre: 'OFFICE DEPOT DE MEXICO S.A. DE C.V.',
+    concepto: 'PAPELERIA CORPORATIVA, TONER Y SUMINISTROS COMPUTACIONALES',
+    claveProdServ: '44103103',
+    subtotal: 4850,
+    iva: 776,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'OFD'
+  },
+  {
+    dayOffset: 12,
+    emisorRfc: 'CPF6307036N0',
+    emisorNombre: 'CAMINOS Y PUENTES FEDERALES DE INGRESOS Y SERVICIOS CONEXOS',
+    concepto: 'PEAJES DE AUTOPISTA RED CUOTA Y CRUCE IAVE CARRETERA',
+    claveProdServ: '95111603',
+    subtotal: 6320,
+    iva: 1011.2,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '04',
+    usoCfdi: 'G03',
+    serie: 'PEA'
+  },
+  {
+    dayOffset: 15,
+    emisorRfc: 'DCA120410AA1',
+    emisorNombre: 'DESPACHO CONTABLE Y AUDITORIA FISCAL S.C.',
+    concepto: 'HONORARIOS PROFESIONALES CONTABLES Y DICTAMEN FISCAL MENSUAL',
+    claveProdServ: '84111500',
+    subtotal: 15000,
+    iva: 2400,
+    isrRet: 1500,
+    ivaRet: 1600,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'HON'
+  },
+  {
+    dayOffset: 18,
+    emisorRfc: 'AII1008129B3',
+    emisorNombre: 'ARRENDADORA DE INMUEBLES INDUSTRIALES S.A. DE C.V.',
+    concepto: 'ARRENDAMIENTO MENSUAL DE BODEGA Y OFICINAS CENTRALES',
+    claveProdServ: '80131502',
+    subtotal: 28000,
+    iva: 4480,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'ARR'
+  },
+  {
+    dayOffset: 22,
+    emisorRfc: 'TDR1506198J2',
+    emisorNombre: 'TALLER DIESEL Y REFACCIONES PESADAS S.A. DE C.V.',
+    concepto: 'MANTENIMIENTO PREVENTIVO Y AFINACION MAYOR DE TRACTOCAMIONES',
+    claveProdServ: '78181500',
+    subtotal: 12600,
+    iva: 2016,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'TAL'
+  },
+  {
+    dayOffset: 25,
+    emisorRfc: 'AWS9901018A1',
+    emisorNombre: 'AMAZON WEB SERVICES CLOUD INFRASTRUCTURE',
+    concepto: 'SERVIDORES Y HOSPEDAJE EN LA NUBE LIBREPAQ ERP',
+    claveProdServ: '81112100',
+    subtotal: 7500,
+    iva: 1200,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '04',
+    usoCfdi: 'G03',
+    serie: 'CLD'
+  },
+  {
+    dayOffset: 27,
+    emisorRfc: 'SMN9305206W7',
+    emisorNombre: 'SEGUROS MONTERREY NEW YORK LIFE S.A. DE C.V.',
+    concepto: 'PRIMA MENSUAL DE POLIZA DE SEGURO DE COBERTURA AMPLIA',
+    claveProdServ: '84131500',
+    subtotal: 8700,
+    iva: 1392,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'SEG'
+  },
+  {
+    dayOffset: 29,
+    emisorRfc: 'DME160914K82',
+    emisorNombre: 'DISTRIBUIDORA MAYORISTA DE EMBALAJE Y TARIMAS S.A.',
+    concepto: 'MATERIALES DE EMBALAJE, TARIMAS Y CONSUMIBLES DE ALMACEN',
+    claveProdServ: '24112403',
+    subtotal: 9400,
+    iva: 1504,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'EMB'
+  }
+];
+
+export const TEMPLATES_EMITIDOS: MonthlyTemplate[] = [
+  {
+    dayOffset: 4,
+    emisorRfc: '',
+    emisorNombre: '',
+    receptorRfc: 'DCB080315AA9',
+    receptorNombre: 'DISTRIBUIDORA COMERCIAL DEL BAJIO S.A. DE C.V.',
+    concepto: 'SERVICIO DE FLETE Y DISTRIBUCION FORANEA DE MERCANCIAS',
+    claveProdServ: '78101800',
+    subtotal: 48000,
+    iva: 7680,
+    isrRet: 0,
+    ivaRet: 1920,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'FAC'
+  },
+  {
+    dayOffset: 9,
+    emisorRfc: '',
+    emisorNombre: '',
+    receptorRfc: 'LCS140722KC5',
+    receptorNombre: 'LOGISTICA Y CADENA DE SUMINISTRO DEL NORTE S.A. DE C.V.',
+    concepto: 'SERVICIOS INTEGRALES DE ALMACENAJE Y MANIOBRAS DE CARGA',
+    claveProdServ: '78141500',
+    subtotal: 35000,
+    iva: 5600,
+    isrRet: 0,
+    ivaRet: 0,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'FAC'
+  },
+  {
+    dayOffset: 14,
+    emisorRfc: '',
+    emisorNombre: '',
+    receptorRfc: 'GMO1102036L4',
+    receptorNombre: 'GRUPO MANUFACTURERO DE OCCIDENTE S.A. DE C.V.',
+    concepto: 'TRANSPORTE DE MATERIA PRIMA INDUSTRIAL RUTA INTERMUNICIPAL',
+    claveProdServ: '78101802',
+    subtotal: 62000,
+    iva: 9920,
+    isrRet: 0,
+    ivaRet: 2480,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'FAC'
+  },
+  {
+    dayOffset: 19,
+    emisorRfc: '',
+    emisorNombre: '',
+    receptorRfc: 'CIA160510T89',
+    receptorNombre: 'COMERCIALIZADORA INTERNACIONAL DE ALIMENTOS S.A. DE C.V.',
+    concepto: 'FLETE REFRIGERADO GRADO ALIMENTICIO CON CADENA DE FRIO',
+    claveProdServ: '78101801',
+    subtotal: 78500,
+    iva: 12560,
+    isrRet: 0,
+    ivaRet: 3140,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'FAC'
+  },
+  {
+    dayOffset: 24,
+    emisorRfc: '',
+    emisorNombre: '',
+    receptorRfc: 'OST1209307K1',
+    receptorNombre: 'OPERADORA DE SUPERMERCADOS Y TIENDAS DEL CENTRO S.A.',
+    concepto: 'DISTRIBUCION URBANA DE ALTA FRECUENCIA Y CONSOLIDACION',
+    claveProdServ: '78101800',
+    subtotal: 54000,
+    iva: 8640,
+    isrRet: 0,
+    ivaRet: 2160,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'FAC'
+  },
+  {
+    dayOffset: 29,
+    emisorRfc: '',
+    emisorNombre: '',
+    receptorRfc: 'IMT0911043X2',
+    receptorNombre: 'INDUSTRIAS METALICAS Y TRANSFORMADORAS S.A. DE C.V.',
+    concepto: 'TRANSPORTE PESADO DE BOBINAS DE ACERO Y PERFILES METALICOS',
+    claveProdServ: '78101802',
+    subtotal: 92000,
+    iva: 14720,
+    isrRet: 0,
+    ivaRet: 3680,
+    tipoComprobante: 'I',
+    metodoPago: 'PUE',
+    formaPago: '03',
+    usoCfdi: 'G03',
+    serie: 'FAC'
+  }
+];
