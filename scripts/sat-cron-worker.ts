@@ -14,9 +14,26 @@ import { parseCfdiXmlString } from '../src/shared/cfdi-xml';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://utrtmhdoknthuitknfro.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const FIEL_ENCRYPTION_KEY = process.env.FIEL_ENCRYPTION_KEY || '';
 
 if (!SERVICE_KEY) {
   console.error('[SAT Worker] Error de seguridad: SUPABASE_SERVICE_ROLE_KEY no está configurada en las variables de entorno.');
+}
+
+async function decryptPrivateKeyIfNeeded(rawPem: string): Promise<string> {
+  if (!rawPem.startsWith('ENC:v1:')) return rawPem;
+  if (!FIEL_ENCRYPTION_KEY) {
+    throw new Error('FIEL_ENCRYPTION_KEY es requerida para desencriptar llaves privadas ENC:v1:.');
+  }
+  const parts = rawPem.split(':');
+  const ivB64 = parts[2] || '';
+  const ctB64 = parts[3] || '';
+  const keyBytes = new TextEncoder().encode(FIEL_ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32));
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const iv = Uint8Array.from(Buffer.from(ivB64, 'base64'));
+  const ciphertext = Uint8Array.from(Buffer.from(ctB64, 'base64'));
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
+  return new TextDecoder().decode(decrypted);
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY || 'dummy_key');
@@ -131,12 +148,20 @@ export async function runSatCronWorker(): Promise<{
     }
     const companyRfc = rfcCandidate.trim().toUpperCase();
 
+    let decryptedPrivateKeyPem: string;
+    try {
+      decryptedPrivateKeyPem = await decryptPrivateKeyIfNeeded(creds.private_key_pem);
+    } catch (decErr) {
+      console.warn(`[SAT Worker] No se pudo desencriptar private_key_pem para ${companyRfc}:`, decErr);
+      continue;
+    }
+
     // Autenticar ante el SAT para obtener WRAP token
     let token = '';
     try {
       const { soapXml: autXml } = buildSatAutenticaSoapXml({
         certificateBase64: creds.cer_base64,
-        privateKeyPem: creds.private_key_pem
+        privateKeyPem: decryptedPrivateKeyPem
       });
 
       const autRes = await fetch(
@@ -174,7 +199,7 @@ export async function runSatCronWorker(): Promise<{
           rfcSolicitante: companyRfc,
           idSolicitudSat: req.id_solicitud_sat,
           certificateBase64: creds.cer_base64,
-          privateKeyPem: creds.private_key_pem
+          privateKeyPem: decryptedPrivateKeyPem
         });
 
         const verRes = await fetch(
@@ -243,7 +268,7 @@ export async function runSatCronWorker(): Promise<{
               rfcSolicitante: companyRfc,
               idPaqueteSat: idPaquete,
               certificateBase64: creds.cer_base64,
-              privateKeyPem: creds.private_key_pem
+              privateKeyPem: decryptedPrivateKeyPem
             });
 
             const descRes = await fetch(
@@ -329,8 +354,16 @@ export async function runSatCronWorker(): Promise<{
                     subtotal: parsed.subtotal || 0,
                     descuento: parsed.descuento || 0,
                     iva_trasladado: parsed.ivaTrasladado || 0,
+                    ieps_trasladado: 0,
                     isr_retenido: parsed.isrRetenido || 0,
                     iva_retenido: parsed.ivaRetenido || 0,
+                    base_iva_16:
+                      (parsed.ivaTrasladado || 0) > 0
+                        ? Math.max(0, Number(((parsed.subtotal || 0) - (parsed.descuento || 0)).toFixed(2)))
+                        : 0,
+                    base_iva_8: 0,
+                    base_iva_0: 0,
+                    base_iva_exento: 0,
                     total: parsed.total || 0,
                     metodo_pago: parsed.metodoPago || 'PUE',
                     forma_pago: parsed.formaPago || '03',
