@@ -32,6 +32,7 @@ export function BroadcastBanner() {
   });
 
   if (!broadcast || !broadcast.active) return null;
+  if (broadcast.startsAt && new Date(broadcast.startsAt).getTime() > Date.now()) return null;
   if (broadcast.expiresAt && new Date(broadcast.expiresAt).getTime() <= Date.now()) return null;
   if (dismissedId === broadcast.id) return null;
 
@@ -60,16 +61,16 @@ export function BroadcastBanner() {
         ) : (
           <Info className="w-4 h-4 shrink-0 text-white" aria-hidden="true" />
         )}
-        <span className="font-bold shrink-0">{broadcast.title}:</span>
-        <span className="line-clamp-2 sm:truncate" title={broadcast.message}>
+        <p className="min-w-0 line-clamp-2 sm:truncate" title={`${broadcast.title}: ${broadcast.message}`}>
+          <strong className="font-bold mr-1">{broadcast.title}:</strong>
           {broadcast.message}
-        </span>
+        </p>
       </div>
 
       <button
         type="button"
         onClick={handleDismiss}
-        className="p-1 rounded hover:bg-black/15 focus:outline-none focus:ring-2 focus:ring-current transition cursor-pointer shrink-0"
+        className="min-h-7 min-w-7 inline-flex items-center justify-center p-1 rounded hover:bg-black/15 focus:outline-none focus:ring-2 focus:ring-current transition cursor-pointer shrink-0"
         aria-label="Cerrar aviso"
       >
         <X className="w-3.5 h-3.5" aria-hidden="true" />

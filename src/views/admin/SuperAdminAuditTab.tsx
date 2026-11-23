@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react';
-import { ClipboardList, Loader2, RefreshCw, Search, X } from 'lucide-react';
+import { Fragment, useCallback, useState } from 'react';
+import { Check, ChevronDown, ChevronRight, ClipboardList, Copy, RefreshCw } from 'lucide-react';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import type { AdminAuditLogEntry, AdminAuditLogsPageQuery } from '../../shared/admin-types';
+import { AdminErrorBanner } from './AdminErrorBanner';
 import { AdminPaginationBar } from './AdminPaginationBar';
+import { AdminSearchInput } from './AdminSearchInput';
+import { AdminTableEmptyState } from './AdminTableEmptyState';
+import { formatAdminDateTime } from './adminFormatters';
 
 export interface SuperAdminAuditTabProps {
   logs: AdminAuditLogEntry[];
@@ -24,27 +29,35 @@ const ACTION_BADGE_MAP: Array<{ match: string; label: string; className: string 
   { match: 'start_support_impersonation', label: 'Inicio Modo Soporte', className: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
   { match: 'end_support_impersonation', label: 'Fin Modo Soporte', className: 'bg-slate-100 text-slate-900 border-slate-300' },
   { match: 'set_user_role', label: 'Cambió Nivel de Acceso', className: 'bg-purple-100 text-purple-900 border-purple-300' },
-  { match: 'upsert_workspace_quota', label: 'Actualizó Cuota', className: 'bg-teal-100 text-teal-900 border-teal-300' }
+  { match: 'set_user_status', label: 'Cambió Estatus Usuario', className: 'bg-amber-100 text-amber-950 border-amber-300' },
+  { match: 'upsert_workspace_quota', label: 'Actualizó Cuota', className: 'bg-teal-100 text-teal-900 border-teal-300' },
+  { match: 'inspect_tenant', label: 'Inspeccionó Empresa', className: 'bg-sky-100 text-sky-900 border-sky-300' },
+  { match: 'delete_company', label: 'Eliminó Empresa', className: 'bg-red-100 text-red-900 border-red-300' },
+  { match: 'run_health_scan', label: 'Escaneo Salud SAT', className: 'bg-cyan-100 text-cyan-900 border-cyan-300' },
+  { match: 'resolve_platform_alert', label: 'Actualizó Alerta', className: 'bg-emerald-100 text-emerald-900 border-emerald-300' }
 ];
 
 function getActionBadge(action: string): { label: string; className: string } {
   const lower = action.toLowerCase();
   const matched = ACTION_BADGE_MAP.find((item) => lower.includes(item.match));
   if (matched) return { label: matched.label, className: matched.className };
-  if (lower.includes('delete') || lower.includes('clear') || lower.includes('revoke')) return { label: action, className: 'bg-red-100 text-red-900 border-red-300' };
-  if (lower.includes('create') || lower.includes('publish') || lower.includes('activate') || lower.includes('resolve')) return { label: action, className: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
+  if (lower.includes('delete') || lower.includes('clear') || lower.includes('revoke')) {
+    return { label: action, className: 'bg-red-100 text-red-900 border-red-300' };
+  }
+  if (lower.includes('create') || lower.includes('publish') || lower.includes('activate') || lower.includes('resolve')) {
+    return { label: action, className: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
+  }
   return { label: action, className: 'bg-slate-100 text-slate-800 border-slate-300' };
-}
-
-function formatDateEsMx(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' });
 }
 
 function formatMetadataValue(value: unknown): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
-  try { return JSON.stringify(value); } catch { return '[Objeto]'; }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[Objeto]';
+  }
 }
 
 const TARGET_TYPE_LABELS: Record<string, string> = {
@@ -84,16 +97,15 @@ function formatMetadataSummary(metadata: Record<string, unknown>): string {
 export function SuperAdminAuditTab({
   logs, total, page, pageSize, totalPages, query, onQueryChange, isLoading, isFetching = false, isError = false, onRetry
 }: SuperAdminAuditTabProps) {
-  const [searchInput, setSearchInput] = useState(query.search || '');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { copiedKey: copiedTargetId, copy: copyTargetId } = useCopyToClipboard<string>(1800);
 
-  useEffect(() => { setSearchInput(query.search || ''); }, [query.search]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if ((query.search || '') !== searchInput) onQueryChange({ ...query, page: 1, search: searchInput });
-    }, 220);
-    return () => clearTimeout(t);
-  }, [searchInput, query, onQueryChange]);
+  const handleSearchChange = useCallback(
+    (search: string) => {
+      onQueryChange({ ...query, page: 1, search });
+    },
+    [query, onQueryChange]
+  );
 
   return (
     <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
@@ -124,32 +136,15 @@ export function SuperAdminAuditTab({
             <option value="platform_alert">Alertas</option>
           </select>
 
-          <search className="relative w-full sm:w-64">
-            <label htmlFor="admin-audit-search" className="visually-hidden">Buscar en bitácora por actor, acción u objetivo</label>
-            {isFetching ? (
-              <Loader2 className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none animate-spin" aria-hidden="true" />
-            ) : (
-              <Search className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
-            )}
-            <input
-              id="admin-audit-search"
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Escape' && searchInput) { e.preventDefault(); setSearchInput(''); onQueryChange({ ...query, page: 1, search: '' }); } }}
-              autoCorrect="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              enterKeyHint="search"
-              placeholder="Filtrar por actor, acción u objetivo... (/)"
-              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-            />
-            {searchInput && (
-              <button type="button" onClick={() => { setSearchInput(''); onQueryChange({ ...query, page: 1, search: '' }); }} aria-label="Limpiar búsqueda de bitácora" className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-600 hover:text-slate-900 cursor-pointer">
-                <X className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-            )}
-          </search>
+          <AdminSearchInput
+            id="admin-audit-search"
+            label="Buscar en bitácora por actor, acción u objetivo"
+            value={query.search || ''}
+            onDebouncedChange={handleSearchChange}
+            placeholder="Filtrar por actor, acción u objetivo... (/)"
+            clearAriaLabel="Limpiar búsqueda de bitácora"
+            isFetching={isFetching}
+          />
 
           {onRetry && (
             <button type="button" onClick={onRetry} disabled={isLoading || isFetching} aria-label="Actualizar bitácora de auditoría" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer">
@@ -160,10 +155,7 @@ export function SuperAdminAuditTab({
       </div>
 
       {isError && (
-        <div role="alert" className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs flex flex-wrap items-center justify-between gap-3">
-          <span className="font-semibold">No se pudo cargar la bitácora de auditoría desde Supabase.</span>
-          {onRetry && <button type="button" onClick={onRetry} className="px-3 py-1 rounded-lg bg-white border border-red-300 text-red-800 font-bold hover:bg-red-100 cursor-pointer">Reintentar</button>}
-        </div>
+        <AdminErrorBanner message="No se pudo cargar la bitácora de auditoría desde Supabase." onRetry={onRetry} />
       )}
 
       <div tabIndex={0} role="region" aria-label="Tabla de eventos de auditoría administrativa" className="overflow-x-auto max-h-[65vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
@@ -171,6 +163,7 @@ export function SuperAdminAuditTab({
           <caption className="visually-hidden">Bitácora cronológica de acciones administrativas en LibrePaq Pro</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">
             <tr>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50 w-10"><span className="visually-hidden">Detalles</span></th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Fecha / Hora</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Actor</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Acción</th>
@@ -180,47 +173,89 @@ export function SuperAdminAuditTab({
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-800">
             {isLoading && logs.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-slate-600">Cargando eventos de auditoría administrativa...</td></tr>
+              [0, 1, 2, 3].map((idx) => (
+                <tr key={idx} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
+                  <td className="py-3 px-2.5"><div className="h-5 w-5 rounded bg-slate-200 mx-auto" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-28 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-36 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5"><div className="h-5 w-28 rounded-full bg-slate-200" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-48 rounded bg-slate-200" /></td>
+                </tr>
+              ))
             ) : logs.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-slate-600">
-                  <div className="flex flex-col items-center gap-2">
-                    <span>No se encontraron eventos de auditoría con estos filtros.</span>
-                    {(query.search || query.targetType) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchInput('');
-                          onQueryChange({ ...query, page: 1, search: '', targetType: '' });
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                      >
-                        Restablecer filtros
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
+              <AdminTableEmptyState
+                colSpan={6}
+                message="No se encontraron eventos de auditoría con estos filtros."
+                hasActiveFilters={Boolean(query.search || query.targetType)}
+                onResetFilters={() => onQueryChange({ ...query, page: 1, search: '', targetType: '' })}
+              />
             ) : (
               logs.map((entry) => {
                 const badge = getActionBadge(entry.action);
                 const summary = formatMetadataSummary(entry.metadata);
+                const isExpanded = expandedId === entry.id;
+                const metadataEntries = Object.entries(entry.metadata || {}).filter(([, v]) => v !== undefined && v !== null && v !== '');
                 return (
-                  <tr key={entry.id} className="hover:bg-slate-50/80 transition">
-                    <th scope="row" className="py-2.5 px-3.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap text-left">{formatDateEsMx(entry.createdAt)}</th>
-                    <td className="py-2.5 px-3.5">
-                      <p className="font-semibold text-slate-900">{entry.actorEmail}</p>
-                      {entry.actorUserId && <p className="font-mono text-[10px] text-slate-600">{entry.actorUserId}</p>}
-                    </td>
-                    <td className="py-2.5 px-3.5 whitespace-nowrap">
-                      <span title={entry.action} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.className}`}>{badge.label}</span>
-                    </td>
-                    <td className="py-2.5 px-3.5">
-                      <span className="font-semibold text-slate-800">{TARGET_TYPE_LABELS[entry.targetType] ?? entry.targetType}</span>
-                      {entry.targetId && <p className="font-mono text-[10px] text-slate-600">{entry.targetId}</p>}
-                    </td>
-                    <td className="py-2.5 px-3.5 max-w-md"><p className="text-[11px] text-slate-700 line-clamp-2" title={summary}>{summary}</p></td>
-                  </tr>
+                  <Fragment key={entry.id}>
+                    <tr className="hover:bg-slate-50/80 transition">
+                      <td className="py-2 px-2 text-center">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          aria-label={isExpanded ? `Ocultar detalles de evento ${entry.id}` : `Ver detalles de evento ${entry.id}`}
+                          onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                          className="inline-flex items-center justify-center min-h-7 min-w-7 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
+                        >
+                          {isExpanded ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronRight className="w-4 h-4" aria-hidden="true" />}
+                        </button>
+                      </td>
+                      <th scope="row" className="py-2.5 px-3.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap text-left">{formatAdminDateTime(entry.createdAt, true)}</th>
+                      <td className="py-2.5 px-3.5">
+                        <p className="font-semibold text-slate-900">{entry.actorEmail}</p>
+                        {entry.actorUserId && <p className="font-mono text-[10px] text-slate-600">{entry.actorUserId}</p>}
+                      </td>
+                      <td className="py-2.5 px-3.5 whitespace-nowrap">
+                        <span title={entry.action} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.className}`}>{badge.label}</span>
+                      </td>
+                      <td className="py-2.5 px-3.5">
+                        <span className="font-semibold text-slate-800">{TARGET_TYPE_LABELS[entry.targetType] ?? entry.targetType}</span>
+                        {entry.targetId && <p className="font-mono text-[10px] text-slate-600">{entry.targetId}</p>}
+                      </td>
+                      <td className="py-2.5 px-3.5 max-w-md"><p className="text-[11px] text-slate-700 line-clamp-2" title={summary}>{summary}</p></td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="bg-slate-50/90">
+                        <td colSpan={6} className="px-4 py-3 border-t border-slate-200/80">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Metadatos completos ({entry.action})</span>
+                            {entry.targetId && (
+                              <button
+                                type="button"
+                                onClick={() => void copyTargetId(entry.targetId as string, entry.id)}
+                                className="inline-flex items-center gap-1 min-h-7 min-w-7 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-[11px] font-semibold text-slate-800 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
+                              >
+                                {copiedTargetId === entry.id ? <Check className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />}
+                                {copiedTargetId === entry.id ? 'ID copiado' : `Copiar ID objetivo`}
+                              </button>
+                            )}
+                          </div>
+                          {metadataEntries.length === 0 ? (
+                            <p className="text-[11px] text-slate-600">Sin metadatos adicionales registrados.</p>
+                          ) : (
+                            <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5 text-[11px]">
+                              {metadataEntries.map(([k, v]) => (
+                                <div key={k} className="flex items-baseline gap-1.5 min-w-0">
+                                  <dt className="font-semibold text-slate-600 shrink-0">{METADATA_KEY_LABELS[k] ?? k}:</dt>
+                                  <dd className="font-mono text-slate-900 break-all">{formatMetadataValue(v)}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })
             )}

@@ -56,15 +56,16 @@ export function parseMetadataJson(raw: string): Record<string, unknown> {
 
 export function paginateItems<T>(items: T[], page?: number, pageSize?: number): AdminPaginatedResponse<T> {
   const safePageSize = Math.max(1, Math.min(100, Math.floor(Number(pageSize) || 20)));
-  const safePage = Math.max(1, Math.floor(Number(page) || 1));
   const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+  const safePage = Math.min(Math.max(1, Math.floor(Number(page) || 1)), totalPages);
   const start = (safePage - 1) * safePageSize;
   return {
     items: items.slice(start, start + safePageSize),
     total,
     page: safePage,
     pageSize: safePageSize,
-    totalPages: Math.max(1, Math.ceil(total / safePageSize))
+    totalPages
   };
 }
 
@@ -120,6 +121,7 @@ export function resolveCallerPlatformRoleRepo(userId: string, userEmail: string)
   let profRole: string | null = null;
   let profSuper = false;
   let profEmail: string | null = email || null;
+  let profStatus: string | null = null;
 
   const profileCols = tableColumns('user_profiles');
   if (profileCols.size > 0 && (uid || email)) {
@@ -127,6 +129,7 @@ export function resolveCallerPlatformRoleRepo(userId: string, userEmail: string)
     if (profileCols.has('platform_role')) selectCols.push('platform_role');
     if (profileCols.has('is_superadmin')) selectCols.push('is_superadmin');
     if (profileCols.has('email')) selectCols.push('email');
+    if (profileCols.has('status')) selectCols.push('status');
 
     let profRow: Record<string, unknown> | null = null;
     if (uid) {
@@ -139,17 +142,26 @@ export function resolveCallerPlatformRoleRepo(userId: string, userEmail: string)
       profRole = profRow.platform_role ? String(profRow.platform_role) : null;
       profSuper = Boolean(profRow.is_superadmin);
       if (profRow.email) profEmail = String(profRow.email);
+      if (profRow.status) profStatus = String(profRow.status);
     }
   }
 
   let overrideRole: string | null = null;
+  let overrideStatus: string | null = null;
   if (uid || email) {
     const ovRow = (uid
-      ? db.query('SELECT platform_role FROM admin_user_overrides WHERE user_id = ?').get(uid)
-      : db.query('SELECT platform_role FROM admin_user_overrides WHERE lower(user_id) = ?').get(email)) as {
+      ? db.query('SELECT platform_role, status FROM admin_user_overrides WHERE user_id = ?').get(uid)
+      : db.query('SELECT platform_role, status FROM admin_user_overrides WHERE lower(user_id) = ?').get(email)) as {
       platform_role: string | null;
+      status: string | null;
     } | null;
     overrideRole = ovRow?.platform_role ?? null;
+    overrideStatus = ovRow?.status ?? null;
+  }
+
+  const effectiveStatus = String(overrideStatus || profStatus || '').toUpperCase();
+  if (effectiveStatus === 'SUSPENDIDO' && !isSuperAdminEmail(profEmail)) {
+    return 'NONE';
   }
 
   return normalizePlatformRole(profRole ?? overrideRole, profSuper, profEmail);
@@ -221,7 +233,7 @@ export function collectHealthCandidates(nowMs: number): AlertCandidate[] {
         code: days <= 0 ? 'FIEL_EXPIRED' : 'FIEL_EXPIRY_SOON',
         severity: days <= 0 ? 'critical' : 'warning',
         category: 'fiel_expiry',
-        title: days <= 0 ? 'FIEL vencida' : 'FIEL próxima a vencer',
+        title: days < 0 ? 'e.firma vencida' : 'e.firma próxima a vencer',
         message:
           days <= 0
             ? `La e.firma de ${r.company_name} (${r.company_rfc}) venció hace ${Math.abs(days)} días.`

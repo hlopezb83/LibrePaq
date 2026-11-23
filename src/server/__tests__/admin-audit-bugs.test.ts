@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { db, initDatabase } from '../db';
 import { adminRoutes } from '../routes/admin.routes';
 import { getAdminCompaniesRepo, getAdminSatHealthRepo } from '../repositories/admin.repo';
-import { setAdminUserStatusRepo, recordAdminAuditLogRepo } from '../repositories/admin-ops.repo';
+import { deleteAdminCompanyRepo, setAdminUserStatusRepo, recordAdminAuditLogRepo } from '../repositories/admin-ops.repo';
+import { resolveCallerPlatformRoleRepo } from '../repositories/admin-enterprise.helpers';
 import { isReadOnlyBlockedMethod } from '../../lib/support-impersonation';
 import { adminApi } from '../../lib/api/admin.api';
 import type {
@@ -262,5 +263,87 @@ describe('Admin Audit Bugs Regression Suite', () => {
 
     const health = getAdminSatHealthRepo();
     expect(health.completedRequests7d + health.pendingRequests7d + health.failedRequests7d).toBe(health.totalRequests7d);
+  });
+
+  test('10. BILLING_OPS suspendido es bloqueado por resolveCallerPlatformRoleRepo y middleware Hono', async () => {
+    expect((await reqJson(`/admin/users/${BILLING_ID}/status`, jsonReq(SUPER_HEADERS, 'PATCH', { status: 'SUSPENDIDO' }))).status).toBe(200);
+    expect(resolveCallerPlatformRoleRepo(BILLING_ID, '')).toBe('NONE');
+    expect((await reqJson('/admin/metrics', { headers: { 'X-User-Id': BILLING_ID } })).status).toBe(403);
+
+    expect((await reqJson(`/admin/users/${BILLING_ID}/status`, jsonReq(SUPER_HEADERS, 'PATCH', { status: 'ACTIVO' }))).status).toBe(200);
+    expect(resolveCallerPlatformRoleRepo(BILLING_ID, '')).toBe('BILLING_OPS');
+    expect((await reqJson('/admin/metrics', { headers: { 'X-User-Id': BILLING_ID } })).status).toBe(200);
+  });
+
+  test('11. Paginación fuera de rango (page=99) se ajusta a totalPages (page=1)', async () => {
+    const compRes = await reqJson<AdminPaginatedResponse<AdminCompanySummary>>(
+      `/admin/companies/paginated?search=${encodeURIComponent(`BugSort Low ${SUFFIX}`)}&page=99&pageSize=20`,
+      { headers: SUPER_HEADERS }
+    );
+    expect(compRes.status).toBe(200);
+    expect(compRes.body.totalPages).toBe(1);
+    expect(compRes.body.page).toBe(1);
+    expect(compRes.body.items.length).toBe(1);
+
+    const logRes = await reqJson<AdminPaginatedResponse<AdminAuditLogEntry>>(
+      `/admin/audit-logs/paginated?action=${encodeURIComponent(`WILDCARD_${SUFFIX}`)}&page=99&pageSize=20`,
+      { headers: SUPER_HEADERS }
+    );
+    expect(logRes.status).toBe(200);
+    expect(logRes.body.totalPages).toBe(1);
+    expect(logRes.body.page).toBe(1);
+    expect(logRes.body.items.length).toBe(1);
+  });
+
+  test('12. PATCH /admin/users/:id/status retorna 404 para usuario inexistente', async () => {
+    const res = await reqJson<{ error: string }>(
+      `/admin/users/usr_nonexistent_${SUFFIX}/status`,
+      jsonReq(SUPER_HEADERS, 'PATCH', { status: 'SUSPENDIDO' })
+    );
+    expect(res.status).toBe(404);
+  });
+
+  test('13. deleteAdminCompanyRepo autoresuelve alertas abiertas de la empresa eliminada', () => {
+    const tmpComp = `comp_al_${SUFFIX}`;
+    const tmpAlert = `al_del_${SUFFIX}`;
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO companies (id, name, rfc, regimen_fiscal, codigo_postal, mask_format, current_year, current_period, created_at, user_id)
+      VALUES (?, ?, ?, '601', '64000', 'XXX-XX-XXX', 2026, 11, ?, ?)
+    `).run(tmpComp, `Alert Del ${SUFFIX}`, `ADL${SUFFIX.slice(0, 3).toUpperCase()}0101DD4`, now, REGULAR_ID);
+    db.prepare(`
+      INSERT INTO platform_alerts (id, code, severity, category, title, message, target_type, target_id, status, metadata_json, detected_at)
+      VALUES (?, 'FIEL_EXPIRED', 'critical', 'fiel_expiry', 'e.firma vencida', 'Msg', 'company', ?, 'open', '{}', ?)
+    `).run(tmpAlert, tmpComp, now);
+
+    const del = deleteAdminCompanyRepo(tmpComp, 'hlopezb@gmail.com', 'usr_owner_hlopez');
+    expect(del.deleted).toBe(true);
+    const row = db.query('SELECT status, resolved_by FROM platform_alerts WHERE id = ?').get(tmpAlert) as {
+      status: string; resolved_by: string | null;
+    } | null;
+    expect(row?.status).toBe('resolved');
+    expect(row?.resolved_by).toBe('system_company_deleted');
+    db.prepare('DELETE FROM platform_alerts WHERE id = ?').run(tmpAlert);
+    db.prepare('DELETE FROM admin_audit_logs WHERE target_id = ?').run(tmpComp);
+  });
+
+  test('14. adminApi.getAdminCompaniesPaginated envía sortBy y sortDir en query string', async () => {
+    const calledUrls: string[] = [];
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      calledUrls.push(url);
+      return adminRoutes.request(url.replace(/^\/api/, ''), {
+        ...init,
+        headers: { ...(init?.headers as Record<string, string>), ...SUPER_HEADERS }
+      });
+    }) as typeof fetch;
+    try {
+      await adminApi.getAdminCompaniesPaginated({ page: 1, pageSize: 10, sortBy: 'polizasCount', sortDir: 'asc' });
+      expect(calledUrls[0]).toContain('sortBy=polizasCount');
+      expect(calledUrls[0]).toContain('sortDir=asc');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 });

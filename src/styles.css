@@ -273,5 +273,20 @@ table td {
   }
 }
 
+/* Respetar preferencia del sistema operativo para reducir movimiento (WCAG 2.1 AA / UX #14) */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Importar estilos profesionales de impresión / PDF aislados */
 @import "./styles/print.css";

@@ -5,38 +5,12 @@
  * y envía webhook best-effort cuando existen alertas críticas abiertas.
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-
-const ALLOWED_ORIGINS = new Set([
-  'https://librepaq.com',
-  'https://www.librepaq.com',
-  'https://librepaq-44516.web.app',
-  'https://librepaq-44516.firebaseapp.com',
-  'http://localhost:3000',
-  'http://localhost:5173'
-]);
-
-function corsHeaders(origin: string | null): Record<string, string> {
-  return {
-    'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.has(origin) ? origin : 'https://librepaq.com',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    Vary: 'Origin'
-  };
-}
-
-function jsonResponse(body: unknown, status: number, headers: Record<string, string>): Response {
-  return new Response(JSON.stringify(body), { status, headers });
-}
-
-type PlatformRole = 'SUPERADMIN' | 'SUPPORT_READONLY' | 'BILLING_OPS' | 'NONE';
-
-function resolvePlatformRole(rawRole?: unknown, isSuperAdminFlag?: unknown, email?: string): PlatformRole {
-  if ((email || '').trim().toLowerCase() === 'hlopezb@gmail.com') return 'SUPERADMIN';
-  const upper = String(rawRole || '').trim().toUpperCase() as PlatformRole;
-  if (upper === 'SUPERADMIN' || upper === 'SUPPORT_READONLY' || upper === 'BILLING_OPS') return upper;
-  if (Boolean(isSuperAdminFlag)) return 'SUPERADMIN';
-  return 'NONE';
-}
+import {
+  type PlatformRole,
+  authenticateAdminRequest,
+  corsHeaders,
+  jsonResponse
+} from '../_shared/admin-edge-auth.ts';
 
 interface HealthScanResult {
   scannedAtIso?: string;
@@ -45,15 +19,13 @@ interface HealthScanResult {
 }
 
 Deno.serve(async (req: Request) => {
-  const origin = req.headers.get('Origin');
-  const headers = { ...corsHeaders(origin), 'Content-Type': 'application/json' };
+  const headers = {
+    ...corsHeaders(req.headers.get('Origin'), 'x-cron-secret'),
+    'Content-Type': 'application/json'
+  };
 
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers });
-  }
-  if (req.method !== 'POST') {
-    return jsonResponse({ ok: false, error: 'Método no permitido' }, 405, headers);
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers });
+  if (req.method !== 'POST') return jsonResponse({ ok: false, error: 'Método no permitido' }, 405, headers);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -67,45 +39,38 @@ Deno.serve(async (req: Request) => {
     const cronSecretEnv = (Deno.env.get('CRON_SECRET') || '').trim();
     const cronHeader = (req.headers.get('x-cron-secret') || '').trim();
     const isValidCron = Boolean(cronSecretEnv && cronHeader && cronHeader === cronSecretEnv);
+    let actorUser: { id: string; email: string; role: PlatformRole } | null = null;
 
     if (!isValidCron) {
-      const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
-      if (!token) {
-        return jsonResponse({ ok: false, error: 'Autorización requerida (Bearer JWT o x-cron-secret)' }, 401, headers);
-      }
-
-      const { data: authData, error: authErr } = await supabase.auth.getUser(token);
-      if (authErr || !authData?.user) {
-        return jsonResponse({ ok: false, error: 'Token de sesión inválido o expirado' }, 401, headers);
-      }
-
-      const user = authData.user;
-      const actorEmail = (user.email || '').toLowerCase();
-      let role: PlatformRole = actorEmail === 'hlopezb@gmail.com' ? 'SUPERADMIN' : 'NONE';
-
-      if (role !== 'SUPERADMIN') {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('platform_role, is_superadmin')
-          .eq('id', user.id)
-          .maybeSingle();
-        role = resolvePlatformRole(profile?.platform_role, profile?.is_superadmin, actorEmail);
-      }
-
-      if (role === 'NONE') {
-        return jsonResponse({ ok: false, error: 'Acceso denegado: requiere rol administrativo de plataforma' }, 403, headers);
-      }
+      const auth = await authenticateAdminRequest(req, supabase, 'Autorización requerida (Bearer JWT o x-cron-secret)');
+      if (!auth.ok) return jsonResponse({ ok: false, error: auth.error }, auth.status, headers);
+      actorUser = { id: auth.user.id, email: auth.user.email, role: auth.role };
     }
 
     const { data: scanData, error: scanErr } = await supabase.rpc('admin_run_health_scan');
-    if (scanErr) {
-      return jsonResponse({ ok: false, error: scanErr.message }, 500, headers);
-    }
+    if (scanErr) return jsonResponse({ ok: false, error: scanErr.message }, 500, headers);
 
     const result = (scanData ?? {}) as HealthScanResult;
     const scannedAtIso = String(result.scannedAtIso || new Date().toISOString());
     const alertsCreated = Number(result.alertsCreated ?? 0);
     const openAlertsCount = Number(result.openAlertsCount ?? 0);
+
+    if (actorUser) {
+      try {
+        await supabase.from('admin_audit_logs').insert({
+          id: `audit_${crypto.randomUUID().slice(0, 12)}`,
+          actor_user_id: actorUser.id,
+          actor_email: actorUser.email,
+          action: 'RUN_HEALTH_SCAN',
+          target_type: 'platform',
+          target_id: null,
+          metadata: { actorRole: actorUser.role, scannedAtIso, alertsCreated, openAlertsCount },
+          created_at: new Date().toISOString()
+        });
+      } catch {
+        // Auditoría best-effort: no bloquea la respuesta del monitor
+      }
+    }
 
     const webhookUrl = (Deno.env.get('ADMIN_ALERT_WEBHOOK_URL') || '').trim();
     if (webhookUrl && openAlertsCount > 0) {
@@ -142,16 +107,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return jsonResponse(
-      {
-        ok: true,
-        scannedAtIso,
-        alertsCreated,
-        openAlertsCount
-      },
-      200,
-      headers
-    );
+    return jsonResponse({ ok: true, scannedAtIso, alertsCreated, openAlertsCount }, 200, headers);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error interno en admin-health-monitor';
     return jsonResponse({ ok: false, error: message }, 500, headers);

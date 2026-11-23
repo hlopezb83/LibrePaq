@@ -16,6 +16,7 @@ export interface SuperAdminAlertsPanelProps {
   onScan: () => void;
   onUpdateStatus: (alertId: string, status: PlatformAlertStatus) => void;
   onInspectCompanyRfc?: (rfc: string) => void;
+  onInspectWorkspace?: (workspaceId: string) => void;
 }
 
 const FILTER_PILLS: ReadonlyArray<{ value: 'ALL' | PlatformAlertStatus; label: string }> = [
@@ -70,7 +71,8 @@ export function SuperAdminAlertsPanel({
   isMutatingId,
   onScan,
   onUpdateStatus,
-  onInspectCompanyRfc
+  onInspectCompanyRfc,
+  onInspectWorkspace
 }: SuperAdminAlertsPanelProps) {
   const visibleAlerts = statusFilter === 'ALL' ? alerts : alerts.filter((a) => a.status === statusFilter);
 
@@ -124,9 +126,18 @@ export function SuperAdminAlertsPanel({
       </div>
 
       {isLoading ? (
-        <p role="status" className="text-xs text-slate-600 py-4">
-          Cargando alertas operativas de la plataforma...
-        </p>
+        <ul role="status" aria-label="Cargando alertas operativas de la plataforma..." className="space-y-2.5">
+          {[0, 1, 2].map((idx) => (
+            <li key={idx} aria-hidden="true" className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-pulse motion-reduce:animate-none">
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center gap-2"><div className="h-4 w-16 rounded-full bg-slate-200" /><div className="h-4 w-28 rounded bg-slate-200" /></div>
+                <div className="h-3.5 w-2/3 rounded bg-slate-200" />
+                <div className="h-3 w-1/2 rounded bg-slate-200" />
+              </div>
+              <div className="flex items-center gap-1.5"><div className="h-7 w-20 rounded-lg bg-slate-200" /><div className="h-7 w-20 rounded-lg bg-slate-200" /></div>
+            </li>
+          ))}
+        </ul>
       ) : visibleAlerts.length === 0 ? (
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <p>No hay alertas registradas para el filtro seleccionado.</p>
@@ -160,6 +171,10 @@ export function SuperAdminAlertsPanel({
             const companyRfc =
               alert.targetType === 'company' && typeof alert.metadata?.rfc === 'string'
                 ? alert.metadata.rfc.trim()
+                : '';
+            const workspaceId =
+              alert.targetType === 'workspace'
+                ? alert.targetId?.trim() || (typeof alert.metadata?.workspaceId === 'string' ? alert.metadata.workspaceId.trim() : '')
                 : '';
 
             return (
@@ -198,6 +213,16 @@ export function SuperAdminAlertsPanel({
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
                       Ver empresa
+                    </button>
+                  )}
+                  {onInspectWorkspace && workspaceId && (
+                    <button
+                      type="button"
+                      onClick={() => onInspectWorkspace(workspaceId)}
+                      aria-label={`Ver despacho ${workspaceId} en usuarios`}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                    >
+                      Ver despacho
                     </button>
                   )}
 

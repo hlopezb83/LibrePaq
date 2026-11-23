@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   ChevronRight,
@@ -47,6 +48,21 @@ export function AppShellSidebar({
   });
   const activeAdminTab = typeof routerSearch.tab === 'string' ? routerSearch.tab : undefined;
   const isOwner = (hasAdminAccess || checkIsSuperAdmin(user ?? null)) && !supportSession;
+  const cmdPalettePlaceholder = isOwner ? 'Ir a sección o comando...' : 'Buscar cuenta o módulo...';
+  const cmdPaletteAriaLabel = isOwner
+    ? 'Ir a sección o comando (Ctrl+K)'
+    : 'Buscar cuenta o módulo (Ctrl+K)';
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen, setMobileMenuOpen]);
 
   return (
     <aside
@@ -111,8 +127,8 @@ export function AppShellSidebar({
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            aria-label="Buscar cuenta o módulo (Ctrl+K)"
-            title="Buscar cuenta o módulo (Ctrl+K)"
+            aria-label={cmdPaletteAriaLabel}
+            title={cmdPaletteAriaLabel}
             className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-blue-400 hover:text-white cursor-pointer"
           >
             <Search className="w-4 h-4" aria-hidden="true" />
@@ -144,11 +160,12 @@ export function AppShellSidebar({
             <button
               type="button"
               onClick={onOpenCommandPalette}
+              aria-label={cmdPaletteAriaLabel}
               className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#111C35] hover:bg-slate-800/90 border border-[#1E293B] text-xs text-slate-300 transition cursor-pointer"
             >
               <span className="flex items-center gap-2">
                 <Search className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
-                <span>Buscar cuenta o módulo...</span>
+                <span>{cmdPalettePlaceholder}</span>
               </span>
               <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-[#0A1120] text-slate-400 rounded border border-slate-700">
                 Ctrl K
@@ -158,8 +175,8 @@ export function AppShellSidebar({
             <button
               type="button"
               onClick={onOpenCommandPalette}
-              title="Buscar cuenta o módulo (Ctrl+K)"
-              aria-label="Buscar cuenta o módulo (Ctrl+K)"
+              title={cmdPaletteAriaLabel}
+              aria-label={cmdPaletteAriaLabel}
               className="w-full flex items-center justify-center p-2 rounded-xl bg-[#111C35] hover:bg-slate-800 border border-[#1E293B] text-blue-400 hover:text-white transition cursor-pointer"
             >
               <Search className="w-4 h-4" aria-hidden="true" />

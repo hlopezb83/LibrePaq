@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import type { AdminPlatformMetrics, AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
+import { isDemoCompanyRecord, isSatErrorCode } from '../../shared/admin-constants';
 import { adminApi } from '../api/admin.api';
 import { hasPlatformAdminAccess, isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
 
@@ -7,10 +8,6 @@ type Row = Record<string, unknown>;
 
 const inferName = (name: string): string | undefined =>
   /^Despacho Contable\s*-\s*(.+)$/i.exec(name.trim())?.[1]?.trim() || undefined;
-
-const isRealCompany = (c: Row): boolean =>
-  String(c.rfc || '').toUpperCase() !== 'CEJ2106158A0' &&
-  !String(c.name || '').toUpperCase().startsWith('[DEMO]');
 
 async function countTableExactForCompany(table: 'polizas' | 'cfdi_documents', companyId: string): Promise<number> {
   if (!supabase) return 0;
@@ -44,9 +41,7 @@ function mapUserProfileRow(p: Row, compList: Row[]): AdminUserSummary {
   const uid = String(p.id);
   const email = String(p.email || '').toLowerCase();
   const platformRole = normalizePlatformRole(
-    p.platform_role ? String(p.platform_role) : null,
-    Boolean(p.is_superadmin),
-    email
+    p.platform_role ? String(p.platform_role) : null, Boolean(p.is_superadmin), email
   );
   const isSuper = platformRole === 'SUPERADMIN';
   const meta = (p.raw_user_meta_data as Row | undefined) || {};
@@ -57,19 +52,13 @@ function mapUserProfileRow(p: Row, compList: Row[]): AdminUserSummary {
     rawSrc === 'google_ads' || gclid ? 'google_ads' : rawSrc === 'utm' ? 'utm' : rawSrc ? 'organic_or_direct' : undefined;
 
   return {
-    id: uid,
-    email: String(p.email || ''),
-    fullName: displayName,
+    id: uid, email: String(p.email || ''), fullName: displayName,
     workspaceId: isSuper ? undefined : String(p.workspace_id || meta.workspace_id || `ws_${uid.slice(0, 8)}`),
     workspaceName: isSuper ? undefined : String(p.workspace_name || meta.workspace_name || `Workspace — ${displayName}`),
-    provider: (p.provider as 'google' | 'email') || 'email',
-    acquisitionSource,
-    gclid,
+    provider: (p.provider as 'google' | 'email') || 'email', acquisitionSource, gclid,
     utmCampaign: p.utm_campaign ? String(p.utm_campaign) : meta.utm_campaign ? String(meta.utm_campaign) : undefined,
     utmTerm: p.utm_term ? String(p.utm_term) : meta.utm_term ? String(meta.utm_term) : undefined,
-    isSuperAdmin: isSuper,
-    platformRole,
-    createdAt: String(p.created_at || new Date().toISOString()),
+    isSuperAdmin: isSuper, platformRole, createdAt: String(p.created_at || new Date().toISOString()),
     lastSignInAt: p.last_sign_in_at ? String(p.last_sign_in_at) : undefined,
     companiesCount: compList.filter((c) => String(c.user_id || '') === uid).length,
     status: (p.status as 'ACTIVO' | 'SUSPENDIDO') || 'ACTIVO'
@@ -95,13 +84,11 @@ export const supabaseAdminApi = {
     const callerProfile = currentUser?.id ? profilesById.get(currentUser.id) : undefined;
     const callerRole = normalizePlatformRole(
       callerProfile?.platform_role ? String(callerProfile.platform_role) : null,
-      Boolean(callerProfile?.is_superadmin),
-      currentUser?.email
+      Boolean(callerProfile?.is_superadmin), currentUser?.email
     );
     const hasAdminAccess = hasPlatformAdminAccess(callerRole);
 
-    let polMap = new Map<string, number>();
-    let cfdiMap = new Map<string, number>();
+    let polMap = new Map<string, number>(), cfdiMap = new Map<string, number>();
     const fielMap = new Map<string, string | null>();
     if (hasAdminAccess && compRes.data.length > 0) {
       const companyIds = (compRes.data as Row[]).map((c) => String(c.id));
@@ -117,17 +104,12 @@ export const supabaseAdminApi = {
     }
 
     return compRes.data.map((c: Row) => {
-      const id = String(c.id);
-      const rawUserId = c.user_id ? String(c.user_id) : undefined;
-      const name = String(c.name || '');
-      const isDemo = !rawUserId || rawUserId === 'demo' || !isRealCompany(c);
+      const id = String(c.id), rawUserId = c.user_id ? String(c.user_id) : undefined, name = String(c.name || '');
+      const isDemo = isDemoCompanyRecord({ rfc: c.rfc, name, user_id: rawUserId });
       const base: AdminCompanySummary = {
-        id, name, rfc: String(c.rfc),
-        regimenFiscal: String(c.regimen_fiscal || '601 - General de Ley Personas Morales'),
-        codigoPostal: String(c.codigo_postal || '64000'),
-        currentYear: Number(c.current_year || 2026),
-        currentPeriod: Number(c.current_period || 10),
-        ownerType: isDemo ? 'demo' : 'user',
+        id, name, rfc: String(c.rfc), regimenFiscal: String(c.regimen_fiscal || '601 - General de Ley Personas Morales'),
+        codigoPostal: String(c.codigo_postal || '64000'), currentYear: Number(c.current_year || 2026),
+        currentPeriod: Number(c.current_period || 10), ownerType: isDemo ? 'demo' : 'user',
         createdAt: String(c.created_at || new Date().toISOString()),
         ...(hasAdminAccess ? { polizasCount: polMap.get(id) ?? 0, cfdisCount: cfdiMap.get(id) ?? 0, hasFiel: fielMap.has(id), fielValidTo: fielMap.get(id) ?? null } : {})
       };
@@ -136,21 +118,17 @@ export const supabaseAdminApi = {
       const profile = rawUserId ? profilesById.get(rawUserId) : undefined;
       if (profile) {
         const email = String(profile.email || '');
-        const isSuper = normalizePlatformRole(
-          profile.platform_role ? String(profile.platform_role) : null,
-          Boolean(profile.is_superadmin),
-          email
-        ) === 'SUPERADMIN';
+        const isSuper = normalizePlatformRole(profile.platform_role ? String(profile.platform_role) : null, Boolean(profile.is_superadmin), email) === 'SUPERADMIN';
         return {
           ...base, userId: rawUserId, userEmail: email || undefined,
           userFullName: String(profile.full_name || email.split('@')[0] || 'Usuario Registrado'),
           userProvider: (profile.provider as 'google' | 'email') || 'email',
+          userWorkspaceId: profile.workspace_id ? String(profile.workspace_id) : null,
           userIsSuperAdmin: isSuper, ownerType: isSuper ? 'superadmin' : 'user'
         };
       }
       if (currentUser && currentUser.id === rawUserId) {
-        const email = currentUser.email || 'hlopezb@gmail.com';
-        const isSuper = isSuperAdminEmail(email);
+        const email = currentUser.email || 'hlopezb@gmail.com', isSuper = isSuperAdminEmail(email);
         return {
           ...base, userId: rawUserId, userEmail: email,
           userFullName: String(currentUser.user_metadata?.full_name || 'Hector Lopez'),
@@ -172,8 +150,7 @@ export const supabaseAdminApi = {
     if (!profErr && profiles && profiles.length > 0) return (profiles as Row[]).map((p) => mapUserProfileRow(p, compList));
 
     const { data: authData } = await supabase.auth.getUser();
-    const u = authData?.user;
-    const ownerId = u?.id || 'usr_owner_hlopez';
+    const u = authData?.user, ownerId = u?.id || 'usr_owner_hlopez';
     const fallbackUsers: AdminUserSummary[] = [{
       id: ownerId, email: u?.email || 'hlopezb@gmail.com', fullName: u?.user_metadata?.full_name || 'Hector Lopez',
       provider: (u?.app_metadata?.provider as 'google' | 'email') || 'email', isSuperAdmin: true,
@@ -213,15 +190,14 @@ export const supabaseAdminApi = {
       };
     }
 
-    const since7d = Date.now() - 7 * 86400000;
-    const since30d = Date.now() - 30 * 86400000;
+    const since7d = Date.now() - 7 * 86400000, since30d = Date.now() - 30 * 86400000;
     const [usrRes, compRes, satRes] = await Promise.all([
       supabase.from('user_profiles').select('id, created_at'),
       supabase.from('companies').select('id, name, rfc, user_id'),
       supabase.from('sat_download_requests').select('estado_solicitud, codigo_estado_sat').gte('created_at', new Date(since7d).toISOString())
     ]);
     const usrRows = (usrRes.data || []) as Row[];
-    const realCompanies = ((compRes.data || []) as Row[]).filter(isRealCompany);
+    const realCompanies = ((compRes.data || []) as Row[]).filter((c) => !isDemoCompanyRecord({ rfc: c.rfc, name: c.name }));
     const realIds = realCompanies.map((c) => String(c.id));
 
     let totalPolizas = 0, totalCfdis = 0, activeCompaniesCount = 0, companiesWithFielCount = 0;
@@ -231,8 +207,7 @@ export const supabaseAdminApi = {
         supabase.from('fiel_credentials').select('company_id').in('company_id', realIds)
       ]);
       for (const cid of realIds) {
-        const p = polMap.get(cid) ?? 0;
-        const c = cfdiMap.get(cid) ?? 0;
+        const p = polMap.get(cid) ?? 0, c = cfdiMap.get(cid) ?? 0;
         totalPolizas += p;
         totalCfdis += c;
         if (p > 0 || c > 0) activeCompaniesCount += 1;
@@ -240,11 +215,7 @@ export const supabaseAdminApi = {
       companiesWithFielCount = new Set((fielRes.data || []).map((f) => String(f.company_id))).size;
     }
 
-    const satErrors7d = (satRes.data || []).filter((r) => {
-      const st = String(r.estado_solicitud || '').toUpperCase();
-      const code = String(r.codigo_estado_sat || '');
-      return st === 'ERROR' || st === 'RECHAZADA' || st === 'VENCIDA' || (code !== '' && code !== '5000');
-    }).length;
+    const satErrors7d = (satRes.data || []).filter((r) => isSatErrorCode(r.estado_solicitud, r.codigo_estado_sat)).length;
     const distinctUsers = new Set(realCompanies.map((c) => String(c.user_id || '')).filter((id) => id && id !== 'demo'));
 
     return {
@@ -272,8 +243,6 @@ export const supabaseAdminApi = {
       };
       await supabase.auth.updateUser({ data: { ...attrs, workspace_created_at: new Date().toISOString() } });
       await supabase.from('user_profiles').update(attrs).eq('id', payload.userId);
-    } catch {
-      // best-effort update
-    }
+    } catch { /* best-effort update */ }
   }
 };

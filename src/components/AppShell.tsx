@@ -230,29 +230,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onOpenAuth={openAuthModal}
           onSignOut={signOut}
         />
-        {isOwner ? (
-          <ExecutiveTopHeader user={user} onSignOut={signOut} />
-        ) : (
-          <AppShellTopHeader
-            workspaceName={workspace?.name}
-            activeCompany={activeCompany}
-            currentTheme={currentTheme}
-            onOpenCompanySwitcher={openCompanySwitcherModal}
-            onOpenNewCompany={openNewCompanyModal}
-            onOpenAuth={openAuthModal}
-            stepPeriod={stepPeriod}
-            updatePeriod={updatePeriod}
-            isPeriodLocked={Boolean(periodLock?.isLocked)}
-            isTogglingLock={togglePeriodLockMutation.isPending}
-            onTogglePeriodLock={(next) => togglePeriodLockMutation.mutate(next)}
-            user={user}
-            onSignOut={signOut}
-          />
-        )}
-
-        {isReadOnlySupportMode && supportSession && (
-          <SupportModeBanner session={supportSession} onExit={() => void handleExitSupportMode()} isExiting={isExitingSupport} />
-        )}
+        <div className="sticky top-0 z-30 no-print">
+          {isReadOnlySupportMode && supportSession && (
+            <SupportModeBanner session={supportSession} onExit={() => void handleExitSupportMode()} isExiting={isExitingSupport} />
+          )}
+          {isOwner ? (
+            <ExecutiveTopHeader user={user} onSignOut={signOut} />
+          ) : (
+            <AppShellTopHeader
+              workspaceName={workspace?.name}
+              activeCompany={activeCompany}
+              currentTheme={currentTheme}
+              onOpenCompanySwitcher={openCompanySwitcherModal}
+              onOpenNewCompany={openNewCompanyModal}
+              onOpenAuth={openAuthModal}
+              stepPeriod={stepPeriod}
+              updatePeriod={updatePeriod}
+              isPeriodLocked={Boolean(periodLock?.isLocked)}
+              isTogglingLock={togglePeriodLockMutation.isPending}
+              onTogglePeriodLock={(next) => togglePeriodLockMutation.mutate(next)}
+              user={user}
+              onSignOut={signOut}
+            />
+          )}
+        </div>
         <BroadcastBanner />
 
         <main

@@ -1,18 +1,11 @@
 import type { ComponentType } from 'react';
 import {
-  Users,
-  Building2,
-  ReceiptText,
-  FileCode2,
-  ShieldCheck,
-  ExternalLink,
-  Activity,
-  FileKey2,
-  AlertTriangle,
-  UserPlus,
-  ArrowRight
+  Users, Building2, ReceiptText, FileCode2, ShieldCheck, ExternalLink,
+  Activity, FileKey2, AlertTriangle, UserPlus, ArrowRight
 } from 'lucide-react';
 import type { AdminPlatformMetrics } from '../../shared/admin-types';
+import { AdminErrorBanner } from './AdminErrorBanner';
+import { formatAdminTime } from './adminFormatters';
 
 type AdminNavTab = 'metrics' | 'users' | 'companies' | 'ads' | 'sat' | 'broadcast' | 'audit';
 
@@ -38,28 +31,17 @@ interface KpiCardItem {
   actionHint?: string;
 }
 
-function formatSyncTime(iso?: string): string {
-  if (!iso) return 'Sin sincronización reciente';
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return 'Sin sincronización reciente';
-  return `Actualizado: ${parsed.toLocaleTimeString('es-MX', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })}`;
-}
-
 function getSystemStatus(isError: boolean, isLoading: boolean, metrics?: AdminPlatformMetrics) {
   if (isError || metrics?.supabaseConnected === false) {
     return { label: 'Sin conexión', badgeClass: 'bg-red-500/20 text-red-200 border-red-400/50', dotClass: 'bg-red-400' };
   }
   if (isLoading && !metrics) {
-    return { label: 'Verificando...', badgeClass: 'bg-slate-500/25 text-slate-200 border-slate-400/40', dotClass: 'bg-slate-300 animate-pulse' };
+    return { label: 'Verificando...', badgeClass: 'bg-slate-500/25 text-slate-200 border-slate-400/40', dotClass: 'bg-slate-300 animate-pulse motion-reduce:animate-none' };
   }
   if ((metrics?.satErrors7d ?? 0) > 0) {
-    return { label: 'Atención SAT', badgeClass: 'bg-amber-500/25 text-amber-200 border-amber-400/50', dotClass: 'bg-amber-400 animate-pulse' };
+    return { label: 'Atención SAT', badgeClass: 'bg-amber-500/25 text-amber-200 border-amber-400/50', dotClass: 'bg-amber-400 animate-pulse motion-reduce:animate-none' };
   }
-  return { label: 'Sistemas Normales', badgeClass: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40', dotClass: 'bg-emerald-400 animate-pulse' };
+  return { label: 'Sistemas Normales', badgeClass: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40', dotClass: 'bg-emerald-400 animate-pulse motion-reduce:animate-none' };
 }
 
 export function SuperAdminMetricsCards({
@@ -84,6 +66,7 @@ export function SuperAdminMetricsCards({
     denomCompanies > 0 && metrics?.activeCompaniesCount != null
       ? Math.min(100, Math.round((metrics.activeCompaniesCount / denomCompanies) * 100))
       : null;
+  const syncTime = formatAdminTime(metrics?.lastSyncIso);
 
   const row1Cards: KpiCardItem[] = [
     {
@@ -216,7 +199,7 @@ export function SuperAdminMetricsCards({
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
-              librepaq.com · Supabase PostgreSQL · Google Firebase Hosting · {formatSyncTime(metrics?.lastSyncIso)}
+              librepaq.com · Supabase PostgreSQL · Google Firebase Hosting · {syncTime ? `Actualizado: ${syncTime}` : 'Sin sincronización reciente'}
             </p>
           </div>
         </div>
@@ -236,14 +219,10 @@ export function SuperAdminMetricsCards({
       </div>
 
       {isError && (
-        <div role="alert" className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs flex flex-wrap items-center justify-between gap-3">
-          <span className="font-semibold">No se pudieron actualizar algunas métricas de la plataforma en Supabase.</span>
-          {onRefresh && (
-            <button type="button" onClick={onRefresh} className="px-3 py-1 rounded-lg bg-white border border-red-300 text-red-800 font-bold hover:bg-red-100 cursor-pointer">
-              Reintentar
-            </button>
-          )}
-        </div>
+        <AdminErrorBanner
+          message="No se pudieron actualizar algunas métricas de la plataforma en Supabase."
+          onRetry={onRefresh}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{row1Cards.map(renderCard)}</div>

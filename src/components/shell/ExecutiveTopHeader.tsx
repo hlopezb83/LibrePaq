@@ -65,7 +65,7 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
       <div className="flex items-center gap-2.5 shrink-0">
         <div className="hidden lg:flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-            Nube Producción
+            Entorno Producción
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
             <CheckCircle2 className="w-3 h-3 text-blue-600" aria-hidden="true" />
@@ -82,7 +82,10 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
         <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+          <div
+            aria-hidden="true"
+            className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-2xs"
+          >
             {(user?.user_metadata?.full_name || user?.email || 'AD').slice(0, 2).toUpperCase()}
           </div>
           <div className="hidden sm:block text-left">

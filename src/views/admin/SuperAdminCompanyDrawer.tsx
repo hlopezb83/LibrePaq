@@ -1,19 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import {
-  AlertTriangle, Building2, Calendar, Check, CheckCircle2, Copy, Eye, FileCode2,
-  KeyRound, Landmark, Layers, Loader2, Lock, LockOpen, ReceiptText, ShieldCheck, Trash2, X
+  Building2, Calendar, Check, Copy, FileCode2, KeyRound, Landmark, Layers, Loader2, Lock, LockOpen, ReceiptText, X
 } from 'lucide-react';
 import { apiClient } from '../../lib/api-client';
-import { startSupportSession } from '../../lib/support-impersonation';
 import { canManageBillingAndQuotas } from '../../shared/superadmin';
 import type { PlatformRole } from '../../shared/admin-types';
-import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { SuperAdminQuotaCard } from './SuperAdminQuotaCard';
+import { AdminCompanySupportBar } from './AdminCompanySupportBar';
+import { AdminCompanyDeleteZone } from './AdminCompanyDeleteZone';
+import { formatAdminDate } from './adminFormatters';
 
 interface SuperAdminCompanyDrawerProps {
   companyId: string | null;
@@ -22,14 +21,6 @@ interface SuperAdminCompanyDrawerProps {
   onClose: () => void;
   onDeleteCompany?: (companyId: string) => Promise<void> | void;
   isDeletingCompany?: boolean;
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return 'Sin registro';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export function SuperAdminCompanyDrawer({
@@ -41,21 +32,11 @@ export function SuperAdminCompanyDrawer({
   isDeletingCompany = false
 }: SuperAdminCompanyDrawerProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const toast = useToast();
   const { copiedKey, copy, reset: resetCopy } = useCopyToClipboard<'rfc' | 'fiel'>();
-  const [confirmRfc, setConfirmRfc] = useState('');
-  const [showDeleteZone, setShowDeleteZone] = useState(false);
-  const [supportLogged, setSupportLogged] = useState(false);
-  const [enteringSupport, setEnteringSupport] = useState(false);
 
   useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(companyId) });
 
   useEffect(() => {
-    setConfirmRfc('');
-    setShowDeleteZone(false);
-    setSupportLogged(false);
     resetCopy();
   }, [companyId, resetCopy]);
 
@@ -72,60 +53,8 @@ export function SuperAdminCompanyDrawer({
     enabled: Boolean(companyId)
   });
 
-  const inspectMutation = useMutation({
-    mutationFn: async () => {
-      if (!companyId || !detail) return;
-      await apiClient.recordAdminAuditLog({
-        action: 'INSPECT_TENANT',
-        targetType: 'company',
-        targetId: companyId,
-        metadata: { rfc: detail.company.rfc, name: detail.company.name }
-      });
-    },
-    onSuccess: () => {
-      setSupportLogged(true);
-      void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] });
-      toast.success('Inspección registrada en auditoría', 'El evento Modo Soporte quedó asentado en la bitácora.');
-    },
-    onError: (err: unknown) => toast.error('Error al registrar inspección', err instanceof Error ? err.message : 'Error inesperado.')
-  });
-
-  const handleOpenSupportView = async () => {
-    if (!companyId || !detail || enteringSupport) return;
-    setEnteringSupport(true);
-    try {
-      await apiClient.recordAdminAuditLog({
-        action: 'START_SUPPORT_IMPERSONATION',
-        targetType: 'company',
-        targetId: companyId,
-        metadata: { rfc: detail.company.rfc, name: detail.company.name, ownerEmail: detail.company.userEmail ?? null }
-      });
-    } catch { /* best-effort audit */ }
-    startSupportSession({
-      companyId,
-      companyName: detail.company.name,
-      companyRfc: detail.company.rfc,
-      ownerEmail: detail.company.userEmail
-    });
-    void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] });
-    setEnteringSupport(false);
-    onClose();
-    void navigate({ to: '/' });
-  };
-
-  const handleDelete = async () => {
-    if (!companyId || !detail || !onDeleteCompany || confirmRfc.trim().toUpperCase() !== detail.company.rfc.toUpperCase()) return;
-    try {
-      await onDeleteCompany(companyId);
-      onClose();
-    } catch {
-      /* toast handled in mutation onError */
-    }
-  };
-
   if (typeof document === 'undefined') return null;
 
-  const isRfcMatch = Boolean(detail && confirmRfc.trim().toUpperCase() === detail.company.rfc.toUpperCase());
   const resolvedWsId =
     detail?.company.userWorkspaceId ||
     workspaceIdHint ||
@@ -166,13 +95,9 @@ export function SuperAdminCompanyDrawer({
                       onClick={() => void copy(detail.company.rfc, 'rfc')}
                       aria-label="Copiar RFC"
                       title={copiedKey === 'rfc' ? 'RFC copiado' : 'Copiar RFC'}
-                      className="p-0.5 rounded text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                      className="min-h-7 min-w-7 inline-flex items-center justify-center p-0.5 rounded text-blue-700 hover:bg-blue-100 transition cursor-pointer"
                     >
-                      {copiedKey === 'rfc' ? (
-                        <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" />
-                      ) : (
-                        <Copy className="w-3 h-3" aria-hidden="true" />
-                      )}
+                      {copiedKey === 'rfc' ? <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                     </button>
                   </span>
                 )}
@@ -230,20 +155,16 @@ export function SuperAdminCompanyDrawer({
                           onClick={() => void copy(detail.fielNumeroSerie!, 'fiel')}
                           aria-label="Copiar número de serie e.firma"
                           title={copiedKey === 'fiel' ? 'Número de serie copiado' : 'Copiar número de serie e.firma'}
-                          className="p-0.5 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer shrink-0"
+                          className="min-h-7 min-w-7 inline-flex items-center justify-center p-0.5 rounded text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer shrink-0"
                         >
-                          {copiedKey === 'fiel' ? (
-                            <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" />
-                          ) : (
-                            <Copy className="w-3 h-3" aria-hidden="true" />
-                          )}
+                          {copiedKey === 'fiel' ? <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                         </button>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Vigencia:</span>
-                    <span className="font-semibold text-slate-900">{formatDate(detail.fielValidTo)}</span>
+                    <span className="font-semibold text-slate-900">{formatAdminDate(detail.fielValidTo)}</span>
                   </div>
                 </div>
 
@@ -256,8 +177,8 @@ export function SuperAdminCompanyDrawer({
                       P{String(detail.company.currentPeriod).padStart(2, '0')}/{detail.company.currentYear} {detail.isCurrentPeriodLocked ? 'Cerrado' : 'Abierto'}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between"><span className="text-slate-600">Última póliza:</span><span className="font-semibold text-slate-900">{formatDate(detail.lastPolizaAt)}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-slate-600">Último CFDI:</span><span className="font-semibold text-slate-900">{formatDate(detail.lastCfdiDate)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-slate-600">Última póliza:</span><span className="font-semibold text-slate-900">{formatAdminDate(detail.lastPolizaAt)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-slate-600">Último CFDI:</span><span className="font-semibold text-slate-900">{formatAdminDate(detail.lastCfdiDate)}</span></div>
                 </div>
               </div>
 
@@ -265,49 +186,24 @@ export function SuperAdminCompanyDrawer({
                 <SuperAdminQuotaCard workspaceId={resolvedWsId} userId={detail.company.userId} canEdit={canManageBillingAndQuotas(platformRole)} />
               )}
 
-              <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="text-xs">
-                  <p className="font-bold text-blue-950 flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-blue-700" aria-hidden="true" /> Modo Soporte en Vivo y Trazabilidad</p>
-                  <p className="text-blue-900/80 mt-0.5">Abre las vistas del cliente bloqueando escrituras y registrando el acceso en auditoría.</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button type="button" disabled={inspectMutation.isPending} aria-busy={inspectMutation.isPending} onClick={() => inspectMutation.mutate()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-300 bg-white hover:bg-blue-100 text-blue-900 text-xs font-bold transition cursor-pointer disabled:opacity-60">
-                    {inspectMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : supportLogged ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" /> : <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />}
-                    <span>{supportLogged ? 'Registrada' : 'Solo Registrar'}</span>
-                  </button>
-                  <button type="button" disabled={enteringSupport} aria-busy={enteringSupport} onClick={() => void handleOpenSupportView()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-xs font-bold transition cursor-pointer">
-                    {enteringSupport ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
-                    <span>Abrir en Modo Soporte</span>
-                  </button>
-                </div>
-              </div>
+              {companyId && (
+                <AdminCompanySupportBar
+                  companyId={companyId}
+                  companyName={detail.company.name}
+                  companyRfc={detail.company.rfc}
+                  ownerEmail={detail.company.userEmail}
+                  onCloseDrawer={onClose}
+                />
+              )}
 
-              {onDeleteCompany && (
-                <section className="p-4 rounded-xl border border-red-200 bg-red-50/60 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                    <div>
-                      <h3 className="font-bold text-red-900 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-red-700" aria-hidden="true" /> Zona Peligrosa — Baja Definitiva de Empresa</h3>
-                      <p className="text-red-800 mt-0.5">Elimina permanentemente la empresa, pólizas, cuentas, CFDIs y conciliaciones.</p>
-                    </div>
-                    {!showDeleteZone && (
-                      <button type="button" onClick={() => setShowDeleteZone(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-red-300 text-red-800 hover:bg-red-100 text-xs font-bold transition cursor-pointer shrink-0">
-                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" /> Depurar / Eliminar Empresa
-                      </button>
-                    )}
-                  </div>
-                  {showDeleteZone && (
-                    <div onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShowDeleteZone(false); setConfirmRfc(''); } }} className="p-3 rounded-lg bg-white border border-red-200 space-y-2.5 text-xs">
-                      <label htmlFor="confirm-delete-rfc" className="block font-semibold text-slate-800">Escribe el RFC exacto <span className="font-mono font-bold text-red-700">{detail.company.rfc}</span> para confirmar:</label>
-                      <input id="confirm-delete-rfc" type="text" value={confirmRfc} onChange={(e) => setConfirmRfc(e.target.value)} placeholder={detail.company.rfc} autoComplete="off" className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500" />
-                      <div className="flex items-center justify-end gap-2">
-                        <button type="button" autoFocus onClick={() => { setShowDeleteZone(false); setConfirmRfc(''); }} className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer">Cancelar</button>
-                        <button type="button" disabled={!isRfcMatch || isDeletingCompany} aria-busy={isDeletingCompany} title={!isRfcMatch ? 'Escribe el RFC exacto para habilitar la baja' : undefined} onClick={() => void handleDelete()} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold cursor-pointer">
-                          {isDeletingCompany && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Confirmar Eliminación
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </section>
+              {companyId && onDeleteCompany && (
+                <AdminCompanyDeleteZone
+                  companyId={companyId}
+                  companyRfc={detail.company.rfc}
+                  isDeleting={isDeletingCompany}
+                  onDeleteCompany={onDeleteCompany}
+                  onDeleted={onClose}
+                />
               )}
             </>
           )}

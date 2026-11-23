@@ -6,9 +6,18 @@ import { SuperAdminAdsAttributionTable } from './SuperAdminAdsAttributionTable';
 export interface SuperAdminAdsTabProps {
   users?: AdminUserSummary[];
   companies?: AdminCompanySummary[];
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
-export function SuperAdminAdsTab({ users = [], companies = [] }: SuperAdminAdsTabProps) {
+export function SuperAdminAdsTab({
+  users = [],
+  companies = [],
+  isLoading = false,
+  isError = false,
+  onRetry
+}: SuperAdminAdsTabProps) {
   const measurementId =
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID) ||
     'G-QQFGNPNYNZ';
@@ -141,7 +150,13 @@ export function SuperAdminAdsTab({ users = [], companies = [] }: SuperAdminAdsTa
         </div>
       </div>
 
-      <SuperAdminAdsAttributionTable users={users} companies={companies} />
+      <SuperAdminAdsAttributionTable
+        users={users}
+        companies={companies}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={onRetry}
+      />
     </div>
   );
 }

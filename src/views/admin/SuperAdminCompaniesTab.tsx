@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowDownWideNarrow, ArrowUpNarrowWide, Building2, Calendar, Check, Copy, Download, Eye, KeyRound, Loader2, Search, X
-} from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Calendar, Check, Copy, Eye, KeyRound, X } from 'lucide-react';
 import type {
   AdminCompaniesPageQuery,
   AdminCompanySummary,
@@ -13,6 +11,9 @@ import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { CompanyUserOwnerCell } from './CompanyUserOwnerCell';
 import { SuperAdminCompanyDrawer } from './SuperAdminCompanyDrawer';
 import { AdminPaginationBar } from './AdminPaginationBar';
+import { AdminCompaniesFilterBar } from './AdminCompaniesFilterBar';
+import { AdminTableEmptyState } from './AdminTableEmptyState';
+import { formatAdminDate } from './adminFormatters';
 import { exportCompaniesCsv } from './adminCsvExport';
 import { enrichAndSortCompanies, type CompanySort } from './adminCompaniesHelpers';
 
@@ -49,26 +50,22 @@ export function SuperAdminCompaniesTab({
 }: SuperAdminCompaniesTabProps) {
   const toast = useToast();
   const { copiedKey: copiedRfc, copy: copyRfc } = useCopyToClipboard<string>(1800);
-  const [searchInput, setSearchInput] = useState(query.search || '');
   const sortBy: CompanySort = query.sortBy ?? 'createdAt';
   const sortDir: 'desc' | 'asc' = query.sortDir ?? 'desc';
   const [inspectingCompanyId, setInspectingCompanyId] = useState<string | null>(null);
+  const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    setSearchInput(query.search || '');
-  }, [query.search]);
+  const openDrawer = (companyId: string, trigger: HTMLButtonElement | null) => {
+    lastTriggerRef.current = trigger;
+    setInspectingCompanyId(companyId);
+  };
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if ((query.search || '') !== searchInput) {
-        onQueryChange({ ...query, page: 1, search: searchInput });
-      }
-    }, 220);
-    return () => clearTimeout(t);
-  }, [searchInput, query, onQueryChange]);
+  const closeDrawer = () => {
+    setInspectingCompanyId(null);
+    requestAnimationFrame(() => lastTriggerRef.current?.focus());
+  };
 
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
-
   const sortedCompanies = useMemo(
     () => enrichAndSortCompanies(companies, usersById, sortBy, sortDir),
     [companies, usersById, sortBy, sortDir]
@@ -76,197 +73,115 @@ export function SuperAdminCompaniesTab({
 
   const ownerFilter = query.ownerType || 'ALL';
   const fielFilter = query.fielFilter || 'ALL';
-  const hasActiveFilters = Boolean(searchInput || ownerFilter !== 'ALL' || fielFilter !== 'ALL');
+  const hasActiveFilters = Boolean(query.search || ownerFilter !== 'ALL' || fielFilter !== 'ALL');
+  const ownerLabel = ownerFilter === 'user' ? 'De Usuarios' : ownerFilter === 'superadmin' ? 'SuperAdmin' : 'Demo';
+  const fielLabel = fielFilter === 'WITH_FIEL' ? 'Con e.firma' : 'Sin e.firma';
   const inspectingUserId = inspectingCompanyId ? companies.find((c) => c.id === inspectingCompanyId)?.userId : undefined;
   const workspaceHint = inspectingUserId ? usersById.get(inspectingUserId)?.workspaceId : undefined;
+  const activitySortAria = sortBy === 'polizasCount' || sortBy === 'cfdisCount' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+  const createdSortAria = sortBy === 'createdAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
 
   return (
     <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-emerald-600" aria-hidden="true" />
-              Directorio Global de Empresas Fiscales y Usuarios Asignados
-            </h2>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Consulta en tiempo real, cuotas de despacho y diagnóstico en Modo Soporte
-            </p>
-          </div>
+      <AdminCompaniesFilterBar
+        total={total}
+        query={query}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        isFetching={isFetching}
+        canExport={sortedCompanies.length > 0}
+        exportCount={sortedCompanies.length}
+        onQueryChange={onQueryChange}
+        onExportCsv={() => {
+          exportCompaniesCsv(sortedCompanies);
+          toast.success('CSV exportado', `Se exportaron ${sortedCompanies.length} empresas de la página actual.`);
+        }}
+      />
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-600 whitespace-nowrap">
-              {total.toLocaleString('es-MX')} empresas encontradas
-            </span>
-
-            <div className="inline-flex items-center gap-1">
-              <label htmlFor="admin-companies-sort" className="visually-hidden">Ordenar empresas</label>
-              <select
-                id="admin-companies-sort"
-                value={sortBy}
-                onChange={(e) => onQueryChange({ ...query, page: 1, sortBy: e.target.value as CompanySort, sortDir })}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 cursor-pointer"
-              >
-                <option value="createdAt">Fecha creación</option>
-                <option value="polizasCount">Pólizas</option>
-                <option value="cfdisCount">CFDIs</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => onQueryChange({ ...query, page: 1, sortBy, sortDir: sortDir === 'desc' ? 'asc' : 'desc' })}
-                aria-label={`Cambiar orden a ${sortDir === 'desc' ? 'ascendente' : 'descendente'}`}
-                title={sortDir === 'desc' ? 'Orden descendente (clic para cambiar a ascendente)' : 'Orden ascendente (clic para cambiar a descendente)'}
-                className="p-1.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                {sortDir === 'desc' ? (
-                  <ArrowDownWideNarrow className="w-3.5 h-3.5" aria-hidden="true" />
-                ) : (
-                  <ArrowUpNarrowWide className="w-3.5 h-3.5" aria-hidden="true" />
-                )}
-              </button>
-            </div>
-
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]" role="region" aria-label="Filtros activos">
+          <span className="text-slate-600 font-semibold">Filtros:</span>
+          {query.search && (
             <button
               type="button"
-              disabled={sortedCompanies.length === 0}
-              title={sortedCompanies.length === 0 ? 'No hay empresas en la página actual para exportar' : `Exportar ${sortedCompanies.length} empresas de la página actual en CSV`}
-              onClick={() => {
-                exportCompaniesCsv(sortedCompanies);
-                toast.success('CSV exportado', `Se exportaron ${sortedCompanies.length} empresas de la página actual.`);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition cursor-pointer"
+              onClick={() => onQueryChange({ ...query, page: 1, search: '' })}
+              aria-label={`Quitar filtro de búsqueda ${query.search}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-semibold hover:bg-blue-100 transition cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5" aria-hidden="true" /> Exportar CSV
+              <span>Búsqueda: &ldquo;{query.search}&rdquo;</span>
+              <X className="w-3 h-3" aria-hidden="true" />
             </button>
-
-            <search className="relative w-full sm:w-60">
-              <label htmlFor="admin-companies-search" className="visually-hidden">
-                Buscar por RFC, razón social o correo electrónico
-              </label>
-              {isFetching ? (
-                <Loader2 className="w-4 h-4 text-blue-600 animate-spin absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
-              ) : (
-                <Search className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
-              )}
-              <input
-                id="admin-companies-search"
-                type="search"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape' && searchInput) {
-                    e.preventDefault();
-                    setSearchInput('');
-                    onQueryChange({ ...query, page: 1, search: '' });
-                  }
-                }}
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                enterKeyHint="search"
-                placeholder="Buscar RFC, empresa o correo... (/)"
-                className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchInput('');
-                    onQueryChange({ ...query, page: 1, search: '' });
-                  }}
-                  aria-label="Limpiar búsqueda de empresas"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-600 hover:text-slate-800 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              )}
-            </search>
-          </div>
+          )}
+          {ownerFilter !== 'ALL' && (
+            <button
+              type="button"
+              onClick={() => onQueryChange({ ...query, page: 1, ownerType: 'ALL' })}
+              aria-label={`Quitar filtro de propietario ${ownerLabel}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200 font-semibold hover:bg-slate-200 transition cursor-pointer"
+            >
+              <span>Propietario: {ownerLabel}</span>
+              <X className="w-3 h-3" aria-hidden="true" />
+            </button>
+          )}
+          {fielFilter !== 'ALL' && (
+            <button
+              type="button"
+              onClick={() => onQueryChange({ ...query, page: 1, fielFilter: 'ALL' })}
+              aria-label={`Quitar filtro de e.firma ${fielLabel}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold hover:bg-emerald-100 transition cursor-pointer"
+            >
+              <span>{fielLabel}</span>
+              <X className="w-3 h-3" aria-hidden="true" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onQueryChange({ ...query, page: 1, search: '', ownerType: 'ALL', fielFilter: 'ALL' })}
+            className="text-blue-700 hover:text-blue-900 font-bold px-1.5 py-0.5 rounded hover:bg-blue-50 transition cursor-pointer"
+          >
+            Limpiar todo
+          </button>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="Filtrar empresas por propietario" className="inline-flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold gap-1">
-            {([
-              { id: 'ALL', label: 'Todas' },
-              { id: 'user', label: 'De Usuarios' },
-              { id: 'superadmin', label: 'SuperAdmin' },
-              { id: 'demo', label: 'Demo' }
-            ] as const).map((btn) => (
-              <button
-                key={btn.id}
-                type="button"
-                aria-pressed={ownerFilter === btn.id}
-                onClick={() => onQueryChange({ ...query, page: 1, ownerType: btn.id })}
-                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                  ownerFilter === btn.id ? (btn.id === 'user' ? 'bg-blue-600 text-white shadow-2xs' : 'bg-white text-slate-900 shadow-2xs') : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
-
-          <div role="group" aria-label="Filtrar empresas por vigencia e.firma" className="inline-flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold gap-1">
-            {([
-              { id: 'ALL', label: 'Cualquier FIEL' },
-              { id: 'WITH_FIEL', label: 'Con e.firma' },
-              { id: 'WITHOUT_FIEL', label: 'Sin e.firma' }
-            ] as const).map((btn) => (
-              <button
-                key={btn.id}
-                type="button"
-                aria-pressed={fielFilter === btn.id}
-                onClick={() => onQueryChange({ ...query, page: 1, fielFilter: btn.id })}
-                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                  fielFilter === btn.id ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
 
       <div tabIndex={0} role="region" aria-labelledby="admin-companies-caption" className="@container overflow-auto max-w-full max-h-[68vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
-          <caption id="admin-companies-caption" className="sr-only">Directorio global paginado de empresas fiscales</caption>
+          <caption id="admin-companies-caption" className="visually-hidden">Directorio global paginado de empresas fiscales</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
             <tr>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50 sm:sticky sm:left-0 sm:z-20">RFC / Empresa</th>
+              <th scope="col" className="py-2.5 px-3.5 max-w-[220px] border-b border-slate-200 bg-slate-50 lg:sticky lg:left-0 lg:z-20 lg:border-r lg:border-slate-200">RFC / Empresa</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Usuario Relacionado</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Régimen / C.P.</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Periodo</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Actividad / e.firma</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Creación</th>
+              <th scope="col" aria-sort={activitySortAria} className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Actividad / e.firma</th>
+              <th scope="col" aria-sort={createdSortAria} className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Creación</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="text-slate-700">
             {isLoading ? (
-              <tr><td colSpan={7} className="py-8 text-center text-slate-600">Cargando empresas fiscales...</td></tr>
+              Array.from({ length: 4 }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
+                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-4 w-28 bg-slate-200 rounded mb-1.5" /><div className="h-3 w-40 bg-slate-100 rounded" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-4 w-36 bg-slate-200 rounded mb-1" /><div className="h-3 w-28 bg-slate-100 rounded" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-3.5 w-32 bg-slate-200 rounded mb-1" /><div className="h-3 w-16 bg-slate-100 rounded" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-5 w-20 bg-slate-200 rounded" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-3.5 w-28 bg-slate-200 rounded mb-1" /><div className="h-4 w-20 bg-slate-100 rounded-full" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-3.5 w-20 bg-slate-200 rounded" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-100 text-right"><div className="h-7 w-24 bg-slate-200 rounded-xl ml-auto" /></td>
+                </tr>
+              ))
             ) : sortedCompanies.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-600 space-y-2">
-                  <p>No se encontraron empresas con estos filtros.</p>
-                  {hasActiveFilters && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchInput('');
-                        onQueryChange({ ...query, page: 1, search: '', ownerType: 'ALL', fielFilter: 'ALL' });
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
-                    >
-                      Restablecer filtros
-                    </button>
-                  )}
-                </td>
-              </tr>
+              <AdminTableEmptyState
+                colSpan={7}
+                message="No se encontraron empresas con estos filtros."
+                hasActiveFilters={hasActiveFilters}
+                onResetFilters={() => onQueryChange({ ...query, page: 1, search: '', ownerType: 'ALL', fielFilter: 'ALL' })}
+              />
             ) : (
               sortedCompanies.map((c) => (
-                <tr key={c.id} className="group hover:bg-slate-50/80 transition">
-                  <th scope="row" className="py-3 px-3.5 text-left font-normal border-b border-slate-100 bg-white group-hover:bg-slate-50/80 sm:sticky sm:left-0 z-[1]">
+                <tr key={c.id} className="group hover:bg-slate-50 transition">
+                  <th scope="row" className="py-3 px-3.5 max-w-[220px] text-left font-normal border-b border-slate-100 bg-white group-hover:bg-slate-50 lg:sticky lg:left-0 lg:border-r lg:border-slate-200 z-[1]">
                     <div className="inline-flex items-center gap-1">
                       <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.rfc}</span>
                       <button
@@ -274,12 +189,19 @@ export function SuperAdminCompaniesTab({
                         onClick={() => void copyRfc(c.rfc, c.id)}
                         aria-label={`Copiar RFC ${c.rfc}`}
                         title={copiedRfc === c.id ? 'RFC copiado' : `Copiar RFC ${c.rfc}`}
-                        className="p-1 rounded text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer"
+                        className="min-h-7 min-w-7 inline-flex items-center justify-center rounded text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer"
                       >
                         {copiedRfc === c.id ? <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                       </button>
                     </div>
-                    <p className="font-bold text-slate-900 mt-1">{c.name}</p>
+                    <button
+                      type="button"
+                      onClick={(e) => openDrawer(c.id, e.currentTarget)}
+                      title={c.name}
+                      className="font-bold text-slate-900 hover:text-blue-700 text-left truncate block max-w-full mt-1 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
+                    >
+                      {c.name}
+                    </button>
                   </th>
                   <td className="py-3 px-3.5 border-b border-slate-100 min-w-[220px]"><CompanyUserOwnerCell company={c} /></td>
                   <td className="py-3 px-3.5 max-w-[200px] border-b border-slate-100">
@@ -301,10 +223,10 @@ export function SuperAdminCompaniesTab({
                     </div>
                   </td>
                   <td className="py-3 px-3.5 text-slate-600 text-[11px] border-b border-slate-100 whitespace-nowrap">
-                    {new Date(c.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    {formatAdminDate(c.createdAt)}
                   </td>
                   <td className="py-3 px-3.5 text-right border-b border-slate-100 whitespace-nowrap">
-                    <button type="button" onClick={() => setInspectingCompanyId(c.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition cursor-pointer">
+                    <button type="button" onClick={(e) => openDrawer(c.id, e.currentTarget)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition cursor-pointer">
                       <Eye className="w-3.5 h-3.5" aria-hidden="true" /> Inspeccionar<span className="visually-hidden"> {c.name}</span>
                     </button>
                   </td>
@@ -333,7 +255,7 @@ export function SuperAdminCompaniesTab({
         companyId={inspectingCompanyId}
         platformRole={platformRole}
         workspaceIdHint={workspaceHint}
-        onClose={() => setInspectingCompanyId(null)}
+        onClose={closeDrawer}
         onDeleteCompany={onDeleteCompany}
         isDeletingCompany={isDeletingCompany}
       />

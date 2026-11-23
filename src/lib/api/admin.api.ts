@@ -53,7 +53,9 @@ export const adminApi = {
       pageSize: query?.pageSize,
       search: query?.search,
       ownerType: query?.ownerType,
-      fielFilter: query?.fielFilter
+      fielFilter: query?.fielFilter,
+      sortBy: query?.sortBy,
+      sortDir: query?.sortDir
     });
     const res = await fetchWithTimeout(`/api/admin/companies/paginated${qs}`, { headers: getAuthHeaders() });
     return handleResponse<AdminPaginatedResponse<AdminCompanySummary>>(res);

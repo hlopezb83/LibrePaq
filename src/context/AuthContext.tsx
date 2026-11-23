@@ -253,12 +253,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient, enforceSuspension, clearSuspension]);
 
   const startGuestDemo = useCallback(async () => {
+    authCheckSeqRef.current += 1;
     clearSuspension();
     try {
       const { provisionSandboxDemoCompany } = await import('../lib/sandbox-demo-seeder');
       await provisionSandboxDemoCompany();
     } catch { /* demo company already exists */ }
     localStorage.setItem(GUEST_DEMO_KEY, 'true');
+    setPlatformRole('NONE');
     setUser(GUEST_DEMO_USER);
     setApiAuthUser(GUEST_DEMO_USER);
     void queryClient.invalidateQueries({ queryKey: ['companies'] });
@@ -291,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [clearSuspension]);
 
   const signOut = useCallback(async () => {
+    authCheckSeqRef.current += 1;
     clearSuspension();
     localStorage.removeItem(GUEST_DEMO_KEY);
     endSupportSession();
@@ -306,6 +309,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (supabase) await supabase.auth.signOut();
     } finally {
+      setPlatformRole('NONE');
       setUser(null);
       setSession(null);
       setApiAuthUser(null);

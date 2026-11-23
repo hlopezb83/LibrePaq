@@ -1,26 +1,13 @@
 import { useEffect, type ComponentType } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
-  Activity,
-  AlertTriangle,
-  Building2,
-  ClipboardList,
-  Crown,
-  LayoutDashboard,
-  Loader2,
-  Megaphone,
-  RefreshCw,
-  ShieldAlert,
-  ShieldCheck,
-  Target,
-  Users
+  Activity, AlertTriangle, Building2, ClipboardList, Crown, LayoutDashboard,
+  Loader2, Megaphone, RefreshCw, ShieldAlert, ShieldCheck, Target, Users
 } from 'lucide-react';
 import { handleTablistKeyDown } from '../hooks/useTablistKeyboard';
 import {
-  canDeletePlatformTenants,
-  canManageBillingAndQuotas,
-  canManagePlatformRoles,
-  canPublishPlatformBroadcast
+  canDeletePlatformTenants, canManageBillingAndQuotas,
+  canManagePlatformRoles, canPublishPlatformBroadcast
 } from '../shared/superadmin';
 import type { PlatformRole } from '../shared/admin-types';
 import { SuperAdminMetricsCards } from './admin/SuperAdminMetricsCards';
@@ -99,8 +86,8 @@ export function SuperAdminView() {
     );
   }
 
-  const usersCount = m.metrics?.totalUsers ?? m.users.length;
-  const companiesCount = m.metrics?.totalCompanies ?? m.companies.filter((c) => c.ownerType !== 'demo').length;
+  const usersCount = m.metrics?.totalUsers ?? m.usersPage?.total ?? 0;
+  const companiesCount = m.metrics?.totalCompanies ?? m.companiesPage?.total ?? 0;
   const openAlertsCount = m.openAlertsCount;
   const roleBadge = getRoleBadgeMeta(m.platformRole);
 
@@ -137,7 +124,7 @@ export function SuperAdminView() {
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
-                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span> · Nivel de acceso: <span className="font-semibold text-slate-800">{roleBadge.label}</span>
+                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span>
               </p>
             </div>
           </div>
@@ -165,6 +152,7 @@ export function SuperAdminView() {
                 type="button"
                 role="tab"
                 aria-selected={isSelected}
+                aria-controls={isSelected ? `admin-panel-${tab.id}` : undefined}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => m.setActiveTab(tab.id)}
                 onKeyDown={(e) => handleTablistKeyDown(e, adminTabs, m.activeTab, m.setActiveTab, 'admin-tab-')}
@@ -214,8 +202,8 @@ export function SuperAdminView() {
 
         {m.activeTab === 'users' && (
           <SuperAdminUsersTab
-            users={m.usersPage?.items ?? m.users}
-            total={m.usersPage?.total ?? m.users.length}
+            users={m.usersPage?.items ?? []}
+            total={m.usersPage?.total ?? 0}
             page={m.usersPage?.page ?? m.usersQuery.page ?? 1}
             pageSize={m.usersPage?.pageSize ?? m.usersQuery.pageSize ?? 20}
             totalPages={m.usersPage?.totalPages ?? 1}
@@ -226,14 +214,15 @@ export function SuperAdminView() {
             onViewUserCompanies={(q) => m.setActiveTab('companies', q)}
             onToggleUserStatus={canManageBillingAndQuotas(m.platformRole) ? (userId, status) => m.updateUserStatusMutation.mutate({ userId, status }) : undefined}
             onChangeUserRole={canManagePlatformRoles(m.platformRole) ? (userId, platformRole) => m.updateUserRoleMutation.mutate({ userId, platformRole }) : undefined}
+            canManageQuotas={canManageBillingAndQuotas(m.platformRole)}
             mutatingUserId={mutatingUserId}
           />
         )}
 
         {m.activeTab === 'companies' && (
           <SuperAdminCompaniesTab
-            companies={m.companiesPage?.items ?? m.companies}
-            total={m.companiesPage?.total ?? m.companies.length}
+            companies={m.companiesPage?.items ?? []}
+            total={m.companiesPage?.total ?? 0}
             page={m.companiesPage?.page ?? m.companiesQuery.page ?? 1}
             pageSize={m.companiesPage?.pageSize ?? m.companiesQuery.pageSize ?? 20}
             totalPages={m.companiesPage?.totalPages ?? 1}
@@ -248,7 +237,9 @@ export function SuperAdminView() {
           />
         )}
 
-        {m.activeTab === 'ads' && <SuperAdminAdsTab users={m.users} companies={m.companies} />}
+        {m.activeTab === 'ads' && (
+          <SuperAdminAdsTab users={m.users} companies={m.companies} isLoading={m.loadingAdsData} isError={m.adsDataError} onRetry={() => void m.refetchAll()} />
+        )}
 
         {m.activeTab === 'sat' && (
           <SuperAdminSatHealthTab
@@ -265,12 +256,14 @@ export function SuperAdminView() {
             onScanAlerts={() => m.scanAlertsMutation.mutate()}
             onUpdateAlertStatus={(alertId, status) => m.updateAlertStatusMutation.mutate({ alertId, status })}
             onInspectCompanyRfc={(rfc: string) => m.setActiveTab('companies', rfc)}
+            onInspectWorkspace={(q: string) => {
+              m.setUsersQuery((prev) => ({ ...prev, page: 1, search: q, status: 'ALL', role: 'ALL' }));
+              m.setActiveTab('users');
+            }}
           />
         )}
 
-        {m.activeTab === 'broadcast' && (
-          <SuperAdminBroadcastTab canManage={canPublishPlatformBroadcast(m.platformRole)} />
-        )}
+        {m.activeTab === 'broadcast' && <SuperAdminBroadcastTab canManage={canPublishPlatformBroadcast(m.platformRole)} />}
 
         {m.activeTab === 'audit' && (
           <SuperAdminAuditTab

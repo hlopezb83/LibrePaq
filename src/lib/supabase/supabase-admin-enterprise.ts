@@ -5,31 +5,13 @@ import type {
   PlatformAlertCategory, PlatformAlertSeverity, PlatformAlertStatus, PlatformRole,
   WorkspacePlanTier, WorkspaceQuota, WorkspaceQuotaPayload
 } from '../../shared/admin-types';
-import { normalizePlatformRole } from '../../shared/superadmin';
+import { createDefaultWorkspaceQuota } from '../../shared/admin-constants';
+import { isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
 import { supabaseAdminApi } from './supabase-admin';
 import { supabaseAdminOpsApi } from './supabase-admin-ops';
+import { callPaginatedRpc, invokeAdminEdge, paginateSlice } from './supabase-edge-helper';
 
 type Row = Record<string, unknown>;
-
-const DEFAULT_QUOTA = (workspaceId: string): WorkspaceQuota => ({
-  workspaceId, userId: null, planTier: 'FREE', maxCompanies: 3,
-  maxCfdisPerMonth: 500, maxStorageMb: 250, notes: null,
-  updatedAt: new Date().toISOString(), updatedBy: null
-});
-
-function isForbiddenMsg(msg?: string): boolean {
-  const upper = String(msg || '').toUpperCase();
-  return upper.includes('FORBIDDEN') || upper.includes('UNAUTHORIZED');
-}
-
-function paginateSlice<T>(items: T[], page: number, pageSize: number): AdminPaginatedResponse<T> {
-  const safePage = Math.max(1, page);
-  const safeSize = Math.min(100, Math.max(1, pageSize));
-  const total = items.length;
-  const totalPages = Math.max(1, Math.ceil(total / safeSize));
-  const start = (safePage - 1) * safeSize;
-  return { items: items.slice(start, start + safeSize), total, page: safePage, pageSize: safeSize, totalPages };
-}
 
 function mapQuotaRow(row: Row): WorkspaceQuota {
   return {
@@ -61,32 +43,6 @@ function mapAlertRow(row: Row): AdminPlatformAlert {
     resolvedAt: row.resolved_at ? String(row.resolved_at) : null,
     resolvedBy: row.resolved_by ? String(row.resolved_by) : null
   };
-}
-
-async function callPaginatedRpc<T>(fnName: string, params: Record<string, unknown>): Promise<AdminPaginatedResponse<T> | null> {
-  if (!supabase) return null;
-  const { data, error } = await supabase.rpc(fnName, params);
-  if (!error && data && typeof data === 'object') return data as AdminPaginatedResponse<T>;
-  if (error && isForbiddenMsg(error.message)) throw new Error(error.message);
-  return null;
-}
-
-async function invokeEdge<T>(fnName: string, body: Record<string, unknown>): Promise<{ data: T | null; unavailable: boolean }> {
-  if (!supabase) throw new Error('Supabase no disponible');
-  const { data, error } = await supabase.functions.invoke<T & { ok?: boolean; error?: string }>(fnName, { body });
-  if (error) {
-    const ctx = (error as { context?: Response }).context;
-    const status = ctx?.status;
-    if (!status || status === 404 || status === 502 || status === 503) return { data: null, unavailable: true };
-    let msg = error.message || `Error en Edge Function ${fnName}`;
-    try {
-      const json = (await ctx?.json()) as { error?: string } | undefined;
-      if (json?.error) msg = json.error;
-    } catch { /* ignore */ }
-    throw new Error(msg);
-  }
-  if (data && typeof data === 'object' && 'error' in data && data.error && !data.ok) throw new Error(String(data.error));
-  return { data: (data as T) ?? null, unavailable: false };
 }
 
 export const supabaseAdminEnterpriseApi = {
@@ -177,47 +133,54 @@ export const supabaseAdminEnterpriseApi = {
 
   async setAdminUserRole(userId: string, platformRole: PlatformRole): Promise<{ userId: string; platformRole: PlatformRole }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeEdge<{ userId: string; platformRole: PlatformRole }>('admin-ops', {
+    const res = await invokeAdminEdge<{ userId: string; platformRole: PlatformRole }>('admin-ops', {
       action: 'SET_USER_ROLE', userId, platformRole
     });
     if (!res.unavailable && res.data) return { userId: res.data.userId, platformRole: res.data.platformRole };
 
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ platform_role: platformRole, is_superadmin: platformRole === 'SUPERADMIN' })
-      .eq('id', userId);
+    const { data: authData } = await supabase.auth.getUser();
+    if (platformRole !== 'SUPERADMIN' && authData?.user?.id === userId) {
+      throw new Error('No puedes degradar tu propio rol SuperAdmin');
+    }
+    const { data: targetProf, error: targetErr } = await supabase.from('user_profiles').select('id, email').eq('id', userId).maybeSingle();
+    if (targetErr) throw new Error(targetErr.message);
+    if (!targetProf) throw new Error('Usuario no encontrado.');
+    if (platformRole !== 'SUPERADMIN' && targetProf.email && isSuperAdminEmail(String(targetProf.email))) {
+      throw new Error('No puedes degradar una cuenta SuperAdmin principal');
+    }
+
+    const { error } = await supabase.from('user_profiles').update({ platform_role: platformRole, is_superadmin: platformRole === 'SUPERADMIN' }).eq('id', userId);
     if (error) throw new Error(error.message);
 
-    await supabaseAdminOpsApi.recordAdminAuditLog({
-      action: 'SET_USER_ROLE', targetType: 'user', targetId: userId, metadata: { platformRole }
-    });
+    await supabaseAdminOpsApi.recordAdminAuditLog({ action: 'SET_USER_ROLE', targetType: 'user', targetId: userId, metadata: { platformRole } });
     return { userId, platformRole };
   },
 
   async getWorkspaceQuota(workspaceId: string): Promise<WorkspaceQuota> {
-    if (!supabase || !workspaceId) return DEFAULT_QUOTA(workspaceId);
+    if (!supabase || !workspaceId) return createDefaultWorkspaceQuota(workspaceId);
     const { data, error } = await supabase.from('workspace_quotas').select('*').eq('workspace_id', workspaceId).maybeSingle();
-    if (error || !data) return DEFAULT_QUOTA(workspaceId);
+    if (error || !data) return createDefaultWorkspaceQuota(workspaceId);
     return mapQuotaRow(data as Row);
   },
 
   async upsertWorkspaceQuota(workspaceId: string, payload: WorkspaceQuotaPayload): Promise<WorkspaceQuota> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeEdge<{ quota: WorkspaceQuota }>('admin-ops', {
-      action: 'UPSERT_WORKSPACE_QUOTA', workspaceId, ...payload
-    });
+    const res = await invokeAdminEdge<{ quota: WorkspaceQuota }>('admin-ops', { action: 'UPSERT_WORKSPACE_QUOTA', workspaceId, ...payload });
     if (!res.unavailable && res.data?.quota) return res.data.quota;
 
+    let resolvedUserId: string | null = payload.userId ?? null;
+    if (payload.userId === undefined) {
+      const { data: existingQuota } = await supabase.from('workspace_quotas').select('user_id').eq('workspace_id', workspaceId).maybeSingle();
+      resolvedUserId = (existingQuota as Row | null)?.user_id ? String((existingQuota as Row).user_id) : null;
+    }
+
     const { data: authData } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from('workspace_quotas')
-      .upsert({
-        workspace_id: workspaceId, user_id: payload.userId ?? null, plan_tier: payload.planTier,
-        max_companies: payload.maxCompanies, max_cfdis_per_month: payload.maxCfdisPerMonth,
-        max_storage_mb: payload.maxStorageMb, notes: payload.notes ?? null,
-        updated_at: new Date().toISOString(), updated_by: authData?.user?.email || authData?.user?.id || null
-      }, { onConflict: 'workspace_id' })
-      .select('*').single();
+    const { data, error } = await supabase.from('workspace_quotas').upsert({
+      workspace_id: workspaceId, user_id: resolvedUserId, plan_tier: payload.planTier,
+      max_companies: payload.maxCompanies, max_cfdis_per_month: payload.maxCfdisPerMonth,
+      max_storage_mb: payload.maxStorageMb, notes: payload.notes ?? null,
+      updated_at: new Date().toISOString(), updated_by: authData?.user?.email || authData?.user?.id || null
+    }, { onConflict: 'workspace_id' }).select('*').single();
 
     if (error || !data) throw new Error(error?.message || 'Error al guardar cuota de workspace');
     await supabaseAdminOpsApi.recordAdminAuditLog({
@@ -238,7 +201,7 @@ export const supabaseAdminEnterpriseApi = {
 
   async runAdminHealthScan(): Promise<{ scannedAtIso: string; alertsCreated: number; openAlertsCount: number }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeEdge<{ scannedAtIso: string; alertsCreated: number; openAlertsCount: number }>('admin-health-monitor', {});
+    const res = await invokeAdminEdge<{ scannedAtIso: string; alertsCreated: number; openAlertsCount: number }>('admin-health-monitor', {});
     if (!res.unavailable && res.data) {
       return {
         scannedAtIso: String(res.data.scannedAtIso || new Date().toISOString()),
@@ -248,7 +211,8 @@ export const supabaseAdminEnterpriseApi = {
     }
 
     const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_run_health_scan');
-    if (!rpcErr && rpcData && typeof rpcData === 'object') {
+    if (rpcErr) throw new Error(rpcErr.message);
+    if (rpcData && typeof rpcData === 'object') {
       const r = rpcData as Row;
       return {
         scannedAtIso: String(r.scannedAtIso || new Date().toISOString()),
@@ -256,32 +220,24 @@ export const supabaseAdminEnterpriseApi = {
         openAlertsCount: Number(r.openAlertsCount ?? 0)
       };
     }
-    if (rpcErr && isForbiddenMsg(rpcErr.message)) throw new Error(rpcErr.message);
     return { scannedAtIso: new Date().toISOString(), alertsCreated: 0, openAlertsCount: 0 };
   },
 
   async updateAdminPlatformAlertStatus(alertId: string, status: PlatformAlertStatus): Promise<AdminPlatformAlert> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeEdge<{ alert: AdminPlatformAlert }>('admin-ops', {
-      action: 'RESOLVE_PLATFORM_ALERT', alertId, status
-    });
+    const res = await invokeAdminEdge<{ alert: AdminPlatformAlert }>('admin-ops', { action: 'RESOLVE_PLATFORM_ALERT', alertId, status });
     if (!res.unavailable && res.data?.alert) return res.data.alert;
 
     const nowIso = new Date().toISOString();
     const { data: authData } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from('platform_alerts')
-      .update({
-        status,
-        resolved_at: status === 'resolved' ? nowIso : null,
-        resolved_by: status === 'resolved' ? (authData?.user?.email || authData?.user?.id || null) : null
-      })
-      .eq('id', alertId).select('*').single();
+    const { data, error } = await supabase.from('platform_alerts').update({
+      status,
+      resolved_at: status === 'resolved' ? nowIso : null,
+      resolved_by: status === 'resolved' ? (authData?.user?.email || authData?.user?.id || null) : null
+    }).eq('id', alertId).select('*').single();
 
     if (error || !data) throw new Error(error?.message || 'No se pudo actualizar el estado de la alerta');
-    await supabaseAdminOpsApi.recordAdminAuditLog({
-      action: 'RESOLVE_PLATFORM_ALERT', targetType: 'platform_alert', targetId: alertId, metadata: { status }
-    });
+    await supabaseAdminOpsApi.recordAdminAuditLog({ action: 'RESOLVE_PLATFORM_ALERT', targetType: 'platform_alert', targetId: alertId, metadata: { status } });
     return mapAlertRow(data as Row);
   }
 };

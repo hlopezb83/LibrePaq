@@ -1,45 +1,20 @@
 import { supabase } from '../supabase';
 import type {
-  AdminAuditLogEntry,
-  AdminBroadcastMessage,
-  AdminCompanyDetail,
-  AdminSatHealthResponse,
-  AdminUserStatusPayload
+  AdminAuditLogEntry, AdminBroadcastMessage, AdminCompanyDetail, AdminSatHealthResponse, AdminUserStatusPayload
 } from '../../shared/admin-types';
-import { isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
+import { isDemoCompanyRecord, isSatErrorCode } from '../../shared/admin-constants';
+import { normalizePlatformRole } from '../../shared/superadmin';
+import { invokeAdminEdge } from './supabase-edge-helper';
 
 type Row = Record<string, unknown>;
 
 const mapBroadcastRow = (row: Row): AdminBroadcastMessage => ({
-  id: String(row.id),
-  title: String(row.title || ''),
-  message: String(row.message || ''),
-  type: (row.type as AdminBroadcastMessage['type']) || 'info',
-  active: Boolean(row.active),
-  startsAt: row.starts_at ? String(row.starts_at) : null,
-  expiresAt: row.expires_at ? String(row.expires_at) : null,
+  id: String(row.id), title: String(row.title || ''), message: String(row.message || ''),
+  type: (row.type as AdminBroadcastMessage['type']) || 'info', active: Boolean(row.active),
+  startsAt: row.starts_at ? String(row.starts_at) : null, expiresAt: row.expires_at ? String(row.expires_at) : null,
   createdBy: row.created_by ? String(row.created_by) : null,
-  createdAt: String(row.created_at || new Date().toISOString()),
-  updatedAt: String(row.updated_at || new Date().toISOString())
+  createdAt: String(row.created_at || new Date().toISOString()), updatedAt: String(row.updated_at || new Date().toISOString())
 });
-
-async function invokeAdminOps<T>(body: Record<string, unknown>): Promise<{ data: T | null; unavailable: boolean }> {
-  if (!supabase) throw new Error('Supabase no disponible');
-  const { data, error } = await supabase.functions.invoke<T & { ok?: boolean; error?: string }>('admin-ops', { body });
-  if (error) {
-    const ctx = (error as { context?: Response }).context;
-    const status = ctx?.status;
-    if (!status || status === 404 || status === 502 || status === 503) return { data: null, unavailable: true };
-    let msg = error.message || 'Error en Edge Function admin-ops';
-    try {
-      const json = (await ctx?.json()) as { error?: string } | undefined;
-      if (json?.error) msg = json.error;
-    } catch { /* ignore */ }
-    throw new Error(msg);
-  }
-  if (data && typeof data === 'object' && 'error' in data && data.error && !data.ok) throw new Error(String(data.error));
-  return { data: (data as T) ?? null, unavailable: false };
-}
 
 async function insertAuditFallback(payload: {
   action: string; targetType: string; targetId?: string | null; metadata?: Record<string, unknown>;
@@ -48,14 +23,10 @@ async function insertAuditFallback(payload: {
   try {
     const { data: authData } = await supabase.auth.getUser();
     await supabase.from('admin_audit_logs').insert({
-      id: `audit_${crypto.randomUUID().slice(0, 12)}`,
-      actor_user_id: authData?.user?.id ?? null,
-      actor_email: authData?.user?.email || 'superadmin',
-      action: payload.action,
-      target_type: payload.targetType,
-      target_id: payload.targetId ?? null,
-      metadata: payload.metadata ?? {},
-      created_at: new Date().toISOString()
+      id: `audit_${crypto.randomUUID().slice(0, 12)}`, actor_user_id: authData?.user?.id ?? null,
+      actor_email: authData?.user?.email || 'superadmin', action: payload.action,
+      target_type: payload.targetType, target_id: payload.targetId ?? null,
+      metadata: payload.metadata ?? {}, created_at: new Date().toISOString()
     });
   } catch { /* best-effort */ }
 }
@@ -83,9 +54,7 @@ async function buildSatHealthFallback(): Promise<AdminSatHealthResponse> {
     if (st === 'TERMINADA' || st === 'COMPLETADA') completed += 1;
     else if (st === 'ACEPTADA' || st === 'EN_PROCESO' || st === 'SOLICITADA') pending += 1;
     else failed += 1;
-    if (st === 'ERROR' || st === 'RECHAZADA' || st === 'VENCIDA' || (code !== 'UNKNOWN' && code !== '5000')) {
-      errCounts.set(code, (errCounts.get(code) || 0) + 1);
-    }
+    if (isSatErrorCode(r.estado_solicitud, r.codigo_estado_sat)) errCounts.set(code, (errCounts.get(code) || 0) + 1);
   }
 
   const expiringFiels = ((fielRes.data || []) as Row[])
@@ -95,7 +64,7 @@ async function buildSatHealthFallback(): Promise<AdminSatHealthResponse> {
       return {
         companyId: cid, companyName: compMap.get(cid)?.name || 'Empresa', companyRfc: compMap.get(cid)?.rfc || '',
         rfcTitular: String(f.rfc_titular || ''), numeroSerie: String(f.numero_serie || ''), validTo,
-        daysRemaining: Math.floor((new Date(validTo).getTime() - Date.now()) / 86400000)
+        daysRemaining: Math.ceil((new Date(validTo).getTime() - Date.now()) / 86400000)
       };
     })
     .filter((f) => Number.isFinite(f.daysRemaining) && f.daysRemaining <= 90)
@@ -123,7 +92,7 @@ async function buildCompanyDetailFallback(companyId: string): Promise<AdminCompa
   const c = comp as Row;
   const uid = c.user_id ? String(c.user_id) : undefined;
   const [profRes, accRes, polRes, cfdiRes, bankRes, fielRes, lockRes, lastPolRes, lastCfdiRes] = await Promise.all([
-    uid && uid !== 'demo' ? supabase.from('user_profiles').select('email, full_name, provider, is_superadmin').eq('id', uid).maybeSingle() : Promise.resolve({ data: null }),
+    uid && uid !== 'demo' ? supabase.from('user_profiles').select('email, full_name, provider, is_superadmin, platform_role, workspace_id').eq('id', uid).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from('accounts').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
     supabase.from('polizas').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
     supabase.from('cfdi_documents').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
@@ -135,12 +104,12 @@ async function buildCompanyDetailFallback(companyId: string): Promise<AdminCompa
   ]);
 
   const prof = (profRes.data as Row | null) || null, fiel = (fielRes.data as Row | null) || null;
-  const isSuper = Boolean(prof?.is_superadmin) || isSuperAdminEmail(prof?.email ? String(prof.email) : undefined);
-  const isDemo = !uid || uid === 'demo' || String(c.rfc || '').toUpperCase() === 'CEJ2106158A0' || String(c.name || '').toUpperCase().startsWith('[DEMO]');
-  const lastPolRow = (lastPolRes.data?.[0] as Row | undefined) ?? undefined;
-  const lastCfdiRow = (lastCfdiRes.data?.[0] as Row | undefined) ?? undefined;
-  const lastPolizaAt = lastPolRow?.created_at ? String(lastPolRow.created_at) : null;
-  const lastCfdiDate = lastCfdiRow?.fecha ? String(lastCfdiRow.fecha) : null;
+  const isSuper = normalizePlatformRole(
+    prof?.platform_role ? String(prof.platform_role) : null, Boolean(prof?.is_superadmin), prof?.email ? String(prof.email) : undefined
+  ) === 'SUPERADMIN';
+  const isDemo = isDemoCompanyRecord({ rfc: c.rfc, name: c.name, user_id: uid });
+  const lastPolizaAt = (lastPolRes.data?.[0] as Row | undefined)?.created_at ? String((lastPolRes.data?.[0] as Row).created_at) : null;
+  const lastCfdiDate = (lastCfdiRes.data?.[0] as Row | undefined)?.fecha ? String((lastCfdiRes.data?.[0] as Row).fecha) : null;
 
   return {
     company: {
@@ -148,7 +117,8 @@ async function buildCompanyDetailFallback(companyId: string): Promise<AdminCompa
       regimenFiscal: String(c.regimen_fiscal || ''), codigoPostal: String(c.codigo_postal || ''),
       currentYear: Number(c.current_year || 2026), currentPeriod: Number(c.current_period || 10),
       userId: uid, userEmail: prof?.email ? String(prof.email) : undefined, userFullName: prof?.full_name ? String(prof.full_name) : undefined,
-      userProvider: (prof?.provider as 'google' | 'email') || 'email', userIsSuperAdmin: isSuper,
+      userProvider: (prof?.provider as 'google' | 'email') || 'email',
+      userWorkspaceId: prof?.workspace_id ? String(prof.workspace_id) : null, userIsSuperAdmin: isSuper,
       ownerType: isDemo ? 'demo' : isSuper ? 'superadmin' : 'user', createdAt: String(c.created_at || ''),
       polizasCount: polRes.count ?? 0, cfdisCount: cfdiRes.count ?? 0, hasFiel: Boolean(fiel),
       fielValidTo: fiel?.valid_to ? String(fiel.valid_to) : null, lastActivityAt: lastPolizaAt || lastCfdiDate
@@ -166,13 +136,14 @@ export const supabaseAdminOpsApi = {
       const { data, error } = await supabase.from('platform_broadcasts').select('*').eq('active', true).order('created_at', { ascending: false }).limit(1);
       if (error || !data || data.length === 0) return null;
       const row = data[0] as Row;
+      if (row.starts_at && new Date(String(row.starts_at)).getTime() > Date.now()) return null;
       return row.expires_at && new Date(String(row.expires_at)).getTime() <= Date.now() ? null : mapBroadcastRow(row);
     } catch { return null; }
   },
 
   async publishBroadcast(payload: { title: string; message: string; type: 'info' | 'warning' | 'success'; expiresAt?: string | null }): Promise<AdminBroadcastMessage> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeAdminOps<{ broadcast: AdminBroadcastMessage }>({ action: 'PUBLISH_BROADCAST', ...payload });
+    const res = await invokeAdminEdge<{ broadcast: AdminBroadcastMessage }>('admin-ops', { action: 'PUBLISH_BROADCAST', ...payload });
     if (!res.unavailable && res.data?.broadcast) return res.data.broadcast;
 
     const nowIso = new Date().toISOString();
@@ -190,7 +161,7 @@ export const supabaseAdminOpsApi = {
 
   async clearBroadcast(): Promise<void> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeAdminOps({ action: 'CLEAR_BROADCAST' });
+    const res = await invokeAdminEdge('admin-ops', { action: 'CLEAR_BROADCAST' });
     if (!res.unavailable) return;
     const { error } = await supabase.from('platform_broadcasts').update({ active: false, updated_at: new Date().toISOString() }).eq('active', true);
     if (error) throw new Error(error.message);
@@ -216,23 +187,13 @@ export const supabaseAdminOpsApi = {
 
   async setAdminUserStatus(userId: string, payload: AdminUserStatusPayload): Promise<{ userId: string; status: 'ACTIVO' | 'SUSPENDIDO' }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeAdminOps<{ userId: string; status: 'ACTIVO' | 'SUSPENDIDO' }>({ action: 'SET_USER_STATUS', userId, status: payload.status, reason: payload.reason });
+    const res = await invokeAdminEdge<{ userId: string; status: 'ACTIVO' | 'SUSPENDIDO' }>('admin-ops', { action: 'SET_USER_STATUS', userId, status: payload.status, reason: payload.reason });
     if (!res.unavailable && res.data) return { userId: res.data.userId, status: res.data.status };
 
     if (payload.status === 'SUSPENDIDO') {
-      const { data: targetProf } = await supabase
-        .from('user_profiles')
-        .select('email, is_superadmin, platform_role')
-        .eq('id', userId)
-        .maybeSingle();
-      const targetRole = normalizePlatformRole(
-        targetProf?.platform_role ? String(targetProf.platform_role) : null,
-        Boolean(targetProf?.is_superadmin),
-        targetProf?.email ? String(targetProf.email) : userId
-      );
-      if (targetRole === 'SUPERADMIN') {
-        throw new Error('No es posible suspender una cuenta SuperAdmin');
-      }
+      const { data: targetProf } = await supabase.from('user_profiles').select('email, is_superadmin, platform_role').eq('id', userId).maybeSingle();
+      const targetRole = normalizePlatformRole(targetProf?.platform_role ? String(targetProf.platform_role) : null, Boolean(targetProf?.is_superadmin), targetProf?.email ? String(targetProf.email) : userId);
+      if (targetRole === 'SUPERADMIN') throw new Error('No es posible suspender una cuenta SuperAdmin');
     }
 
     const { data, error } = await supabase.from('user_profiles').update({ status: payload.status }).eq('id', userId).select('id');
@@ -243,16 +204,14 @@ export const supabaseAdminOpsApi = {
       }
       throw new Error(error.message);
     }
-    if (!data || data.length === 0) {
-      throw new Error('No fue posible actualizar el estatus del usuario (usuario no encontrado o bloqueado por RLS; requiere Edge Function admin-ops).');
-    }
+    if (!data || data.length === 0) throw new Error('No fue posible actualizar el estatus del usuario (usuario no encontrado o bloqueado por RLS; requiere Edge Function admin-ops).');
     await insertAuditFallback({ action: 'SET_USER_STATUS', targetType: 'user', targetId: userId, metadata: { status: payload.status, reason: payload.reason ?? null } });
     return { userId, status: payload.status };
   },
 
   async deleteAdminCompany(companyId: string): Promise<{ deleted: boolean; companyId: string }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const res = await invokeAdminOps<{ deleted: boolean; companyId: string }>({ action: 'DELETE_COMPANY', companyId });
+    const res = await invokeAdminEdge<{ deleted: boolean; companyId: string }>('admin-ops', { action: 'DELETE_COMPANY', companyId });
     if (!res.unavailable && res.data) return { deleted: Boolean(res.data.deleted), companyId: res.data.companyId };
     const { error } = await supabase.rpc('delete_company_cascade', { company_id_param: companyId });
     if (error) throw new Error(error.message);
@@ -277,7 +236,7 @@ export const supabaseAdminOpsApi = {
   async recordAdminAuditLog(payload: { action: string; targetType: string; targetId?: string; metadata?: Record<string, unknown> }): Promise<void> {
     if (!supabase) return;
     try {
-      const res = await invokeAdminOps({ action: 'RECORD_AUDIT', auditAction: payload.action, targetType: payload.targetType, targetId: payload.targetId ?? null, metadata: payload.metadata ?? {} });
+      const res = await invokeAdminEdge('admin-ops', { action: 'RECORD_AUDIT', auditAction: payload.action, targetType: payload.targetType, targetId: payload.targetId ?? null, metadata: payload.metadata ?? {} });
       if (!res.unavailable) return;
     } catch { /* fallback */ }
     await insertAuditFallback(payload);

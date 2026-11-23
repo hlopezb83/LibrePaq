@@ -1,10 +1,17 @@
 import { useMemo } from 'react';
 import { Download, Megaphone, TrendingUp } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
+import { downloadCsvFile } from '../../lib/formatters';
 import type { AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
+import { AdminErrorBanner } from './AdminErrorBanner';
+import { AdminTableEmptyState } from './AdminTableEmptyState';
 
 interface SuperAdminAdsAttributionTableProps {
   users: AdminUserSummary[];
   companies: AdminCompanySummary[];
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 type ChannelKey = 'google_ads' | 'utm' | 'organic';
@@ -26,18 +33,20 @@ const CHANNEL_META: Record<ChannelKey, { label: string; badgeClass: string; barC
   organic: { label: 'Orgánico / Directo', badgeClass: 'bg-slate-100 text-slate-800 border-slate-300', barClass: 'bg-slate-600' }
 };
 
-function escapeCsvCell(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return `"${safe.replaceAll('"', '""')}"`;
-}
-
 function classifyChannel(user: AdminUserSummary): ChannelKey {
   if (user.acquisitionSource === 'google_ads' || Boolean(user.gclid?.trim())) return 'google_ads';
   if (user.acquisitionSource === 'utm' || Boolean(user.utmCampaign?.trim() || user.utmTerm?.trim())) return 'utm';
   return 'organic';
 }
 
-export function SuperAdminAdsAttributionTable({ users, companies }: SuperAdminAdsAttributionTableProps) {
+export function SuperAdminAdsAttributionTable({
+  users,
+  companies,
+  isLoading = false,
+  isError = false,
+  onRetry
+}: SuperAdminAdsAttributionTableProps) {
+  const toast = useToast();
   const { funnelStats, campaignRows, gclidLeads, totalLeads } = useMemo(() => {
     const activeCompanyUserIds = new Set(
       companies.filter((c) => c.ownerType !== 'demo' && Boolean(c.userId)).map((c) => c.userId as string)
@@ -112,49 +121,65 @@ export function SuperAdminAdsAttributionTable({ users, companies }: SuperAdminAd
 
   const handleExportOfflineCsv = () => {
     if (gclidLeads.length === 0) return;
-    const header = 'gclid,email,createdAt';
-    const lines = gclidLeads.map((u) =>
-      [escapeCsvCell(u.gclid?.trim() || ''), escapeCsvCell(u.email), escapeCsvCell(u.createdAt)].join(',')
+    downloadCsvFile(
+      `librepaq-conversiones-offline-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['gclid', 'email', 'createdAt'],
+      gclidLeads.map((u) => [u.gclid?.trim() || '', u.email, u.createdAt])
     );
-    const blob = new Blob([`\uFEFF${[header, ...lines].join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `librepaq-conversiones-offline-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    toast.success(`CSV exportado con ${gclidLeads.length} ${gclidLeads.length === 1 ? 'registro' : 'registros'} GCLID.`);
   };
 
   return (
     <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-blue-600" aria-hidden="true" />
             Embudo de Atribución y Conversiones Offline
-          </h3>
+          </h2>
           <p className="text-xs text-slate-600 mt-0.5">
-            Distribución por canal de {totalLeads.toLocaleString('es-MX')} cuentas de clientes y activación con empresa fiscal
+            {isLoading
+              ? 'Calculando distribución por canal y activación con empresa fiscal...'
+              : `Distribución por canal de ${totalLeads.toLocaleString('es-MX')} cuentas de clientes y activación con empresa fiscal`}
           </p>
         </div>
 
         <button
           type="button"
           onClick={handleExportOfflineCsv}
-          disabled={gclidLeads.length === 0}
+          disabled={isLoading || gclidLeads.length === 0}
           title={gclidLeads.length === 0 ? 'Sin registros con GCLID para exportar' : undefined}
           aria-label={`Exportar CSV de conversiones offline con GCLID (${gclidLeads.length} registros)`}
           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-600 text-white text-xs font-bold shadow-xs transition cursor-pointer disabled:cursor-not-allowed shrink-0"
         >
           <Download className="w-3.5 h-3.5" aria-hidden="true" />
-          Exportar CSV GCLID ({gclidLeads.length})
+          Exportar CSV GCLID ({isLoading ? '...' : gclidLeads.length})
         </button>
       </div>
 
+      {isError && (
+        <AdminErrorBanner
+          message="No se pudo cargar la atribución de campañas desde Supabase."
+          onRetry={onRetry}
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-        {funnelStats.map((stage) => (
+        {isLoading
+          ? [0, 1, 2].map((idx) => (
+              <div key={idx} aria-hidden="true" className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 space-y-2.5 animate-pulse motion-reduce:animate-none">
+                <div className="flex items-center justify-between">
+                  <div className="h-5 w-24 rounded-full bg-slate-200" />
+                  <div className="h-4 w-16 rounded bg-slate-200" />
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <div className="h-7 w-14 rounded bg-slate-200" />
+                  <div className="h-4 w-24 rounded bg-slate-200" />
+                </div>
+                <div className="h-2 w-full rounded-full bg-slate-200" />
+              </div>
+            ))
+          : funnelStats.map((stage) => (
           <div key={stage.channel} className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${stage.badgeClass}`}>
@@ -198,12 +223,23 @@ export function SuperAdminAdsAttributionTable({ users, companies }: SuperAdminAd
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-800">
-            {campaignRows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-600">
-                  Aún no hay registros de clientes disponibles para calcular la atribución.
-                </td>
-              </tr>
+            {isLoading ? (
+              [0, 1, 2].map((idx) => (
+                <tr key={idx} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-36 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5"><div className="h-5 w-20 rounded-full bg-slate-200" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
+                  <td className="py-3 px-3.5"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
+                  <td className="py-3 px-3.5"><div className="h-5 w-12 rounded-full bg-slate-200 ml-auto" /></td>
+                </tr>
+              ))
+            ) : campaignRows.length === 0 ? (
+              <AdminTableEmptyState
+                colSpan={7}
+                message="Aún no hay registros de clientes disponibles para calcular la atribución."
+              />
             ) : (
               campaignRows.map((row) => (
                 <tr key={row.key} className="hover:bg-slate-50/80 transition">

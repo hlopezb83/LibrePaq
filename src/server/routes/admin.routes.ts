@@ -1,137 +1,30 @@
 import { Hono, type Context } from 'hono';
-import { z } from 'zod';
 import {
-  canDeletePlatformTenants,
-  canManageBillingAndQuotas,
-  canManagePlatformRoles,
-  canPublishPlatformBroadcast,
-  hasPlatformAdminAccess
+  canDeletePlatformTenants, canManageBillingAndQuotas, canManagePlatformRoles,
+  canPublishPlatformBroadcast, hasPlatformAdminAccess
 } from '../../shared/superadmin';
 import type { PlatformRole } from '../../shared/admin-types';
 import {
-  getAdminCompaniesRepo,
-  getAdminCompanyDetailRepo,
-  getAdminMetricsRepo,
-  getAdminSatHealthRepo,
-  getAdminUsersRepo
+  getAdminCompaniesRepo, getAdminCompanyDetailRepo, getAdminMetricsRepo,
+  getAdminSatHealthRepo, getAdminUsersRepo
 } from '../repositories/admin.repo';
 import {
-  clearBroadcastRepo,
-  deleteAdminCompanyRepo,
-  getActiveBroadcastRepo,
-  getAdminAuditLogsRepo,
-  recordAdminAuditLogRepo,
-  saveBroadcastRepo,
-  setAdminUserStatusRepo
+  adminUserExistsRepo, clearBroadcastRepo, deleteAdminCompanyRepo, getActiveBroadcastRepo,
+  getAdminAuditLogsRepo, recordAdminAuditLogRepo, saveBroadcastRepo, setAdminUserStatusRepo
 } from '../repositories/admin-ops.repo';
 import {
-  getAdminAuditLogsPaginatedRepo,
-  getAdminCompaniesPaginatedRepo,
-  getAdminPlatformAlertsRepo,
-  getAdminUsersPaginatedRepo,
-  getWorkspaceQuotaRepo,
-  runAdminHealthScanRepo,
-  setAdminUserRoleRepo,
-  updateAdminPlatformAlertStatusRepo,
-  upsertWorkspaceQuotaRepo
+  getAdminAuditLogsPaginatedRepo, getAdminCompaniesPaginatedRepo, getAdminPlatformAlertsRepo,
+  getAdminUsersPaginatedRepo, getWorkspaceQuotaRepo, runAdminHealthScanRepo,
+  setAdminUserRoleRepo, updateAdminPlatformAlertStatusRepo, upsertWorkspaceQuotaRepo
 } from '../repositories/admin-enterprise.repo';
 import { resolveCallerPlatformRoleRepo } from '../repositories/admin-enterprise.helpers';
+import {
+  type AdminEnv, alertQuerySchema, alertStatusSchema, auditLogSchema, auditLogsPageQuerySchema,
+  broadcastSchema, companiesPageQuerySchema, getActorContext, parseJsonBody, parseQuery,
+  userRoleSchema, usersPageQuerySchema, userStatusSchema, workspaceQuotaSchema
+} from './admin.schemas';
 
-type AdminEnv = { Variables: { callerRole: PlatformRole } };
 export const adminRoutes = new Hono<AdminEnv>();
-
-const isoDateSchema = z.string().refine((val) => !Number.isNaN(Date.parse(val)), 'Fecha ISO inválida');
-
-const broadcastSchema = z.object({
-  title: z.string().trim().min(1, 'Título requerido').max(200),
-  message: z.string().trim().min(1, 'Mensaje requerido').max(1000),
-  type: z.enum(['info', 'warning', 'success']).optional(),
-  startsAt: isoDateSchema.nullable().optional(),
-  expiresAt: isoDateSchema.nullable().optional()
-});
-
-const userStatusSchema = z.object({
-  status: z.enum(['ACTIVO', 'SUSPENDIDO']),
-  reason: z.string().trim().max(300).optional()
-});
-
-const auditLogSchema = z.object({
-  action: z.string().trim().min(1).max(120),
-  targetType: z.string().trim().min(1).max(80),
-  targetId: z.string().trim().nullable().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional()
-});
-
-const emptyToUndef = (v: unknown) => (v === '' || v === undefined ? undefined : v);
-const optEnum = <T extends string>(vals: [T, ...T[]]) => z.preprocess(emptyToUndef, z.enum(vals).optional());
-const optInt = (max: number) => z.preprocess(emptyToUndef, z.coerce.number().int().min(1).max(max).optional());
-const optStr = (max = 120) => z.preprocess(emptyToUndef, z.string().trim().max(max).optional());
-
-const companiesPageQuerySchema = z.object({
-  page: optInt(100000),
-  pageSize: optInt(100),
-  search: optStr(120),
-  ownerType: optEnum(['ALL', 'user', 'superadmin', 'demo']),
-  fielFilter: optEnum(['ALL', 'WITH_FIEL', 'WITHOUT_FIEL']),
-  sortBy: optEnum(['createdAt', 'polizasCount', 'cfdisCount']),
-  sortDir: optEnum(['asc', 'desc'])
-});
-
-const usersPageQuerySchema = z.object({
-  page: optInt(100000),
-  pageSize: optInt(100),
-  search: optStr(120),
-  status: optEnum(['ALL', 'ACTIVO', 'SUSPENDIDO']),
-  role: optEnum(['ALL', 'SUPERADMIN', 'SUPPORT_READONLY', 'BILLING_OPS', 'NONE'])
-});
-
-const auditLogsPageQuerySchema = z.object({
-  page: optInt(100000),
-  pageSize: optInt(100),
-  search: optStr(120),
-  action: optStr(120),
-  targetType: optStr(80)
-});
-
-const userRoleSchema = z.object({
-  platformRole: z.enum(['SUPERADMIN', 'SUPPORT_READONLY', 'BILLING_OPS', 'NONE'])
-});
-
-const workspaceQuotaSchema = z.object({
-  userId: z.string().trim().min(1).nullable().optional(),
-  planTier: z.enum(['FREE', 'PRO', 'DESPACHO', 'ENTERPRISE']),
-  maxCompanies: z.coerce.number().int().min(1).max(10000),
-  maxCfdisPerMonth: z.coerce.number().int().min(1).max(10_000_000),
-  maxStorageMb: z.coerce.number().int().min(10).max(10_000_000),
-  notes: z.string().trim().max(500).nullable().optional()
-});
-
-const alertQuerySchema = z.object({ status: optEnum(['ALL', 'open', 'acknowledged', 'resolved']) });
-const alertStatusSchema = z.object({ status: z.enum(['open', 'acknowledged', 'resolved']) });
-
-function parseQuery<T>(c: Context, schema: z.ZodType<T>): { data: T } | { error: string } {
-  const parsed = schema.safeParse(c.req.query());
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message || 'Parámetros de consulta inválidos.' };
-  return { data: parsed.data };
-}
-
-function getActorContext(c: Context<AdminEnv>): { actorEmail: string; actorUserId: string | null } {
-  const email = (c.req.header('X-User-Email') || c.req.header('x-user-email') || '').trim().toLowerCase();
-  const userId = (c.req.header('X-User-Id') || c.req.header('x-user-id') || '').trim();
-  const fallbackActor = c.get('callerRole') === 'SUPERADMIN' ? 'hlopezb@gmail.com' : (userId || 'platform-operator');
-  return { actorEmail: email || fallbackActor, actorUserId: userId || null };
-}
-
-async function parseJsonBody<T>(c: Context, schema: z.ZodType<T>): Promise<{ data: T } | { error: string }> {
-  try {
-    const raw: unknown = await c.req.json();
-    const parsed = schema.safeParse(raw);
-    if (!parsed.success) return { error: parsed.error.issues[0]?.message || 'Payload inválido.' };
-    return { data: parsed.data };
-  } catch {
-    return { error: 'JSON inválido en la solicitud.' };
-  }
-}
 
 function denyIfForbidden(c: Context<AdminEnv>, allow: (role: PlatformRole) => boolean, action: string) {
   const role = c.get('callerRole') ?? 'NONE';
@@ -188,12 +81,14 @@ adminRoutes.delete('/admin/companies/:id', (c) => {
 adminRoutes.patch('/admin/users/:id/status', async (c) => {
   const denied = denyIfForbidden(c, canManageBillingAndQuotas, 'SET_USER_STATUS');
   if (denied) return denied;
+  const targetId = c.req.param('id');
+  if (!adminUserExistsRepo(targetId)) return c.json({ error: 'Usuario no encontrado.' }, 404);
   const parsed = await parseJsonBody(c, userStatusSchema);
   if ('error' in parsed) return c.json({ error: parsed.error }, 400);
 
   const { actorEmail, actorUserId } = getActorContext(c);
   try {
-    return c.json(setAdminUserStatusRepo(c.req.param('id'), parsed.data.status, actorEmail, actorUserId, parsed.data.reason));
+    return c.json(setAdminUserStatusRepo(targetId, parsed.data.status, actorEmail, actorUserId, parsed.data.reason));
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error actualizando estatus de usuario.';
     return c.json({ error: message }, message.includes('SuperAdmin') ? 403 : 400);
@@ -208,7 +103,6 @@ adminRoutes.post('/admin/broadcast', async (c) => {
   if (parsed.data.expiresAt && Date.parse(parsed.data.expiresAt) <= Date.now()) {
     return c.json({ error: 'La fecha de expiración (expiresAt) debe ser futura.' }, 400);
   }
-
   const { actorEmail, actorUserId } = getActorContext(c);
   return c.json(saveBroadcastRepo(parsed.data, actorEmail, actorUserId), 201);
 });
@@ -228,15 +122,10 @@ adminRoutes.get('/admin/audit-logs', (c) => {
 adminRoutes.post('/admin/audit-logs', async (c) => {
   const parsed = await parseJsonBody(c, auditLogSchema);
   if ('error' in parsed) return c.json({ error: parsed.error }, 400);
-
   const { actorEmail, actorUserId } = getActorContext(c);
   const entry = recordAdminAuditLogRepo({
-    actorUserId,
-    actorEmail,
-    action: parsed.data.action,
-    targetType: parsed.data.targetType,
-    targetId: parsed.data.targetId ?? null,
-    metadata: parsed.data.metadata
+    actorUserId, actorEmail, action: parsed.data.action,
+    targetType: parsed.data.targetType, targetId: parsed.data.targetId ?? null, metadata: parsed.data.metadata
   });
   return c.json(entry, 201);
 });

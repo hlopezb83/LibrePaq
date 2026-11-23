@@ -89,7 +89,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   // Aprovisionar automáticamente el Workspace + atribución de Google Ads al primer ingreso real
   useEffect(() => {
-    if (!user || isOwner) return;
+    if (!user || isOwner || isReadOnlySupportMode || hasAdminAccess || checkIsSuperAdmin(user)) return;
     if (user.user_metadata?.workspace_id) return;
     if (provisionedUserRef.current === user.id) return;
 
@@ -110,7 +110,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     });
 
     trackWorkspaceSignupConversion(provider, attribution);
-  }, [user, isOwner, defaultWorkspaceName]);
+  }, [user, isOwner, isReadOnlySupportMode, hasAdminAccess, defaultWorkspaceName]);
 
   const renameWorkspace = useCallback(
     async (nextName: string) => {

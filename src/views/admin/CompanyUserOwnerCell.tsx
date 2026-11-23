@@ -34,6 +34,7 @@ export function CompanyUserOwnerCell({ company }: CompanyUserOwnerCellProps) {
   return (
     <div className="flex items-center gap-2.5">
       <div
+        aria-hidden="true"
         className={`w-8 h-8 rounded-lg font-bold text-[11px] flex items-center justify-center shrink-0 border ${
           company.userIsSuperAdmin
             ? 'bg-amber-100 text-amber-800 border-amber-300'

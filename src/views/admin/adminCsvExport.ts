@@ -1,11 +1,12 @@
 import { downloadCsvFile } from '../../lib/formatters';
+import { getTodayLocalIso } from '../../shared/date-utils';
 import type { AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
 
 /**
  * Exporta el directorio de usuarios del panel SuperAdmin en formato CSV RFC-4180 con BOM UTF-8.
  */
 export function exportUsersCsv(users: AdminUserSummary[]): void {
-  const dateTag = new Date().toISOString().slice(0, 10);
+  const dateTag = getTodayLocalIso();
   const headers = [
     'ID',
     'Nombre',
@@ -17,6 +18,7 @@ export function exportUsersCsv(users: AdminUserSummary[]): void {
     'Empresas',
     'Estado',
     'SuperAdmin',
+    'Rol de Plataforma',
     'Fecha Registro',
     'Último Acceso'
   ];
@@ -32,6 +34,7 @@ export function exportUsersCsv(users: AdminUserSummary[]): void {
     u.companiesCount,
     u.status,
     u.isSuperAdmin ? 'Sí' : 'No',
+    u.platformRole || (u.isSuperAdmin ? 'SUPERADMIN' : 'NONE'),
     u.createdAt,
     u.lastSignInAt || 'Sin registro'
   ]);
@@ -43,7 +46,7 @@ export function exportUsersCsv(users: AdminUserSummary[]): void {
  * Exporta el directorio global de empresas fiscales en formato CSV RFC-4180 con BOM UTF-8.
  */
 export function exportCompaniesCsv(companies: AdminCompanySummary[]): void {
-  const dateTag = new Date().toISOString().slice(0, 10);
+  const dateTag = getTodayLocalIso();
   const headers = [
     'ID Empresa',
     'RFC',

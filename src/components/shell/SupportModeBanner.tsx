@@ -12,7 +12,7 @@ export function SupportModeBanner({ session, onExit, isExiting = false }: Suppor
     <div
       role="region"
       aria-label="Modo Soporte solo lectura"
-      className="sticky top-0 z-30 bg-amber-950 text-amber-50 border-b border-amber-700 px-4 py-2.5 shadow-sm"
+      className="bg-amber-950 text-amber-50 border-b border-amber-700 px-4 py-2.5 shadow-sm"
     >
       <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2.5 min-w-0">

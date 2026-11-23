@@ -1,7 +1,7 @@
 import { db } from '../connection';
 import { isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
 import type { AdminAuditLogEntry, AdminBroadcastMessage } from '../../shared/admin-types';
-import { tableColumns } from './admin-enterprise.helpers';
+import { parseMetadataJson, tableColumns } from './admin-enterprise.helpers';
 import { getAdminUsersRepo } from './admin.repo';
 
 interface BroadcastDbRow {
@@ -47,17 +47,6 @@ function mapBroadcastRow(row: BroadcastDbRow): AdminBroadcastMessage {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
-}
-
-function parseMetadataJson(raw: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
 }
 
 export function recordAdminAuditLogRepo(input: RecordAuditLogInput): AdminAuditLogEntry {
@@ -198,6 +187,17 @@ function isTargetSuperAdmin(userId: string): boolean {
   return false;
 }
 
+export function adminUserExistsRepo(userId: string): boolean {
+  const trimmed = userId.trim();
+  if (!trimmed) return false;
+  if (getAdminUsersRepo().some((u) => u.id === trimmed)) return true;
+  if (db.query('SELECT 1 FROM admin_user_overrides WHERE user_id = ?').get(trimmed)) return true;
+  if (tableColumns('user_profiles').size > 0 && db.query('SELECT 1 FROM user_profiles WHERE id = ?').get(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
 export function setAdminUserStatusRepo(
   userId: string,
   status: 'ACTIVO' | 'SUSPENDIDO',
@@ -243,6 +243,9 @@ export function deleteAdminCompanyRepo(
   return db.transaction(() => {
     const res = db.prepare('DELETE FROM companies WHERE id = ?').run(companyId);
     if (res.changes > 0) {
+      db.prepare(
+        "UPDATE platform_alerts SET status = 'resolved', resolved_at = ?, resolved_by = 'system_company_deleted' WHERE target_type = 'company' AND target_id = ? AND status IN ('open', 'acknowledged')"
+      ).run(new Date().toISOString(), companyId);
       recordAdminAuditLogRepo({
         actorUserId,
         actorEmail,
