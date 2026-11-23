@@ -1,4 +1,5 @@
 import { Landmark } from 'lucide-react';
+import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
 
 export type FiscalBancosTabId =
   | 'CONCILIACION'
@@ -40,23 +41,34 @@ export function FiscalBancosTabBar({
         </div>
       </div>
 
-      <div role="tablist" aria-label="Pestañas de Tesorería y Cierre Fiscal" className="flex items-center gap-1 overflow-x-auto no-print max-w-full pb-0.5 shrink-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-              activeTab === tab.id
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div
+        role="tablist"
+        aria-label="Pestañas de Tesorería y Cierre Fiscal"
+        className="erp-tab-scroller no-print max-w-full pb-0.5 shrink-0"
+      >
+        {tabs.map((tab) => {
+          const isSelected = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              id={`fb-tab-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              aria-controls={`fb-panel-${tab.id}`}
+              tabIndex={isSelected ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(e) => handleTablistKeyDown(e, tabs, activeTab, setActiveTab, 'fb-tab-')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                isSelected
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

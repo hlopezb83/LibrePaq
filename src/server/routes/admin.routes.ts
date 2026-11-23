@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { isSuperAdminEmail } from '../../shared/superadmin';
 import {
   getAdminMetricsRepo,
   getAdminCompaniesRepo,
@@ -6,8 +7,6 @@ import {
 } from '../repositories/admin.repo';
 
 export const adminRoutes = new Hono();
-
-const SUPERADMIN_EMAILS = ['hlopezb@gmail.com'];
 
 adminRoutes.use('/admin/*', async (c, next) => {
   const isProd = process.env.NODE_ENV === 'production';
@@ -17,10 +16,10 @@ adminRoutes.use('/admin/*', async (c, next) => {
 
   const hasSecret = Boolean(adminSecret && bearerToken === adminSecret);
   const userEmail = (c.req.header('X-User-Email') || '').toLowerCase().trim();
-  const isSuperAdminEmail = SUPERADMIN_EMAILS.includes(userEmail);
+  const isAuthorizedEmail = isSuperAdminEmail(userEmail);
 
   // En producción se exige estrictamente token de autorización firmado o ADMIN_SECRET
-  const isAuthorized = hasSecret || (process.env.NODE_ENV !== 'production' && isSuperAdminEmail);
+  const isAuthorized = hasSecret || (process.env.NODE_ENV !== 'production' && isAuthorizedEmail);
 
   if (!isAuthorized) {
     return c.json({ error: 'UNAUTHORIZED: Requiere autorización válida de SuperAdmin' }, 403);

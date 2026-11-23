@@ -158,25 +158,48 @@ export function DashboardKpisGrid({
 
       {/* Cédula Rápida de Posición Financiera y Estatus Fiscal SAT */}
       <section className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-3.5 sm:p-4 text-xs">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
-          <div className="space-y-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:divide-x divide-slate-200">
+          <button
+            type="button"
+            onClick={() => onOpenLedger('105-01-001')}
+            title="Consultar auxiliar de Clientes en Libro Mayor"
+            className="text-left space-y-1 hover:bg-slate-50 rounded-lg p-1 -m-1 transition cursor-pointer"
+          >
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Cuentas por Cobrar (Clientes)</span>
             <div className="font-mono font-bold text-sm text-slate-900">{formatCurrency(kpis.cuentasPorCobrar)}</div>
-            <span className="text-[10px] text-slate-500">Exigible a corto plazo</span>
-          </div>
-          <div className="space-y-1 sm:pl-3 pt-2 sm:pt-0">
+            <span className="text-[10px] text-blue-700 font-medium">Ver auxiliar →</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenLedger('201-01-001')}
+            title="Consultar auxiliar de Proveedores en Libro Mayor"
+            className="text-left space-y-1 sm:pl-3 hover:bg-slate-50 rounded-lg p-1 -m-1 sm:m-0 transition cursor-pointer"
+          >
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Cuentas por Pagar (Proveedores)</span>
             <div className="font-mono font-bold text-sm text-slate-900">{formatCurrency(kpis.cuentasPorPagar)}</div>
-            <span className="text-[10px] text-slate-500">Pasivo operativo circulante</span>
-          </div>
-          <div className="space-y-1 sm:pl-3 pt-2 sm:pt-0">
+            <span className="text-[10px] text-blue-700 font-medium">Ver auxiliar →</span>
+          </button>
+          <div className="space-y-1 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0 sm:pl-3">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">IVA Neto del Mes (SAT)</span>
-            <div className={`font-mono font-bold text-sm ${kpis.ivaPorPagarNeto > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
-              {formatCurrency(Math.abs(kpis.ivaPorPagarNeto))} {kpis.ivaPorPagarNeto > 0 ? '(A Cargo)' : '(A Favor)'}
+            <div
+              className={`font-mono font-bold text-sm ${
+                kpis.ivaPorPagarNeto > 0
+                  ? 'text-amber-800'
+                  : kpis.ivaPorPagarNeto < 0
+                  ? 'text-emerald-800'
+                  : 'text-slate-700'
+              }`}
+            >
+              {formatCurrency(Math.abs(kpis.ivaPorPagarNeto))}{' '}
+              {kpis.ivaPorPagarNeto > 0
+                ? '(A Cargo)'
+                : kpis.ivaPorPagarNeto < 0
+                ? '(A Favor)'
+                : '(En ceros)'}
             </div>
             <span className="text-[10px] text-slate-500">Proyección liquidación Día 17</span>
           </div>
-          <div className="space-y-1 sm:pl-3 pt-2 sm:pt-0">
+          <div className="space-y-1 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0 sm:pl-3">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Bóveda Digital ADD</span>
             <div className="font-mono font-bold text-sm text-slate-900">
               {kpis.cfdisTotalesPeriodo} {kpis.cfdisTotalesPeriodo === 1 ? 'CFDI Registrado' : 'CFDIs Registrados'}

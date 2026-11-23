@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { getInpcForIsoDate, getInpcMedioPeriodo } from '../../shared/sat-inpc-catalog';
@@ -9,7 +9,7 @@ interface UseActivosFijosParams {
   companyId: string;
   year: number;
   accounts: AccountWithBalance[];
-  onFeedback: (msg: string) => void;
+  onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export function useActivosFijos({
@@ -21,9 +21,16 @@ export function useActivosFijos({
   const queryClient = useQueryClient();
   const affectableAccounts = accounts.filter((a) => a.isAffectable);
 
-  const { data: fixedAssetsData, isLoading: loadingAssets } = useQuery({
+  const {
+    data: fixedAssetsData,
+    isLoading: loadingAssets,
+    isError: isErrorAssets,
+    error: errorAssets,
+    refetch: refetchAssets
+  } = useQuery({
     queryKey: ['fixed-assets', companyId],
-    queryFn: () => apiClient.getFixedAssets(companyId)
+    queryFn: () => apiClient.getFixedAssets(companyId),
+    enabled: Boolean(companyId)
   });
 
   const [assetCode, setAssetCode] = useState('AF-003');
@@ -35,6 +42,13 @@ export function useActivosFijos({
   const [assetInpcAdq, setAssetInpcAdq] = useState(() => getInpcForIsoDate(`${year}-01-15`));
   const [assetInpcUso, setAssetInpcUso] = useState(() => getInpcMedioPeriodo(year));
   const [isInpcModalOpen, setIsInpcModalOpen] = useState(false);
+
+  useEffect(() => {
+    const nextDate = `${year}-01-15`;
+    setAssetDate(nextDate);
+    setAssetInpcAdq(getInpcForIsoDate(nextDate));
+    setAssetInpcUso(getInpcMedioPeriodo(year));
+  }, [companyId, year]);
 
   const handleDateChange = (val: string) => {
     setAssetDate(val);
@@ -80,6 +94,9 @@ export function useActivosFijos({
       queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
       setAssetName('');
       onFeedback('Activo fijo registrado con INPC oficial y factor Art. 31 LISR.');
+    },
+    onError: (err: Error) => {
+      onFeedback(`Error al registrar activo fijo: ${err.message}`, 'error');
     }
   });
 
@@ -88,6 +105,9 @@ export function useActivosFijos({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
       onFeedback('Activo fijo eliminado del catálogo.');
+    },
+    onError: (err: Error) => {
+      onFeedback(`Error al eliminar activo fijo: ${err.message}`, 'error');
     }
   });
 
@@ -99,12 +119,18 @@ export function useActivosFijos({
       onFeedback(
         '¡Póliza mensual de Depreciación Contable generada y aplicada en libros (Cargo 601-01-006 / Abono 171-01-001)!'
       );
+    },
+    onError: (err: Error) => {
+      onFeedback(`Error al generar depreciación: ${err.message}`, 'error');
     }
   });
 
   return {
     fixedAssetsData,
     loadingAssets,
+    isErrorAssets,
+    errorAssets,
+    refetchAssets,
     assetCode,
     setAssetCode,
     assetName,

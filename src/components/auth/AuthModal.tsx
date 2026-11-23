@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Lock, User, Eye, EyeOff, X, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { trackAnalyticsEvent, trackDirectGoogleAdsSignupConversion } from '../lib/analytics';
-import { useDialogLightDismiss } from '../hooks/useDialogLightDismiss';
-import { LibrePaqLogo } from './LibrePaqLogo';
+import { Mail, Lock, User, Eye, EyeOff, X, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { trackAnalyticsEvent, trackDirectGoogleAdsSignupConversion } from '../../lib/analytics';
+import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
+import { LibrePaqLogo } from '../LibrePaqLogo';
 import {
   AuthActiveSessionPanel,
   AuthGoogleButton,
   AuthModeTabs,
   AuthForgotHeader,
   AuthFooterTrust
-} from './auth/AuthModalSubcomponents';
-import { translateAuthError } from './auth/authErrorTranslator';
+} from './AuthModalSubcomponents';
+import { translateAuthError } from './authErrorTranslator';
 
 export interface AuthModalProps {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
@@ -196,9 +196,9 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                 }`}
               >
                 {message.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
                 ) : (
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" aria-hidden="true" />
                 )}
                 <span className="leading-tight">{message.text}</span>
               </div>
@@ -306,6 +306,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                 aria-busy={loading}
                 className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
+                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                 <span>
                   {loading
                     ? 'Procesando...'
@@ -315,7 +316,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                     ? 'Crear Mi Cuenta Gratis ($0 MXN)'
                     : 'Enviar Enlace de Recuperación'}
                 </span>
-                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                {!loading && <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />}
               </button>
             </form>
 

@@ -21,6 +21,50 @@ try {
   }
 }
 
+function getFielEncryptionKeySecret(): string {
+  const denoEnv = (globalThis as { Deno?: { env?: { get?: (k: string) => string | undefined } } }).Deno?.env;
+  if (denoEnv?.get) {
+    const val = denoEnv.get('FIEL_ENCRYPTION_KEY');
+    if (val) return val;
+  }
+  if (typeof process !== 'undefined' && process.env?.FIEL_ENCRYPTION_KEY) {
+    return process.env.FIEL_ENCRYPTION_KEY;
+  }
+  return '';
+}
+
+export async function encryptPrivateKeyIfConfigured(pem: string): Promise<string> {
+  if (!pem || pem.startsWith('ENC:v1:')) return pem;
+  const secret = getFielEncryptionKeySecret();
+  if (!secret) return pem;
+  const keyBytes = new TextEncoder().encode(secret.padEnd(32, '0').slice(0, 32));
+  const cryptoKey = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await globalThis.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    new TextEncoder().encode(pem)
+  );
+  const ivB64 = Buffer.from(iv).toString('base64');
+  const ctB64 = Buffer.from(new Uint8Array(encrypted)).toString('base64');
+  return `ENC:v1:${ivB64}:${ctB64}`;
+}
+
+export async function decryptPrivateKeyIfNeeded(rawPem: string): Promise<string> {
+  if (!rawPem || !rawPem.startsWith('ENC:v1:')) return rawPem;
+  const secret = getFielEncryptionKeySecret();
+  if (!secret) {
+    throw new Error('FIEL_ENCRYPTION_KEY es requerida para desencriptar llaves privadas ENC:v1:.');
+  }
+  const parts = rawPem.split(':');
+  const iv = Uint8Array.from(Buffer.from(parts[2] || '', 'base64'));
+  const ciphertext = Uint8Array.from(Buffer.from(parts[3] || '', 'base64'));
+  const keyBytes = new TextEncoder().encode(secret.padEnd(32, '0').slice(0, 32));
+  const cryptoKey = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const decrypted = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
+  return new TextDecoder().decode(decrypted);
+}
+
 export function computeSha1Base64(content: string): string {
   return createHash('sha1').update(content, 'utf8').digest('base64');
 }
@@ -452,10 +496,33 @@ export function parseCfdiQuick(xmlRaw: string): ParsedCfdiQuick | null {
     }
   }
 
-  // Si TotalImpuestosTrasladados no viene explícito pero existen traslados raíz
-  if (ivaTrasladado === 0 && xmlWithoutConceptos.includes('Traslado')) {
-    const matches = xmlWithoutConceptos.matchAll(/<(?:cfdi:)?Traslado\b[^>]*\bImporte=["']([\d.]+)["']/gi);
-    for (const m of matches) ivaTrasladado += parseFloat(m[1] ?? '0') || 0;
+  // Extraer traslados y retenciones del bloque global soportando atributos en cualquier orden
+  let trasladosIva = 0;
+  let foundTrasladoTag = false;
+  for (const m of xmlWithoutConceptos.matchAll(/<(?:cfdi:)?Traslado\b([^>]*)>/gi)) {
+    const attrs = m[1] || '';
+    const imp = getAttr(attrs, 'Impuesto');
+    const importe = parseFloat(getAttr(attrs, 'Importe') || '0') || 0;
+    if (imp === '002' || !imp) {
+      trasladosIva += importe;
+      foundTrasladoTag = true;
+    }
+  }
+  if (foundTrasladoTag) {
+    ivaTrasladado = trasladosIva;
+  }
+
+  let isrRetenido = 0;
+  let ivaRetenido = 0;
+  for (const m of xmlWithoutConceptos.matchAll(/<(?:cfdi:)?Retencion\b([^>]*)>/gi)) {
+    const attrs = m[1] || '';
+    const imp = getAttr(attrs, 'Impuesto');
+    const importe = parseFloat(getAttr(attrs, 'Importe') || '0') || 0;
+    if (imp === '001') isrRetenido += importe;
+    else if (imp === '002') ivaRetenido += importe;
+  }
+  if (isrRetenido === 0 && ivaRetenido === 0) {
+    ivaRetenido = parseFloat(getAttr(imp, 'TotalImpuestosRetenidos') || '0') || 0;
   }
 
   return {
@@ -474,22 +541,9 @@ export function parseCfdiQuick(xmlRaw: string): ParsedCfdiQuick | null {
     tipoCambio,
     subtotal,
     descuento,
-    ivaTrasladado,
-    isrRetenido: (() => {
-      let isr = 0;
-      const matches = xmlWithoutConceptos.matchAll(/<(?:cfdi:)?Retencion\b[^>]*\bImpuesto=["']001["'][^>]*\bImporte=["']([\d.]+)["']/gi);
-      for (const m of matches) isr += parseFloat(m[1] ?? '0') || 0;
-      return isr;
-    })(),
-    ivaRetenido: (() => {
-      let iva = 0;
-      const matches = xmlWithoutConceptos.matchAll(/<(?:cfdi:)?Retencion\b[^>]*\bImpuesto=["']002["'][^>]*\bImporte=["']([\d.]+)["']/gi);
-      for (const m of matches) iva += parseFloat(m[1] ?? '0') || 0;
-      if (iva === 0) {
-        iva = parseFloat(getAttr(imp, 'TotalImpuestosRetenidos') || '0') || 0;
-      }
-      return iva;
-    })(),
+    ivaTrasladado: Number(ivaTrasladado.toFixed(2)),
+    isrRetenido: Number(isrRetenido.toFixed(2)),
+    ivaRetenido: Number(ivaRetenido.toFixed(2)),
     total,
     metodoPago,
     formaPago,

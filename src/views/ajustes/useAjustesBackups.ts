@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
+import { downloadBlobFile } from '../../lib/formatters';
+import { getTodayLocalIso } from '../../shared/date-utils';
 import { importCatalogoCsvFile } from '../catalogo/catalogoCsvIo';
 import type { Company, CompanyBackupBundle } from '../../shared/types';
 
@@ -36,6 +38,13 @@ export function useAjustesBackups(
 
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
+  const [pendingRestore, setPendingRestore] = useState<{
+    bundle: CompanyBackupBundle;
+    backupRfc: string;
+    backupName: string;
+    polCount: number;
+    accCount: number;
+  } | null>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const csvCatalogInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,16 +53,11 @@ export function useAjustesBackups(
     try {
       setIsExportingBackup(true);
       const bundle = await apiClient.exportCompanyBackup(activeCompany.id);
-      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(bundle, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute('href', dataStr);
-      downloadAnchor.setAttribute(
-        'download',
-        `LibrePaq_Backup_${activeCompany.rfc}_${new Date().toISOString().slice(0, 10)}.json`
+      downloadBlobFile(
+        `LibrePaq_Backup_${activeCompany.rfc}_${getTodayLocalIso()}.json`,
+        JSON.stringify(bundle, null, 2),
+        'application/json;charset=utf-8'
       );
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
       toast.success('Respaldo descargado', 'El paquete de contabilidad fue generado exitosamente.');
     } catch (err: unknown) {
       toast.error(`Error al respaldar: ${err instanceof Error ? err.message : String(err)}`);
@@ -66,36 +70,43 @@ export function useAjustesBackups(
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      setIsRestoringBackup(true);
       const text = await file.text();
       const bundle = JSON.parse(text) as CompanyBackupBundle;
       if (!bundle || !bundle.company || !bundle.company.rfc) {
-        throw new Error('El archivo no contiene una estructura de respaldo JSON válida de LibrePaq.');
+        throw new Error('El archivo no contiene una estructura de respaldo válida de LibrePaq.');
       }
 
-      const backupRfc = bundle.company.rfc.toUpperCase();
-      const backupName = bundle.company.name;
-      const polCount = bundle.polizas?.length || 0;
-      const accCount = bundle.accounts?.length || 0;
+      setPendingRestore({
+        bundle,
+        backupRfc: bundle.company.rfc.toUpperCase(),
+        backupName: bundle.company.name,
+        polCount: bundle.polizas?.length || 0,
+        accCount: bundle.accounts?.length || 0
+      });
+    } catch (err: unknown) {
+      toast.error(`Error al leer respaldo: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      if (restoreInputRef.current) restoreInputRef.current.value = '';
+    }
+  };
 
-      const confirmMsg =
-        `¿Confirmas la restauración del respaldo para "${backupName}" (${backupRfc})?\n\n` +
-        `• Pólizas a cargar: ${polCount}\n` +
-        `• Cuentas a cargar: ${accCount}\n\n` +
-        `IMPORTANTE: Los registros contables actuales de esta empresa serán reemplazados por el estado del respaldo.`;
+  const cancelRestoreBackup = () => {
+    setPendingRestore(null);
+  };
 
-      if (!window.confirm(confirmMsg)) {
-        return;
-      }
-
-      const restored = await apiClient.restoreCompanyBackup(bundle);
+  const confirmRestoreBackup = async () => {
+    if (!pendingRestore) return;
+    try {
+      setIsRestoringBackup(true);
+      const restored = await apiClient.restoreCompanyBackup(pendingRestore.bundle);
       toast.success('Respaldo restaurado', `La empresa ${restored.name} (${restored.rfc}) se recuperó correctamente.`);
+      setPendingRestore(null);
+      void queryClient.invalidateQueries({ queryKey: ['companies'] });
       invalidateAccountingQueries(queryClient);
     } catch (err: unknown) {
       toast.error(`Error al restaurar: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsRestoringBackup(false);
-      if (restoreInputRef.current) restoreInputRef.current.value = '';
     }
   };
 
@@ -117,6 +128,9 @@ export function useAjustesBackups(
     cfdisList,
     isExportingBackup,
     isRestoringBackup,
+    pendingRestore,
+    confirmRestoreBackup,
+    cancelRestoreBackup,
     handleExportBackup,
     handleRestoreBackupFile,
     handleImportCsvCatalog,

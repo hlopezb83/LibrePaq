@@ -128,8 +128,9 @@ export function calculateDia17Deadline(year: number, period: number): {
   isoDate: string;
   formattedSpanish: string;
 } {
-  const nextMonthIndex = period;
-  const nextYear = period === 12 ? year + 1 : year;
+  const clampedPeriod = Math.max(1, Math.min(12, Math.floor(period || 1)));
+  const nextMonthIndex = clampedPeriod;
+  const nextYear = clampedPeriod === 12 ? year + 1 : year;
   const targetDate = new Date(nextYear, nextMonthIndex % 12, 17);
   const dayOfWeek = targetDate.getDay();
   if (dayOfWeek === 6) {

@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import type { Company } from '../../shared/types';
-import type { CommandPaletteNavItem } from '../CommandPaletteModal';
+import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 
 interface UseAppShellKeyboardProps {
   shortcutsDialogRef: React.RefObject<HTMLDialogElement | null>;
   cmdDialogRef: React.RefObject<HTMLDialogElement | null>;
-  cmdInputRef: React.RefObject<HTMLInputElement | null>;
   switcherDialogRef: React.RefObject<HTMLDialogElement | null>;
-  setCmdQuery: (q: string) => void;
+  openShortcutsModal: () => void;
+  openCommandPaletteModal: () => void;
+  openCompanySwitcherModal: () => void;
   setSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   navItems: CommandPaletteNavItem[];
   navigate: (opts: { to: string }) => void;
@@ -18,9 +19,10 @@ interface UseAppShellKeyboardProps {
 export function useAppShellKeyboard({
   shortcutsDialogRef,
   cmdDialogRef,
-  cmdInputRef,
   switcherDialogRef,
-  setCmdQuery,
+  openShortcutsModal,
+  openCommandPaletteModal,
+  openCompanySwitcherModal,
   setSidebarCollapsed,
   navItems,
   navigate,
@@ -32,7 +34,7 @@ export function useAppShellKeyboard({
       if (e.key === 'F1') {
         e.preventDefault();
         if (!shortcutsDialogRef.current?.open) {
-          shortcutsDialogRef.current?.showModal();
+          openShortcutsModal();
         } else {
           shortcutsDialogRef.current?.close();
         }
@@ -44,7 +46,7 @@ export function useAppShellKeyboard({
         if (activeTag !== 'input' && activeTag !== 'textarea') {
           e.preventDefault();
           if (!shortcutsDialogRef.current?.open) {
-            shortcutsDialogRef.current?.showModal();
+            openShortcutsModal();
           } else {
             shortcutsDialogRef.current?.close();
           }
@@ -54,10 +56,8 @@ export function useAppShellKeyboard({
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setCmdQuery('');
         if (!cmdDialogRef.current?.open) {
-          cmdDialogRef.current?.showModal();
-          setTimeout(() => cmdInputRef.current?.focus(), 20);
+          openCommandPaletteModal();
         } else {
           cmdDialogRef.current?.close();
         }
@@ -69,7 +69,7 @@ export function useAppShellKeyboard({
         if (activeTag !== 'input' && activeTag !== 'textarea') {
           e.preventDefault();
           if (!switcherDialogRef.current?.open) {
-            switcherDialogRef.current?.showModal();
+            openCompanySwitcherModal();
           } else {
             switcherDialogRef.current?.close();
           }
@@ -116,5 +116,5 @@ export function useAppShellKeyboard({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navItems, navigate, activeCompany, shortcutsDialogRef, cmdDialogRef, cmdInputRef, switcherDialogRef, setCmdQuery, setSidebarCollapsed, stepPeriod]);
+  }, [navItems, navigate, activeCompany, shortcutsDialogRef, cmdDialogRef, switcherDialogRef, openShortcutsModal, openCommandPaletteModal, openCompanySwitcherModal, setSidebarCollapsed, stepPeriod]);
 }

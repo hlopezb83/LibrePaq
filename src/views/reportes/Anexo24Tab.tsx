@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Copy, Download, FileCode2, Check } from 'lucide-react';
+import { AlertCircle, Check, Copy, Download, FileCode2, RefreshCw } from 'lucide-react';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import type { SatXmlType } from '../../shared/sat-anexo24';
 
 interface Anexo24TabProps {
@@ -7,6 +7,9 @@ interface Anexo24TabProps {
   setSatXmlType: (type: SatXmlType) => void;
   satXmlData: { xml: string; filename: string; type: string } | undefined;
   isLoadingXml: boolean;
+  isErrorXml?: boolean;
+  xmlError?: unknown;
+  onRetryXml?: () => void;
   onDownloadXml: () => void;
 }
 
@@ -15,15 +18,17 @@ export function Anexo24Tab({
   setSatXmlType,
   satXmlData,
   isLoadingXml,
+  isErrorXml,
+  xmlError,
+  onRetryXml,
   onDownloadXml
 }: Anexo24TabProps) {
-  const [copiedXml, setCopiedXml] = useState(false);
+  const { copiedKey, copy } = useCopyToClipboard<'xml'>(1800);
+  const copiedXml = copiedKey === 'xml';
 
   const handleCopy = () => {
     if (!satXmlData?.xml) return;
-    navigator.clipboard?.writeText(satXmlData.xml);
-    setCopiedXml(true);
-    setTimeout(() => setCopiedXml(false), 1800);
+    void copy(satXmlData.xml, 'xml');
   };
 
   return (
@@ -39,9 +44,14 @@ export function Anexo24Tab({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label="Tipo de archivo XML SAT"
+        >
           <button
             type="button"
+            aria-pressed={satXmlType === 'balanza'}
             onClick={() => setSatXmlType('balanza')}
             className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
               satXmlType === 'balanza'
@@ -53,6 +63,7 @@ export function Anexo24Tab({
           </button>
           <button
             type="button"
+            aria-pressed={satXmlType === 'catalogo'}
             onClick={() => setSatXmlType('catalogo')}
             className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
               satXmlType === 'catalogo'
@@ -64,6 +75,7 @@ export function Anexo24Tab({
           </button>
           <button
             type="button"
+            aria-pressed={satXmlType === 'polizas'}
             onClick={() => setSatXmlType('polizas')}
             className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
               satXmlType === 'polizas'
@@ -92,6 +104,9 @@ export function Anexo24Tab({
               )}
             </button>
           )}
+          <span className="visually-hidden" aria-live="polite">
+            {copiedXml ? 'Código XML copiado al portapapeles' : ''}
+          </span>
           <button
             type="button"
             onClick={onDownloadXml}
@@ -104,14 +119,45 @@ export function Anexo24Tab({
         </div>
       </div>
 
-      {isLoadingXml || !satXmlData ? (
-        <div className="p-12 text-center text-xs text-slate-500">
-          <div className="w-8 h-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin mx-auto mb-3" />
+      {isErrorXml ? (
+        <div
+          role="alert"
+          className="p-8 text-center rounded-xl border border-red-200 bg-red-50/70 space-y-3"
+        >
+          <AlertCircle className="w-6 h-6 text-red-600 mx-auto" aria-hidden="true" />
+          <div className="text-xs font-semibold text-red-900">
+            No se pudo generar el XML Anexo 24
+          </div>
+          <p className="text-xs text-red-700">
+            {xmlError instanceof Error ? xmlError.message : 'Error de conexión al generar el XML.'}
+          </p>
+          {onRetryXml && (
+            <button
+              type="button"
+              onClick={onRetryXml}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-bold transition cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Reintentar XML
+            </button>
+          )}
+        </div>
+      ) : isLoadingXml || !satXmlData ? (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="p-12 text-center text-xs text-slate-500"
+        >
+          <div
+            className="w-8 h-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin mx-auto mb-3"
+            aria-hidden="true"
+          />
           Generando estructura XML Anexo 24 oficial...
         </div>
       ) : (
         <figure className="space-y-2">
-          <figcaption className="text-xs font-mono text-slate-600 flex items-center justify-between px-1">
+          <figcaption className="text-xs font-mono text-slate-600 flex flex-wrap items-center justify-between gap-2 px-1">
             <span>
               Archivo oficial: <strong className="text-blue-700">{satXmlData.filename}</strong> ({satXmlData.type})
             </span>

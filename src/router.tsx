@@ -139,6 +139,15 @@ const adminRoute = createRoute({
   )
 });
 
+const resetPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/reset-password',
+  component: lazyRouteComponent(
+    () => import('./views/ResetPasswordView'),
+    'ResetPasswordView'
+  )
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   landingRoute,
@@ -150,7 +159,8 @@ const routeTree = rootRoute.addChildren([
   fiscalBancosRoute,
   reportesRoute,
   ajustesRoute,
-  adminRoute
+  adminRoute,
+  resetPasswordRoute
 ]);
 
 export const router = createRouter({

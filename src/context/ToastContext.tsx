@@ -49,12 +49,20 @@ function copyErrorReport(title: string, message?: string, reportData?: unknown) 
 
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      sonnerToast.success('¡Diagnóstico copiado al portapapeles!', {
-        description: 'Pégalo en WhatsApp con el equipo de soporte para resolverlo de inmediato.',
-        duration: 5000
-      });
+      void navigator.clipboard
+        .writeText(JSON.stringify(payload, null, 2))
+        .then(() => {
+          sonnerToast.success('¡Diagnóstico copiado al portapapeles!', {
+            description: 'Pégalo en WhatsApp con el equipo de soporte para resolverlo de inmediato.',
+            duration: 5000
+          });
+        })
+        .catch(() => {
+          sonnerToast.error('No se pudo copiar automáticamente al portapapeles.');
+        });
+      return;
     }
+    sonnerToast.error('El portapapeles no está disponible en este navegador.');
   } catch {
     sonnerToast.error('No se pudo copiar automáticamente al portapapeles.');
   }
@@ -189,6 +197,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <Toaster
       position="top-right"
       offset={{ top: 76, right: 24 }}
+      mobileOffset={{ top: 12, right: 12, left: 12 }}
       gap={12}
       richColors
       closeButton

@@ -1,10 +1,13 @@
-import { escapeXmlAttr } from './cfdi-xml';
 import type { SatCfdiStatusCheckResult } from './types';
 
 /**
  * Construye el sobre SOAP público del SAT (ConsultaCFDIService.svc)
  * para verificar vigencia y estatus 69-B (EFOS) de un comprobante CFDI 4.0.
  */
+function sanitizeCdataContent(str: string): string {
+  return String(str).replace(/]]>/g, ']]]]><![CDATA[>');
+}
+
 export function buildSatConsultaCfdiSoapXml(params: {
   rfcEmisor?: string;
   emisorRfc?: string;
@@ -13,9 +16,10 @@ export function buildSatConsultaCfdiSoapXml(params: {
   total: number;
   uuid: string;
 }): string {
-  const re = params.rfcEmisor || params.emisorRfc || '';
-  const rr = params.rfcReceptor || params.receptorRfc || '';
-  const expresion = `?re=${escapeXmlAttr(re)}&rr=${escapeXmlAttr(rr)}&tt=${params.total.toFixed(6)}&id=${escapeXmlAttr(params.uuid)}`;
+  const re = sanitizeCdataContent(params.rfcEmisor || params.emisorRfc || '');
+  const rr = sanitizeCdataContent(params.rfcReceptor || params.receptorRfc || '');
+  const uuid = sanitizeCdataContent(params.uuid || '');
+  const expresion = `?re=${re}&rr=${rr}&tt=${params.total.toFixed(6)}&id=${uuid}`;
   return `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tem="http://tempuri.org/">
   <soapenv:Header/>
   <soapenv:Body>

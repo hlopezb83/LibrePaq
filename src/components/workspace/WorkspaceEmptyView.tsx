@@ -157,15 +157,6 @@ export function WorkspaceEmptyView({
         </div>
       </section>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json,application/json"
-        onChange={(e) => void handleRestoreFile(e)}
-        aria-label="Seleccionar archivo de respaldo de empresa"
-        className="hidden"
-      />
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <article className="grid grid-rows-[auto_1fr_auto] sm:grid-rows-subgrid sm:row-span-3 gap-2.5 sm:gap-3 bg-white border border-blue-200 rounded-2xl p-4 sm:p-5 shadow-2xs">
           <header className="space-y-2">
@@ -233,20 +224,29 @@ export function WorkspaceEmptyView({
             Impórtalo directamente dentro de tu Despacho conservando su catálogo de cuentas, pólizas y comprobantes CFDI.
           </p>
           <footer className="pt-1.5">
-            <button
-              type="button"
-              disabled={isRestoring}
-              aria-busy={isRestoring}
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+            <label
+              htmlFor="workspace-restore-file"
+              className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-within:outline-2 focus-within:outline-blue-700 ${
+                isRestoring ? 'opacity-50 pointer-events-none' : ''
+              }`}
             >
+              <input
+                ref={fileInputRef}
+                id="workspace-restore-file"
+                type="file"
+                disabled={isRestoring}
+                accept=".json,application/json"
+                onChange={(e) => void handleRestoreFile(e)}
+                aria-label="Seleccionar archivo de respaldo de empresa"
+                className="visually-hidden"
+              />
               {isRestoring ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden="true" />
               ) : (
                 <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               )}
               <span>{isRestoring ? 'Restaurando empresa...' : 'Cargar Respaldo de Empresa'}</span>
-            </button>
+            </label>
           </footer>
         </article>
       </div>

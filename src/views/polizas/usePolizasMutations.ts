@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
-import type { PolizaType } from '../../shared/types';
+import type { AccountWithBalance, PolizaType } from '../../shared/types';
 import type { DraftMovement } from './PolizaEditorModal';
 
 export interface UsePolizasMutationsParams {
@@ -17,8 +17,10 @@ export interface UsePolizasMutationsParams {
   concepto: string;
   cfdiUuid: string;
   movements: DraftMovement[];
+  accounts: AccountWithBalance[];
   dialogRef?: RefObject<HTMLDialogElement | null>;
   onSaveSuccess?: () => void;
+  onPedimentoSuccess?: () => void;
   setFormError: (err: string | null) => void;
   setConfirmDeleteId: (id: string | null) => void;
 }
@@ -34,8 +36,10 @@ export function usePolizasMutations({
   concepto,
   cfdiUuid,
   movements,
+  accounts,
   dialogRef,
   onSaveSuccess,
+  onPedimentoSuccess,
   setFormError,
   setConfirmDeleteId
 }: UsePolizasMutationsParams) {
@@ -69,7 +73,18 @@ export function usePolizasMutations({
       });
     },
     onSuccess: (saved) => {
-      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      invalidateAccountingQueries(queryClient, [
+        'polizas',
+        'accounts',
+        'account-ledger',
+        'reports',
+        'dashboard',
+        'cfdis',
+        'bank-reconciliation',
+        'fiscal-workpaper',
+        'diot',
+        'sat-xml'
+      ]);
       onSaveSuccess?.();
       dialogRef?.current?.close();
       if ('tipo' in saved) {
@@ -98,7 +113,18 @@ export function usePolizasMutations({
       return apiClient.deletePoliza(id);
     },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      invalidateAccountingQueries(queryClient, [
+        'polizas',
+        'accounts',
+        'account-ledger',
+        'reports',
+        'dashboard',
+        'cfdis',
+        'bank-reconciliation',
+        'fiscal-workpaper',
+        'diot',
+        'sat-xml'
+      ]);
       setConfirmDeleteId(null);
       toast.success('Póliza Eliminada', 'El asiento y sus movimientos fueron revertidos.');
     },
@@ -113,7 +139,15 @@ export function usePolizasMutations({
       return apiClient.closeYearPoliza(activeCompanyId);
     },
     onSuccess: (res) => {
-      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      invalidateAccountingQueries(queryClient, [
+        'polizas',
+        'accounts',
+        'account-ledger',
+        'reports',
+        'dashboard',
+        'fiscal-workpaper',
+        'sat-xml'
+      ]);
       toast.success(
         `Cierre Anual ${currentYear} Registrado`,
         `Se generó la póliza de cierre en Periodo 13 con utilidad/pérdida de ${formatCurrency(res.utilidadTraspasada)}.`
@@ -124,5 +158,66 @@ export function usePolizasMutations({
     }
   });
 
-  return { savePolizaMutation, deletePolizaMutation, closeYearMutation };
+  const createPedimentoMutation = useMutation({
+    mutationFn: (pedimentoData: {
+      tipo: 'EGRESO' | 'DIARIO';
+      fecha: string;
+      concepto: string;
+      movements: Array<{
+        accountCode: string;
+        concepto: string;
+        cargo: number;
+        abono: number;
+      }>;
+    }) => {
+      if (isPeriodLocked) {
+        throw new Error(
+          `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} está bloqueado ante el SAT.`
+        );
+      }
+      const mappedMovements = pedimentoData.movements.map((mov) => {
+        const found = accounts.find((a) => a.code === mov.accountCode);
+        return {
+          accountId: found?.id ?? `acc_${mov.accountCode.replace(/-/g, '_')}`,
+          concepto: mov.concepto,
+          cargo: mov.cargo,
+          abono: mov.abono
+        };
+      });
+
+      return apiClient.createPoliza({
+        companyId: activeCompanyId,
+        tipo: pedimentoData.tipo,
+        fecha: pedimentoData.fecha,
+        concepto: pedimentoData.concepto,
+        movements: mappedMovements
+      });
+    },
+    onSuccess: () => {
+      invalidateAccountingQueries(queryClient, [
+        'polizas',
+        'accounts',
+        'account-ledger',
+        'reports',
+        'dashboard',
+        'fiscal-workpaper',
+        'sat-xml'
+      ]);
+      onPedimentoSuccess?.();
+      toast.success(
+        'Pedimento Registrado',
+        'La póliza de importación aduanal se generó y cuadró con éxito.'
+      );
+    },
+    onError: (err: Error) => {
+      toast.error('Error al registrar pedimento', err.message);
+    }
+  });
+
+  return {
+    savePolizaMutation,
+    deletePolizaMutation,
+    closeYearMutation,
+    createPedimentoMutation
+  };
 }

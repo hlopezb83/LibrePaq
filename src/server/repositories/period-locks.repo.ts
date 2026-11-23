@@ -1,6 +1,6 @@
 import { db, type PeriodLockDbRow } from '../connection';
 import { assertAccountingInvariant } from '../../shared/accounting-engine';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 import type { PeriodLock } from '../../shared/types';
 
 export function getPeriodLock(

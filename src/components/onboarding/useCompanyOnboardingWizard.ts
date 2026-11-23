@@ -1,21 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { REGIMENES_FISCALES_SAT } from '../../shared/sat-catalog';
+import { REGIMENES_FISCALES_SAT } from '../../shared/sat-constants';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
-import {
-  extractCompanyCandidatesFromCfdiXml,
-  type CfdiCompanyCandidate
-} from '../../shared/cfdi-company-extractor';
-import {
-  parseUploadedCompanyFile,
-  extractCompanyFromCsfText,
-  convertCsfToCandidate
-} from '../../shared/sat-csf-extractor';
+import type { CfdiCompanyCandidate } from '../../shared/cfdi-company-extractor';
 import { trackFirstCompanyCreatedConversion } from '../../lib/analytics';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import type { Company } from '../../shared/types';
+import { useOnboardingAutofill } from './useOnboardingAutofill';
 
 export interface UseCompanyOnboardingWizardProps {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
@@ -46,9 +39,9 @@ export function useCompanyOnboardingWizard({
   const [currentPeriod, setCurrentPeriod] = useState(defaultPeriod);
 
   // Step 2: Catálogo Preset
-  const [catalogPreset, setCatalogPreset] = useState<'SAT_STANDARD' | 'RESICO_SIMPLIFIED' | 'CUSTOM'>(
-    'SAT_STANDARD'
-  );
+  const [catalogPreset, setCatalogPreset] = useState<
+    'SAT_STANDARD' | 'RESICO_SIMPLIFIED' | 'CUSTOM'
+  >('SAT_STANDARD');
 
   // Step 3: Tesorería y Bancos (Apagado por defecto para no crear saldos falsos no solicitados)
   const [initialBankName, setInitialBankName] = useState('BBVA México');
@@ -67,7 +60,9 @@ export function useCompanyOnboardingWizard({
   // Autocompletado desde XML CFDI
   const [xmlCandidates, setXmlCandidates] = useState<CfdiCompanyCandidate[]>([]);
   const [activeXmlRole, setActiveXmlRole] = useState<'EMISOR' | 'RECEPTOR' | null>(null);
-  const [creationFlow, setCreationFlow] = useState<'express' | 'wizard' | 'xml_autofill'>('wizard');
+  const [creationFlow, setCreationFlow] = useState<'express' | 'wizard' | 'xml_autofill'>(
+    'wizard'
+  );
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showModulo11Breakdown, setShowModulo11Breakdown] = useState(false);
@@ -88,12 +83,17 @@ export function useCompanyOnboardingWizard({
     setInitialBankBalance(0);
     setCreateOpeningEntry(false);
     setSkipFiel(true);
-    setFielCerBase64(null); setFielCerName(null);
-    setFielKeyBase64(null); setFielKeyName(null);
+    setFielCerBase64(null);
+    setFielCerName(null);
+    setFielKeyBase64(null);
+    setFielKeyName(null);
     setFielPassword('');
-    setXmlCandidates([]); setActiveXmlRole(null);
-    setCreationFlow('wizard'); setErrorMessage(null);
-    setShowModulo11Breakdown(false); setBypassRfcCheckDigit(false);
+    setXmlCandidates([]);
+    setActiveXmlRole(null);
+    setCreationFlow('wizard');
+    setErrorMessage(null);
+    setShowModulo11Breakdown(false);
+    setBypassRfcCheckDigit(false);
   };
 
   useEffect(() => {
@@ -134,96 +134,39 @@ export function useCompanyOnboardingWizard({
     setErrorMessage(null);
   };
 
-  const handleFileAutofill = async (file: File) => {
-    if (file.name.toLowerCase().endsWith('.pdf') || file.type.startsWith('image/')) {
-      toast.info('Analizando Constancia de Situación Fiscal (CSF)...');
-    }
-    try {
-      const { primary, candidates, source } = await parseUploadedCompanyFile(file);
-      if (!primary) {
-        toast.warning(
-          source === 'CSF'
-            ? 'No se pudieron extraer datos automáticamente. Puedes capturar los datos manualmente.'
-            : 'No se encontró un RFC válido en el archivo XML seleccionado.'
-        );
-        return;
-      }
-      setXmlCandidates(candidates);
-      applyXmlCandidate(primary);
-      toast.success(
-        source === 'CSF'
-          ? `Constancia SAT (CSF) cargada: ${primary.rfc}`
-          : `Datos fiscales cargados desde CFDI (${primary.rfc})`
-      );
-    } catch {
-      toast.warning('El análisis con IA no estuvo disponible. Puedes capturar los datos manualmente.');
-    }
-  };
-
-  const handleXmlAutofill = (xmlOrText: string) => {
-    if (xmlOrText.includes('<Comprobante') || xmlOrText.includes('<cfdi:Comprobante')) {
-      const { primary, candidates } = extractCompanyCandidatesFromCfdiXml(xmlOrText);
-      if (!primary) {
-        toast.warning('No se encontró un RFC válido en el archivo XML seleccionado.');
-        return;
-      }
-      setXmlCandidates(candidates);
-      applyXmlCandidate(primary);
-      toast.success(`Datos fiscales cargados desde CFDI (${primary.rfc})`);
-      return;
-    }
-
-    const csf = extractCompanyFromCsfText(xmlOrText);
-    if (csf && csf.rfc) {
-      const candidate = convertCsfToCandidate(csf);
-      setXmlCandidates([candidate]);
-      applyXmlCandidate(candidate);
-      toast.success(`Datos fiscales cargados desde Constancia SAT (${csf.rfc})`);
-      return;
-    }
-
-    toast.warning('No se encontró un RFC válido en el documento o texto proporcionado.');
-  };
-
-  const readFileAsBase64 = (file: File, onLoaded: (b64: string | null) => void) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      onLoaded((result.includes(',') ? result.split(',')[1] : result) || null);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleCerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setFielCerName(f.name);
-      readFileAsBase64(f, setFielCerBase64);
-    }
-  };
-
-  const handleKeyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setFielKeyName(f.name);
-      readFileAsBase64(f, setFielKeyBase64);
-    }
-  };
+  const { handleFileAutofill, handleXmlAutofill, handleCerFileChange, handleKeyFileChange } =
+    useOnboardingAutofill({
+      setXmlCandidates,
+      applyXmlCandidate,
+      setFielCerName,
+      setFielCerBase64,
+      setFielKeyName,
+      setFielKeyBase64,
+      toast
+    });
 
   const createCompanyMutation = useMutation({
     mutationFn: async (flowOverride?: 'express' | 'wizard' | 'xml_autofill') => {
       const resolvedFlow = flowOverride || creationFlow;
-      const preset = regimenFiscal.startsWith('626') && resolvedFlow !== 'wizard'
-        ? 'RESICO_SIMPLIFIED'
-        : catalogPreset;
+      const preset =
+        regimenFiscal.startsWith('626') && resolvedFlow !== 'wizard'
+          ? 'RESICO_SIMPLIFIED'
+          : catalogPreset;
       const created = await apiClient.createCompany({
-        name: name.trim(), rfc: rfc.trim().toUpperCase(), regimenFiscal,
-        codigoPostal: codigoPostal.trim(), currentYear, currentPeriod,
-        catalogPreset: preset, initialBankName, initialBankAccount, initialBankBalance,
+        name: name.trim(),
+        rfc: rfc.trim().toUpperCase(),
+        regimenFiscal,
+        codigoPostal: codigoPostal.trim(),
+        currentYear,
+        currentPeriod,
+        catalogPreset: preset,
+        initialBankName,
+        initialBankAccount,
+        initialBankBalance,
         createOpeningEntry,
-        fielCerBase64: skipFiel ? undefined : (fielCerBase64 || undefined),
-        fielKeyBase64: skipFiel ? undefined : (fielKeyBase64 || undefined),
-        fielPassword: skipFiel ? undefined : (fielPassword || undefined)
+        fielCerBase64: skipFiel ? undefined : fielCerBase64 || undefined,
+        fielKeyBase64: skipFiel ? undefined : fielKeyBase64 || undefined,
+        fielPassword: skipFiel ? undefined : fielPassword || undefined
       });
       return { created, resolvedFlow };
     },

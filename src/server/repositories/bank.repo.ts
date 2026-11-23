@@ -5,7 +5,7 @@ import {
   toCents
 } from '../../shared/accounting-engine';
 import { findBankReconciliationMatches } from '../../shared/engine/bank-and-closing.engine';
-import { SAFETY_BOUNDS } from '../../shared/sat-catalog';
+import { SAFETY_BOUNDS } from '../../shared/sat-constants';
 import { getDefaultDateForPeriod } from '../../shared/date-utils';
 import type {
   BankReconciliationResponse,

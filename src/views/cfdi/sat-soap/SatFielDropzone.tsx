@@ -70,10 +70,19 @@ export function SatFielDropzone({
     <div className="space-y-3">
       {/* Zona Smart Drag & Drop Unificada */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Seleccionar o arrastrar archivos .cer y .key de tu e.firma"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => combinedInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            combinedInputRef.current?.click();
+          }
+        }}
         className={`relative p-5 sm:p-6 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center flex flex-col items-center justify-center gap-2.5 ${
           isDragging
             ? 'border-blue-600 bg-blue-50/90 ring-4 ring-blue-500/20 scale-[1.01]'
@@ -88,7 +97,8 @@ export function SatFielDropzone({
           accept=".cer,.key,.crt,.der,.pem"
           multiple
           onChange={handleCombinedChange}
-          className="hidden"
+          tabIndex={-1}
+          className="visually-hidden"
           aria-label="Cargar archivos de e.firma (.cer y .key)"
         />
 

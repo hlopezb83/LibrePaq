@@ -11,7 +11,7 @@ import {
   Target,
   Megaphone
 } from 'lucide-react';
-import type { CommandPaletteNavItem } from '../CommandPaletteModal';
+import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 
 export const SUPERADMIN_NAV_ITEMS: CommandPaletteNavItem[] = [
   {

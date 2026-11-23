@@ -22,7 +22,7 @@ export function scheduleRouteAndModalPrefetch(isAuthenticated: boolean): (() => 
   if (!isAuthenticated && !hasPrefetchedPublicAssets) {
     return scheduleIdlePrefetch(() => {
       hasPrefetchedPublicAssets = true;
-      void import('../components/AuthModal');
+      void import('../components/auth/AuthModal');
       void import('../views/DashboardView');
       void import('./sandbox-demo-seeder');
     }, 1000);
@@ -38,8 +38,8 @@ export function scheduleRouteAndModalPrefetch(isAuthenticated: boolean): (() => 
       void import('../views/DiotBancosView');
       void import('../views/ReportesView');
       void import('../views/AjustesView');
-      void import('../components/CompanyOnboardingWizardModal');
-      void import('../components/AccountLedgerModal');
+      void import('../components/onboarding/CompanyOnboardingWizardModal');
+      void import('../components/account-ledger/AccountLedgerModal');
     }, 600);
   }
 

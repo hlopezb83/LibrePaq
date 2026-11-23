@@ -63,7 +63,7 @@ export function AjustesSoapHistoryCard({
           </table>
         </div>
       ) : (
-        <p className="text-xs text-slate-400 py-3 text-center">
+        <p className="text-xs text-slate-600 py-3 text-center">
           No hay solicitudes de descarga masiva pendientes ante el SAT para {companyRfc}.
         </p>
       )}

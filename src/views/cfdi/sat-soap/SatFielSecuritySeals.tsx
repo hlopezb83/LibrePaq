@@ -18,8 +18,8 @@ export function SatFielSecuritySeals() {
         <div className="flex items-start gap-2 bg-white/70 p-2 rounded-lg border border-slate-200">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
           <div>
-            <strong className="text-slate-800 block">Canal HTTPS WS-Security</strong>
-            <span>Comunicación directa y cifrada con los servidores centrales del SAT.</span>
+            <strong className="text-slate-800 block">Conexión Cifrada SAT</strong>
+            <span>Comunicación oficial y cifrada con los servidores centrales del SAT.</span>
           </div>
         </div>
         <div className="flex items-start gap-2 bg-white/70 p-2 rounded-lg border border-slate-200">

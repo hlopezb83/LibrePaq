@@ -10,7 +10,8 @@ export interface PapelDia17TabProps {
   companyId: string;
   year: number;
   period: number;
-  onFeedback: (msg: string) => void;
+  isPeriodLocked?: boolean;
+  onFeedback: (msg: string, type?: 'success' | 'error') => void;
   onOpenDeliverable?: (tab: 'DOSSIER' | 'BALANZA' | 'RESULTADOS' | 'BALANCE' | 'DIA17' | 'CONFIG') => void;
 }
 
@@ -18,6 +19,7 @@ export function PapelDia17Tab({
   companyId,
   year,
   period,
+  isPeriodLocked = false,
   onFeedback,
   onOpenDeliverable
 }: PapelDia17TabProps) {
@@ -35,6 +37,7 @@ export function PapelDia17Tab({
     setIvaSaldoFavor,
     tcCierreUsd,
     setTcCierreUsd,
+    hasUnsavedParams,
     copiedSatDyp,
     handleCopySatDyp,
     saveTaxParamsMutation,
@@ -124,7 +127,12 @@ export function PapelDia17Tab({
             )}
             <button
               type="button"
-              disabled={genTaxProvisionMutation.isPending}
+              disabled={genTaxProvisionMutation.isPending || isPeriodLocked}
+              title={
+                isPeriodLocked
+                  ? 'Periodo fiscal bloqueado ante el SAT'
+                  : 'Contabilizar provisión mensual de ISR e IVA'
+              }
               onClick={() => genTaxProvisionMutation.mutate()}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
@@ -150,6 +158,7 @@ export function PapelDia17Tab({
             <input
               id="dia17-coef-utilidad"
               type="number"
+              inputMode="decimal"
               step="0.0001"
               min="0"
               max="1"
@@ -166,6 +175,7 @@ export function PapelDia17Tab({
             <input
               id="dia17-perdidas-amortizar"
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0"
               title="Pérdidas fiscales pendientes de amortizar actualizadas (Art. 57 LISR)"
@@ -181,6 +191,7 @@ export function PapelDia17Tab({
             <input
               id="dia17-iva-saldo-favor"
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0"
               title="Saldo a favor de IVA de meses previos por acreditar (Art. 6 LIVA)"
@@ -196,6 +207,7 @@ export function PapelDia17Tab({
             <input
               id="dia17-tc-cierre-usd"
               type="number"
+              inputMode="decimal"
               step="0.0001"
               min="0"
               title="Tipo de cambio oficial publicado por el Diario Oficial de la Federación (DOF) al cierre de mes"
@@ -215,6 +227,16 @@ export function PapelDia17Tab({
             </button>
           </div>
         </form>
+
+        {hasUnsavedParams && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 font-medium"
+          >
+            Tienes parámetros modificados sin aplicar. Haz clic en <strong>Recalcular Cédula Día 17</strong> para actualizar el ISR, IVA y valuación cambiaria.
+          </div>
+        )}
       </div>
 
       {/* 3 Cédulas Fiscales lado a lado: ISR Provisional, IVA Definitivo y Fluctuación USD */}
@@ -223,6 +245,7 @@ export function PapelDia17Tab({
         <PapelDia17IvaCard workpaper={workpaper} />
         <PapelDia17UsdCard
           workpaper={workpaper}
+          isPeriodLocked={isPeriodLocked}
           genExchangePolizaMutation={genExchangePolizaMutation}
         />
       </div>

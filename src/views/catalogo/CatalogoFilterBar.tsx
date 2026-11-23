@@ -34,6 +34,7 @@ export interface CatalogoFilterBarProps {
     cargos: number;
     abonos: number;
   };
+  onResetFilters?: () => void;
 }
 
 export function CatalogoFilterBar({
@@ -51,8 +52,14 @@ export function CatalogoFilterBar({
   quickFilter,
   setQuickFilter,
   quickFilterCounts,
-  filteredSummaryTotals
+  filteredSummaryTotals,
+  onResetFilters
 }: CatalogoFilterBarProps) {
+  const hasActiveFilters =
+    Boolean(globalFilter.trim()) ||
+    selectedType !== 'ALL' ||
+    quickFilter !== 'ALL' ||
+    levelFilter !== 'ALL';
   const quickFilterPills = [
     { id: 'ALL' as QuickFilterType, label: 'Todas', count: quickFilterCounts.ALL },
     { id: 'AFFECTABLE' as QuickFilterType, label: 'Solo Afectables', count: quickFilterCounts.AFFECTABLE },
@@ -161,7 +168,7 @@ export function CatalogoFilterBar({
       </div>
 
       {/* Fila 2: Rubros Contables (100 a 600) en scrollbar suave */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-0.5" role="group" aria-label="Filtrar por rubro contable oficial SAT">
+      <div className="erp-tab-scroller pb-0.5 pt-0.5" role="group" aria-label="Filtrar por rubro contable oficial SAT">
         {typeFilters.map((tab) => (
           <button
             key={tab.id}
@@ -230,9 +237,20 @@ export function CatalogoFilterBar({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-        <span className="text-slate-500 font-mono text-[11px]">
-          Mostrando <strong>{filteredCount}</strong> cuentas en pantalla (<strong>{filteredSummaryTotals.countAffectable}</strong> cuentas afectables)
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span role="status" aria-live="polite" className="text-slate-500 font-mono text-[11px]">
+            Mostrando <strong>{filteredCount}</strong> cuentas en pantalla (<strong>{filteredSummaryTotals.countAffectable}</strong> cuentas afectables)
+          </span>
+          {hasActiveFilters && onResetFilters && (
+            <button
+              type="button"
+              onClick={onResetFilters}
+              className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 underline cursor-pointer"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-4 font-mono text-[11px]">
           <span className="text-slate-600">
             Cargos del Periodo: <strong className="text-slate-900">{formatCurrency(filteredSummaryTotals.cargos)}</strong>

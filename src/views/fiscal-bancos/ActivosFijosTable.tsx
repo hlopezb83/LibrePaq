@@ -18,21 +18,31 @@ export function ActivosFijosTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
+        <caption className="visually-hidden">
+          Cédula de activos fijos y depreciación mensual contable y fiscal INPC
+        </caption>
         <thead>
           <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-            <th className="py-2.5 px-3">Código / Bien</th>
-            <th className="py-2.5 px-3">Adquisición</th>
-            <th className="py-2.5 px-3 text-right">MOI</th>
-            <th className="py-2.5 px-3 text-right">Tasa Anual</th>
-            <th className="py-2.5 px-3 text-right">Dep. Mensual Contable</th>
-            <th className="py-2.5 px-3 text-right">Factor INPC</th>
-            <th className="py-2.5 px-3 text-right">Dep. Fiscal Actualizada</th>
-            <th className="py-2.5 px-3 text-right">Valor Neto en Libros</th>
-            <th className="py-2.5 px-3 text-right">Acción</th>
+            <th scope="col" className="py-2.5 px-3">Código / Bien</th>
+            <th scope="col" className="py-2.5 px-3">Adquisición</th>
+            <th scope="col" className="py-2.5 px-3 text-right">MOI</th>
+            <th scope="col" className="py-2.5 px-3 text-right">Tasa Anual</th>
+            <th scope="col" className="py-2.5 px-3 text-right">Dep. Mensual Contable</th>
+            <th scope="col" className="py-2.5 px-3 text-right">Factor INPC</th>
+            <th scope="col" className="py-2.5 px-3 text-right">Dep. Fiscal Actualizada</th>
+            <th scope="col" className="py-2.5 px-3 text-right">Valor Neto en Libros</th>
+            <th scope="col" className="py-2.5 px-3 text-right">Acción</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 text-xs">
-          {assets.map((asset) => (
+          {assets.length === 0 ? (
+            <tr>
+              <td colSpan={9} className="py-8 text-center text-slate-500">
+                No hay activos fijos registrados para esta empresa.
+              </td>
+            </tr>
+          ) : (
+            assets.map((asset) => (
             <tr key={asset.id} className="hover:bg-blue-50/30">
               <td className="py-2.5 px-3">
                 <span className="font-mono font-bold text-blue-800 mr-1.5">
@@ -89,6 +99,7 @@ export function ActivosFijosTable({
                     disabled={isDeleting}
                     onClick={() => setConfirmDeleteId(asset.id)}
                     title="Eliminar activo fijo"
+                    aria-label={`Eliminar activo fijo ${asset.codigo} — ${asset.nombre}`}
                     className="p-1 text-slate-400 hover:text-red-700 cursor-pointer disabled:opacity-50"
                   >
                     <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -96,7 +107,8 @@ export function ActivosFijosTable({
                 )}
               </td>
             </tr>
-          ))}
+            ))
+          )}
         </tbody>
       </table>
     </div>

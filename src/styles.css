@@ -222,24 +222,6 @@ table td {
 }
 
 /* Estilos profesionales de Impresión / Exportación PDF (@media print) */
-/* Top Layer Toaster Container via Popover API */
-#toast-portal-popover {
-  position: fixed;
-  inset: auto 0 0 auto;
-  top: 0;
-  right: 0;
-  width: auto;
-  height: auto;
-  max-width: 100vw;
-  max-height: 100vh;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  overflow: visible;
-  pointer-events: none;
-}
-
 #toast-portal-popover > * {
   pointer-events: auto;
 }

@@ -1,7 +1,15 @@
 import type { ChangeEvent, RefObject } from 'react';
-import { Database, Download, FileSpreadsheet, FolderTree, Upload } from 'lucide-react';
+import { AlertTriangle, Database, Download, FileSpreadsheet, FolderTree, Upload } from 'lucide-react';
 import { downloadCsvFile } from '../../lib/formatters';
-import type { Company } from '../../shared/types';
+import type { Company, CompanyBackupBundle } from '../../shared/types';
+
+export interface PendingBackupRestore {
+  bundle: CompanyBackupBundle;
+  backupRfc: string;
+  backupName: string;
+  polCount: number;
+  accCount: number;
+}
 
 export interface AjustesRespaldosTabProps {
   activeCompany: Company;
@@ -10,6 +18,9 @@ export interface AjustesRespaldosTabProps {
   cfdisList?: unknown[];
   isExportingBackup: boolean;
   isRestoringBackup: boolean;
+  pendingRestore: PendingBackupRestore | null;
+  confirmRestoreBackup: () => void;
+  cancelRestoreBackup: () => void;
   handleExportBackup: () => void;
   handleRestoreBackupFile: (e: ChangeEvent<HTMLInputElement>) => void;
   handleImportCsvCatalog: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -24,6 +35,9 @@ export function AjustesRespaldosTab({
   cfdisList,
   isExportingBackup,
   isRestoringBackup,
+  pendingRestore,
+  confirmRestoreBackup,
+  cancelRestoreBackup,
   handleExportBackup,
   handleRestoreBackupFile,
   handleImportCsvCatalog,
@@ -76,26 +90,25 @@ export function AjustesRespaldosTab({
           </div>
 
           <div>
-            <input
-              ref={restoreInputRef}
-              id="ajustes-restore-backup-input"
-              name="restoreBackupFile"
-              type="file"
-              accept=".json"
-              aria-label="Seleccionar archivo de respaldo LibrePaq"
-              onChange={handleRestoreBackupFile}
-              className="hidden"
-            />
-            <button
-              type="button"
-              disabled={isRestoringBackup}
-              aria-busy={isRestoringBackup}
-              onClick={() => restoreInputRef.current?.click()}
-              className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition shadow-2xs cursor-pointer disabled:opacity-50"
+            <label
+              htmlFor="ajustes-restore-backup-input"
+              className={`w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition shadow-2xs cursor-pointer focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 ${
+                isRestoringBackup ? 'opacity-50 pointer-events-none' : ''
+              }`}
             >
+              <input
+                ref={restoreInputRef}
+                id="ajustes-restore-backup-input"
+                name="restoreBackupFile"
+                type="file"
+                accept=".json"
+                disabled={isRestoringBackup}
+                onChange={handleRestoreBackupFile}
+                className="visually-hidden"
+              />
               <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
-              {isRestoringBackup ? 'Restaurando empresa...' : 'Seleccionar Archivo de Respaldo'}
-            </button>
+              <span>{isRestoringBackup ? 'Restaurando empresa...' : 'Seleccionar Archivo de Respaldo'}</span>
+            </label>
           </div>
         </div>
 
@@ -118,24 +131,22 @@ export function AjustesRespaldosTab({
           </div>
 
           <div className="space-y-2">
-            <input
-              ref={csvCatalogInputRef}
-              id="ajustes-import-csv-input"
-              name="csvCatalogFile"
-              type="file"
-              accept=".csv,.txt"
-              aria-label="Seleccionar archivo CSV de catálogo CONTPAQi"
-              onChange={handleImportCsvCatalog}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => csvCatalogInputRef.current?.click()}
-              className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition shadow-2xs cursor-pointer"
+            <label
+              htmlFor="ajustes-import-csv-input"
+              className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition shadow-2xs cursor-pointer focus-within:outline-2 focus-within:outline-purple-700 focus-within:outline-offset-2"
             >
+              <input
+                ref={csvCatalogInputRef}
+                id="ajustes-import-csv-input"
+                name="csvCatalogFile"
+                type="file"
+                accept=".csv,.txt"
+                onChange={handleImportCsvCatalog}
+                className="visually-hidden"
+              />
               <FolderTree className="w-4 h-4 shrink-0" aria-hidden="true" />
-              Importar Catálogo CSV
-            </button>
+              <span>Importar Catálogo CSV</span>
+            </label>
             <button
               type="button"
               onClick={() => {
@@ -164,10 +175,49 @@ export function AjustesRespaldosTab({
         </div>
       </div>
 
+      {pendingRestore && (
+        <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby="confirm-restore-backup-title"
+          className="bg-amber-50 border border-amber-300 rounded-2xl p-4 sm:p-5 space-y-2 text-xs"
+        >
+          <div id="confirm-restore-backup-title" className="flex items-center gap-2 text-amber-950 font-bold">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+            <span>
+              Confirmar restauración de respaldo para &ldquo;{pendingRestore.backupName}&rdquo; ({pendingRestore.backupRfc})
+            </span>
+          </div>
+          <p className="text-amber-900">
+            Se cargarán <strong>{pendingRestore.polCount} pólizas</strong> y{' '}
+            <strong>{pendingRestore.accCount} cuentas</strong>. Los registros actuales de esa empresa serán reemplazados por el estado del respaldo.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              disabled={isRestoringBackup}
+              onClick={cancelRestoreBackup}
+              className="px-3 py-1.5 rounded-xl font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={isRestoringBackup}
+              aria-busy={isRestoringBackup}
+              onClick={confirmRestoreBackup}
+              className="px-3.5 py-1.5 rounded-xl font-bold bg-amber-700 hover:bg-amber-800 text-white cursor-pointer disabled:opacity-50"
+            >
+              {isRestoringBackup ? 'Restaurando empresa...' : 'Confirmar y restaurar respaldo'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Estadísticas de Almacenamiento Contable */}
       <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-          <Database className="w-4 h-4 text-blue-700" />
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
+          <Database className="w-4 h-4 text-blue-700" aria-hidden="true" />
           Métricas de Almacenamiento Contable ({activeCompany.rfc})
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">

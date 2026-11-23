@@ -1,6 +1,6 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
-import { AccountPickerCombobox } from '../../components/AccountPickerCombobox';
+import { Trash2, Zap } from 'lucide-react';
+import { AccountPickerCombobox } from '../../components/account-picker/AccountPickerCombobox';
 import { formatCurrency } from '../../lib/formatters';
 import type { Account } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
@@ -14,6 +14,7 @@ export interface PolizaMovementRowProps {
   affectableAccounts: Account[];
   concepto: string;
   difference: number;
+  accountRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   referenciaRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   conceptoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   cargoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
@@ -33,6 +34,7 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
   affectableAccounts,
   concepto,
   difference,
+  accountRefs,
   referenciaRefs,
   conceptoRefs,
   cargoRefs,
@@ -51,6 +53,9 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
         <AccountPickerCombobox
           accounts={affectableAccounts}
           value={mov.accountId}
+          onInputRef={(el) => {
+            accountRefs.current[idx] = el;
+          }}
           onChange={(val) => {
             setMovements((prev) =>
               prev.map((item, i) =>
@@ -222,7 +227,8 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
             title="Pulsa = o clic para cuadrar este cargo"
             className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
           >
-            <span>⚡ Cuadrar</span>
+            <Zap className="w-3 h-3" aria-hidden="true" />
+            <span>Cuadrar</span>
             <span>{formatCurrency(Math.abs(difference))}</span>
           </button>
         )}
@@ -261,8 +267,8 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
                   onLastRowSubmitFocus();
                 }
               } else {
-                referenciaRefs.current[idx + 1]?.focus();
-                referenciaRefs.current[idx + 1]?.select();
+                accountRefs.current[idx + 1]?.focus();
+                accountRefs.current[idx + 1]?.select();
               }
             }
           }}
@@ -285,7 +291,8 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
             title="Pulsa = o clic para cuadrar este abono"
             className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
           >
-            <span>⚡ Cuadrar</span>
+            <Zap className="w-3 h-3" aria-hidden="true" />
+            <span>Cuadrar</span>
             <span>{formatCurrency(difference)}</span>
           </button>
         )}

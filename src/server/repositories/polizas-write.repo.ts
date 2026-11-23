@@ -220,6 +220,9 @@ export function updatePolizaTransaction(
       );
     }
 
+    db.prepare(
+      'UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE matched_movement_id IN (SELECT id FROM poliza_movements WHERE poliza_id = ?)'
+    ).run(polizaId);
     db.prepare('DELETE FROM poliza_movements WHERE poliza_id = ?').run(polizaId);
 
     for (let idx = 0; idx < input.movements.length; idx += 1) {

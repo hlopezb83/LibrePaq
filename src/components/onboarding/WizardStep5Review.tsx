@@ -71,7 +71,7 @@ export function WizardStep5Review({
       {createOpeningEntry && initialBankBalance > 0 && (
         <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs space-y-1.5 text-emerald-950">
           <div className="font-bold flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-700" aria-hidden="true" />
             Asiento de Apertura Automático (Póliza Diario #1)
           </div>
           <div className="font-mono text-[11px] space-y-0.5 text-slate-700 bg-white p-2.5 rounded-lg border border-emerald-100">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Check,
   CheckCircle2,
@@ -11,6 +11,7 @@ import {
   Sparkles,
   Trash2
 } from 'lucide-react';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { Poliza } from '../../shared/types';
 import { PolizaCardMovementsTable } from './PolizaCardMovementsTable';
@@ -50,12 +51,11 @@ function PolizaCardItemBase({
   onRequestDelete,
   onOpenLedger
 }: PolizaCardItemProps) {
-  const [copiedUuid, setCopiedUuid] = useState<string | null>(null);
+  const { copiedKey, copy } = useCopyToClipboard<string>(2000);
+  const copiedUuid = copiedKey;
 
   function handleCopyUuid(uuid: string) {
-    navigator.clipboard.writeText(uuid);
-    setCopiedUuid(uuid);
-    setTimeout(() => setCopiedUuid(null), 2000);
+    void copy(uuid, uuid);
   }
 
   return (
@@ -127,6 +127,9 @@ function PolizaCardItemBase({
                   <Copy className="w-2.5 h-2.5 text-slate-400 group-hover:text-blue-600 opacity-60 group-hover:opacity-100" aria-hidden="true" />
                 </>
               )}
+              <span className="visually-hidden" aria-live="polite">
+                {copiedUuid === pol.cfdiUuid ? 'UUID fiscal copiado al portapapeles' : ''}
+              </span>
             </button>
           )}
         </div>

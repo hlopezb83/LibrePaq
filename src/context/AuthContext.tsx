@@ -4,14 +4,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { setApiAuthUser } from '../lib/api/api-helpers';
 import { captureAdAttributionOnLanding, trackAnalyticsEvent } from '../lib/analytics';
+import { getSuperAdminEmails, isSuperAdminEmail } from '../shared/superadmin';
 
-const configuredSuperAdmins = (
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPERADMIN_EMAILS) ||
-  (typeof process !== 'undefined' && process.env?.VITE_SUPERADMIN_EMAILS) ||
-  'hlopezb@gmail.com,admin@librepaq.com'
-).split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean);
-
-export const SUPERADMIN_EMAILS = configuredSuperAdmins;
+export const SUPERADMIN_EMAILS = getSuperAdminEmails();
 export const GUEST_DEMO_KEY = 'librepaq_guest_demo_active';
 
 export const GUEST_DEMO_USER: User = {
@@ -32,7 +27,7 @@ export const GUEST_DEMO_USER: User = {
 export function checkIsSuperAdmin(user: User | null): boolean {
   if (!user) return false;
   if (user.user_metadata?.is_guest) return false;
-  if (user.email && SUPERADMIN_EMAILS.includes(user.email.toLowerCase())) return true;
+  if (isSuperAdminEmail(user.email)) return true;
   if (user.app_metadata?.role === 'superadmin') return true;
   return false;
 }
@@ -106,7 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
+        const wasGuest = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
         localStorage.removeItem(GUEST_DEMO_KEY);
+        if (wasGuest) {
+          queryClient.clear();
+        }
         setSession(session);
         setUser(session.user);
         setApiAuthUser(session.user, session.access_token);
@@ -125,20 +124,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   const startGuestDemo = useCallback(async () => {
-    localStorage.setItem(GUEST_DEMO_KEY, 'true');
-    setUser(GUEST_DEMO_USER);
-    setApiAuthUser(GUEST_DEMO_USER);
     try {
       const { provisionSandboxDemoCompany } = await import('../lib/sandbox-demo-seeder');
       await provisionSandboxDemoCompany();
     } catch {
       // Si la empresa de ejemplo ya existía, se continúa normalmente
     }
+    localStorage.setItem(GUEST_DEMO_KEY, 'true');
+    setUser(GUEST_DEMO_USER);
+    setApiAuthUser(GUEST_DEMO_USER);
+    void queryClient.invalidateQueries({ queryKey: ['companies'] });
     trackAnalyticsEvent('start_guest_demo', { location: 'landing' });
-  }, []);
+  }, [queryClient]);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     if (!supabase) return { error: new Error('Supabase no está configurado') };
@@ -193,13 +193,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     void queryClient.cancelQueries();
     queryClient.clear();
-    if (supabase) {
-      await supabase.auth.signOut();
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } finally {
+      setUser(null);
+      setSession(null);
+      setApiAuthUser(null);
+      queryClient.clear();
     }
-    setUser(null);
-    setSession(null);
-    setApiAuthUser(null);
-    queryClient.clear();
     return { error: null };
   }, [queryClient]);
 

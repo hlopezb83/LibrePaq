@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 import { calculateDia17Deadline } from '../../shared/date-utils';
 import type { Company } from '../../shared/types';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
@@ -32,7 +32,7 @@ export function useExecutiveDeliverables({
 }: UseExecutiveDeliverablesParams) {
   const toast = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  useDialogLightDismiss(dialogRef, onClose);
+  useDialogLightDismiss(dialogRef, onClose, { isOpen });
 
   const [activeTab, setActiveTab] = useState<DeliverableTabId>(initialTab);
   const [isExporting, setIsExporting] = useState(false);
@@ -74,17 +74,37 @@ export function useExecutiveDeliverables({
   const { copiedKey, copy: copySummaryToClipboard } = useCopyToClipboard<'summary'>(3000);
   const copiedSummary = copiedKey === 'summary';
 
-  const { data: reportsData } = useQuery({
+  const {
+    data: reportsData,
+    isLoading: isLoadingReports,
+    isError: isErrorReports,
+    error: reportsError,
+    refetch: refetchReports
+  } = useQuery({
     queryKey: ['reports', company.id, year, period],
     queryFn: () => apiClient.getReports(company.id, year, period),
     enabled: isOpen
   });
 
-  const { data: fiscalData } = useQuery({
+  const {
+    data: fiscalData,
+    isLoading: isLoadingFiscal,
+    isError: isErrorFiscal,
+    error: fiscalError,
+    refetch: refetchFiscal
+  } = useQuery({
     queryKey: ['fiscal-workpaper', company.id, year, period],
     queryFn: () => apiClient.getFiscalWorkpaper(company.id, year, period),
     enabled: isOpen
   });
+
+  const isLoadingData = isLoadingReports || isLoadingFiscal;
+  const isErrorData = isErrorReports || isErrorFiscal;
+  const dataError = reportsError || fiscalError;
+  const refetchData = () => {
+    void refetchReports();
+    void refetchFiscal();
+  };
 
   const mesNombre = useMemo(
     () => MESES_SAT.find((m) => m.periodo === period)?.nombre || `Periodo ${period}`,
@@ -202,6 +222,10 @@ export function useExecutiveDeliverables({
     copiedSummary,
     reportsData,
     fiscalData,
+    isLoadingData,
+    isErrorData,
+    dataError,
+    refetchData,
     mesNombre,
     formatVerticalPct,
     isrSaldoNoAplicado,

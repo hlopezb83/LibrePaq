@@ -1,9 +1,10 @@
 import { fromCents, sumCents } from '../../shared/accounting-engine';
 import { getCurrentFiscalPeriod } from '../../shared/date-utils';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 import type { Account, Poliza, PolizaType } from '../../shared/types';
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import { mapSupabaseAccount } from './supabase-mappers';
+import { fetchAllRows } from './supabase-pagination';
 
 export interface PolizaMovementInput {
   accountId: string;
@@ -112,14 +113,16 @@ export async function resolveAccountsMap(
 ): Promise<Map<string, Account>> {
   const map = new Map<string, Account>();
   if (!supabase || !companyId) return map;
-  const { data, error } = await supabase
-    .from('accounts')
-    .select('*')
-    .eq('company_id', companyId);
-  if (error) {
-    throw new Error(`[Supabase Error ${error.code || 'ACCOUNTS'}]: ${error.message}`);
-  }
-  for (const row of data || []) {
+  const data = await fetchAllRows(async (from, to) =>
+    getRequiredSupabase()
+      .from('accounts')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('code', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  for (const row of data) {
     const mapped = mapSupabaseAccount(row as Record<string, unknown>);
     map.set(mapped.id, mapped);
   }

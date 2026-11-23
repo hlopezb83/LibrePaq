@@ -35,6 +35,10 @@ export function generateDeliverableSummaryText({
   const isrNeto = fiscalData?.isrProvisional.isrNetoAPagar ?? 0;
   const ivaNeto = fiscalData?.ivaDefinitivo.ivaNetoAPagar ?? 0;
   const totalDia17 = fiscalData?.resumenLineaCapturaSat.totalEstimadoDia17 ?? 0;
+  const isLoss = reportsData.incomeStatement.utilidadNeta < 0;
+  const isBalanced =
+    Math.abs(reportsData.balanceSheet.totalActivo - reportsData.balanceSheet.totalPasivoMasCapital) < 0.05;
+  const totalIsrEjercicio = reportsData.incomeStatement.totalIsr ?? 0;
 
   return [
     `================================================================================`,
@@ -49,13 +53,16 @@ export function generateDeliverableSummaryText({
     `   • Costo de Ventas:             ${formatCurrency(reportsData.incomeStatement.totalCostos)}`,
     `   • Utilidad Bruta:              ${formatCurrency(reportsData.incomeStatement.utilidadBruta)} (Margen: ${formatVerticalPct(reportsData.incomeStatement.utilidadBruta, reportsData.incomeStatement.totalIngresos)})`,
     `   • Gastos de Operación:         ${formatCurrency(reportsData.incomeStatement.totalGastos)}`,
-    `   • UTILIDAD NETA DEL PERIODO:   ${formatCurrency(reportsData.incomeStatement.utilidadNeta)} (Margen Neto: ${formatVerticalPct(reportsData.incomeStatement.utilidadNeta, reportsData.incomeStatement.totalIngresos)})`,
+    ...(totalIsrEjercicio > 0
+      ? [`   • Provisión ISR Ejercicio:     ${formatCurrency(totalIsrEjercicio)}`]
+      : []),
+    `   • ${isLoss ? 'PÉRDIDA' : 'UTILIDAD'} NETA DEL PERIODO:   ${formatCurrency(reportsData.incomeStatement.utilidadNeta)} (Margen Neto: ${formatVerticalPct(reportsData.incomeStatement.utilidadNeta, reportsData.incomeStatement.totalIngresos)})`,
     `--------------------------------------------------------------------------------`,
     `2. SITUACIÓN FINANCIERA (NIF B-6):`,
     `   • Total Activo:                ${formatCurrency(reportsData.balanceSheet.totalActivo)}`,
     `   • Total Pasivo:                ${formatCurrency(reportsData.balanceSheet.totalPasivo)}`,
     `   • Capital Contable:            ${formatCurrency(reportsData.balanceSheet.totalCapitalBase + reportsData.balanceSheet.utilidadEjercicio)}`,
-    `   • Comprobación (A = P + C):     ${formatCurrency(reportsData.balanceSheet.totalActivo)} = ${formatCurrency(reportsData.balanceSheet.totalPasivoMasCapital)} ✔`,
+    `   • Comprobación (A = P + C):     ${formatCurrency(reportsData.balanceSheet.totalActivo)} ${isBalanced ? '=' : '≠'} ${formatCurrency(reportsData.balanceSheet.totalPasivoMasCapital)} ${isBalanced ? '✔' : '⚠ Diferencia'}`,
     `--------------------------------------------------------------------------------`,
     `3. ESTIMACIÓN FISCAL DÍA 17 (SAT):`,
     `   • ISR Pago Provisional:        ${formatCurrency(isrNeto)}`,

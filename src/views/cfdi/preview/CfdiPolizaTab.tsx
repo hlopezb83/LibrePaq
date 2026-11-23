@@ -21,7 +21,7 @@ export function CfdiPolizaTab({
       <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
         <div>
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Scale className="w-4 h-4 text-blue-700" />
+            <Scale className="w-4 h-4 text-blue-700" aria-hidden="true" />
             Asiento Contable de Partida Doble Generado
           </h3>
           <p className="text-xs text-slate-500">
@@ -46,11 +46,11 @@ export function CfdiPolizaTab({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-300 text-[11px] font-bold uppercase text-slate-600">
-                  <th className="py-2.5 px-3">Código Cuenta</th>
-                  <th className="py-2.5 px-3">Nombre de Cuenta</th>
-                  <th className="py-2.5 px-3">Referencia / Concepto Movimiento</th>
-                  <th className="py-2.5 px-3 text-right">Cargo (Debe)</th>
-                  <th className="py-2.5 px-3 text-right">Abono (Haber)</th>
+                  <th scope="col" className="py-2.5 px-3">Código Cuenta</th>
+                  <th scope="col" className="py-2.5 px-3">Nombre de Cuenta</th>
+                  <th scope="col" className="py-2.5 px-3">Referencia / Concepto Movimiento</th>
+                  <th scope="col" className="py-2.5 px-3 text-right">Cargo (Debe)</th>
+                  <th scope="col" className="py-2.5 px-3 text-right">Abono (Haber)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">

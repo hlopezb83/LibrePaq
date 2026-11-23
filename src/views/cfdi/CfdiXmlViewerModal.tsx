@@ -27,13 +27,21 @@ export function CfdiXmlViewerModal({
     }
     if (selectedCfdi.xmlRaw) {
       setXmlContent(selectedCfdi.xmlRaw);
-    } else {
-      setXmlContent('<!-- Cargando XML desde la Bóveda SAT... -->');
-      void apiClient
-        .getCfdiXml(selectedCfdi.id)
-        .then((xml) => setXmlContent(xml || '<!-- XML no disponible -->'))
-        .catch(() => setXmlContent('<!-- Error al cargar XML del comprobante -->'));
+      return;
     }
+    let cancelled = false;
+    setXmlContent('<!-- Cargando XML desde la Bóveda SAT... -->');
+    void apiClient
+      .getCfdiXml(selectedCfdi.id)
+      .then((xml) => {
+        if (!cancelled) setXmlContent(xml || '<!-- XML no disponible -->');
+      })
+      .catch(() => {
+        if (!cancelled) setXmlContent('<!-- Error al cargar XML del comprobante -->');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedCfdi]);
 
   const handleDownload = () => {

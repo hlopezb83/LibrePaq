@@ -57,13 +57,20 @@ export function BankStatementTable({
                   </div>
                   <p className="font-bold text-slate-800 text-sm">No hay extractos bancarios registrados para esta cuenta</p>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                    Usa &quot;Importar CSV&quot; o &quot;+ Agregar Línea&quot; para iniciar la conciliación contra pólizas contables.
+                    Usa &quot;Importar CSV&quot; o &quot;Agregar Línea&quot; para iniciar la conciliación contra pólizas contables.
                   </p>
                 </td>
               </tr>
             ) : (
               reconData.statementLines.map((line) => (
-                <tr key={line.id} className="hover:bg-blue-50/30">
+                <tr
+                  key={line.id}
+                  className={
+                    line.matchedMovementId
+                      ? 'hover:bg-blue-50/30'
+                      : 'bg-amber-50/40 hover:bg-amber-50/70'
+                  }
+                >
                 <td className="py-2.5 px-4 font-mono text-slate-600 w-[110px]">
                   {formatShortDate(line.fecha)}
                 </td>
@@ -86,7 +93,7 @@ export function BankStatementTable({
                       Conciliado ({line.matchedPolizaFolio || 'Póliza'})
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-950 border border-amber-300">
                       Sin Conciliar
                     </span>
                   )}

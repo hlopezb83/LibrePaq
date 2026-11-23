@@ -43,7 +43,8 @@ export function usePedimentoForm({
   const [ano, setAno] = useState('24');
   const [consecutivo, setConsecutivo] = useState('4001234');
   const [clave, setClave] = useState<'A1' | 'IN' | 'AF'>('A1');
-  const [fecha, setFecha] = useState(`${currentYear}-${String(currentPeriod).padStart(2, '0')}-15`);
+  const clampPeriod = Math.max(1, Math.min(12, currentPeriod));
+  const [fecha, setFecha] = useState(`${currentYear}-${String(clampPeriod).padStart(2, '0')}-15`);
   const [valorAduana, setValorAduana] = useState(250000);
   const [dta, setDta] = useState(2000);
   const [prv, setPrv] = useState(310);
@@ -53,7 +54,7 @@ export function usePedimentoForm({
   const [cuentaGasto, setCuentaGasto] = useState(defaultGasto);
 
   const dialogRef = useRef<HTMLDialogElement>(null);
-  useDialogLightDismiss(dialogRef, onClose);
+  useDialogLightDismiss(dialogRef, onClose, { isOpen });
 
   useEffect(() => {
     const dialog = dialogRef.current;

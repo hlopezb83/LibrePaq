@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import type React from 'react';
 import { FileKey2, KeyRound } from 'lucide-react';
 
 interface WizardStep4FielProps {
@@ -22,13 +22,10 @@ export function WizardStep4Fiel({
   onCerFileChange,
   onKeyFileChange
 }: WizardStep4FielProps) {
-  const cerFileInputRef = useRef<HTMLInputElement>(null);
-  const keyFileInputRef = useRef<HTMLInputElement>(null);
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between pb-1">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+        <div className="min-w-0">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
             Credenciales Criptográficas (FIEL / e.firma)
           </h3>
@@ -38,8 +35,9 @@ export function WizardStep4Fiel({
         </div>
         <button
           type="button"
+          aria-pressed={skipFiel}
           onClick={() => setSkipFiel((prev) => !prev)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer shrink-0 ${
             skipFiel
               ? 'bg-amber-100 text-amber-900 border-amber-300'
               : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
@@ -53,49 +51,49 @@ export function WizardStep4Fiel({
         <div className="space-y-3.5 bg-slate-50 p-4 rounded-2xl border border-slate-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <span id="wizard-fiel-cer-label" className="block text-xs font-bold text-slate-700 mb-1">
+              <label
+                htmlFor="wizard-fiel-cer-input"
+                className="block text-xs font-bold text-slate-700 mb-1"
+              >
                 Certificado (.cer) *
-              </span>
-              <button
-                type="button"
-                aria-labelledby="wizard-fiel-cer-label"
-                onClick={() => cerFileInputRef.current?.click()}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+              </label>
+              <label
+                htmlFor="wizard-fiel-cer-input"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer focus-within:outline-2 focus-within:outline-blue-700"
               >
                 <span className="truncate">{fielCerName || 'Seleccionar .cer...'}</span>
-                <FileKey2 className="w-4 h-4 text-blue-700 shrink-0" />
-              </button>
-              <input
-                ref={cerFileInputRef}
-                type="file"
-                accept=".cer"
-                aria-label="Archivo certificado .cer de e.firma"
-                onChange={onCerFileChange}
-                className="hidden"
-              />
+                <FileKey2 className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
+                <input
+                  id="wizard-fiel-cer-input"
+                  type="file"
+                  accept=".cer"
+                  onChange={onCerFileChange}
+                  className="visually-hidden"
+                />
+              </label>
             </div>
 
             <div>
-              <span id="wizard-fiel-key-label" className="block text-xs font-bold text-slate-700 mb-1">
+              <label
+                htmlFor="wizard-fiel-key-input"
+                className="block text-xs font-bold text-slate-700 mb-1"
+              >
                 Clave Privada (.key) *
-              </span>
-              <button
-                type="button"
-                aria-labelledby="wizard-fiel-key-label"
-                onClick={() => keyFileInputRef.current?.click()}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+              </label>
+              <label
+                htmlFor="wizard-fiel-key-input"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer focus-within:outline-2 focus-within:outline-blue-700"
               >
                 <span className="truncate">{fielKeyName || 'Seleccionar .key...'}</span>
-                <KeyRound className="w-4 h-4 text-amber-700 shrink-0" />
-              </button>
-              <input
-                ref={keyFileInputRef}
-                type="file"
-                accept=".key"
-                aria-label="Archivo clave privada .key de e.firma"
-                onChange={onKeyFileChange}
-                className="hidden"
-              />
+                <KeyRound className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+                <input
+                  id="wizard-fiel-key-input"
+                  type="file"
+                  accept=".key"
+                  onChange={onKeyFileChange}
+                  className="visually-hidden"
+                />
+              </label>
             </div>
           </div>
 
@@ -113,10 +111,10 @@ export function WizardStep4Fiel({
             />
           </div>
 
-          <div className="pt-2 flex items-center justify-between border-t border-slate-200">
-            <span className="text-[11px] text-slate-500">¿No tienes los archivos oficiales de e.firma en este dispositivo?</span>
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200">
+            <span className="text-[11px] text-slate-600">¿No tienes los archivos oficiales de e.firma en este dispositivo?</span>
             <span className="text-[11px] font-medium text-slate-600">
-              Marca la opción "Configurar e.firma más tarde" arriba para comenzar de inmediato.
+              Usa el botón &quot;Configurar después&quot; arriba para comenzar de inmediato.
             </span>
           </div>
         </div>

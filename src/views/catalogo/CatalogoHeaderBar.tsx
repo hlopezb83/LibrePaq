@@ -1,8 +1,9 @@
 import React from 'react';
-import { Download, FolderTree, Plus, Upload } from 'lucide-react';
+import { Download, FolderTree, Lock, Plus, Upload } from 'lucide-react';
 
 export interface CatalogoHeaderBarProps {
   csvImportRef: React.RefObject<HTMLInputElement | null>;
+  isPeriodLocked?: boolean;
   onImportCsv: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onExportCsv: () => void;
   onOpenCreateModal: () => void;
@@ -10,6 +11,7 @@ export interface CatalogoHeaderBarProps {
 
 export function CatalogoHeaderBar({
   csvImportRef,
+  isPeriodLocked = false,
   onImportCsv,
   onExportCsv,
   onOpenCreateModal
@@ -31,22 +33,31 @@ export function CatalogoHeaderBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 shrink-0 no-print">
-        <input
-          ref={csvImportRef}
-          type="file"
-          accept=".csv,text/csv"
-          onChange={onImportCsv}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => csvImportRef.current?.click()}
-          title="Importar catálogo de cuentas desde archivo CSV o layout CONTPAQi"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+        <label
+          htmlFor="catalogo-import-csv"
+          title={
+            isPeriodLocked
+              ? 'Periodo fiscal bloqueado ante el SAT'
+              : 'Importar catálogo de cuentas desde archivo CSV o layout CONTPAQi'
+          }
+          className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition ${
+            isPeriodLocked
+              ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
+              : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
+          }`}
         >
+          <input
+            id="catalogo-import-csv"
+            ref={csvImportRef}
+            type="file"
+            accept=".csv,text/csv"
+            disabled={isPeriodLocked}
+            onChange={onImportCsv}
+            className="visually-hidden"
+          />
           <Upload className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
-          Importar CSV / CONTPAQi
-        </button>
+          <span>Importar CSV / CONTPAQi</span>
+        </label>
 
         <button
           type="button"
@@ -59,15 +70,26 @@ export function CatalogoHeaderBar({
 
         <button
           type="button"
+          disabled={isPeriodLocked}
           onClick={onOpenCreateModal}
-          title="Dar de alta nueva cuenta contable (Alt+N o Insert)"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white shadow-xs transition cursor-pointer shrink-0"
+          title={
+            isPeriodLocked
+              ? 'Periodo fiscal bloqueado ante el SAT'
+              : 'Dar de alta nueva cuenta contable (Alt+N o Insert)'
+          }
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold text-white shadow-xs transition cursor-pointer shrink-0"
         >
-          <Plus className="w-4 h-4 text-blue-100" aria-hidden="true" />
+          {isPeriodLocked ? (
+            <Lock className="w-4 h-4" aria-hidden="true" />
+          ) : (
+            <Plus className="w-4 h-4 text-blue-100" aria-hidden="true" />
+          )}
           <span>Nueva Cuenta</span>
-          <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
-            Alt+N
-          </kbd>
+          {!isPeriodLocked && (
+            <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
+              Alt+N
+            </kbd>
+          )}
         </button>
       </div>
     </div>

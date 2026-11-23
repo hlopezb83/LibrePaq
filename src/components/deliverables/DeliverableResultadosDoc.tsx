@@ -13,10 +13,12 @@ interface DeliverableResultadosDocProps {
     ingresos: AccountWithBalance[];
     costos: AccountWithBalance[];
     gastos: AccountWithBalance[];
+    isrEjercicio?: AccountWithBalance[];
     totalIngresos: number;
     totalCostos: number;
     utilidadBruta: number;
     totalGastos: number;
+    totalIsr?: number;
     utilidadNeta: number;
   };
   auditorName: string;
@@ -38,6 +40,8 @@ export function DeliverableResultadosDoc({
   legalRepName,
   legalRepTitle
 }: DeliverableResultadosDocProps) {
+  const lastDay = new Date(year, Math.min(12, Math.max(1, period)), 0).getDate();
+  const isLoss = incomeStatement.utilidadNeta < 0;
   const formatVerticalPct = (amount: number, base: number) => {
     if (!base || Math.abs(base) < 0.01) return '0.0%';
     return `${((amount / base) * 100).toFixed(1)}%`;
@@ -60,7 +64,7 @@ export function DeliverableResultadosDoc({
             Estado de Resultados Integral (NIF B-3) con Análisis Vertical (%)
           </div>
           <div className="text-[11px] text-slate-500">
-            Del 01 al 31 de {mesNombre} de {year} • Cifras en Pesos Mexicanos (MXN)
+            Del 01 de Enero al {String(lastDay).padStart(2, '0')} de {mesNombre} de {year} • Cifras en Pesos Mexicanos (MXN)
           </div>
         </div>
         <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
@@ -120,7 +124,7 @@ export function DeliverableResultadosDoc({
                   {a.code} — {a.name}
                 </span>
                 <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(a.finalBalance)}
+                  {formatCurrency(a.finalBalance)} ({formatVerticalPct(a.finalBalance, incomeStatement.totalIngresos)})
                 </span>
               </div>
             ))}
@@ -153,21 +157,58 @@ export function DeliverableResultadosDoc({
                   {a.code} — {a.name}
                 </span>
                 <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(a.finalBalance)}
+                  {formatCurrency(a.finalBalance)} ({formatVerticalPct(a.finalBalance, incomeStatement.totalIngresos)})
                 </span>
               </div>
             ))}
             <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
               <span>Total de Gastos de Operación</span>
-              <span className="font-mono">{formatCurrency(incomeStatement.totalGastos)}</span>
+              <span className="font-mono">
+                {formatCurrency(incomeStatement.totalGastos)} ({formatVerticalPct(incomeStatement.totalGastos, incomeStatement.totalIngresos)})
+              </span>
             </div>
           </div>
         </div>
 
+        {incomeStatement.isrEjercicio && incomeStatement.isrEjercicio.length > 0 && (
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <div className="bg-slate-100 px-3 py-1.5 font-bold uppercase text-[11px] text-slate-800">
+              (-) Provisión de Impuesto a la Utilidad (ISR Ejercicio - NIF B-3)
+            </div>
+            <div className="p-2 space-y-1">
+              {incomeStatement.isrEjercicio.map((a) => (
+                <div
+                  key={a.id}
+                  className={`flex justify-between py-0.5 ${
+                    a.level === 2
+                      ? 'font-bold text-slate-900 bg-slate-50/70 rounded px-2 mt-0.5'
+                      : 'pl-6 pr-2 text-slate-700'
+                  }`}
+                >
+                  <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
+                    {a.code} — {a.name}
+                  </span>
+                  <span className="font-mono text-slate-700">
+                    {formatCurrency(a.finalBalance)} ({formatVerticalPct(a.finalBalance, incomeStatement.totalIngresos)})
+                  </span>
+                </div>
+              ))}
+              <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
+                <span>Total ISR del Ejercicio</span>
+                <span className="font-mono">
+                  {formatCurrency(incomeStatement.totalIsr ?? 0)} ({formatVerticalPct(incomeStatement.totalIsr ?? 0, incomeStatement.totalIngresos)})
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Cierre: Utilidad Neta del Periodo */}
         <div className="p-4 rounded-xl bg-slate-900 text-white flex justify-between items-center text-sm font-bold font-mono">
-          <span className="uppercase tracking-wide">(=) UTILIDAD NETA DEL PERIODO:</span>
-          <span className="text-emerald-300 text-base">
+          <span className="uppercase tracking-wide">
+            {isLoss ? '(=) PÉRDIDA NETA DEL PERIODO:' : '(=) UTILIDAD NETA DEL PERIODO:'}
+          </span>
+          <span className={`${isLoss ? 'text-red-400' : 'text-emerald-300'} text-base`}>
             {formatCurrency(incomeStatement.utilidadNeta)} (
             {formatVerticalPct(incomeStatement.utilidadNeta, incomeStatement.totalIngresos)})
           </span>

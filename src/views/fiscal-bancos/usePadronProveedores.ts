@@ -8,7 +8,7 @@ import type { AccountWithBalance, Efos69BStatus } from '../../shared/types';
 interface UsePadronProveedoresParams {
   companyId: string;
   accounts: AccountWithBalance[];
-  onFeedback: (msg: string) => void;
+  onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export function usePadronProveedores({
@@ -19,9 +19,15 @@ export function usePadronProveedores({
   const queryClient = useQueryClient();
   const affectableAccounts = accounts.filter((a) => a.isAffectable);
 
-  const { data: thirdParties = [], isLoading: loadingTp } = useQuery({
+  const {
+    data: thirdParties = [],
+    isLoading: loadingTp,
+    isError: isErrorTp,
+    refetch: refetchTp
+  } = useQuery({
     queryKey: ['third-parties', companyId],
-    queryFn: () => apiClient.getThirdParties(companyId)
+    queryFn: () => apiClient.getThirdParties(companyId),
+    enabled: Boolean(companyId)
   });
 
   const [tpRfc, setTpRfc] = useState('');
@@ -42,9 +48,9 @@ export function usePadronProveedores({
     setTpRfc(clean);
     if (clean.length >= 12) {
       const check = checkRfc69BStatus(clean);
-      if (check.isEfos || check.status !== 'LIMPIO') {
-        setTpEfos(check.status);
-      }
+      setTpEfos(check.status);
+    } else {
+      setTpEfos('LIMPIO');
     }
   };
 
@@ -66,9 +72,13 @@ export function usePadronProveedores({
       queryClient.invalidateQueries({ queryKey: ['third-parties', companyId] });
       setTpRfc('');
       setTpNombre('');
+      setTpEfos('LIMPIO');
       onFeedback(
         `RFC ${saved.rfc} guardado en el Padrón Fiscal con cuenta contable predeterminada ${saved.cuentaOperacionCode}.`
       );
+    },
+    onError: (err: Error) => {
+      onFeedback(`Error al guardar tercero: ${err.message}`, 'error');
     }
   });
 
@@ -81,6 +91,8 @@ export function usePadronProveedores({
     affectableAccounts,
     thirdParties,
     loadingTp,
+    isErrorTp,
+    refetchTp,
     tpRfc,
     tpNombre,
     setTpNombre,

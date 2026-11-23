@@ -137,19 +137,19 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
             {/* Detalle de costos */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
               <div className="p-4 rounded-xl bg-white border border-slate-200">
-                <p className="text-xs text-slate-500">Gasto Estimado CONTPAQi®:</p>
+                <p className="text-xs text-slate-600">Gasto Estimado CONTPAQi®:</p>
                 <p className="text-xl font-bold font-mono tabular-nums text-rose-600 mt-1">
                   ${costContpaqi.toLocaleString('es-MX')} MXN/año
                 </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Renovación anual + cobro por PC extra + soporte técnico</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">Renovación anual + cobro por PC extra + soporte técnico</p>
               </div>
 
               <div className="p-4 rounded-xl bg-white border border-emerald-300">
-                <p className="text-xs text-slate-500">Costo LibrePaq Pro:</p>
-                <p className="text-xl font-bold font-mono tabular-nums text-emerald-600 mt-1">
+                <p className="text-xs text-slate-600">Costo LibrePaq Pro:</p>
+                <p className="text-xl font-bold font-mono tabular-nums text-emerald-700 mt-1">
                   ${costLibrePaq.toLocaleString('es-MX')} MXN
                 </p>
-                <p className="text-[10px] text-emerald-700 mt-0.5 font-semibold">⚡ Promoción $0 por Tiempo Limitado</p>
+                <p className="text-[11px] text-emerald-700 mt-0.5 font-semibold">Promoción $0 por Tiempo Limitado</p>
               </div>
             </div>
           </div>
@@ -166,9 +166,9 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
               Ahorro Neto Anual para Tu Firma
             </p>
 
-            <h4 className="mt-2 text-3xl sm:text-4xl font-extrabold font-mono tabular-nums text-emerald-400 tracking-tight">
+            <p className="mt-2 text-3xl sm:text-4xl font-extrabold font-mono tabular-nums text-emerald-400 tracking-tight">
               ${annualSavings.toLocaleString('es-MX')} <span className="text-lg font-sans font-medium text-emerald-300">MXN</span>
-            </h4>
+            </p>
 
             <p className="mt-3 text-xs text-slate-300 leading-relaxed text-pretty">
               Capital directo que tu despacho retiene en lugar de pagar renovaciones y pólizas de soporte.
@@ -180,7 +180,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
               className="mt-6 w-full py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Empezar a Ahorrar Hoy</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

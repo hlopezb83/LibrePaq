@@ -7,7 +7,7 @@ import {
   toCents,
   validateAccountHierarchy
 } from '../../shared/accounting-engine';
-import { SAFETY_BOUNDS } from '../../shared/sat-catalog';
+import { SAFETY_BOUNDS } from '../../shared/sat-constants';
 import type {
   Account,
   AccountNature,
@@ -120,12 +120,25 @@ export function updateAccountRecord(
   return tx();
 }
 
-export function deleteAccountRecord(id: string): { deleted: boolean; hasMovements: boolean } {
+export function deleteAccountRecord(
+  id: string
+): { deleted: boolean; hasMovements: boolean; hasChildren?: boolean } {
   const hasMovs = db
     .query('SELECT COUNT(*) as c FROM poliza_movements WHERE account_id = ?')
     .get(id) as { c: number } | null;
   if (hasMovs && hasMovs.c > 0) {
     return { deleted: false, hasMovements: true };
+  }
+  const accRow = db
+    .query('SELECT company_id, code FROM accounts WHERE id = ?')
+    .get(id) as { company_id: string; code: string } | null;
+  if (accRow) {
+    const childRow = db
+      .query('SELECT COUNT(*) as c FROM accounts WHERE company_id = ? AND parent_code = ?')
+      .get(accRow.company_id, accRow.code) as { c: number } | null;
+    if (childRow && childRow.c > 0) {
+      return { deleted: false, hasMovements: false, hasChildren: true };
+    }
   }
   const res = db.prepare('DELETE FROM accounts WHERE id = ?').run(id);
   return { deleted: res.changes > 0, hasMovements: false };
@@ -160,7 +173,12 @@ export function batchImportAccountsCatalog(
       initial_balance = excluded.initial_balance
   `);
 
-  const existingCodes = new Set(getAccounts(companyId).map((a) => a.code));
+  const existingAccounts = getAccounts(companyId);
+  const existingByCode = new Map(existingAccounts.map((a) => [a.code, a]));
+  const compRow = db
+    .prepare('SELECT current_year FROM companies WHERE id = ?')
+    .get(companyId) as { current_year: number } | undefined;
+  let checkedPeriod1Lock = false;
 
   const tx = db.transaction(() => {
     for (let i = 0; i < bound; i += 1) {
@@ -189,6 +207,17 @@ export function batchImportAccountsCatalog(
       const level = code.endsWith('-00-000') ? 1 : code.endsWith('-000') ? 2 : 3;
       const isAffectable = r.isAffectable !== undefined ? r.isAffectable : level >= 3;
       const satGroupCode = r.satGroupCode || code.slice(0, 3);
+      const nextBalCents = toCents(r.initialBalance ?? 0);
+
+      const prev = existingByCode.get(code);
+      if (prev && !checkedPeriod1Lock) {
+        const diffBal = toCents(prev.initialBalance) !== nextBalCents;
+        const diffNat = prev.nature !== inferredNature;
+        if ((diffBal || diffNat) && compRow) {
+          assertPeriodOpen(companyId, compRow.current_year, 1);
+          checkedPeriod1Lock = true;
+        }
+      }
 
       upsertAcc.run(
         `${companyId}_${code}`,
@@ -201,14 +230,27 @@ export function batchImportAccountsCatalog(
         level,
         isAffectable ? 1 : 0,
         satGroupCode,
-        fromCents(toCents(r.initialBalance ?? 0))
+        fromCents(nextBalCents)
       );
 
-      if (existingCodes.has(code)) {
+      if (prev) {
         updatedCount += 1;
       } else {
         importedCount += 1;
-        existingCodes.add(code);
+        existingByCode.set(code, {
+          id: `${companyId}_${code}`,
+          companyId,
+          code,
+          name: r.name.trim(),
+          parentCode: r.parentCode ?? null,
+          type: inferredType,
+          nature: inferredNature,
+          level,
+          isAffectable,
+          satGroupCode,
+          currency: 'MXN',
+          initialBalance: fromCents(nextBalCents)
+        });
       }
     }
   });

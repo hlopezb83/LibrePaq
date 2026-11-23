@@ -46,7 +46,7 @@ function calculateTargetDate(fechaInicial: string, fechaFinal: string, dayOffset
 
   if (candidate < start) return fechaInicial;
   if (candidate > end) return fechaFinal;
-  return candidate.toISOString().split('T')[0] ?? fechaInicial;
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
 }
 
 function buildXmlFromTemplate(

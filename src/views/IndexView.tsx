@@ -13,10 +13,15 @@ export function IndexView() {
   const { user, loading } = useAuth();
 
   const splashScreen = (
-    <div className="min-h-screen bg-[#051124] flex flex-col items-center justify-center">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className="min-h-screen bg-[#051124] flex flex-col items-center justify-center"
+    >
       <LibrePaqLogo variant="horizontal" size="lg" theme="dark" />
       <div className="mt-6 flex items-center gap-2.5 text-xs font-mono text-cyan-300">
-        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" aria-hidden="true" />
         <span>Iniciando entorno fiscal seguro...</span>
       </div>
     </div>

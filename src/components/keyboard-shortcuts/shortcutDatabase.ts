@@ -71,7 +71,7 @@ export const SHORTCUT_DATABASE: ShortcutItem[] = [
     categoryLabel: 'Globales del Sistema',
     keys: ['Alt', '['],
     action: 'Periodo Contable Anterior',
-    description: 'Retrocede un mes contable (también con tecla RePág cuando no se editan inputs).',
+    description: 'Retrocede un mes contable (también con Alt+RePág cuando no se editan inputs).',
     scope: 'Periodo SAT'
   },
   {
@@ -80,7 +80,7 @@ export const SHORTCUT_DATABASE: ShortcutItem[] = [
     categoryLabel: 'Globales del Sistema',
     keys: ['Alt', ']'],
     action: 'Periodo Contable Siguiente',
-    description: 'Avanza al siguiente periodo contable hasta el Cierre Anual P13 (también con AvPág).',
+    description: 'Avanza al siguiente periodo contable hasta el Cierre Anual P13 (también con Alt+AvPág).',
     scope: 'Periodo SAT'
   },
   {

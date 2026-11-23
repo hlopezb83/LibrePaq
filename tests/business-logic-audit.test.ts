@@ -6,6 +6,7 @@ import {
 } from '../src/shared/engine/fixed-assets.engine';
 import {
   buildAutoPolizaPlan,
+  computeFiscalWorkpaperFromTrialBalance,
   validateDoubleEntryMovements
 } from '../src/shared/accounting-engine';
 import { findBankReconciliationMatches } from '../src/shared/engine/bank-and-closing.engine';
@@ -486,6 +487,90 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
       expect(isCfdiPendingForPoliza({ ...baseCfdi, subtotal: 0, total: 0 })).toBe(false);
       expect(isCfdiPendingForPoliza({ ...baseCfdi, statusSat: 'CANCELADO' })).toBe(false);
       expect(isCfdiPendingForPoliza({ ...baseCfdi, polizaId: 'pol_1' })).toBe(false);
+    });
+
+    test('computeFiscalWorkpaperFromTrialBalance excludes 601-01-006 (accounting depreciation) and 611 (ISR) identically for SQLite & Cloud', () => {
+      const mkTbAcc = (overrides: Partial<AccountWithBalance> & Pick<AccountWithBalance, 'id' | 'code' | 'name' | 'type' | 'nature' | 'level' | 'isAffectable' | 'satGroupCode'>): AccountWithBalance => ({
+        companyId: demoCompany.id,
+        parentCode: null,
+        currency: 'MXN',
+        initialBalance: 0,
+        initialBalanceComputed: 0,
+        periodCharges: 0,
+        periodCredits: 0,
+        finalBalance: 0,
+        ...overrides
+      });
+      const tb: AccountWithBalance[] = [
+        mkTbAcc({
+          id: 'acc_ing',
+          code: '401-01-001',
+          name: 'Ventas',
+          type: 'INGRESOS',
+          nature: 'ACREEDORA',
+          level: 3,
+          isAffectable: true,
+          satGroupCode: '401.01',
+          periodCredits: 100000,
+          finalBalance: 100000
+        }),
+        mkTbAcc({
+          id: 'acc_gasto',
+          code: '601-01-001',
+          name: 'Sueldos',
+          type: 'GASTOS',
+          nature: 'DEUDORA',
+          level: 3,
+          isAffectable: true,
+          satGroupCode: '601.01',
+          periodCharges: 30000,
+          finalBalance: 30000
+        }),
+        mkTbAcc({
+          id: 'acc_dep',
+          code: '601-01-006',
+          name: 'Depreciación contable',
+          type: 'GASTOS',
+          nature: 'DEUDORA',
+          level: 3,
+          isAffectable: true,
+          satGroupCode: '601.74',
+          periodCharges: 12000,
+          finalBalance: 12000
+        }),
+        mkTbAcc({
+          id: 'acc_isr',
+          code: '801-01-001',
+          name: 'ISR del Ejercicio',
+          type: 'GASTOS',
+          nature: 'DEUDORA',
+          level: 3,
+          isAffectable: true,
+          satGroupCode: '611.01',
+          periodCharges: 9000,
+          finalBalance: 9000
+        })
+      ];
+
+      const wp = computeFiscalWorkpaperFromTrialBalance({
+        company: { ...demoCompany, regimenFiscal: '601 - General de Ley Personas Morales' },
+        ejercicio: 2026,
+        periodo: 10,
+        parameters: {
+          companyId: demoCompany.id,
+          ejercicio: 2026,
+          coeficienteUtilidad: 0.2,
+          perdidasFiscalesPendientes: 0,
+          pagosProvisionalesAnteriores: 0,
+          saldoFavorIvaAnterior: 0,
+          tipoCambioDofCierre: 20
+        },
+        trialBalance: tb,
+        cfdis: []
+      });
+
+      expect(wp.isrProvisional.ingresosPeriodo).toBe(100000);
+      expect(wp.isrProvisional.deduccionesAutorizadasPeriodo).toBe(30000);
     });
   });
 });

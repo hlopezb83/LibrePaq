@@ -34,7 +34,7 @@ export function useAddCfdiMutations({
   const uploadXmlMutation = useMutation({
     mutationFn: apiClient.uploadCfdi,
     onSuccess: (created) => {
-      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
+      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard', 'fiscal-workpaper', 'diot']);
       toast.success(
         `CFDI ${created.serie}-${created.folio} (${created.tipoComprobante} • ${created.uuid.slice(0, 8)}...) importado al ADD.`
       );
@@ -63,7 +63,18 @@ export function useAddCfdiMutations({
       });
     },
     onSuccess: (poliza) => {
-      invalidateAccountingQueries(queryClient, ['cfdis', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      invalidateAccountingQueries(queryClient, [
+        'cfdis',
+        'polizas',
+        'accounts',
+        'account-ledger',
+        'reports',
+        'dashboard',
+        'bank-reconciliation',
+        'fiscal-workpaper',
+        'diot',
+        'sat-xml'
+      ]);
       onAutoPolizaSuccess?.();
       contabilizarModalRef?.current?.close();
       toast.success(
@@ -83,7 +94,7 @@ export function useAddCfdiMutations({
       return apiClient.deleteCfdi(cfdiId);
     },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
+      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard', 'fiscal-workpaper', 'diot']);
       setConfirmDeleteCfdiId(null);
       toast.success('Comprobante CFDI eliminado de la Bóveda ADD correctamente.');
     },
@@ -112,7 +123,18 @@ export function useAddCfdiMutations({
       }
     },
     onSuccess: (count) => {
-      invalidateAccountingQueries(queryClient, ['cfdis', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
+      invalidateAccountingQueries(queryClient, [
+        'cfdis',
+        'polizas',
+        'accounts',
+        'account-ledger',
+        'reports',
+        'dashboard',
+        'bank-reconciliation',
+        'fiscal-workpaper',
+        'diot',
+        'sat-xml'
+      ]);
       setSelectedCfdiIds(new Set());
       toast.success(
         `¡Contabilización en lote exitosa! Se generaron ${count} pólizas cuadradas desde la Bóveda ADD.`
@@ -143,7 +165,7 @@ export function useAddCfdiMutations({
       return ids.length;
     },
     onSuccess: (count) => {
-      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
+      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard', 'fiscal-workpaper', 'diot']);
       setSelectedCfdiIds(new Set());
       toast.success(`${count} comprobantes CFDI eliminados de la Bóveda ADD.`);
     },
@@ -155,7 +177,7 @@ export function useAddCfdiMutations({
     onSuccess: (res) => {
       invalidateAccountingQueries(queryClient, ['cfdis']);
       toast.info(
-        `SAT SOAP (UUID ${res.uuid.slice(0, 8)}...): Estado=${res.estadoSat} • ${res.codigoEstatus} • EFOS=${res.validacionEfos}`
+        `Estatus SAT (${res.uuid.slice(0, 8)}...): ${res.estadoSat} • Lista 69-B: ${res.validacionEfos}`
       );
     },
     onError: (err: Error) => {

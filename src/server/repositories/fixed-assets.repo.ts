@@ -1,16 +1,18 @@
 import { db, mapFixedAssetRow, type FixedAssetDbRow } from '../connection';
 import {
+  assertAccountingInvariant,
   buildDepreciationPolizaPlan,
   computeFixedAssetWithDepreciation,
   fromCents,
   sumCents,
   toCents
 } from '../../shared/accounting-engine';
-import { MESES_SAT } from '../../shared/sat-catalog';
-import { getDefaultDateForPeriod } from '../../shared/date-utils';
+import { hasExistingDepreciationPoliza } from '../../shared/engine/fixed-assets.engine';
+import { MESES_SAT } from '../../shared/sat-constants';
+import { getDefaultDateForPeriod, parseCalendarDate } from '../../shared/date-utils';
 import type { FixedAssetCategory, FixedAssetsResponse, Poliza } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
-import { createPolizaTransaction } from './polizas.repo';
+import { createPolizaTransaction, getPolizas } from './polizas.repo';
 import { assertPeriodOpen } from './period-locks.repo';
 
 export function getFixedAssetsResponse(companyId: string): FixedAssetsResponse {
@@ -97,6 +99,14 @@ export function createFixedAssetRecord(
 }
 
 export function deleteFixedAssetRecord(assetId: string): boolean {
+  const row = db
+    .query('SELECT company_id, fecha_adquisicion FROM fixed_assets WHERE id = ?')
+    .get(assetId) as { company_id: string; fecha_adquisicion: string } | null;
+  if (!row) return false;
+
+  const { year, month } = parseCalendarDate(row.fecha_adquisicion);
+  assertPeriodOpen(row.company_id, year, month);
+
   const res = db.prepare('DELETE FROM fixed_assets WHERE id = ?').run(assetId);
   return res.changes > 0;
 }
@@ -107,6 +117,13 @@ export function generateMonthlyDepreciationPoliza(
   periodo: number
 ): Poliza {
   assertPeriodOpen(companyId, ejercicio, periodo);
+
+  const existing = getPolizas(companyId, ejercicio, periodo);
+  assertAccountingInvariant(
+    !hasExistingDepreciationPoliza(existing),
+    'DUPLICATE_DEPRECIATION',
+    `Ya existe una póliza de depreciación registrada para ${ejercicio}-${String(periodo).padStart(2, '0')}`
+  );
 
   const rawRows = db
     .query('SELECT * FROM fixed_assets WHERE company_id = ?')

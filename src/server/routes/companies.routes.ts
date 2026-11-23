@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import {
+  companyExistsById,
   createCompanyRecord,
   deleteCompanyRecord,
   exportCompanyBackupBundle,
@@ -98,7 +99,7 @@ companiesRoutes.get('/companies/:id/backup', (c) => {
     const userId = c.req.header('X-User-Id') || c.req.header('x-user-id');
     const company = getCompanyById(id, userId);
     if (!company) return c.json({ error: 'Empresa no encontrada o no autorizada.' }, 404);
-    return c.json(exportCompanyBackupBundle(id));
+    return c.json(exportCompanyBackupBundle(id, userId));
   } catch (err) {
     const { message, status } = errorStatus(err);
     return c.json({ error: message }, status);
@@ -112,11 +113,12 @@ companiesRoutes.post('/companies/restore', async (c) => {
     if (!bundle?.company?.id || !bundle?.company?.rfc) {
       return c.json({ error: 'Payload de respaldo inválido: company.id y company.rfc son requeridos.' }, 400);
     }
-    const existing = getCompanyById(bundle.company.id);
-    if (existing?.userId && existing.userId !== userId) {
+    const exists = companyExistsById(bundle.company.id);
+    const existingAuthorized = getCompanyById(bundle.company.id, userId);
+    if (exists && !existingAuthorized) {
       return c.json({ error: 'No tienes autorización para restaurar esta empresa.' }, 403);
     }
-    const restored = restoreCompanyBackupBundle(bundle);
+    const restored = restoreCompanyBackupBundle(bundle, userId);
     return c.json(restored, 201);
   } catch (err) {
     const { message, status } = errorStatus(err);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calculator, Plus, Scale } from 'lucide-react';
+import { Calculator, Plus, Scale, Zap } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { Account } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
@@ -14,6 +14,7 @@ interface PolizaMovementsTableProps {
   difference: number;
   totalCargos: number;
   totalAbonos: number;
+  accountRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   referenciaRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   conceptoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   cargoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
@@ -33,6 +34,7 @@ export function PolizaMovementsTable({
   difference,
   totalCargos,
   totalAbonos,
+  accountRefs,
   referenciaRefs,
   conceptoRefs,
   cargoRefs,
@@ -66,7 +68,7 @@ export function PolizaMovementsTable({
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition"
           >
             <Calculator className="w-3.5 h-3.5" aria-hidden="true" />
-            + Desglosar IVA 16%
+            Desglosar IVA 16%
           </button>
 
           {Math.abs(difference) >= 0.01 && (
@@ -77,7 +79,8 @@ export function PolizaMovementsTable({
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 cursor-pointer transition"
             >
               <Scale className="w-3.5 h-3.5" aria-hidden="true" />
-              ⚡ Cuadrar Asiento ({formatCurrency(Math.abs(difference))})
+              <Zap className="w-3 h-3" aria-hidden="true" />
+              Cuadrar Asiento ({formatCurrency(Math.abs(difference))})
             </button>
           )}
 
@@ -99,7 +102,7 @@ export function PolizaMovementsTable({
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
           >
             <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-            + Agregar Partida
+            Agregar Partida
           </button>
         </div>
       </div>
@@ -133,6 +136,7 @@ export function PolizaMovementsTable({
                 concepto={concepto}
                 difference={difference}
                 referenciaRefs={referenciaRefs}
+                accountRefs={accountRefs}
                 conceptoRefs={conceptoRefs}
                 cargoRefs={cargoRefs}
                 abonoRefs={abonoRefs}

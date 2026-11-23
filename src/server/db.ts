@@ -86,12 +86,15 @@ export {
   getFielCredentialStatus,
   saveFielCredentialsForCompany,
   generateAndInstallTestFielForCompany,
+  type FielDbRow
+} from './repositories/fiel-credentials.repo';
+
+export {
   getSatDownloadRequests,
   executeSatSoapMassiveDownload,
   verifyCfdiStatusViaSatSoap,
-  type FielDbRow,
   type SatRequestDbRow
-} from './repositories/sat-fiel.repo';
+} from './repositories/sat-soap-download.service';
 
 export {
   getPeriodLock,
@@ -122,6 +125,7 @@ export {
 } from './repositories/tax-provision.repo';
 
 export {
+  companyExistsById,
   getCompanies,
   getCompanyById,
   createCompanyRecord,

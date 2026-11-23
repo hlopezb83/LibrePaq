@@ -5,12 +5,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Cloud,
+  Loader2,
   Lock,
   LockOpen,
   LogOut,
   Plus
 } from 'lucide-react';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
 import type { User } from '@supabase/supabase-js';
 
@@ -114,6 +115,7 @@ export function AppShellTopHeader({
               <button
                 type="button"
                 onClick={onOpenNewCompany}
+                aria-label="Dar de alta nueva empresa"
                 title="Dar de alta nueva empresa"
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer shrink-0"
               >
@@ -126,7 +128,7 @@ export function AppShellTopHeader({
 
         {/* Controles Superiores: Comandos, Periodo y Sesión */}
         <div
-          className={`flex items-center gap-1 sm:gap-1.5 min-w-0 ${
+          className={`flex flex-wrap items-center gap-1 sm:gap-1.5 min-w-0 ${
             activeCompany
               ? 'w-full @[600px]:w-auto justify-between @[600px]:justify-end'
               : 'shrink-0 ml-auto'
@@ -146,9 +148,13 @@ export function AppShellTopHeader({
                 type="button"
                 onClick={() => stepPeriod(-1)}
                 disabled={activeCompany.currentPeriod <= 1}
-                title="Periodo anterior"
+                title={
+                  activeCompany.currentPeriod <= 1
+                    ? 'Ya estás en el primer periodo del ejercicio (Enero)'
+                    : 'Periodo anterior'
+                }
                 aria-label="Cambiar al periodo contable anterior"
-                className="p-0.5 sm:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 cursor-pointer shrink-0"
+                className="p-0.5 sm:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
               >
                 <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
@@ -194,9 +200,13 @@ export function AppShellTopHeader({
                 type="button"
                 onClick={() => stepPeriod(1)}
                 disabled={activeCompany.currentPeriod >= 13}
-                title="Periodo siguiente"
+                title={
+                  activeCompany.currentPeriod >= 13
+                    ? 'Ya estás en el último periodo (Cierre Anual P13)'
+                    : 'Periodo siguiente'
+                }
                 aria-label="Cambiar al periodo contable siguiente"
-                className="p-0.5 sm:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 cursor-pointer shrink-0"
+                className="p-0.5 sm:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
               >
                 <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
@@ -208,20 +218,26 @@ export function AppShellTopHeader({
               <button
                 type="button"
                 disabled={isTogglingLock}
+                aria-pressed={isPeriodLocked}
+                aria-busy={isTogglingLock}
                 onClick={() => onTogglePeriodLock(!isPeriodLocked)}
                 aria-label={isPeriodLocked ? 'Reabrir periodo contable' : 'Bloquear periodo contable'}
                 title={
-                  isPeriodLocked
+                  isTogglingLock
+                    ? 'Actualizando candado de periodo...'
+                    : isPeriodLocked
                     ? 'Periodo bloqueado contra cambios. Clic para reabrir periodo.'
                     : 'Periodo abierto para captura. Clic para bloquear tras presentar declaración mensual.'
                 }
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl border text-xs font-bold transition cursor-pointer shrink-0 ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl border text-xs font-bold transition cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-wait ${
                   isPeriodLocked
                     ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                     : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                 }`}
               >
-                {isPeriodLocked ? (
+                {isTogglingLock ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                ) : isPeriodLocked ? (
                   <>
                     <Lock className="w-3.5 h-3.5 text-amber-800" aria-hidden="true" />
                     <span className="hidden @[820px]:inline">Cerrado</span>
@@ -253,7 +269,7 @@ export function AppShellTopHeader({
                 <button
                   type="button"
                   onClick={onSignOut}
-                  title="Cerrar Sesión (Sign Out)"
+                  title="Cerrar sesión"
                   aria-label="Cerrar sesión"
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 text-slate-600 hover:text-red-700 shadow-2xs shrink-0"
                 >

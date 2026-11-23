@@ -111,6 +111,30 @@ export const BASE_ACCOUNTS_PASIVO_CAPITAL: ReadonlyArray<Omit<Account, 'id' | 'c
     initialBalance: 56000
   },
   {
+    code: '211-00-000',
+    name: 'Provisiones y Cuotas por Pagar',
+    parentCode: '200-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 2,
+    isAffectable: false,
+    satGroupCode: '211',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '211-01-001',
+    name: 'Cuotas Obreras IMSS / Infonavit por Pagar',
+    parentCode: '211-00-000',
+    type: 'PASIVO',
+    nature: 'ACREEDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '211.01',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
     code: '216-00-000',
     name: 'Impuestos Retenidos por Pagar',
     parentCode: '200-00-000',

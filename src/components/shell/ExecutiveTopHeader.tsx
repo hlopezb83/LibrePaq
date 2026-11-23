@@ -13,7 +13,7 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
       {/* Lado Izquierdo: Identidad de Dueño */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-50 border border-amber-300 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
-          <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -38,7 +38,7 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
             Supabase Online
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
-            <CheckCircle2 className="w-3 h-3 text-blue-600" />
+            <CheckCircle2 className="w-3 h-3 text-blue-600" aria-hidden="true" />
             Hosting Activo
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">

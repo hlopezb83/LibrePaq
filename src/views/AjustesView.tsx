@@ -84,6 +84,9 @@ export function AjustesView() {
     cfdisList,
     isExportingBackup,
     isRestoringBackup,
+    pendingRestore,
+    confirmRestoreBackup,
+    cancelRestoreBackup,
     handleExportBackup,
     handleRestoreBackupFile,
     handleImportCsvCatalog,
@@ -264,6 +267,9 @@ export function AjustesView() {
           cfdisList={cfdisList}
           isExportingBackup={isExportingBackup}
           isRestoringBackup={isRestoringBackup}
+          pendingRestore={pendingRestore}
+          confirmRestoreBackup={confirmRestoreBackup}
+          cancelRestoreBackup={cancelRestoreBackup}
           handleExportBackup={handleExportBackup}
           handleRestoreBackupFile={handleRestoreBackupFile}
           handleImportCsvCatalog={handleImportCsvCatalog}

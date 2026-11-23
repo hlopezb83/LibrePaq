@@ -1,7 +1,8 @@
 import type { ToastContextType } from '../../context/ToastContext';
+import { apiClient } from '../../lib/api-client';
 import { downloadBlobFile } from '../../lib/formatters';
 import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
-import { SAFETY_BOUNDS } from '../../shared/sat-catalog';
+import { SAFETY_BOUNDS } from '../../shared/sat-constants';
 import type { AccountWithBalance, CfdiDocument } from '../../shared/types';
 
 /** Extracts valid XML payloads from dropped/selected XML or ZIP files within safety bounds. */
@@ -44,13 +45,25 @@ export async function extractXmlStringsFromFiles(
   return xmlList.slice(0, SAFETY_BOUNDS.MAX_BATCH_CFDI);
 }
 
-/** Triggers browser download of a CFDI XML file. */
-export function downloadCfdiXmlFile(cfdi: Pick<CfdiDocument, 'xmlRaw' | 'serie' | 'folio' | 'uuid'>): void {
-  downloadBlobFile(
-    `CFDI_${cfdi.serie}_${cfdi.folio}_${cfdi.uuid.slice(0, 8)}.xml`,
-    cfdi.xmlRaw,
-    'application/xml;charset=utf-8'
-  );
+/** Triggers browser download of a CFDI XML file, fetching xmlRaw from vault when omitted. */
+export async function downloadCfdiXmlFile(
+  cfdi: Pick<CfdiDocument, 'id' | 'xmlRaw' | 'serie' | 'folio' | 'uuid'>,
+  toast?: Pick<ToastContextType, 'error'>
+): Promise<void> {
+  try {
+    const rawXml = cfdi.xmlRaw || (await apiClient.getCfdiXml(cfdi.id));
+    if (!rawXml) {
+      toast?.error('El archivo XML no está disponible en la bóveda SAT.');
+      return;
+    }
+    downloadBlobFile(
+      `CFDI_${cfdi.serie}_${cfdi.folio}_${cfdi.uuid.slice(0, 8)}.xml`,
+      rawXml,
+      'application/xml;charset=utf-8'
+    );
+  } catch (err: unknown) {
+    toast?.error(`Error al descargar XML: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /** Suggests initial operation & counter accounts when opening the contabilizar modal. */

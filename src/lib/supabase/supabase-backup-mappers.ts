@@ -19,14 +19,19 @@ export async function clearCompanyChildTables(
   client: SupabaseClient,
   companyId: string
 ): Promise<void> {
-  await Promise.allSettled([
-    client.from('bank_statement_lines').delete().eq('company_id', companyId),
-    client.from('cfdi_documents').delete().eq('company_id', companyId),
-    client.from('polizas').delete().eq('company_id', companyId),
-    client.from('fixed_assets').delete().eq('company_id', companyId),
-    client.from('third_parties').delete().eq('company_id', companyId),
-    client.from('period_locks').delete().eq('company_id', companyId)
-  ]);
+  const tables = [
+    'bank_statement_lines',
+    'cfdi_documents',
+    'polizas',
+    'fixed_assets',
+    'third_parties',
+    'period_locks',
+    'tax_parameters'
+  ];
+  for (const table of tables) {
+    const { error } = await client.from(table).delete().eq('company_id', companyId);
+    if (error) throw new Error(`[Clear ${table}] ${error.message}`);
+  }
 }
 
 export async function restoreBackupChildTables(
@@ -42,17 +47,24 @@ export async function restoreBackupChildTables(
     await batchImportAccounts(companyId, bundle.accounts);
   }
 
-  if (Array.isArray(bundle.taxParameters) && bundle.taxParameters[0]) {
-    const tp = bundle.taxParameters[0];
-    await assertTableUpsert(client, 'tax_parameters', {
-      company_id: companyId,
-      ejercicio: tp.ejercicio || bundle.company.currentYear || getCurrentFiscalPeriod().year,
-      coeficiente_utilidad: tp.coeficienteUtilidad,
-      perdidas_fiscales_pendientes: tp.perdidasFiscalesPendientes,
-      pagos_provisionales_anteriores: tp.pagosProvisionalesAnteriores,
-      saldo_favor_iva_anterior: tp.saldoFavorIvaAnterior,
-      tipo_cambio_dof_cierre: tp.tipoCambioDofCierre
-    });
+  if (Array.isArray(bundle.taxParameters)) {
+    for (const tp of bundle.taxParameters) {
+      if (!tp) continue;
+      await assertTableUpsert(
+        client,
+        'tax_parameters',
+        {
+          company_id: companyId,
+          ejercicio: tp.ejercicio || bundle.company.currentYear || getCurrentFiscalPeriod().year,
+          coeficiente_utilidad: tp.coeficienteUtilidad,
+          perdidas_fiscales_pendientes: tp.perdidasFiscalesPendientes,
+          pagos_provisionales_anteriores: tp.pagosProvisionalesAnteriores,
+          saldo_favor_iva_anterior: tp.saldoFavorIvaAnterior,
+          tipo_cambio_dof_cierre: tp.tipoCambioDofCierre
+        },
+        { onConflict: 'company_id,ejercicio' }
+      );
+    }
   }
 
   if (Array.isArray(bundle.polizas) && bundle.polizas.length > 0) {
@@ -178,7 +190,7 @@ export async function restoreBackupChildTables(
       tipo_tercero_diot: tp.tipoTerceroDiot || '04',
       tipo_operacion_diot: tp.tipoOperacionDiot || '85',
       tasa_iva_default: Number(tp.tasaIvaDefault || 16),
-      estatus_69b: tp.estatus69B || 'NINGUNO'
+      estatus_69b: tp.estatus69B || 'LIMPIO'
     }));
     await assertTableUpsert(client, 'third_parties', tpToUpsert, { onConflict: 'id' });
   }

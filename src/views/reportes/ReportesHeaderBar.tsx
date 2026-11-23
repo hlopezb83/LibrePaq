@@ -4,6 +4,7 @@ import {
   Download,
   Printer
 } from 'lucide-react';
+import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
 import type { Company } from '../../shared/types';
 
 export type ReportTabId = 'BALANZA' | 'RESULTADOS' | 'BALANCE' | 'ANEXO24' | 'ENTREGABLES';
@@ -86,21 +87,34 @@ export function ReportesHeaderBar({
       </div>
 
       {/* 2. Barra de Navegación entre Estados Financieros */}
-      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-300/90 shadow-2xs flex items-center gap-1.5 overflow-x-auto no-print">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onTabChange(t.id)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-              activeTab === t.id
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div
+        role="tablist"
+        aria-label="Secciones de estados financieros y formatos SAT"
+        className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-300/90 shadow-2xs erp-tab-scroller no-print"
+      >
+        {TABS.map((t) => {
+          const isSelected = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              id={`report-tab-${t.id}`}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              aria-controls={`report-panel-${t.id}`}
+              tabIndex={isSelected ? 0 : -1}
+              onClick={() => onTabChange(t.id)}
+              onKeyDown={(e) => handleTablistKeyDown(e, TABS, activeTab, onTabChange, 'report-tab-')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                isSelected
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

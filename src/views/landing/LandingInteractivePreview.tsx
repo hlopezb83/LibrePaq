@@ -17,16 +17,16 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                 </span>
                 <span className="text-xs font-mono text-slate-600">Periodo 10 (Octubre 2026)</span>
               </div>
-              <h4 className="text-xs sm:text-sm font-bold text-slate-900 mt-1">
+              <p className="text-xs sm:text-sm font-bold text-slate-900 mt-1">
                 Cobro Factura F-8419 — Cliente Corporativo Alfa S.A.
-              </h4>
+              </p>
             </div>
 
             <div className="flex items-center gap-3">
               <div className="sm:text-right">
                 <p className="text-[11px] uppercase font-mono text-slate-500">Estado de Partida Doble</p>
                 <p className="text-xs sm:text-sm font-bold font-mono text-emerald-700 flex items-center gap-1 sm:justify-end">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                   <span>CUADRADA ($0.00 DIFERENCIA)</span>
                 </p>
               </div>
@@ -37,11 +37,11 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 text-slate-600 font-mono uppercase text-[10px] border-b border-slate-200">
                 <tr>
-                  <th className="py-2.5 px-3">Cuenta SAT</th>
-                  <th className="py-2.5 px-3">Nombre de la Cuenta</th>
-                  <th className="py-2.5 px-3">Concepto del Movimiento</th>
-                  <th className="py-2.5 px-3 text-right">Cargos (Debe)</th>
-                  <th className="py-2.5 px-3 text-right">Abonos (Haber)</th>
+                  <th scope="col" className="py-2.5 px-3">Cuenta SAT</th>
+                  <th scope="col" className="py-2.5 px-3">Nombre de la Cuenta</th>
+                  <th scope="col" className="py-2.5 px-3">Concepto del Movimiento</th>
+                  <th scope="col" className="py-2.5 px-3 text-right">Cargos (Debe)</th>
+                  <th scope="col" className="py-2.5 px-3 text-right">Abonos (Haber)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono text-slate-800">
@@ -50,13 +50,13 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                   <td className="py-2 px-3 font-medium text-slate-900">BBVA Bancomer Cta. 4819</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Transferencia SPEI recibida</td>
                   <td className="py-2 px-3 text-right font-bold text-slate-900">$116,000.00</td>
-                  <td className="py-2 px-3 text-right text-slate-400">$0.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
                 </tr>
                 <tr className="hover:bg-slate-50/80">
                   <td className="py-2 px-3 font-semibold text-blue-600">105.01.005</td>
                   <td className="py-2 px-3 font-medium text-slate-900">Clientes Nacionales — Alfa S.A.</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Cancelación saldo exigible</td>
-                  <td className="py-2 px-3 text-right text-slate-400">$0.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
                   <td className="py-2 px-3 text-right font-bold text-slate-900">$116,000.00</td>
                 </tr>
                 <tr className="hover:bg-slate-50/80">
@@ -64,13 +64,13 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                   <td className="py-2 px-3 font-medium text-slate-900">IVA Trasladado Pendiente</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Reclasificación fiscal flujo</td>
                   <td className="py-2 px-3 text-right font-bold text-emerald-700">$16,000.00</td>
-                  <td className="py-2 px-3 text-right text-slate-400">$0.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
                 </tr>
                 <tr className="hover:bg-slate-50/80">
                   <td className="py-2 px-3 font-semibold text-blue-600">209.01.001</td>
                   <td className="py-2 px-3 font-medium text-slate-900">IVA Trasladado Cobrado (Efectivamente Pagado)</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Causación de IVA Art. 1-B LIVA</td>
-                  <td className="py-2 px-3 text-right text-slate-400">$0.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
                   <td className="py-2 px-3 text-right font-bold text-emerald-700">$16,000.00</td>
                 </tr>
               </tbody>
@@ -109,10 +109,10 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                 <span className="text-xs font-mono font-bold text-slate-900">$48,250.00</span>
               </div>
               <p className="text-xs font-semibold text-slate-900 mt-2 truncate">Soluciones Tecnológicas del Bajío</p>
-              <p className="text-[10px] font-mono text-slate-500">UUID: 8F2A1C... • PPD / 99</p>
-              <button type="button" className="mt-3 w-full py-1 text-[11px] font-semibold rounded bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-200 transition">
-                Ver Póliza Generada
-              </button>
+              <p className="text-[11px] font-mono text-slate-600">UUID: 8F2A1C... • PPD / 99</p>
+              <div className="mt-3 w-full py-1 text-center text-[11px] font-semibold rounded bg-blue-100 text-blue-800 border border-blue-200">
+                Póliza Generada (I-014)
+              </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
@@ -121,10 +121,10 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                 <span className="text-xs font-mono font-bold text-slate-900">$14,500.00</span>
               </div>
               <p className="text-xs font-semibold text-slate-900 mt-2 truncate">Arrendadora Inmobiliaria del Centro</p>
-              <p className="text-[10px] font-mono text-slate-500">Ret. ISR 10% + Ret. IVA 10.6667%</p>
-              <button type="button" className="mt-3 w-full py-1 text-[11px] font-semibold rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 transition">
+              <p className="text-[11px] font-mono text-slate-600">Ret. ISR 10% + Ret. IVA 10.6667%</p>
+              <div className="mt-3 w-full py-1 text-center text-[11px] font-semibold rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
                 Retenciones Desglosadas
-              </button>
+              </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
@@ -133,10 +133,10 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                 <span className="text-xs font-mono font-bold text-slate-900">$29,000.00</span>
               </div>
               <p className="text-xs font-semibold text-slate-900 mt-2 truncate">Complemento de Pago SPEI</p>
-              <p className="text-[10px] font-mono text-slate-500">Reclasificación automática IVA</p>
-              <button type="button" className="mt-3 w-full py-1 text-[11px] font-semibold rounded bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-200 transition">
+              <p className="text-[11px] font-mono text-slate-600">Reclasificación automática IVA</p>
+              <div className="mt-3 w-full py-1 text-center text-[11px] font-semibold rounded bg-purple-100 text-purple-800 border border-purple-200">
                 Póliza M10 Vinculada
-              </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,9 +1,8 @@
 import { db } from '../connection';
 import {
   assertAccountingInvariant,
-  computeFiscalWorkpaper,
+  computeFiscalWorkpaperFromTrialBalance,
   fromCents,
-  sumCents,
   toCents
 } from '../../shared/accounting-engine';
 import { computeDiotReportData } from '../../shared/engine/diot.engine';
@@ -125,64 +124,15 @@ export function getFiscalWorkpaperReport(
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
   const parameters = getTaxParameters(company.id, ejercicio);
-  const tb = computeTrialBalance(company.id, ejercicio, periodo);
-
-  const ingresosAccounts = tb.filter((a) => a.isAffectable && a.type === 'INGRESOS');
-  const egresosAccounts = tb.filter(
-    (a) =>
-      a.isAffectable &&
-      (a.type === 'COSTOS' || a.type === 'GASTOS') &&
-      !a.code.startsWith('801') &&
-      !a.satGroupCode?.startsWith('801')
-  );
-
-  const ingresosPeriodo = fromCents(
-    sumCents(ingresosAccounts.map((a) => a.periodCredits - a.periodCharges))
-  );
-  const ingresosAcumuladosEjercicio = fromCents(
-    sumCents(ingresosAccounts.map((a) => a.finalBalance))
-  );
-  const deduccionesAutorizadasPeriodo = fromCents(
-    sumCents(egresosAccounts.map((a) => a.periodCharges - a.periodCredits))
-  );
-  const deduccionesAcumuladasEjercicio = fromCents(
-    sumCents(egresosAccounts.map((a) => a.finalBalance))
-  );
-
-  const accIvaCobrado = tb.find((a) => a.code === '208-01-001' || a.satGroupCode === '208.01');
-  const accIvaPagado = tb.find((a) => a.code === '118-01-001' || a.satGroupCode === '118.01');
-  const accRetIsr = tb.find((a) => a.code === '216-01-001' || a.satGroupCode === '216.01');
-  const accRetIva = tb.find((a) => a.code === '216-01-002' || a.satGroupCode === '216.02');
-  const accIsrFavor = tb.find(
-    (a) => a.code === '113-02-001' || a.code === '113-01-002' || a.satGroupCode === '113.02'
-  );
-  const accIvaFavor = tb.find(
-    (a) => a.code === '113-01-001' || a.satGroupCode === '113.01'
-  );
-
+  const trialBalance = computeTrialBalance(company.id, ejercicio, periodo);
   const cfdis = getCfdiDocuments(company.id);
-  const usdCfdis = cfdis.filter(
-    (c) =>
-      c.moneda.toUpperCase() === 'USD' &&
-      c.statusSat !== 'CANCELADO' &&
-      c.metodoPago === 'PPD'
-  );
 
-  return computeFiscalWorkpaper({
+  return computeFiscalWorkpaperFromTrialBalance({
     company,
     ejercicio,
     periodo,
     parameters,
-    ingresosPeriodo,
-    ingresosAcumuladosEjercicio,
-    deduccionesAutorizadasPeriodo,
-    deduccionesAcumuladasEjercicio,
-    ivaTrasladadoCobrado: accIvaCobrado?.periodCredits ?? 0,
-    ivaAcreditablePagado: accIvaPagado?.periodCharges ?? 0,
-    isrRetenidoPorPagar: accRetIsr?.periodCredits ?? 0,
-    ivaRetenidoPorPagar: accRetIva?.periodCredits ?? 0,
-    isrRetenidoFavorPeriodo: accIsrFavor?.periodCharges ?? 0,
-    ivaRetenidoFavorPeriodo: accIvaFavor?.periodCharges ?? 0,
-    usdCfdis
+    trialBalance,
+    cfdis
   });
 }

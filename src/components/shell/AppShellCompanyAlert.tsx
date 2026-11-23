@@ -17,7 +17,7 @@ export function AppShellCompanyAlert({
       role="status"
       className="mb-4 p-3.5 rounded-2xl bg-[#0A1120] border-2 border-blue-500 text-white shadow-lg flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top duration-300 no-print"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         <div
           className={`w-9 h-9 rounded-xl ${currentTheme.bg} ${currentTheme.text} font-mono font-bold text-xs flex items-center justify-center shrink-0 border ${currentTheme.border} shadow-xs`}
         >
@@ -42,7 +42,7 @@ export function AppShellCompanyAlert({
         aria-label="Descartar aviso de cambio de empresa"
         className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer shrink-0"
       >
-        <X className="w-4 h-4" />
+        <X className="w-4 h-4" aria-hidden="true" />
       </button>
     </div>
   );

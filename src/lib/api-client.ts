@@ -24,7 +24,8 @@ export type AccountingQueryScope =
   | 'period-lock'
   | 'third-parties'
   | 'fixed-assets'
-  | 'fiscal-workpaper';
+  | 'fiscal-workpaper'
+  | 'sat-xml';
 
 const DEFAULT_ACCOUNTING_SCOPES: ReadonlyArray<AccountingQueryScope> = [
   'dashboard',
@@ -38,7 +39,8 @@ const DEFAULT_ACCOUNTING_SCOPES: ReadonlyArray<AccountingQueryScope> = [
   'period-lock',
   'third-parties',
   'fixed-assets',
-  'fiscal-workpaper'
+  'fiscal-workpaper',
+  'sat-xml'
 ];
 
 /**

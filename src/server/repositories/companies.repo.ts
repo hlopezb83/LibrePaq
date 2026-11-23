@@ -3,7 +3,7 @@ import { seedAccountsForCompanyOnDb } from '../seed-data';
 import { assertAccountingInvariant } from '../../shared/accounting-engine';
 import type { Company } from '../../shared/types';
 import { createPolizaTransaction } from './polizas.repo';
-import { saveFielCredentialsForCompany } from './sat-fiel.repo';
+import { saveFielCredentialsForCompany } from './fiel-credentials.repo';
 
 export function getCompanies(
   userId?: string | null,
@@ -36,6 +36,13 @@ export function getCompanies(
   return demoRows.map(mapCompanyRow);
 }
 
+export function companyExistsById(companyId: string): boolean {
+  const row = db
+    .query('SELECT id FROM companies WHERE id = ?')
+    .get(companyId) as { id: string } | null;
+  return Boolean(row);
+}
+
 export function getCompanyById(companyId: string, userId?: string | null): Company | null {
   const row = db
     .query('SELECT * FROM companies WHERE id = ?')
@@ -43,9 +50,11 @@ export function getCompanyById(companyId: string, userId?: string | null): Compa
   if (!row) {
     return null;
   }
-  // Aislamiento Multi-Tenant: si se especifica userId, validar que sea el propietario o demo
-  if (userId && row.user_id && row.user_id !== userId && row.user_id !== 'demo') {
-    return null; // Acceso no autorizado
+  // Aislamiento Multi-Tenant estricto: empresas privadas exigen coincidencia de userId
+  if (row.user_id && row.user_id !== 'demo') {
+    if (!userId || row.user_id !== userId) {
+      return null;
+    }
   }
   return mapCompanyRow(row);
 }
@@ -140,7 +149,7 @@ export function createCompanyRecord(input: {
     }
   }
 
-  const created = getCompanyById(id);
+  const created = getCompanyById(id, userId);
   assertAccountingInvariant(created !== null, 'COMPANY_CREATE_FAILED', 'No se pudo crear la empresa.');
   return created;
 }
@@ -162,12 +171,12 @@ export function updateCompanyRecord(
         .prepare(`
           UPDATE companies
           SET name = ?, rfc = ?, regimen_fiscal = ?, codigo_postal = ?
-          WHERE id = ?
+          WHERE id = ? AND (user_id IS NULL OR user_id = 'demo')
         `)
         .run(input.name, input.rfc, input.regimenFiscal, input.codigoPostal, id);
 
   if (result.changes === 0) return null;
-  return getCompanyById(id);
+  return getCompanyById(id, userId);
 }
 
 export function deleteCompanyRecord(id: string, userId?: string | null): boolean {
@@ -177,7 +186,9 @@ export function deleteCompanyRecord(id: string, userId?: string | null): boolean
       .run(id, userId);
     return result.changes > 0;
   }
-  const result = db.prepare('DELETE FROM companies WHERE id = ?').run(id);
+  const result = db
+    .prepare('DELETE FROM companies WHERE id = ? AND (user_id IS NULL OR user_id = "demo")')
+    .run(id);
   return result.changes > 0;
 }
 
@@ -192,9 +203,9 @@ export function updateCompanyPeriodRecord(
         .prepare('UPDATE companies SET current_year = ?, current_period = ? WHERE id = ? AND (user_id = ? OR user_id IS NULL OR user_id = "demo")')
         .run(currentYear, currentPeriod, id, userId)
     : db
-        .prepare('UPDATE companies SET current_year = ?, current_period = ? WHERE id = ?')
+        .prepare('UPDATE companies SET current_year = ?, current_period = ? WHERE id = ? AND (user_id IS NULL OR user_id = "demo")')
         .run(currentYear, currentPeriod, id);
 
   if (result.changes === 0) return null;
-  return getCompanyById(id);
+  return getCompanyById(id, userId);
 }

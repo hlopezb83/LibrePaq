@@ -184,9 +184,9 @@ export const FISCAL_ACCOUNT_ROLES = {
     fallbackType: 'ACTIVO' as const
   },
   OTRAS_CUENTAS_POR_PAGAR: {
-    code: '216-01-001',
+    code: '211-01-001',
     aliases: ['201-01-099', '201-01-001'],
-    satGroupCode: '216.04',
+    satGroupCode: '211.01',
     fallbackType: 'PASIVO' as const
   },
   PROVISION_ISR_POR_PAGAR: {

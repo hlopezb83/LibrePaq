@@ -8,6 +8,7 @@ import {
   updatePolizaTransaction
 } from '../db';
 import { resolveYearAndPeriod, validatePolizaPayload } from '../validators';
+import { parseCalendarDate } from '../../shared/date-utils';
 import { errorStatus } from './route-helpers';
 
 export const polizasRoutes = new Hono();
@@ -31,9 +32,11 @@ polizasRoutes.post('/polizas', async (c) => {
     const company = getCompanyById(payload.companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
-    const pDate = new Date(payload.fecha);
-    const pYear = isNaN(pDate.getFullYear()) ? company.currentYear : pDate.getFullYear();
-    const pPeriod = isNaN(pDate.getMonth()) ? company.currentPeriod : pDate.getMonth() + 1;
+    const { year: pYear, month: pPeriod } = parseCalendarDate(
+      payload.fecha,
+      company.currentYear,
+      company.currentPeriod
+    );
 
     const created = createPolizaTransaction({
       ...payload,

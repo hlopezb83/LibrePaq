@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../context/CompanyContext';
-import { MESES_SAT } from '../shared/sat-catalog';
+import { MESES_SAT } from '../shared/sat-constants';
 import { useToast } from '../context/ToastContext';
 import type { Company } from '../shared/types';
 import { getCompanyTheme } from './company-switcher/companyThemes';
@@ -74,43 +74,50 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [activeCompany]
   );
 
-  const openModalWithRef = (
+  const openModalWithRef = useCallback((
     ref: React.RefObject<HTMLDialogElement | null>,
     hasOpened: boolean,
     setHasOpened: (v: boolean) => void,
     onOpened?: () => void
   ) => {
-    if (!hasOpened) {
-      setHasOpened(true);
-      setTimeout(() => { ref.current?.showModal(); onOpened?.(); }, 20);
-    } else {
-      ref.current?.showModal();
-      onOpened?.();
-    }
-  };
+    const showSafe = (attempt = 0) => {
+      const el = ref.current;
+      if (el) {
+        if (!el.open) el.showModal();
+        onOpened?.();
+      } else if (attempt < 15) {
+        requestAnimationFrame(() => showSafe(attempt + 1));
+      }
+    };
+    if (!hasOpened) setHasOpened(true);
+    requestAnimationFrame(() => showSafe(0));
+  }, []);
 
-  const openCompanySwitcherModal = () => openModalWithRef(switcherDialogRef, hasOpenedSwitcher, setHasOpenedSwitcher);
-  const openShortcutsModal = () => openModalWithRef(shortcutsDialogRef, hasOpenedShortcuts, setHasOpenedShortcuts);
-  const openNewCompanyModal = () => openModalWithRef(wizardDialogRef, hasOpenedWizard, setHasOpenedWizard);
-  const openAuthModal = () => openModalWithRef(authDialogRef, hasOpenedAuth, setHasOpenedAuth);
-  const openCommandPaletteModal = () => {
+  const openCompanySwitcherModal = useCallback(() => openModalWithRef(switcherDialogRef, hasOpenedSwitcher, setHasOpenedSwitcher, () => switcherDialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()), [openModalWithRef, hasOpenedSwitcher]);
+  const openShortcutsModal = useCallback(() => openModalWithRef(shortcutsDialogRef, hasOpenedShortcuts, setHasOpenedShortcuts, () => shortcutsDialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()), [openModalWithRef, hasOpenedShortcuts]);
+  const openNewCompanyModal = useCallback(() => openModalWithRef(wizardDialogRef, hasOpenedWizard, setHasOpenedWizard), [openModalWithRef, hasOpenedWizard]);
+  const openAuthModal = useCallback(() => openModalWithRef(authDialogRef, hasOpenedAuth, setHasOpenedAuth), [openModalWithRef, hasOpenedAuth]);
+  const openCommandPaletteModal = useCallback(() => {
     setCmdQuery('');
     openModalWithRef(cmdDialogRef, hasOpenedCmd, setHasOpenedCmd, () => cmdInputRef.current?.focus());
-  };
+  }, [openModalWithRef, hasOpenedCmd]);
 
-  const { isModalOpen } = useUIModal();
+  const { isModalOpen, closeModal } = useUIModal();
+  useEffect(() => { if (isModalOpen('COMPANY_WIZARD')) openNewCompanyModal(); }, [isModalOpen, openNewCompanyModal]);
   useEffect(() => {
-    if (isModalOpen('COMPANY_WIZARD')) openNewCompanyModal();
-  }, [isModalOpen]);
-
-  useEffect(() => {
-    try { localStorage.setItem('librepaq_sidebar_collapsed', String(sidebarCollapsed)); } catch {}
-  }, [sidebarCollapsed]);
+    const wizardEl = wizardDialogRef.current;
+    if (!wizardEl) return;
+    const onClose = () => closeModal('COMPANY_WIZARD');
+    wizardEl.addEventListener('close', onClose);
+    return () => wizardEl.removeEventListener('close', onClose);
+  }, [hasOpenedWizard, closeModal]);
+  useEffect(() => { try { localStorage.setItem('librepaq_sidebar_collapsed', String(sidebarCollapsed)); } catch {} }, [sidebarCollapsed]);
 
   const isPublicPage =
     currentPath === '/landing' ||
     currentPath === '/privacy' ||
     currentPath === '/terms' ||
+    currentPath === '/reset-password' ||
     (!user && currentPath === '/');
 
   const {
@@ -161,9 +168,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useAppShellKeyboard({
     shortcutsDialogRef,
     cmdDialogRef,
-    cmdInputRef,
     switcherDialogRef,
-    setCmdQuery,
+    openShortcutsModal,
+    openCommandPaletteModal,
+    openCompanySwitcherModal,
     setSidebarCollapsed,
     navItems,
     navigate: (opts) => navigate({ to: opts.to }),

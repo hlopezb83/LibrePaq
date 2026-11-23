@@ -82,21 +82,13 @@ export function CfdiDropzoneBar({
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
               {isDragging
-                ? '¡Suelta tus archivos .XML aquí para importarlos a la Bóveda ADD!'
-                : 'Descarga tus facturas del mes directamente del SAT con e.firma, sube archivos .XML o arrástralos aquí'}
+                ? '¡Suelta tus archivos .XML o .ZIP aquí para importarlos a la Bóveda ADD!'
+                : 'Descarga facturas del mes desde el SAT con e.firma, sube archivos .XML o .ZIP del SAT, o arrástralos aquí'}
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
-            multiple
-            onChange={handleFileUpload}
-            className="hidden"
-          />
           {pendingCfdisCount > 0 && (
             <button
               type="button"
@@ -153,19 +145,27 @@ export function CfdiDropzoneBar({
             </span>
           </button>
 
-          {/* 2. Botón Primario: Subir XMLs Locales */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            title="Subir archivos XML locales a la Bóveda ADD (Alt+U)"
+          {/* 2. Botón Primario: Subir XMLs / ZIP Locales */}
+          <label
+            htmlFor="cfdi-dropzone-upload"
+            title="Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white shadow-2xs transition cursor-pointer"
           >
+            <input
+              id="cfdi-dropzone-upload"
+              ref={fileInputRef}
+              type="file"
+              accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
+              multiple
+              onChange={handleFileUpload}
+              className="visually-hidden"
+            />
             <UploadCloud className="w-3.5 h-3.5 text-blue-100" aria-hidden="true" />
-            <span>Subir XMLs</span>
+            <span>Subir XMLs / ZIP</span>
             <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
               Alt+U
             </kbd>
-          </button>
+          </label>
 
           {/* 3. Botón Secundario: Captura Manual CFDI */}
           <button
@@ -196,7 +196,11 @@ export function CfdiDropzoneBar({
 
       {/* Banner de progreso y advertencia de permanencia */}
       {batchProgress && (
-        <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 shadow-2xs space-y-2 animate-fadeIn">
+        <div
+          role="status"
+          aria-live="polite"
+          className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 shadow-2xs space-y-2 animate-fadeIn"
+        >
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-emerald-950">
             <span className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-600 animate-spin shrink-0" aria-hidden="true" />
@@ -206,7 +210,14 @@ export function CfdiDropzoneBar({
               {batchProgress.current} de {batchProgress.total} pólizas ({Math.round((batchProgress.current / batchProgress.total) * 100)}%)
             </span>
           </div>
-          <div className="w-full bg-emerald-200/80 rounded-full h-2.5 overflow-hidden">
+          <div
+            role="progressbar"
+            aria-label="Progreso de contabilización en lote"
+            aria-valuenow={Math.round((batchProgress.current / batchProgress.total) * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="w-full bg-emerald-200/80 rounded-full h-2.5 overflow-hidden"
+          >
             <div
               className="bg-emerald-600 h-2.5 rounded-full transition-all duration-150 ease-out"
               style={{

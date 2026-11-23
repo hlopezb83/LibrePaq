@@ -8,7 +8,10 @@ import { getPolizas } from './polizas.repo';
 import { syncThirdPartiesFromCfdis } from './third-parties.repo';
 import { getTaxParameters, saveTaxParameters } from './fiscal.repo';
 
-export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle): Company {
+export function restoreCompanyBackupBundle(
+  bundle: CompanyBackupBundle,
+  actorUserId?: string | null
+): Company {
   assertAccountingInvariant(
     Boolean(bundle && bundle.company && bundle.company.rfc),
     'INVALID_BACKUP_BUNDLE',
@@ -16,9 +19,11 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle): Company
   );
 
   const comp = bundle.company;
+  let resolvedOwner: string | null = null;
   const tx = db.transaction(() => {
     const existingCompany = db.query('SELECT user_id FROM companies WHERE id = ?').get(comp.id) as { user_id?: string } | null;
-    const resolvedUserId = comp.userId || existingCompany?.user_id || 'demo';
+    const resolvedUserId = actorUserId || existingCompany?.user_id || comp.userId || 'demo';
+    resolvedOwner = resolvedUserId;
 
     db.prepare(`
       INSERT INTO companies (id, name, rfc, regimen_fiscal, codigo_postal, mask_format, current_year, current_period, created_at, user_id)
@@ -56,9 +61,12 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle): Company
       batchImportAccountsCatalog(comp.id, bundle.accounts);
     }
 
-    if (Array.isArray(bundle.taxParameters) && bundle.taxParameters[0]) {
-      const tp = bundle.taxParameters[0];
-      saveTaxParameters(comp.id, tp.ejercicio || comp.currentYear, tp);
+    if (Array.isArray(bundle.taxParameters)) {
+      for (const tp of bundle.taxParameters) {
+        if (tp) {
+          saveTaxParameters(comp.id, tp.ejercicio || comp.currentYear, tp);
+        }
+      }
     }
 
     if (Array.isArray(bundle.polizas) && bundle.polizas.length > 0) {
@@ -214,7 +222,7 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle): Company
           tp.tipoTerceroDiot || '04',
           tp.tipoOperacionDiot || '85',
           tp.tasaIvaDefault || 16,
-          tp.estatus69B || 'NINGUNO',
+          tp.estatus69B || 'LIMPIO',
           tp.updatedAt || new Date().toISOString()
         );
       }
@@ -246,7 +254,7 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle): Company
   });
 
   tx();
-  const restored = getCompanyById(comp.id);
+  const restored = getCompanyById(comp.id, resolvedOwner);
   assertAccountingInvariant(restored !== null, 'RESTORE_FAILED', 'No se pudo restaurar la empresa.');
   return restored;
 }
@@ -265,8 +273,11 @@ interface BankStatementDbRow {
   matched_movement_id: string | null;
 }
 
-export function exportCompanyBackupBundle(companyId: string): CompanyBackupBundle {
-  const company = getCompanyById(companyId);
+export function exportCompanyBackupBundle(
+  companyId: string,
+  userId?: string | null
+): CompanyBackupBundle {
+  const company = getCompanyById(companyId, userId);
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
   const accounts = getAccounts(company.id);
@@ -295,7 +306,13 @@ export function exportCompanyBackupBundle(companyId: string): CompanyBackupBundl
     notes: r.notes
   }));
 
-  const taxParameters = [getTaxParameters(company.id, company.currentYear)];
+  const taxYearRows = db
+    .query('SELECT DISTINCT ejercicio FROM tax_parameters WHERE company_id = ? ORDER BY ejercicio ASC')
+    .all(company.id) as Array<{ ejercicio: number }>;
+  const taxYears = taxYearRows.length > 0
+    ? taxYearRows.map((r) => Number(r.ejercicio))
+    : [company.currentYear];
+  const taxParameters = taxYears.map((yr) => getTaxParameters(company.id, yr));
   const bankRows = db
     .query('SELECT * FROM bank_statement_lines WHERE company_id = ?')
     .all(company.id) as BankStatementDbRow[];

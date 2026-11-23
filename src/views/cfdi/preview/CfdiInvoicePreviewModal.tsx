@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDialogLightDismiss } from '../../../hooks/useDialogLightDismiss';
+import { handleTablistKeyDown } from '../../../hooks/useTablistKeyboard';
 import {
   Check,
   Code2,
@@ -26,14 +27,22 @@ import { CfdiXmlTab } from './CfdiXmlTab';
 interface CfdiInvoicePreviewModalProps {
   cfdi: CfdiDocument | null;
   accounts?: readonly Account[];
+  isPeriodLocked?: boolean;
   onClose: () => void;
   onContabilizar?: (cfdi: CfdiDocument) => void;
   onDownloadXml?: (cfdi: CfdiDocument) => void;
 }
 
+const PREVIEW_TABS: ReadonlyArray<{ id: 'FACTURA' | 'POLIZA' | 'XML'; label: string; icon: typeof FileText }> = [
+  { id: 'FACTURA', label: 'Factura SAT', icon: FileText },
+  { id: 'POLIZA', label: 'Póliza Contable', icon: Scale },
+  { id: 'XML', label: 'Nodos XML', icon: Code2 }
+];
+
 export function CfdiInvoicePreviewModal({
   cfdi,
   accounts = [],
+  isPeriodLocked = false,
   onClose,
   onContabilizar,
   onDownloadXml
@@ -42,7 +51,7 @@ export function CfdiInvoicePreviewModal({
   const [activeTab, setActiveTab] = useState<'FACTURA' | 'POLIZA' | 'XML'>('FACTURA');
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  useDialogLightDismiss(dialogRef, onClose);
+  useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(cfdi) });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -119,9 +128,14 @@ export function CfdiInvoicePreviewModal({
                   type="button"
                   onClick={() => copyToClipboard(cfdi.uuid, 'UUID')}
                   title="Copiar UUID completo"
+                  aria-label="Copiar UUID completo"
                   className="text-slate-400 hover:text-blue-700 cursor-pointer"
                 >
-                  {copiedText === 'UUID' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedText === 'UUID' ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                  )}
                 </button>
               </div>
             </div>
@@ -129,37 +143,36 @@ export function CfdiInvoicePreviewModal({
 
           {/* Selector de Modos de Vista */}
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setActiveTab('FACTURA')}
-                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'FACTURA' ? 'bg-white text-blue-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                Factura SAT
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('POLIZA')}
-                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'POLIZA' ? 'bg-white text-blue-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Scale className="w-3.5 h-3.5" />
-                Póliza Contable
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('XML')}
-                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'XML' ? 'bg-white text-blue-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Code2 className="w-3.5 h-3.5" />
-                Nodos XML
-              </button>
+            <div
+              role="tablist"
+              aria-label="Vistas del comprobante CFDI"
+              className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-semibold"
+            >
+              {PREVIEW_TABS.map((t) => {
+                const Icon = t.icon;
+                const isSelected = activeTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    id={`cfdi-prev-tab-${t.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    aria-controls={`cfdi-prev-panel-${t.id}`}
+                    tabIndex={isSelected ? 0 : -1}
+                    onClick={() => setActiveTab(t.id)}
+                    onKeyDown={(e) =>
+                      handleTablistKeyDown(e, PREVIEW_TABS, activeTab, setActiveTab, 'cfdi-prev-tab-')
+                    }
+                    className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                      isSelected ? 'bg-white text-blue-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5 sm:pl-2">
@@ -171,7 +184,7 @@ export function CfdiInvoicePreviewModal({
                 aria-label="Verificar CFDI en portal del SAT"
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition"
               >
-                <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                <ExternalLink className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
                 SAT
               </a>
 
@@ -183,7 +196,7 @@ export function CfdiInvoicePreviewModal({
                   title="Descargar archivo XML original"
                   aria-label="Descargar XML original"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
 
@@ -194,20 +207,22 @@ export function CfdiInvoicePreviewModal({
                 title="Imprimir representación impresa"
                 aria-label="Imprimir factura"
               >
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
 
               {!cfdi.polizaId && onContabilizar && (
                 <button
                   type="button"
+                  disabled={isPeriodLocked}
+                  title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : 'Generar póliza para comprobante'}
                   onClick={() => {
                     dialogRef.current?.close();
                     onContabilizar(cfdi);
                   }}
                   aria-label="Generar póliza para comprobante"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 shadow-2xs transition cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs transition cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
                   Contabilizar
                 </button>
               )}
@@ -216,7 +231,7 @@ export function CfdiInvoicePreviewModal({
                 type="button"
                 onClick={onClose}
                 aria-label="Cerrar vista previa"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
@@ -226,31 +241,37 @@ export function CfdiInvoicePreviewModal({
 
         {/* TAB 1: REPRESENTACIÓN IMPRESA OFICIAL SAT */}
         {activeTab === 'FACTURA' && (
-          <CfdiFacturaTab
-            cfdi={cfdi}
-            tipoLabel={tipoLabel}
-            emisorRfcCheck={emisorRfcCheck}
-            receptorRfcCheck={receptorRfcCheck}
-          />
+          <div role="tabpanel" id="cfdi-prev-panel-FACTURA" aria-labelledby="cfdi-prev-tab-FACTURA">
+            <CfdiFacturaTab
+              cfdi={cfdi}
+              tipoLabel={tipoLabel}
+              emisorRfcCheck={emisorRfcCheck}
+              receptorRfcCheck={receptorRfcCheck}
+            />
+          </div>
         )}
 
         {/* TAB 2: PÓLIZA CONTABLE AUTOMÁTICA */}
         {activeTab === 'POLIZA' && (
-          <CfdiPolizaTab
-            cfdi={cfdi}
-            autoPlan={autoPlan}
-            onContabilizar={onContabilizar}
-            onClose={() => dialogRef.current?.close()}
-          />
+          <div role="tabpanel" id="cfdi-prev-panel-POLIZA" aria-labelledby="cfdi-prev-tab-POLIZA">
+            <CfdiPolizaTab
+              cfdi={cfdi}
+              autoPlan={autoPlan}
+              onContabilizar={isPeriodLocked ? undefined : onContabilizar}
+              onClose={() => dialogRef.current?.close()}
+            />
+          </div>
         )}
 
         {/* TAB 3: INSPECTOR DE NODOS XML DEL SAT */}
         {activeTab === 'XML' && (
-          <CfdiXmlTab
-            cfdi={cfdi}
-            copiedText={copiedText}
-            copyToClipboard={copyToClipboard}
-          />
+          <div role="tabpanel" id="cfdi-prev-panel-XML" aria-labelledby="cfdi-prev-tab-XML">
+            <CfdiXmlTab
+              cfdi={cfdi}
+              copiedText={copiedText}
+              copyToClipboard={copyToClipboard}
+            />
+          </div>
         )}
       </div>
     </dialog>,

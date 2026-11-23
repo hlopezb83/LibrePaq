@@ -1,10 +1,6 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FilePlus2, Lock, Plus, Sparkles } from 'lucide-react';
+import { AlertCircle, FilePlus2, Lock, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { useToast } from '../context/ToastContext';
 import { useUIModal } from '../context/UIModalContext';
-import { apiClient, invalidateAccountingQueries } from '../lib/api-client';
 import { PedimentoEditorModal } from './polizas/PedimentoEditorModal';
 import { PolizasFilterBar } from './polizas/PolizasFilterBar';
 import { PolizaCardItem } from './polizas/PolizaCardItem';
@@ -14,56 +10,16 @@ import { usePolizasManager } from './polizas/usePolizasManager';
 export function PolizasView() {
   const m = usePolizasManager();
   const { openLedger } = useUIModal();
-  const queryClient = useQueryClient();
-  const toast = useToast();
-  const [isPedimentoModalOpen, setIsPedimentoModalOpen] = useState(false);
-
-  const createPedimentoMutation = useMutation({
-    mutationFn: (pedimentoData: {
-      tipo: 'EGRESO' | 'DIARIO';
-      fecha: string;
-      concepto: string;
-      movements: Array<{
-        accountCode: string;
-        concepto: string;
-        cargo: number;
-        abono: number;
-      }>;
-    }) => {
-      const mappedMovements = pedimentoData.movements.map((mov) => {
-        const found = m.accounts.find((a) => a.code === mov.accountCode);
-        return {
-          accountId: found?.id ?? `acc_${mov.accountCode.replace(/-/g, '_')}`,
-          concepto: mov.concepto,
-          cargo: mov.cargo,
-          abono: mov.abono
-        };
-      });
-
-      return apiClient.createPoliza({
-        companyId: m.activeCompanyId,
-        tipo: pedimentoData.tipo,
-        fecha: pedimentoData.fecha,
-        concepto: pedimentoData.concepto,
-        movements: mappedMovements
-      });
-    },
-    onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
-      setIsPedimentoModalOpen(false);
-      toast.success('Pedimento Registrado', 'La póliza de importación aduanal se generó y cuadró con éxito.');
-    },
-    onError: (err: Error) => {
-      toast.error('Error al registrar pedimento', err.message);
-    }
-  });
 
   return (
     <div className="space-y-4">
       {/* Alerta de Periodo Bloqueado cuando aplica */}
       {m.isPeriodLocked && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs shadow-2xs">
-          <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div
+          role="status"
+          className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs shadow-2xs"
+        >
+          <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-0.5">
             <span className="font-bold text-sm block text-amber-950">
               Periodo Fiscal P{String(m.currentPeriod).padStart(2, '0')}/{m.currentYear} Bloqueado ante el SAT
@@ -90,15 +46,39 @@ export function PolizasView() {
         filteredTotals={m.filteredPolizasTotals}
         isPeriodLocked={m.isPeriodLocked}
         onNewPoliza={m.openNewPolizaModal}
-        onOpenPedimentoModal={() => setIsPedimentoModalOpen(true)}
+        onOpenPedimentoModal={() => m.setIsPedimentoModalOpen(true)}
         onExportCsv={m.handleExportPolizasCsv}
         onCloseYear={() => m.closeYearMutation.mutate()}
         isCloseYearPending={m.closeYearMutation.isPending}
       />
 
       {/* Lista de Pólizas */}
-      {m.isLoading ? (
-        <div className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
+      {m.isError ? (
+        <div
+          role="alert"
+          className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs"
+        >
+          <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
+          <p className="text-sm font-bold text-slate-900">Error al cargar las pólizas del periodo</p>
+          <p className="text-xs text-slate-600">
+            {m.error instanceof Error ? m.error.message : 'Error de conexión con el servidor contable.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => void m.refetch()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Reintentar
+          </button>
+        </div>
+      ) : m.isLoading ? (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500"
+        >
           Cargando pólizas del periodo...
         </div>
       ) : m.filteredPolizas.length === 0 ? (
@@ -108,20 +88,38 @@ export function PolizasView() {
           </div>
           <div className="max-w-md mx-auto space-y-1">
             <p className="text-base font-bold text-slate-800">
-              No se encontraron pólizas en este periodo
+              {m.polizas.length > 0
+                ? 'Ninguna póliza coincide con los filtros actuales'
+                : 'No se encontraron pólizas en este periodo'}
             </p>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Inicia capturando una póliza contable con cuadre automático, o genera pólizas en lote desde tus facturas CFDI 4.0.
+              {m.polizas.length > 0
+                ? 'Ajusta o limpia los filtros de búsqueda, tipo o comprobante para ver todas las pólizas registradas.'
+                : 'Inicia capturando una póliza contable con cuadre automático, o genera pólizas en lote desde tus facturas CFDI 4.0.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            {m.polizas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  m.setFilterTipo('ALL');
+                  m.setOriginFilter('ALL');
+                  m.setSearchQuery('');
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+              >
+                Limpiar filtros
+              </button>
+            )}
             <button
               type="button"
               onClick={m.openNewPolizaModal}
               disabled={m.isPeriodLocked}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50"
+              title={m.isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : undefined}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4" aria-hidden="true" />
               <span>Capturar Nueva Póliza</span>
               <kbd className="font-mono text-[10px] bg-blue-900/80 px-1 py-0.5 rounded border border-blue-500/40 text-blue-200">
                 Alt+N
@@ -131,7 +129,7 @@ export function PolizasView() {
               to="/add"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <Sparkles className="w-4 h-4 text-emerald-600" aria-hidden="true" />
               <span>Ir a Bóveda ADD</span>
             </Link>
           </div>
@@ -209,13 +207,13 @@ export function PolizasView() {
       />
 
       <PedimentoEditorModal
-        isOpen={isPedimentoModalOpen}
-        onClose={() => setIsPedimentoModalOpen(false)}
+        isOpen={m.isPedimentoModalOpen}
+        onClose={() => m.setIsPedimentoModalOpen(false)}
         currentYear={m.currentYear ?? 2026}
         currentPeriod={m.currentPeriod ?? 10}
         accounts={m.affectableAccounts}
-        onSavePoliza={(data) => createPedimentoMutation.mutate(data)}
-        isSaving={createPedimentoMutation.isPending}
+        onSavePoliza={(data) => m.createPedimentoMutation.mutate(data)}
+        isSaving={m.createPedimentoMutation.isPending}
       />
     </div>
   );

@@ -116,13 +116,20 @@ export function DashboardOnboardingBanner({
             className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer"
             title={isCollapsed ? 'Expandir guía' : 'Minimizar guía'}
           >
-            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            {isCollapsed ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronUp className="w-4 h-4" aria-hidden="true" />}
           </button>
         </div>
       </div>
 
       {/* Barra visual de progreso */}
-      <div className="w-full bg-slate-800/80 h-1.5 rounded-full mt-3 overflow-hidden">
+      <div
+        role="progressbar"
+        aria-label="Avance de configuración inicial"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progressPercent}
+        className="w-full bg-slate-800/80 h-1.5 rounded-full mt-3 overflow-hidden"
+      >
         <div
           className="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full transition-all duration-500 ease-out"
           style={{ width: `${progressPercent}%` }}
@@ -155,7 +162,7 @@ export function DashboardOnboardingBanner({
                 Catálogo Anexo 24 activado con {accountsCount} cuentas. Puedes importar tu catálogo desde Excel o CONTPAQi®.
               </p>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 mt-2.5 group-hover:underline">
-                Revisar Catálogo <ArrowRight className="w-3 h-3" />
+                Revisar Catálogo <ArrowRight className="w-3 h-3" aria-hidden="true" />
               </span>
             </Link>
 
@@ -182,7 +189,7 @@ export function DashboardOnboardingBanner({
                 Descarga oficial con tu FIEL o arrastra tus XMLs. Clasificación automática en Bóveda ADD y validación 69-B.
               </p>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 mt-2.5 group-hover:underline">
-                Conectar e.firma y Descargar <ArrowRight className="w-3 h-3" />
+                Conectar e.firma y Descargar <ArrowRight className="w-3 h-3" aria-hidden="true" />
               </span>
             </Link>
 
@@ -207,7 +214,7 @@ export function DashboardOnboardingBanner({
                 Genera asientos contables con partida doble cuadrada (Cargos = Abonos) asociando el UUID de cada factura.
               </p>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300 mt-2.5 group-hover:underline">
-                Explorar Pólizas <ArrowRight className="w-3 h-3" />
+                Explorar Pólizas <ArrowRight className="w-3 h-3" aria-hidden="true" />
               </span>
             </Link>
 
@@ -232,7 +239,7 @@ export function DashboardOnboardingBanner({
                 Descarga tu Balanza Anexo 24 validada para el SAT y calcula tus impuestos provisionales de ISR e IVA.
               </p>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-300 mt-2.5 group-hover:underline">
-                Ver Balanza y Reportes <ArrowRight className="w-3 h-3" />
+                Ver Balanza y Reportes <ArrowRight className="w-3 h-3" aria-hidden="true" />
               </span>
             </Link>
           </div>

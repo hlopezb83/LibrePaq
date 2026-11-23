@@ -8,7 +8,7 @@ interface UsePapelDia17Params {
   companyId: string;
   year: number;
   period: number;
-  onFeedback: (msg: string) => void;
+  onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelDia17Params) {
@@ -22,7 +22,8 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
     refetch: refetchWp
   } = useQuery({
     queryKey: ['fiscal-workpaper', companyId, year, period],
-    queryFn: () => apiClient.getFiscalWorkpaper(companyId, year, period)
+    queryFn: () => apiClient.getFiscalWorkpaper(companyId, year, period),
+    enabled: Boolean(companyId)
   });
 
   const [coefUtilidad, setCoefUtilidad] = useState(0);
@@ -40,6 +41,14 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
       setTcCierreUsd(workpaper.parameters.tipoCambioDofCierre);
     }
   }, [workpaper?.parameters]);
+
+  const hasUnsavedParams = Boolean(
+    workpaper?.parameters &&
+      (coefUtilidad !== workpaper.parameters.coeficienteUtilidad ||
+        perdidasAmortizar !== workpaper.parameters.perdidasFiscalesPendientes ||
+        ivaSaldoFavor !== workpaper.parameters.saldoFavorIvaAnterior ||
+        tcCierreUsd !== workpaper.parameters.tipoCambioDofCierre)
+  );
 
   const handleCopySatDyp = () => {
     if (!workpaper) return;
@@ -65,6 +74,9 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
       onFeedback('Parámetros fiscales del mes actualizados y cédula Día 17 recalculada.');
+    },
+    onError: (err: Error) => {
+      onFeedback(`Error al guardar parámetros fiscales: ${err.message}`, 'error');
     }
   });
 
@@ -74,6 +86,9 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
       invalidateAccountingQueries(queryClient, ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
       queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
       onFeedback('¡Póliza de Provisión Mensual de ISR e IVA generada y aplicada en el Libro Diario!');
+    },
+    onError: (err: Error) => {
+      onFeedback(`Error al generar provisión de impuestos: ${err.message}`, 'error');
     }
   });
 
@@ -83,6 +98,9 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
       invalidateAccountingQueries(queryClient, ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
       queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
       onFeedback('¡Póliza de Fluctuación Cambiaria USD (Art. 8 CFF / NIF B-15) generada y aplicada en libros!');
+    },
+    onError: (err: Error) => {
+      onFeedback(`Error al generar fluctuación cambiaria: ${err.message}`, 'error');
     }
   });
 
@@ -100,6 +118,7 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
     setIvaSaldoFavor,
     tcCierreUsd,
     setTcCierreUsd,
+    hasUnsavedParams,
     copiedSatDyp,
     handleCopySatDyp,
     saveTaxParamsMutation,

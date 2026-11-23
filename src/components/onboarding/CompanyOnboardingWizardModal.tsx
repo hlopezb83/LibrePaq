@@ -6,13 +6,13 @@ import {
   X,
   Zap
 } from 'lucide-react';
-import type { Company } from '../shared/types';
-import { WizardStep1Identity } from './onboarding/WizardStep1Identity';
-import { WizardStep2Catalog } from './onboarding/WizardStep2Catalog';
-import { WizardStep3Banking } from './onboarding/WizardStep3Banking';
-import { WizardStep4Fiel } from './onboarding/WizardStep4Fiel';
-import { WizardStep5Review } from './onboarding/WizardStep5Review';
-import { useCompanyOnboardingWizard } from './onboarding/useCompanyOnboardingWizard';
+import type { Company } from '../../shared/types';
+import { WizardStep1Identity } from './WizardStep1Identity';
+import { WizardStep2Catalog } from './WizardStep2Catalog';
+import { WizardStep3Banking } from './WizardStep3Banking';
+import { WizardStep4Fiel } from './WizardStep4Fiel';
+import { WizardStep5Review } from './WizardStep5Review';
+import { useCompanyOnboardingWizard } from './useCompanyOnboardingWizard';
 
 interface CompanyOnboardingWizardModalProps {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
@@ -235,7 +235,7 @@ export function CompanyOnboardingWizardModal({
                 onClick={prevStep}
                 className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition cursor-pointer"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                 Anterior
               </button>
             ) : (
@@ -251,11 +251,16 @@ export function CompanyOnboardingWizardModal({
                 type="button"
                 onClick={nextStep}
                 disabled={!canProceedStep1 || createCompanyMutation.isPending}
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 disabled:opacity-40 transition cursor-pointer"
+                title={
+                  !canProceedStep1
+                    ? 'Completa Razón Social, RFC válido y Código Postal de 5 dígitos'
+                    : undefined
+                }
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 <span className="hidden sm:inline">Configuración Avanzada</span>
                 <span className="sm:hidden">Avanzado</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
 
@@ -263,10 +268,16 @@ export function CompanyOnboardingWizardModal({
               <button
                 type="button"
                 disabled={!canProceedStep1 || createCompanyMutation.isPending}
+                aria-busy={createCompanyMutation.isPending}
+                title={
+                  !canProceedStep1
+                    ? 'Completa Razón Social, RFC válido y Código Postal de 5 dígitos'
+                    : undefined
+                }
                 onClick={quickCreateCompany}
-                className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 transition shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm cursor-pointer"
               >
-                <Zap className="w-3.5 h-3.5 fill-current shrink-0" />
+                <Zap className="w-3.5 h-3.5 fill-current shrink-0" aria-hidden="true" />
                 <span>
                   {createCompanyMutation.isPending ? 'Creando...' : 'Crear Empresa Rápido'}
                 </span>
@@ -278,16 +289,17 @@ export function CompanyOnboardingWizardModal({
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition shadow-2xs cursor-pointer"
               >
                 Siguiente
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
               </button>
             ) : (
               <button
                 type="button"
                 disabled={createCompanyMutation.isPending}
+                aria-busy={createCompanyMutation.isPending}
                 onClick={() => createCompanyMutation.mutate('wizard')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-md cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-md cursor-pointer"
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-4 h-4" aria-hidden="true" />
                 {createCompanyMutation.isPending ? 'Creando Empresa...' : '¡Crear Empresa y Comenzar!'}
               </button>
             )}

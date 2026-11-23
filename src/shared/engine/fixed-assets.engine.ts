@@ -41,7 +41,7 @@ function resolveFiscalDepreciableMoiCents(asset: FixedAssetRecord, moiCents: num
     nameLower.includes('híbrid') ||
     nameLower.includes('hibrid') ||
     nameLower.includes('phev') ||
-    nameLower.includes('ev ');
+    /\bev\b/i.test(nameLower);
   const capCents = isElectricOrHybrid
     ? LISR_ART36_AUTO_ELECTRICO_CAP_CENTS
     : LISR_ART36_AUTO_COMBUSTION_CAP_CENTS;
@@ -56,7 +56,8 @@ export function computeFixedAssetWithDepreciation(
   const annualRate = Math.max(0, Math.min(100, asset.tasaAnualPct)) / 100;
 
   let acquiredAfterTarget = false;
-  if (targetPeriod && asset.fechaAdquisicion) {
+  const isPeriod13 = targetPeriod?.periodo === 13;
+  if (targetPeriod && asset.fechaAdquisicion && !isPeriod13) {
     const acq = parseCalendarDate(asset.fechaAdquisicion, targetPeriod.ejercicio, 1);
     const effectiveMonth = Math.min(12, targetPeriod.periodo);
     if (
@@ -67,15 +68,18 @@ export function computeFixedAssetWithDepreciation(
     }
   }
 
-  const isDepreciableNow = asset.estatus === 'ACTIVO' && !acquiredAfterTarget;
+  const isDepreciableNow = asset.estatus === 'ACTIVO' && !acquiredAfterTarget && !isPeriod13;
   const rawMonthlyCents = isDepreciableNow ? Math.round((moiCents * annualRate) / 12) : 0;
 
   const priorMonths = Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
-  const fullMonthlyBaseCents = Math.round((moiCents * annualRate) / 12);
-  const priorAccumulatedCents = Math.min(moiCents, fullMonthlyBaseCents * priorMonths);
+  const priorAccumulatedCents =
+    priorMonths > 0 ? Math.min(moiCents, Math.round((moiCents * annualRate * priorMonths) / 12)) : 0;
+  const totalAtTargetMonthCents = isDepreciableNow
+    ? Math.min(moiCents, Math.round((moiCents * annualRate * (priorMonths + 1)) / 12))
+    : priorAccumulatedCents;
   const remainingDepreciableCents = Math.max(0, moiCents - priorAccumulatedCents);
   const currentMonthCents = isDepreciableNow
-    ? Math.min(rawMonthlyCents, remainingDepreciableCents)
+    ? Math.min(Math.max(rawMonthlyCents, totalAtTargetMonthCents - priorAccumulatedCents), remainingDepreciableCents)
     : 0;
   const totalAccumulatedCents = Math.min(moiCents, priorAccumulatedCents + currentMonthCents);
   const netBookValueCents = Math.max(0, moiCents - totalAccumulatedCents);
@@ -124,7 +128,7 @@ export function buildDepreciationPolizaPlan(
   );
 
   const movements: AutoPolizaMovementDraft[] = [];
-  const bound = Math.min(assets.length, SAFETY_BOUNDS.MAX_POLIZA_MOVEMENTS);
+  const bound = Math.min(assets.length, Math.floor(SAFETY_BOUNDS.MAX_POLIZA_MOVEMENTS / 2));
 
   for (let i = 0; i < bound; i += 1) {
     const rawAsset = assets[i];
@@ -184,4 +188,16 @@ export function buildDepreciationPolizaPlan(
     totalAbono: fromCents(totalAbonoCents),
     isBalanced: totalCargoCents > 0 && totalCargoCents === totalAbonoCents
   };
+}
+
+/**
+ * Verifica si ya existe una póliza de depreciación mensual registrada en el periodo.
+ */
+export function hasExistingDepreciationPoliza(
+  polizas: ReadonlyArray<{ concepto: string }>
+): boolean {
+  return polizas.some((p) => {
+    const lower = p.concepto.toLowerCase();
+    return lower.includes('depreciación') || lower.includes('depreciacion');
+  });
 }

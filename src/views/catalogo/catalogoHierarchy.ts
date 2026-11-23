@@ -1,4 +1,4 @@
-import { SAFETY_BOUNDS } from '../../shared/sat-catalog';
+import { SAFETY_BOUNDS } from '../../shared/sat-constants';
 import type { AccountWithBalance } from '../../shared/types';
 
 export function suggestNextCodeForParent(

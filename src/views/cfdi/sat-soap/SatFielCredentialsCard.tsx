@@ -154,14 +154,18 @@ export function SatFielCredentialsCard({
         type="file"
         accept=".cer,.crt,.pem"
         onChange={handleCerSelect}
-        className="hidden"
+        tabIndex={-1}
+        aria-label="Seleccionar certificado e.firma (.cer)"
+        className="visually-hidden"
       />
       <input
         ref={keyInputRef}
         type="file"
         accept=".key,.der,.pem"
         onChange={handleKeySelect}
-        className="hidden"
+        tabIndex={-1}
+        aria-label="Seleccionar clave privada e.firma (.key)"
+        className="visually-hidden"
       />
 
       {/* Smart Drag & Drop Zone Unificada */}

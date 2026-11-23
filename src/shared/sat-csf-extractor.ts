@@ -35,20 +35,31 @@ const REGIMEN_KEYWORDS: Array<{ match: RegExp; code: string }> = [
 ];
 
 function resolveRegimenLabel(text: string, personType: 'MORAL' | 'FISICA'): string {
-  // Check for 3-digit code
-  const codeMatch = text.match(/\b(6\d{2})\b/);
-  if (codeMatch && codeMatch[1]) {
-    const code = codeMatch[1];
-    const found = REGIMENES_FISCALES_SAT.find((r) => r.startsWith(code));
-    if (found) return found;
+  // Priorizar sección explícita de Regímenes Fiscales para evitar falsos positivos con números de calle (ej. Reforma 601)
+  const regimenSectionMatch = text.match(/Reg[ií]menes?\s*:?[\s\S]{0,400}/i);
+  const sectionText = regimenSectionMatch ? regimenSectionMatch[0] : '';
+
+  if (sectionText) {
+    const secCodeMatch = sectionText.match(/\b(6\d{2})\b/);
+    if (secCodeMatch?.[1]) {
+      const found = REGIMENES_FISCALES_SAT.find((r) => r.startsWith(secCodeMatch[1]!));
+      if (found) return found;
+    }
   }
 
-  // Check keywords
+  // Buscar coincidencia descriptiva por palabras clave oficiales
   for (const item of REGIMEN_KEYWORDS) {
     if (item.match.test(text)) {
       const found = REGIMENES_FISCALES_SAT.find((r) => r.startsWith(item.code));
       if (found) return found;
     }
+  }
+
+  // Respaldo por código de 3 dígitos únicamente si no se detectó por sección ni nombre
+  const codeMatch = text.match(/\b(6\d{2})\b/);
+  if (codeMatch?.[1]) {
+    const found = REGIMENES_FISCALES_SAT.find((r) => r.startsWith(codeMatch[1]!));
+    if (found) return found;
   }
 
   return personType === 'MORAL'
@@ -177,12 +188,13 @@ async function decompressFlate(bytes: Uint8Array): Promise<string> {
  */
 function extractTextFromPdfStream(streamContent: string): string {
   const chunks: string[] = [];
-  const parenRegex = /\(([^)]+)\)\s*(?:Tj|'|")/g;
+  const parenRegex = /\(((?:[^()\\]|\\.)+)\)\s*(?:Tj|'|")/g;
+  const unescapePdf = (s: string) => s.replace(/\\([()\\])/g, '$1');
   let match: RegExpExecArray | null;
 
   while ((match = parenRegex.exec(streamContent)) !== null) {
     if (match[1]) {
-      chunks.push(match[1]);
+      chunks.push(unescapePdf(match[1]));
     }
   }
 
@@ -190,9 +202,9 @@ function extractTextFromPdfStream(streamContent: string): string {
   const tjRegex = /\[([^\]]+)\]\s*TJ/g;
   while ((match = tjRegex.exec(streamContent)) !== null) {
     if (match[1]) {
-      const subParens = match[1].match(/\(([^)]+)\)/g);
+      const subParens = match[1].match(/\(((?:[^()\\]|\\.)+)\)/g);
       if (subParens) {
-        chunks.push(subParens.map((s) => s.slice(1, -1)).join(''));
+        chunks.push(subParens.map((s) => unescapePdf(s.slice(1, -1))).join(''));
       }
     }
   }

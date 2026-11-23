@@ -7,7 +7,7 @@ export function TermsOfServiceView() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Barra Superior */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-2">
           <Link to="/" className="flex items-center gap-2">
             <LibrePaqLogo variant="horizontal" size="sm" theme="light" badge="PRO" />
           </Link>
@@ -15,7 +15,7 @@ export function TermsOfServiceView() {
             to="/"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
             <span>Volver al Inicio</span>
           </Link>
         </div>
@@ -27,7 +27,7 @@ export function TermsOfServiceView() {
           {/* Encabezado */}
           <div className="border-b border-slate-100 pb-6">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold mb-3 border border-blue-200">
-              <FileCheck className="w-3.5 h-3.5" />
+              <FileCheck className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Contrato de Licencia y Términos de Uso</span>
             </div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -73,7 +73,7 @@ export function TermsOfServiceView() {
               Seguridad de la Firma Electrónica Avanzada (e.firma)
             </h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              El procesamiento de archivos de Firma Electrónica Avanzada (<code className="font-mono text-blue-700">.cer</code> y <code className="font-mono text-blue-700">.key</code>) se realiza mediante criptografía local en el navegador o funciones protegidas de sincronización SOAP oficial con el SAT. El usuario es el único custodio de su contraseña de clave privada. LibrePaq Pro nunca almacena contraseñas de e.firma en texto plano.
+              El procesamiento de archivos de Firma Electrónica Avanzada (<code className="font-mono text-blue-700">.cer</code> y <code className="font-mono text-blue-700">.key</code>) se realiza mediante cifrado seguro local en el navegador o funciones protegidas de descarga masiva oficial ante el SAT. El usuario es el único custodio de su contraseña de clave privada. LibrePaq Pro nunca almacena contraseñas de e.firma en texto plano.
             </p>
           </section>
 
@@ -115,6 +115,15 @@ export function TermsOfServiceView() {
               Estos términos se rigen por las leyes federales de los Estados Unidos Mexicanos y el Código de Comercio. Para la resolución de cualquier controversia, las partes se someten expresamente a la jurisdicción de los tribunales competentes en México, renunciando a cualquier otro fuero que pudiera corresponderles por razón de sus domicilios presentes o futuros.
             </p>
           </section>
+
+          {/* Footer legal */}
+          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
+            <p>© {new Date().getFullYear()} LibrePaq Pro • librepaq.com</p>
+            <div className="flex items-center gap-4">
+              <Link to="/privacy" className="hover:text-blue-600 transition font-medium">Aviso de Privacidad</Link>
+              <Link to="/" className="hover:text-blue-600 transition">Volver al Inicio</Link>
+            </div>
+          </div>
         </div>
       </main>
     </div>

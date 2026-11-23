@@ -71,6 +71,7 @@ export function DashboardAuditBar({
             <div className="flex items-center justify-between mb-2">
               <span className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
                 <FileCode2
+                  aria-hidden="true"
                   className={`w-4 h-4 ${
                     kpis.cfdisPendientesContabilizar > 0 ? 'text-amber-700' : 'text-emerald-700'
                   }`}
@@ -96,8 +97,8 @@ export function DashboardAuditBar({
             </p>
           </div>
 
-          <div className="mt-3.5 pt-3 border-t border-slate-200/80 flex items-center justify-between gap-2">
-            {kpis.cfdisPendientesContabilizar > 1 && (
+          <div className="mt-3.5 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+            {kpis.cfdisPendientesContabilizar >= 1 && (
               <button
                 type="button"
                 disabled={isBatchAutoPolizaPending || isPeriodLocked}
@@ -109,7 +110,7 @@ export function DashboardAuditBar({
                 }
                 className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition disabled:opacity-50 cursor-pointer flex items-center gap-1"
               >
-                <Sparkles className="w-3 h-3 text-amber-100" />
+                <Sparkles className="w-3 h-3 text-amber-100" aria-hidden="true" />
                 <span>
                   {isBatchAutoPolizaPending ? 'Contabilizando...' : 'Auto-contabilizar'}
                 </span>
@@ -124,7 +125,7 @@ export function DashboardAuditBar({
               }`}
             >
               <span>Ir al ADD (Alt+2)</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3 h-3" aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -141,6 +142,7 @@ export function DashboardAuditBar({
             <div className="flex items-center justify-between mb-2">
               <span className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
                 <Landmark
+                  aria-hidden="true"
                   className={`w-4 h-4 ${
                     !isBankReconciled ? 'text-amber-700' : 'text-emerald-700'
                   }`}
@@ -184,7 +186,7 @@ export function DashboardAuditBar({
               }`}
             >
               <span>{!isBankReconciled ? 'Conciliar Bancos' : 'Ver Cédula Bancaria'}</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3 h-3" aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -201,6 +203,7 @@ export function DashboardAuditBar({
             <div className="flex items-center justify-between mb-2">
               <span className="flex items-center gap-1.5 font-bold text-xs text-slate-800">
                 <Scale
+                  aria-hidden="true"
                   className={`w-4 h-4 ${
                     !isTrialBalanced ? 'text-red-700' : 'text-emerald-700'
                   }`}
@@ -239,7 +242,7 @@ export function DashboardAuditBar({
               }`}
             >
               <span>{!isTrialBalanced ? 'Auditar Descuadre' : 'Ver Balanza Anexo 24'}</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3 h-3" aria-hidden="true" />
             </Link>
           </div>
         </div>

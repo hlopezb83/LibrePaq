@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Lock } from 'lucide-react';
+import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
 import { CfdiInvoicePreviewModal } from './cfdi/preview/CfdiInvoicePreviewModal';
 import { CfdiBatchActionBar } from './cfdi/CfdiBatchActionBar';
 import { CfdiContabilizarModal } from './cfdi/CfdiContabilizarModal';
@@ -8,10 +8,13 @@ import { CfdiFilterBar } from './cfdi/CfdiFilterBar';
 import { CfdiSimulatorModal } from './cfdi/CfdiSimulatorModal';
 import { CfdiTable } from './cfdi/CfdiTable';
 import { CfdiXmlViewerModal } from './cfdi/CfdiXmlViewerModal';
+import { downloadCfdiXmlFile } from './cfdi/cfdiXmlUploadHelpers';
 import { useAddCfdiManager } from './cfdi/useAddCfdiManager';
+import { useToast } from '../context/ToastContext';
 
 export function AddCfdiView() {
   const manager = useAddCfdiManager();
+  const toast = useToast();
 
   const {
     activeCompany,
@@ -55,6 +58,10 @@ export function AddCfdiView() {
     affectableAccounts,
     pendingCfdis,
     isLoading,
+    isError,
+    error,
+    refetch,
+    verifyingCfdiId,
     uploadXmlMutation,
     autoPolizaMutation,
     deleteCfdiMutation,
@@ -92,7 +99,9 @@ export function AddCfdiView() {
             fileInputRef.current?.click();
           } else if (key === 's') {
             e.preventDefault();
-            simModalRef.current?.showModal();
+            if (simModalRef.current && !simModalRef.current.open) {
+              simModalRef.current.showModal();
+            }
           }
         }
       }
@@ -131,7 +140,11 @@ export function AddCfdiView() {
         showSoapFielPanel={showSoapFielPanel}
         setShowSoapFielPanel={setShowSoapFielPanel}
         onExportCsv={handleExportCsv}
-        onOpenSimulator={() => simModalRef.current?.showModal()}
+        onOpenSimulator={() => {
+          if (simModalRef.current && !simModalRef.current.open) {
+            simModalRef.current.showModal();
+          }
+        }}
         activeCompany={activeCompany}
         activeCompanyId={activeCompanyId}
         currentYear={currentYear}
@@ -172,49 +185,61 @@ export function AddCfdiView() {
         filteredCount={filteredCfdis.length}
       />
 
-      <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
-        <CfdiTable
-          filteredCfdis={filteredCfdis}
-          isLoading={isLoading}
-          selectedCfdiIds={selectedCfdiIds}
-          toggleSelectAll={toggleSelectAll}
-          toggleSelectOne={toggleSelectOne}
-          copiedUuid={copiedUuid}
-          handleCopyUuid={handleCopyUuid}
-          onPreviewInvoice={(cfdi) => setPreviewInvoiceCfdi(cfdi)}
-          onOpenContabilizarModal={openContabilizarModal}
-          onOpenXmlViewer={openXmlViewer}
-          onVerifySat={(id) => verifySatMutation.mutate(id)}
-          isVerifySatPending={verifySatMutation.isPending}
-          confirmDeleteCfdiId={confirmDeleteCfdiId}
-          setConfirmDeleteCfdiId={setConfirmDeleteCfdiId}
-          onConfirmDelete={(id) => deleteCfdiMutation.mutate(id)}
-          isDeletePending={deleteCfdiMutation.isPending}
-          isPeriodLocked={isPeriodLocked}
-          filteredTotals={filteredTotals}
-          onOpenSatDownload={() => {
-            setShowSoapFielPanel(true);
-            const el = document.getElementById('sat-soap-fiel-section');
-            if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-          }}
-          onUploadXmlClick={() => fileInputRef.current?.click()}
-        />
+      <div id="cfdi-table-wrapper" className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
+        {isError ? (
+          <div role="alert" className="p-8 text-center space-y-3">
+            <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
+            <p className="text-sm font-bold text-slate-900">Error al cargar la Bóveda Digital ADD</p>
+            <p className="text-xs text-slate-600">
+              {error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Reintentar
+            </button>
+          </div>
+        ) : (
+          <CfdiTable
+            filteredCfdis={filteredCfdis}
+            isLoading={isLoading}
+            selectedCfdiIds={selectedCfdiIds}
+            toggleSelectAll={toggleSelectAll}
+            toggleSelectOne={toggleSelectOne}
+            copiedUuid={copiedUuid}
+            handleCopyUuid={handleCopyUuid}
+            onPreviewInvoice={(cfdi) => setPreviewInvoiceCfdi(cfdi)}
+            onOpenContabilizarModal={openContabilizarModal}
+            onOpenXmlViewer={openXmlViewer}
+            onVerifySat={(id) => verifySatMutation.mutate(id)}
+            isVerifySatPending={verifySatMutation.isPending}
+            verifyingCfdiId={verifyingCfdiId}
+            confirmDeleteCfdiId={confirmDeleteCfdiId}
+            setConfirmDeleteCfdiId={setConfirmDeleteCfdiId}
+            onConfirmDelete={(id) => deleteCfdiMutation.mutate(id)}
+            isDeletePending={deleteCfdiMutation.isPending}
+            isPeriodLocked={isPeriodLocked}
+            filteredTotals={filteredTotals}
+            onOpenSatDownload={() => {
+              setShowSoapFielPanel(true);
+              const el = document.getElementById('sat-soap-fiel-section');
+              if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+            }}
+            onUploadXmlClick={() => fileInputRef.current?.click()}
+          />
+        )}
       </div>
 
       <CfdiInvoicePreviewModal
         cfdi={previewInvoiceCfdi}
         accounts={accounts}
+        isPeriodLocked={isPeriodLocked}
         onClose={() => setPreviewInvoiceCfdi(null)}
         onContabilizar={(cfdi) => openContabilizarModal(cfdi)}
-        onDownloadXml={(cfdi) => {
-          const blob = new Blob([cfdi.xmlRaw], { type: 'application/xml;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `CFDI_${cfdi.serie}_${cfdi.folio}_${cfdi.uuid.slice(0, 8)}.xml`;
-          a.click();
-          URL.revokeObjectURL(url);
-        }}
+        onDownloadXml={(cfdi) => void downloadCfdiXmlFile(cfdi, toast)}
       />
 
       <CfdiContabilizarModal

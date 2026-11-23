@@ -51,7 +51,7 @@ export function DashboardClosingCycle({
             onClick={onOpenDeliverables}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-semibold transition cursor-pointer"
           >
-            <Printer className="w-3.5 h-3.5 text-blue-700" />
+            <Printer className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
             Generar Entregables
           </button>
         </div>

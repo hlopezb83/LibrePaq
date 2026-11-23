@@ -1,3 +1,5 @@
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useUIModal } from '../context/UIModalContext';
 import { AccountEditorModal } from './catalogo/AccountEditorModal';
 import { CatalogoFilterBar } from './catalogo/CatalogoFilterBar';
@@ -10,13 +12,18 @@ import { useCatalogoManager } from './catalogo/useCatalogoManager';
 export function CatalogoCuentasView() {
   const manager = useCatalogoManager();
   const { globalLedgerAccountId, openLedger } = useUIModal();
+  const { copiedKey: copiedCode, copy: copyAccountCode } = useCopyToClipboard<string>(1800);
   const {
     activeCompany,
     currentYear,
+    isPeriodLocked,
     dialogRef,
     csvImportRef,
     accounts,
     isLoading,
+    isError,
+    error,
+    refetch,
     parentAccounts,
     globalFilter,
     setGlobalFilter,
@@ -69,6 +76,7 @@ export function CatalogoCuentasView() {
   useCatalogoKeyboardNavigation({
     dialogRef,
     ledgerAccountId: globalLedgerAccountId,
+    isPeriodLocked,
     filteredAccounts,
     selectedAccountId,
     selectedIndex,
@@ -90,11 +98,19 @@ export function CatalogoCuentasView() {
     { id: 'GASTOS', label: '600 Gastos' }
   ];
 
+  const resetFilters = () => {
+    setGlobalFilter('');
+    setSelectedType('ALL');
+    setQuickFilter('ALL');
+    setLevelFilter('ALL');
+  };
+
   return (
     <div className="space-y-4">
       {/* Encabezado del Catálogo */}
       <CatalogoHeaderBar
         csvImportRef={csvImportRef}
+        isPeriodLocked={isPeriodLocked}
         onImportCsv={handleImportAccountsCsv}
         onExportCsv={handleExportCsv}
         onOpenCreateModal={openCreateModal}
@@ -117,29 +133,53 @@ export function CatalogoCuentasView() {
         setQuickFilter={setQuickFilter}
         quickFilterCounts={quickFilterCounts}
         filteredSummaryTotals={filteredSummaryTotals}
+        onResetFilters={resetFilters}
       />
 
       {/* Tabla del Catálogo de Cuentas */}
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
         <CatalogoKeyboardShortcutsBar selectedAccount={selectedAccount} />
 
-        <CatalogoTable
-          filteredAccounts={filteredAccounts}
-          isLoading={isLoading}
-          selectedAccountId={selectedAccountId}
-          onSelectAccount={(id) => setSelectedAccountId(id)}
-          collapsedCodes={collapsedCodes}
-          onToggleNodeCollapse={toggleNodeCollapse}
-          onOpenLedger={openLedger}
-          onOpenCreateSubaccount={openCreateSubaccountModal}
-          onOpenEditModal={openEditModal}
-          confirmDeleteId={confirmDeleteId}
-          setConfirmDeleteId={setConfirmDeleteId}
-          onConfirmDelete={(id) => deleteAccountMutation.mutate(id)}
-          onCopyCode={(c) => {
-            navigator.clipboard?.writeText(c);
-          }}
-        />
+        {isError ? (
+          <div role="alert" className="p-8 text-center space-y-3">
+            <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
+            <p className="text-sm font-bold text-slate-900">
+              Error al cargar el catálogo de cuentas
+            </p>
+            <p className="text-xs text-slate-600">
+              {error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Reintentar
+            </button>
+          </div>
+        ) : (
+          <CatalogoTable
+            filteredAccounts={filteredAccounts}
+            isLoading={isLoading}
+            isPeriodLocked={isPeriodLocked}
+            copiedCode={copiedCode}
+            selectedAccountId={selectedAccountId}
+            onSelectAccount={(id) => setSelectedAccountId(id)}
+            collapsedCodes={collapsedCodes}
+            onToggleNodeCollapse={toggleNodeCollapse}
+            onOpenLedger={openLedger}
+            onOpenCreateSubaccount={openCreateSubaccountModal}
+            onOpenEditModal={openEditModal}
+            confirmDeleteId={confirmDeleteId}
+            setConfirmDeleteId={setConfirmDeleteId}
+            onConfirmDelete={(id) => deleteAccountMutation.mutate(id)}
+            onCopyCode={(c) => {
+              void copyAccountCode(c, c);
+            }}
+            onResetFilters={resetFilters}
+          />
+        )}
       </div>
 
       {/* Modal para Crear o Editar Cuenta Contable */}

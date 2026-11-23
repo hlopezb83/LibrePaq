@@ -75,19 +75,24 @@ export function SuperAdminCompaniesTab({
     <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-emerald-600" />
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-emerald-600" aria-hidden="true" />
             Directorio Global de Empresas Fiscales y Usuarios Asignados
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          </h2>
+          <p className="text-xs text-slate-600 mt-0.5">
             Relación multi-tenant entre cada empresa fiscal dada de alta y la cuenta de usuario propietaria
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-          <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold shrink-0">
+          <div
+            role="group"
+            aria-label="Filtrar empresas por propietario"
+            className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-bold shrink-0"
+          >
             <button
               type="button"
+              aria-pressed={ownerFilter === 'all'}
               onClick={() => setOwnerFilter('all')}
               className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap cursor-pointer ${
                 ownerFilter === 'all'
@@ -99,6 +104,7 @@ export function SuperAdminCompaniesTab({
             </button>
             <button
               type="button"
+              aria-pressed={ownerFilter === 'users'}
               onClick={() => setOwnerFilter('users')}
               className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap cursor-pointer ${
                 ownerFilter === 'users'
@@ -110,6 +116,7 @@ export function SuperAdminCompaniesTab({
             </button>
             <button
               type="button"
+              aria-pressed={ownerFilter === 'demo'}
               onClick={() => setOwnerFilter('demo')}
               className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap cursor-pointer ${
                 ownerFilter === 'demo'
@@ -121,17 +128,17 @@ export function SuperAdminCompaniesTab({
             </button>
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <search className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
-              type="text"
+              type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar RFC, empresa, usuario o correo..."
               aria-label="Buscar por RFC, razón social, usuario o correo electrónico"
               className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
+          </search>
         </div>
       </div>
 
@@ -173,13 +180,13 @@ export function SuperAdminCompaniesTab({
           <tbody className="text-slate-700">
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400">
+                <td colSpan={7} className="py-8 text-center text-slate-600">
                   Cargando empresas fiscales y relación de usuarios...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400">
+                <td colSpan={7} className="py-8 text-center text-slate-600">
                   No se encontraron empresas con el filtro o término de búsqueda.
                 </td>
               </tr>
@@ -215,12 +222,12 @@ export function SuperAdminCompaniesTab({
 
                   <td className="py-3 px-3.5 border-b border-slate-100">
                     <span className="inline-flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                      <Calendar className="w-3 h-3 text-slate-500" />
+                      <Calendar className="w-3 h-3 text-slate-500" aria-hidden="true" />
                       P{String(c.currentPeriod).padStart(2, '0')} / {c.currentYear}
                     </span>
                   </td>
 
-                  <td className="py-3 px-3.5 text-slate-500 text-[11px] border-b border-slate-100 whitespace-nowrap">
+                  <td className="py-3 px-3.5 text-slate-600 text-[11px] border-b border-slate-100 whitespace-nowrap">
                     {new Date(c.createdAt).toLocaleDateString('es-MX', {
                       year: 'numeric',
                       month: 'short',
@@ -228,7 +235,7 @@ export function SuperAdminCompaniesTab({
                     })}
                   </td>
 
-                  <td className="py-3 px-3.5 text-right font-mono text-[11px] text-slate-400 border-b border-slate-100">
+                  <td className="py-3 px-3.5 text-right font-mono text-[11px] text-slate-600 border-b border-slate-100">
                     {c.id}
                   </td>
                 </tr>

@@ -19,7 +19,8 @@ export function formatSatDypWorkpaperText(
 ): string {
   const isr = workpaper.isrProvisional;
   const iva = workpaper.ivaDefinitivo;
-  const totalPagar = Math.max(0, isr.isrNetoAPagar) + Math.max(0, iva.ivaNetoAPagar);
+  const cap = workpaper.resumenLineaCapturaSat;
+  const totalPagar = cap.totalEstimadoDia17;
 
   return [
     '=======================================================',
@@ -42,9 +43,13 @@ export function formatSatDypWorkpaperText(
     '2. DETERMINACIÓN DEFINITIVA DE IVA (Art. 5 LIVA - Flujo de Efectivo):',
     `- IVA Trasladado Cobrado (16%): ${fmtMxn(iva.ivaTrasladadoCobrado)}`,
     `- IVA Acreditable Pagado en DIOT: -${fmtMxn(iva.ivaAcreditablePagado)}`,
-    `- IVA Retenido del Periodo: -${fmtMxn(iva.ivaRetenidoPorPagar)}`,
+    `- IVA Retenido Acreditable (por Clientes): -${fmtMxn(iva.ivaRetenidoAcreditable ?? 0)}`,
     `- Saldo a Favor de IVA Anterior Acreditado: -${fmtMxn(iva.saldoFavorIvaAcreditable)}`,
     `>> ${iva.ivaNetoAPagar > 0 ? 'IVA A CARGO A ENTERAR' : 'SALDO A FAVOR DE IVA'}: ${fmtMxn(iva.ivaNetoAPagar > 0 ? iva.ivaNetoAPagar : iva.saldoFavorIvaRemanente)}`,
+    '',
+    '3. RETENCIONES POR ENTERAR:',
+    `- Retenciones de ISR por Enterar: ${fmtMxn(cap.retencionesIsrPorEnterar)}`,
+    `- Retenciones de IVA por Enterar: ${fmtMxn(cap.retencionesIvaPorEnterar)}`,
     '',
     '-------------------------------------------------------',
     `TOTAL ESTIMADO A ENTERAR LÍNEA DE CAPTURA SAT: ${fmtMxn(totalPagar)}`,

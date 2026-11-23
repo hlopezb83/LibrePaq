@@ -7,8 +7,12 @@ import type React from 'react';
  */
 export function useDialogLightDismiss(
   dialogRef: React.RefObject<HTMLDialogElement | null>,
-  onDismiss?: () => void
+  onDismiss?: () => void,
+  options?: { isOpen?: boolean; deferClose?: boolean }
 ): void {
+  const isOpen = options?.isOpen;
+  const deferClose = options?.deferClose ?? false;
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog || typeof HTMLDialogElement === 'undefined') return;
@@ -24,11 +28,11 @@ export function useDialogLightDismiss(
         event.clientX <= rect.left + rect.width;
 
       if (isDialogContent) return;
-      dialog.close();
+      if (!deferClose) dialog.close();
       onDismiss?.();
     };
 
     dialog.addEventListener('click', handleClick);
     return () => dialog.removeEventListener('click', handleClick);
-  }, [dialogRef, onDismiss]);
+  }, [dialogRef, onDismiss, isOpen, deferClose]);
 }

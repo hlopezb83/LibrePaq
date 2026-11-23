@@ -5,6 +5,7 @@ import type {
   AdminUserSummary
 } from '../../shared/admin-types';
 import { adminApi } from '../api/admin.api';
+import { isSuperAdminEmail } from '../../shared/superadmin';
 
 function inferNameFromCompany(companyName: string): string | undefined {
   const match = /^Despacho Contable\s*-\s*(.+)$/i.exec(companyName.trim());
@@ -59,7 +60,7 @@ export const supabaseAdminApi = {
       const profile = profilesById.get(rawUserId);
       if (profile) {
         const email = String(profile.email || '');
-        const isSuper = email.toLowerCase() === 'hlopezb@gmail.com' || Boolean(profile.is_superadmin);
+        const isSuper = isSuperAdminEmail(email) || Boolean(profile.is_superadmin);
         return {
           id: String(c.id),
           name: companyName,
@@ -80,7 +81,7 @@ export const supabaseAdminApi = {
 
       if (currentUser && currentUser.id === rawUserId) {
         const email = currentUser.email || 'hlopezb@gmail.com';
-        const isSuper = email.toLowerCase() === 'hlopezb@gmail.com';
+        const isSuper = isSuperAdminEmail(email);
         return {
           id: String(c.id),
           name: companyName,
@@ -130,7 +131,7 @@ export const supabaseAdminApi = {
       return profiles.map((p: Record<string, unknown>) => {
         const uid = String(p.id);
         const email = String(p.email || '').toLowerCase();
-        const isSuper = email === 'hlopezb@gmail.com' || Boolean(p.is_superadmin);
+        const isSuper = isSuperAdminEmail(email) || Boolean(p.is_superadmin);
         const userCompCount = compList.filter((c) => String(c.user_id || '') === uid).length;
         const meta = (p.raw_user_meta_data as Record<string, unknown> | undefined) || {};
 

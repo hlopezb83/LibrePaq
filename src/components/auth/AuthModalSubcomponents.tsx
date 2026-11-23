@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js';
-import { ArrowRight, LogOut, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Loader2, LogOut, ShieldCheck } from 'lucide-react';
 
 interface AuthActiveSessionPanelProps {
   user: User;
@@ -75,10 +75,14 @@ export function AuthGoogleButton({ loading, mode, onClick }: AuthGoogleButtonPro
     <button
       type="button"
       disabled={loading}
+      aria-busy={loading}
       onClick={onClick}
       className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-extrabold transition shadow-sm cursor-pointer disabled:opacity-50"
     >
-      <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin text-slate-700" aria-hidden="true" />
+      ) : (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
         <path
           fill="#4285F4"
           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -95,7 +99,8 @@ export function AuthGoogleButton({ loading, mode, onClick }: AuthGoogleButtonPro
           fill="#EA4335"
           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
         />
-      </svg>
+        </svg>
+      )}
       <span>
         {mode === 'signup' ? 'Crear Cuenta en 1 clic con Google' : 'Continuar con Google'}
       </span>
@@ -111,14 +116,13 @@ interface AuthModeTabsProps {
 export function AuthModeTabs({ mode, onSelectMode }: AuthModeTabsProps) {
   return (
     <div
-      role="tablist"
+      role="group"
       aria-label="Modalidad de acceso"
       className="grid grid-cols-2 p-1 rounded-xl bg-[#111C35] border border-slate-800 text-xs font-semibold"
     >
       <button
         type="button"
-        role="tab"
-        aria-selected={mode === 'signup'}
+        aria-pressed={mode === 'signup'}
         onClick={() => onSelectMode('signup')}
         className={`py-1.5 rounded-lg transition cursor-pointer text-center ${
           mode === 'signup'
@@ -130,8 +134,7 @@ export function AuthModeTabs({ mode, onSelectMode }: AuthModeTabsProps) {
       </button>
       <button
         type="button"
-        role="tab"
-        aria-selected={mode === 'signin'}
+        aria-pressed={mode === 'signin'}
         onClick={() => onSelectMode('signin')}
         className={`py-1.5 rounded-lg transition cursor-pointer text-center ${
           mode === 'signin'

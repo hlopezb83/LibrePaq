@@ -1,6 +1,7 @@
 import { db } from '../connection';
 import { fromCents, toCents, resolveFiscalAccount } from '../../shared/accounting-engine';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { rollUpTrialBalanceAccounts } from '../../shared/engine/financial-reports.engine';
+import { MESES_SAT } from '../../shared/sat-constants';
 import type { AccountType, AccountWithBalance } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
 
@@ -88,63 +89,13 @@ export function computeTrialBalance(
     creditsCentsByAccountId.set(r.account_id, toCents(r.sum_abono));
   }
 
-  const byCode = new Map<string, AccountWithBalance>();
-  for (const acc of accounts) {
-    const priorChargesCents = priorChargesCentsMap.get(acc.id) ?? 0;
-    const priorCreditsCents = priorCreditsCentsMap.get(acc.id) ?? 0;
-    const chargesCents = chargesCentsByAccountId.get(acc.id) ?? 0;
-    const creditsCents = creditsCentsByAccountId.get(acc.id) ?? 0;
-
-    const openingCents = acc.isAffectable ? toCents(acc.initialBalance) : 0;
-    const initCents = acc.isAffectable
-      ? acc.nature === 'DEUDORA'
-        ? openingCents + priorChargesCents - priorCreditsCents
-        : openingCents + priorCreditsCents - priorChargesCents
-      : 0;
-
-    const finalCents =
-      acc.nature === 'DEUDORA'
-        ? initCents + chargesCents - creditsCents
-        : initCents + creditsCents - chargesCents;
-
-    byCode.set(acc.code, {
-      ...acc,
-      initialBalanceComputed: fromCents(initCents),
-      periodCharges: fromCents(chargesCents),
-      periodCredits: fromCents(creditsCents),
-      finalBalance: fromCents(finalCents)
-    });
-  }
-
-  // NASA Power of 10 - Regla 1: Roll-up iterativo por nivel descendente (sin recursión)
-  const sortedDesc = [...byCode.values()].sort((a, b) => b.level - a.level);
-  for (const node of sortedDesc) {
-    if (!node.parentCode) continue;
-    const parent = byCode.get(node.parentCode);
-    if (!parent) continue;
-
-    const sign = parent.nature === node.nature ? 1 : -1;
-    const parentInitCents =
-      toCents(parent.initialBalanceComputed) + sign * toCents(node.initialBalanceComputed);
-    const parentChargesCents = toCents(parent.periodCharges) + toCents(node.periodCharges);
-    const parentCreditsCents = toCents(parent.periodCredits) + toCents(node.periodCredits);
-    const parentFinalCents =
-      parent.nature === 'DEUDORA'
-        ? parentInitCents + parentChargesCents - parentCreditsCents
-        : parentInitCents + parentCreditsCents - parentChargesCents;
-
-    parent.initialBalanceComputed = fromCents(parentInitCents);
-    parent.periodCharges = fromCents(parentChargesCents);
-    parent.periodCredits = fromCents(parentCreditsCents);
-    parent.finalBalance = fromCents(parentFinalCents);
-  }
-
-  const result: AccountWithBalance[] = [];
-  for (const a of accounts) {
-    const item = byCode.get(a.code);
-    if (item) result.push(item);
-  }
-  return result;
+  return rollUpTrialBalanceAccounts(
+    accounts,
+    priorChargesCentsMap,
+    priorCreditsCentsMap,
+    chargesCentsByAccountId,
+    creditsCentsByAccountId
+  );
 }
 
 /**

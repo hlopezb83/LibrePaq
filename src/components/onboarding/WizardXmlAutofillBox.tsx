@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, FileText, Sparkles, UploadCloud } from 'lucide-react';
 import type { CfdiCompanyCandidate } from '../../shared/cfdi-company-extractor';
 
@@ -17,7 +17,6 @@ export function WizardXmlAutofillBox({
   onFileLoaded,
   onSelectCandidate
 }: WizardXmlAutofillBoxProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -59,18 +58,6 @@ export function WizardXmlAutofillBox({
           : 'border-dashed border-blue-300 bg-blue-50/40 hover:bg-blue-50/70'
       }`}
     >
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".xml,text/xml,application/xml,.pdf,application/pdf"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = '';
-          void processFile(f);
-        }}
-        className="hidden"
-      />
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div className="flex items-start sm:items-center gap-2.5 min-w-0">
           <div
@@ -102,12 +89,25 @@ export function WizardXmlAutofillBox({
           </div>
         </div>
 
-        <button
-          type="button"
-          disabled={isProcessing}
-          onClick={() => inputRef.current?.click()}
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-blue-700 border border-blue-300 text-xs font-bold shadow-2xs transition cursor-pointer shrink-0 disabled:opacity-50"
+        <label
+          htmlFor="wizard-autofill-file"
+          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-blue-700 border border-blue-300 text-xs font-bold shadow-2xs transition cursor-pointer shrink-0 focus-within:outline-2 focus-within:outline-blue-700 ${
+            isProcessing ? 'opacity-50 pointer-events-none' : ''
+          }`}
         >
+          <input
+            id="wizard-autofill-file"
+            type="file"
+            disabled={isProcessing}
+            accept=".xml,text/xml,application/xml,.pdf,application/pdf"
+            aria-label="Elegir archivo XML CFDI o PDF Constancia de Situación Fiscal"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              void processFile(f);
+            }}
+            className="visually-hidden"
+          />
           {candidates.length > 0 ? (
             <FileText className="w-3.5 h-3.5" aria-hidden="true" />
           ) : (
@@ -120,7 +120,7 @@ export function WizardXmlAutofillBox({
               ? 'Cambiar XML o PDF'
               : 'Elegir XML o PDF (CSF)'}
           </span>
-        </button>
+        </label>
       </div>
 
       {candidates.length > 1 && (

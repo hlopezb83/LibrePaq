@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Calendar, CalendarDays, CalendarRange, Sparkles } from 'lucide-react';
 import { getFirstDateForPeriod, getLastDateForPeriod } from '../../../lib/formatters';
-import { MESES_SAT } from '../../../shared/sat-catalog';
+import { MESES_SAT } from '../../../shared/sat-constants';
 
 export interface SatDatePresetBarProps {
   currentYear: number;

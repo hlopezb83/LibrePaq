@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
-import { useDialogLightDismiss } from '../hooks/useDialogLightDismiss';
-import type { AccountWithBalance, Company, Poliza } from '../shared/types';
+import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
+import type { AccountWithBalance, Company, Poliza } from '../../shared/types';
 import {
   useCommandPaletteItems
-} from './command-palette/useCommandPaletteItems';
-import type { CommandPaletteNavItem } from './command-palette/commandPaletteTypes';
+} from './useCommandPaletteItems';
+import type { CommandPaletteNavItem } from './commandPaletteTypes';
 
 export type { CommandPaletteNavItem };
 
@@ -122,6 +122,11 @@ export function CommandPaletteModal({
               ref={inputRef}
               id="cmd-palette-input"
               type="text"
+              role="combobox"
+              aria-expanded={true}
+              aria-controls="cmd-palette-listbox"
+              aria-autocomplete="list"
+              aria-activedescendant={flattenedItems[highlightedIndex]?.id}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
@@ -149,6 +154,7 @@ export function CommandPaletteModal({
             <button
               type="button"
               onClick={() => dialogRef.current?.close()}
+              aria-label="Cerrar paleta de comandos"
               className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-white text-slate-500 border border-slate-200 hover:bg-slate-100 shadow-2xs cursor-pointer"
             >
               ESC
@@ -157,7 +163,12 @@ export function CommandPaletteModal({
         </div>
 
         {/* Panel de resultados navegable por teclado */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3 scrollable-panel">
+        <div
+          id="cmd-palette-listbox"
+          role="listbox"
+          aria-label="Resultados de comandos contables"
+          className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3 scrollable-panel"
+        >
           {flattenedItems.length === 0 ? (
             <div className="py-12 px-4 text-center">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
@@ -191,10 +202,13 @@ export function CommandPaletteModal({
                   )}
 
                   <button
+                    id={item.id}
                     ref={(el) => {
                       itemRefs.current[globalIndex] = el;
                     }}
                     type="button"
+                    role="option"
+                    aria-selected={isSelected}
                     tabIndex={-1}
                     onClick={() => {
                       dialogRef.current?.close();
@@ -303,7 +317,7 @@ export function CommandPaletteModal({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono" aria-live="polite">
             <span className="hidden sm:inline font-semibold text-slate-500">LibrePaq Pro •</span>
             <span>{flattenedItems.length} comandos</span>
           </div>

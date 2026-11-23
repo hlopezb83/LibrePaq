@@ -40,6 +40,7 @@ export function GuestDemoBanner({ isGuest, onOpenAuth, onSignOut }: GuestDemoBan
         <button
           type="button"
           onClick={onSignOut}
+          aria-label="Salir del modo demostración"
           title="Salir del modo demostración"
           className="inline-flex items-center gap-1 text-slate-900 hover:text-black font-semibold text-[11px] px-1.5 py-1 rounded hover:bg-black/5 transition cursor-pointer"
         >

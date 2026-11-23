@@ -1,5 +1,5 @@
 import { AlertCircle, RefreshCw } from 'lucide-react';
-import { MESES_SAT } from '../shared/sat-catalog';
+import { MESES_SAT } from '../shared/sat-constants';
 import { useUIModal } from '../context/UIModalContext';
 import { ReportesHeaderBar } from './reportes/ReportesHeaderBar';
 import { BalanzaTab } from './reportes/BalanzaTab';
@@ -23,13 +23,19 @@ export function ReportesView() {
     refetch,
     satXmlData,
     isLoadingXml,
+    isErrorXml,
+    xmlError,
+    refetchXml,
     handleDownloadXml,
     handleExportBalanzaCsv
   } = useReportesManager();
 
   if (isError) {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
+      <div
+        role="alert"
+        className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12"
+      >
         <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
           <AlertCircle className="w-6 h-6" aria-hidden="true" />
         </div>
@@ -53,7 +59,12 @@ export function ReportesView() {
 
   if (isLoading || !data) {
     return (
-      <div className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500"
+      >
         Calculando estados financieros y balanza de comprobación...
       </div>
     );
@@ -77,58 +88,73 @@ export function ReportesView() {
 
       {/* PESTAÑA 1: BALANZA DE COMPROBACIÓN */}
       {activeTab === 'BALANZA' && (
-        <BalanzaTab
-          trialBalance={data.trialBalance}
-          company={data.company}
-          ejercicio={data.ejercicio}
-          mesNombre={mesNombre}
-          onSelectAccount={openLedger}
-        />
+        <div role="tabpanel" id="report-panel-BALANZA" aria-labelledby="report-tab-BALANZA">
+          <BalanzaTab
+            trialBalance={data.trialBalance}
+            company={data.company}
+            ejercicio={data.ejercicio}
+            mesNombre={mesNombre}
+            onSelectAccount={openLedger}
+          />
+        </div>
       )}
 
       {/* PESTAÑA 2: ESTADO DE RESULTADOS CON ANÁLISIS VERTICAL (%) */}
       {activeTab === 'RESULTADOS' && (
-        <EstadoResultadosTab
-          company={data.company}
-          ejercicio={data.ejercicio}
-          mesNombre={mesNombre}
-          incomeStatement={data.incomeStatement}
-          onSelectAccount={openLedger}
-        />
+        <div role="tabpanel" id="report-panel-RESULTADOS" aria-labelledby="report-tab-RESULTADOS">
+          <EstadoResultadosTab
+            company={data.company}
+            ejercicio={data.ejercicio}
+            periodo={data.periodo}
+            mesNombre={mesNombre}
+            incomeStatement={data.incomeStatement}
+            onSelectAccount={openLedger}
+          />
+        </div>
       )}
 
       {/* PESTAÑA 3: BALANCE GENERAL CON ANÁLISIS VERTICAL (%) */}
       {activeTab === 'BALANCE' && (
-        <BalanceGeneralTab
-          company={data.company}
-          ejercicio={data.ejercicio}
-          mesNombre={mesNombre}
-          balanceSheet={data.balanceSheet}
-          onSelectAccount={openLedger}
-        />
+        <div role="tabpanel" id="report-panel-BALANCE" aria-labelledby="report-tab-BALANCE">
+          <BalanceGeneralTab
+            company={data.company}
+            ejercicio={data.ejercicio}
+            periodo={data.periodo}
+            mesNombre={mesNombre}
+            balanceSheet={data.balanceSheet}
+            onSelectAccount={openLedger}
+          />
+        </div>
       )}
 
       {/* PESTAÑA 4: EXPORTADOR XML CONTABILIDAD ELECTRÓNICA SAT ANEXO 24 */}
       {activeTab === 'ANEXO24' && (
-        <Anexo24Tab
-          satXmlType={satXmlType}
-          setSatXmlType={setSatXmlType}
-          satXmlData={satXmlData}
-          isLoadingXml={isLoadingXml}
-          onDownloadXml={handleDownloadXml}
-        />
+        <div role="tabpanel" id="report-panel-ANEXO24" aria-labelledby="report-tab-ANEXO24">
+          <Anexo24Tab
+            satXmlType={satXmlType}
+            setSatXmlType={setSatXmlType}
+            satXmlData={satXmlData}
+            isLoadingXml={isLoadingXml}
+            isErrorXml={isErrorXml}
+            xmlError={xmlError}
+            onRetryXml={() => void refetchXml()}
+            onDownloadXml={handleDownloadXml}
+          />
+        </div>
       )}
 
       {/* PESTAÑA 5: DOSSIER DE ENTREGABLES Y CARPETA DE CIERRE */}
       {activeTab === 'ENTREGABLES' && (
-        <DossierEntregablesTab
-          mesNombre={mesNombre}
-          ejercicio={data.ejercicio}
-          totals={data.totals}
-          incomeStatement={data.incomeStatement}
-          balanceSheet={data.balanceSheet}
-          onOpenDeliverablesModal={() => openDeliverables('DOSSIER')}
-        />
+        <div role="tabpanel" id="report-panel-ENTREGABLES" aria-labelledby="report-tab-ENTREGABLES">
+          <DossierEntregablesTab
+            mesNombre={mesNombre}
+            ejercicio={data.ejercicio}
+            totals={data.totals}
+            incomeStatement={data.incomeStatement}
+            balanceSheet={data.balanceSheet}
+            onOpenDeliverablesModal={() => openDeliverables('DOSSIER')}
+          />
+        </div>
       )}
     </div>
   );

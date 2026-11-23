@@ -9,7 +9,7 @@ import {
   X
 } from 'lucide-react';
 import { LibrePaqLogo, LibrePaqIcon } from '../LibrePaqLogo';
-import type { CommandPaletteNavItem } from '../CommandPaletteModal';
+import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 import type { User } from '@supabase/supabase-js';
 import { checkIsSuperAdmin } from '../../context/AuthContext';
 
@@ -81,23 +81,19 @@ export function AppShellSidebar({
                 onClick={() => setSidebarCollapsed(false)}
                 title="Expandir menú lateral (Ctrl+B)"
                 aria-label="Expandir menú lateral"
-                className="w-10 h-10 rounded-xl bg-transparent flex items-center justify-center hover:scale-105 transition cursor-pointer group"
+                className="flex flex-col items-center gap-1 rounded-xl p-1.5 hover:bg-[#111C35] transition cursor-pointer group"
               >
-                <LibrePaqIcon size="md" className="group-hover:hidden" />
-                <PanelLeftOpen
-                  className="w-6 h-6 text-cyan-400 hidden group-hover:block"
-                  aria-hidden="true"
-                />
-              </button>
-              <button
-                type="button"
-                onClick={() => setSidebarCollapsed(false)}
-                title="Expandir menú lateral (Ctrl+B)"
-                aria-label="Expandir menú lateral"
-                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-[#111C35] transition cursor-pointer text-[10px] font-mono flex items-center gap-0.5"
-              >
-                <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>EXP</span>
+                <span className="w-9 h-9 flex items-center justify-center">
+                  <LibrePaqIcon size="md" className="group-hover:hidden" />
+                  <PanelLeftOpen
+                    className="w-5 h-5 text-cyan-400 hidden group-hover:block"
+                    aria-hidden="true"
+                  />
+                </span>
+                <span className="text-slate-400 group-hover:text-white text-[10px] font-mono flex items-center gap-0.5">
+                  <ChevronRight className="w-3 h-3" aria-hidden="true" />
+                  <span>EXP</span>
+                </span>
               </button>
             </div>
           </>
@@ -167,7 +163,7 @@ export function AppShellSidebar({
           {!sidebarCollapsed && (
             <div className="px-2.5 py-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               <span>{isOwner ? 'Consola de Propietario' : 'Módulos Contables'}</span>
-              <span className="font-mono text-[9px] text-slate-500">
+              <span className="font-mono text-[9px] text-slate-400">
                 {isOwner ? 'Alt+1..5' : 'Alt+1..7'}
               </span>
             </div>
@@ -202,6 +198,8 @@ export function AppShellSidebar({
               <li key={item.to}>
                 <Link
                   to={item.to}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-disabled={isLockedModule || undefined}
                   onClick={
                     isLockedModule
                       ? (e) => {
@@ -225,7 +223,7 @@ export function AppShellSidebar({
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-sm border border-amber-400'
                         : 'bg-blue-700 text-white shadow-sm font-medium border border-blue-500/30'
                       : isLockedModule
-                      ? 'text-slate-500 hover:bg-[#111C35]/70 hover:text-slate-300 border border-transparent'
+                      ? 'text-slate-400 hover:bg-[#111C35]/70 hover:text-slate-300 border border-transparent'
                       : 'text-slate-300 hover:bg-[#111C35] hover:text-white border border-transparent'
                   }`}
                 >
@@ -236,7 +234,7 @@ export function AppShellSidebar({
                           ? 'text-slate-950'
                           : 'text-white'
                         : isLockedModule
-                        ? 'text-slate-600'
+                        ? 'text-slate-500'
                         : isOwner
                         ? 'text-amber-400 group-hover:text-amber-300'
                         : 'text-slate-400 group-hover:text-blue-400'
@@ -248,7 +246,7 @@ export function AppShellSidebar({
                       <div className="truncate flex items-center justify-between gap-1">
                         <span className="text-xs font-semibold truncate">{displayLabel}</span>
                         {isLockedModule ? (
-                          <Lock className="w-3 h-3 text-slate-500 shrink-0" aria-hidden="true" />
+                          <Lock className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
                         ) : (
                           <span
                             className={`text-[9px] font-mono ${
@@ -256,7 +254,7 @@ export function AppShellSidebar({
                                 ? isOwner
                                   ? 'text-slate-900 font-bold'
                                   : 'text-blue-200'
-                                : 'text-slate-500 group-hover:text-slate-400'
+                                : 'text-slate-400 group-hover:text-slate-300'
                             }`}
                           >
                             {item.shortcut}
@@ -270,7 +268,7 @@ export function AppShellSidebar({
                               ? 'text-slate-800'
                               : 'text-blue-100'
                             : isLockedModule
-                            ? 'text-slate-500'
+                            ? 'text-slate-400'
                             : 'text-slate-400'
                         }`}
                       >

@@ -3,12 +3,13 @@ import { buildYearCloseMovements } from '../../shared/accounting-engine';
 import { querySatCfdiStatusSoap } from '../../shared/sat-cfdi-status';
 import type { SatCfdiStatusCheckResult } from '../../shared/types';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
-import { supabasePolizas } from './supabase-polizas';
+import { supabasePolizas, assertSupabasePeriodOpen } from './supabase-polizas';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 
 export const supabaseClosingAndVerification = {
   async closeYearPoliza(
-    companyId: string
+    companyId: string,
+    switchToPeriod13 = true
   ): Promise<{ closed: boolean; polizaId: string; utilidadTraspasada: number }> {
     if (!supabase) throw new Error('Supabase no disponible');
 
@@ -17,27 +18,29 @@ export const supabaseClosingAndVerification = {
     if (!company) throw new Error(`Empresa no encontrada: ${companyId}`);
 
     const ejercicio = company.currentYear || 2026;
+    await assertSupabasePeriodOpen(companyId, ejercicio, 13);
 
-    // Eliminar pólizas previas de periodo 13 ANTES de calcular saldos para permitir re-ejecución del cierre anual
-    const { data: oldPols } = await supabase
+    const reports = await supabaseReportsAndDashboard.getReports(companyId, ejercicio, 13);
+    const { movements, utilidadTraspasada } = buildYearCloseMovements(
+      reports.trialBalance,
+      ejercicio,
+      'initialBalanceComputed'
+    );
+
+    // Eliminar pólizas previas de periodo 13 DESPUÉS de validar que existen cuentas y saldos válidos
+    const { data: oldPols, error: oldPolsErr } = await supabase
       .from('polizas')
       .select('id')
       .eq('company_id', companyId)
       .eq('ejercicio', ejercicio)
       .eq('periodo', 13);
+    if (oldPolsErr) throw new Error(oldPolsErr.message);
 
     if (oldPols && oldPols.length > 0) {
       for (const p of oldPols) {
         await supabasePolizas.deletePoliza(p.id);
       }
     }
-
-    const reports = await supabaseReportsAndDashboard.getReports(companyId, ejercicio, 13);
-    const { movements, utilidadTraspasada } = buildYearCloseMovements(
-      reports.trialBalance,
-      ejercicio,
-      'finalBalance'
-    );
 
     // Crear la póliza oficial de cierre en mes 13
     const createdPol = await supabasePolizas.createPoliza({
@@ -52,8 +55,14 @@ export const supabaseClosingAndVerification = {
       movements
     });
 
-    // Actualizar periodo activo de la empresa a 13
-    await supabase.from('companies').update({ current_period: 13 }).eq('id', companyId);
+    // Actualizar periodo activo de la empresa a 13 solo si se solicita
+    if (switchToPeriod13) {
+      const { error: updErr } = await supabase
+        .from('companies')
+        .update({ current_period: 13 })
+        .eq('id', companyId);
+      if (updErr) throw new Error(updErr.message);
+    }
 
     return {
       closed: true,

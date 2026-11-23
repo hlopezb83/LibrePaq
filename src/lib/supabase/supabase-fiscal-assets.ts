@@ -1,18 +1,42 @@
 import { supabase } from '../supabase';
-import { assertSupabasePeriodOpen } from './supabase-polizas';
+import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
+import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import {
+  buildDepreciationPolizaPlan,
   fromCents,
   sumCents,
   computeFixedAssetWithDepreciation
 } from '../../shared/accounting-engine';
+import { hasExistingDepreciationPoliza } from '../../shared/engine/fixed-assets.engine';
+import { MESES_SAT } from '../../shared/sat-constants';
+import { parseCalendarDate } from '../../shared/date-utils';
+import { getDefaultDateForPeriod } from '../formatters';
 import type {
   Efos69BStatus,
   FixedAssetCategory,
   FixedAssetRecord,
   FixedAssetsResponse,
   PeriodLock,
+  Poliza,
   ThirdPartyRecord
 } from '../../shared/types';
+
+function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyRecord {
+  return {
+    id: String(t.id),
+    companyId: String(t.company_id),
+    rfc: String(t.rfc),
+    nombre: String(t.nombre),
+    rol: (t.rol as 'PROVEEDOR' | 'CLIENTE' | 'AMBOS') || 'PROVEEDOR',
+    cuentaOperacionCode: String(t.cuenta_operacion_code || '201-01-001'),
+    cuentaContrapartidaCode: String(t.cuenta_contrapartida_code || '601-01-001'),
+    tipoTerceroDiot: (t.tipo_tercero_diot as '04' | '05') || '04',
+    tipoOperacionDiot: (t.tipo_operacion_diot as '03' | '06' | '85') || '85',
+    tasaIvaDefault: (t.tasa_iva_default === 8 ? 8 : t.tasa_iva_default === 0 ? 0 : 16) as 16 | 8 | 0,
+    estatus69B: (t.estatus_69b || 'LIMPIO') as Efos69BStatus,
+    updatedAt: String(t.updated_at || new Date().toISOString())
+  };
+}
 
 export const supabaseFiscalAndAssets = {
   async getThirdParties(companyId: string): Promise<ThirdPartyRecord[]> {
@@ -22,20 +46,7 @@ export const supabaseFiscalAndAssets = {
       .select('*')
       .eq('company_id', companyId);
 
-    return (data || []).map((t: Record<string, unknown>) => ({
-      id: String(t.id),
-      companyId: String(t.company_id),
-      rfc: String(t.rfc),
-      nombre: String(t.nombre),
-      rol: (t.rol as 'PROVEEDOR' | 'CLIENTE' | 'AMBOS') || 'PROVEEDOR',
-      cuentaOperacionCode: String(t.cuenta_operacion_code || '201-01-001'),
-      cuentaContrapartidaCode: String(t.cuenta_contrapartida_code || '601-01-001'),
-      tipoTerceroDiot: (t.tipo_tercero_diot as '04' | '05') || '04',
-      tipoOperacionDiot: (t.tipo_operacion_diot as '03' | '06' | '85') || '85',
-      tasaIvaDefault: (t.tasa_iva_default === 8 ? 8 : t.tasa_iva_default === 0 ? 0 : 16) as 16 | 8 | 0,
-      estatus69B: (t.estatus_69b || 'LIMPIO') as Efos69BStatus,
-      updatedAt: String(t.updated_at || new Date().toISOString())
-    }));
+    return (data || []).map((t: Record<string, unknown>) => mapSupabaseThirdParty(t));
   },
 
   async saveThirdParty(payload: {
@@ -74,20 +85,7 @@ export const supabaseFiscalAndAssets = {
       .single();
 
     if (error) throw new Error(error.message);
-    return {
-      id: String(data.id),
-      companyId: String(data.company_id),
-      rfc: String(data.rfc),
-      nombre: String(data.nombre),
-      rol: data.rol,
-      cuentaOperacionCode: data.cuenta_operacion_code,
-      cuentaContrapartidaCode: data.cuenta_contrapartida_code,
-      tipoTerceroDiot: data.tipo_tercero_diot,
-      tipoOperacionDiot: data.tipo_operacion_diot,
-      tasaIvaDefault: data.tasa_iva_default as 16 | 8 | 0,
-      estatus69B: data.estatus_69b as Efos69BStatus,
-      updatedAt: data.updated_at
-    };
+    return mapSupabaseThirdParty(data as Record<string, unknown>);
   },
 
   async getFixedAssets(companyId: string): Promise<FixedAssetsResponse> {
@@ -168,7 +166,7 @@ export const supabaseFiscalAndAssets = {
     if (acqYear && acqPeriod) {
       await assertSupabasePeriodOpen(payload.companyId, acqYear, acqPeriod);
     }
-    const id = `fa_${Date.now().toString(36)}`;
+    const id = `fa_${crypto.randomUUID().slice(0, 8)}`;
     const { error } = await supabase.from('fixed_assets').insert({
       id,
       company_id: payload.companyId,
@@ -194,6 +192,17 @@ export const supabaseFiscalAndAssets = {
 
   async deleteFixedAsset(assetId: string): Promise<{ deleted: boolean }> {
     if (!supabase) return { deleted: false };
+    const { data: existing, error: fetchErr } = await supabase
+      .from('fixed_assets')
+      .select('company_id, fecha_adquisicion')
+      .eq('id', assetId)
+      .maybeSingle();
+    if (fetchErr) throw new Error(fetchErr.message);
+    if (!existing) return { deleted: false };
+
+    const { year, month } = parseCalendarDate(String(existing.fecha_adquisicion));
+    await assertSupabasePeriodOpen(String(existing.company_id), year, month);
+
     const { error } = await supabase.from('fixed_assets').delete().eq('id', assetId);
     if (error) throw new Error(error.message);
     return { deleted: true };
@@ -279,5 +288,44 @@ export const supabaseFiscalAndAssets = {
       lockedAt: data.locked_at ? String(data.locked_at) : null,
       notes: data.notes ? String(data.notes) : ''
     };
+  },
+
+  async generateDepreciationPoliza(
+    companyId: string,
+    year?: number,
+    period?: number
+  ): Promise<Poliza> {
+    const companies = await supabaseCompaniesAndAccounts.getCompanies();
+    const company = companies.find((c) => c.id === companyId);
+    if (!company) throw new Error(`Empresa no encontrada: ${companyId || 'sin ID'}`);
+    const ejercicio = year || company.currentYear || 2026;
+    const periodo = period || company.currentPeriod || 10;
+    await assertSupabasePeriodOpen(companyId, ejercicio, periodo);
+
+    const existing = await supabasePolizas.getPolizas(companyId, ejercicio, periodo);
+    if (hasExistingDepreciationPoliza(existing)) {
+      throw new Error(
+        `Ya existe una póliza de depreciación registrada para ${ejercicio}-${String(periodo).padStart(2, '0')}`
+      );
+    }
+
+    const faResponse = await this.getFixedAssets(companyId);
+    const accounts = await supabaseCompaniesAndAccounts.getAccounts(companyId, ejercicio, periodo);
+    const mesNombre = MESES_SAT.find((m) => m.periodo === periodo)?.nombre || `M${periodo}`;
+    const periodLabel = `${mesNombre} ${ejercicio}`;
+
+    const plan = buildDepreciationPolizaPlan(faResponse.assets, accounts, periodLabel);
+    const fecha = getDefaultDateForPeriod(ejercicio, periodo);
+
+    return supabasePolizas.createPoliza({
+      companyId,
+      tipo: plan.polizaType,
+      fecha,
+      ejercicio,
+      periodo,
+      concepto: plan.polizaConcept,
+      cfdiUuid: null,
+      movements: plan.movements
+    });
   }
 };

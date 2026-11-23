@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  AlertCircle,
   BookOpen,
   Lock,
   Plus,
@@ -25,6 +26,9 @@ export interface ConciliacionBancosTabProps {
   onAutoMatch: () => void;
   isAutoMatchPending: boolean;
   isLoadingRecon: boolean;
+  isErrorRecon?: boolean;
+  errorRecon?: unknown;
+  onRetryRecon?: () => void;
   reconData: BankReconciliationResponse | null | undefined;
   reconFormula: ReconciliationFormulaData | null;
   onCreatePolizaFromBank: (lineId: string) => void;
@@ -57,6 +61,9 @@ export function ConciliacionBancosTab({
   onAutoMatch,
   isAutoMatchPending,
   isLoadingRecon,
+  isErrorRecon,
+  errorRecon,
+  onRetryRecon,
   reconData,
   reconFormula,
   onCreatePolizaFromBank,
@@ -111,17 +118,8 @@ export function ConciliacionBancosTab({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <input
-            ref={csvInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            onChange={onCsvUpload}
-            className="hidden"
-          />
-          <button
-            type="button"
-            disabled={isPeriodLocked}
-            onClick={() => csvInputRef.current?.click()}
+          <label
+            htmlFor="bank-csv-upload"
             title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Importar CSV Banco'}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
               isPeriodLocked
@@ -129,14 +127,23 @@ export function ConciliacionBancosTab({
                 : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
             }`}
           >
+            <input
+              id="bank-csv-upload"
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              disabled={isPeriodLocked}
+              onChange={onCsvUpload}
+              className="visually-hidden"
+            />
             <UploadCloud className="w-4 h-4 text-slate-500" aria-hidden="true" />
-            Importar CSV
-          </button>
+            <span>Importar CSV</span>
+          </label>
 
           <button
             type="button"
             disabled={isPeriodLocked}
-            onClick={() => addBankModalRef.current?.showModal()}
+            onClick={() => { if (addBankModalRef.current && !addBankModalRef.current.open) addBankModalRef.current.showModal(); }}
             title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Agregar Línea Manual al Estado de Cuenta'}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
               isPeriodLocked
@@ -150,9 +157,10 @@ export function ConciliacionBancosTab({
 
           <button
             type="button"
-            disabled={isAutoMatchPending}
+            disabled={isAutoMatchPending || isPeriodLocked}
             onClick={onAutoMatch}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer transition shrink-0"
+            title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Emparejar automáticamente movimientos coincidentes'}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition shrink-0"
           >
             <RefreshCw
               className={`w-4 h-4 ${isAutoMatchPending ? 'animate-spin' : ''}`}
@@ -163,8 +171,31 @@ export function ConciliacionBancosTab({
         </div>
       </div>
 
-      {isLoadingRecon || !reconData || !reconFormula ? (
-        <div className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
+      {isErrorRecon ? (
+        <div role="alert" className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs">
+          <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
+          <p className="text-sm font-bold text-slate-900">Error al cargar la conciliación bancaria</p>
+          <p className="text-xs text-slate-600">
+            {errorRecon instanceof Error ? errorRecon.message : 'Error de conexión al servidor contable.'}
+          </p>
+          {onRetryRecon && (
+            <button
+              type="button"
+              onClick={onRetryRecon}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Reintentar
+            </button>
+          )}
+        </div>
+      ) : isLoadingRecon || !reconData || !reconFormula ? (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500"
+        >
           Cargando estado de cuenta bancario y movimientos contables...
         </div>
       ) : (

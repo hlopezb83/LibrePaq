@@ -22,13 +22,23 @@ describe('Multi-Tenant Permissions & New User Isolation Suite', () => {
 
   beforeAll(() => {
     initDatabase();
+    for (const uid of [userAlphaId, userBetaId, userGammaId]) {
+      for (const c of getCompanies(uid)) {
+        deleteCompanyRecord(c.id, uid);
+      }
+    }
   });
 
   afterAll(() => {
     // Limpieza de empresas creadas durante las pruebas de aislamiento
-    const cleanupIds = [companyAlpha1Id, companyAlpha2Id, companyBeta1Id, companyGamma1Id];
-    for (const id of cleanupIds) {
-      if (id) deleteCompanyRecord(id);
+    const cleanupPairs: Array<[string, string]> = [
+      [companyAlpha1Id, userAlphaId],
+      [companyAlpha2Id, userAlphaId],
+      [companyBeta1Id, userBetaId],
+      [companyGamma1Id, userGammaId]
+    ];
+    for (const [id, uid] of cleanupPairs) {
+      if (id) deleteCompanyRecord(id, uid);
     }
   });
 

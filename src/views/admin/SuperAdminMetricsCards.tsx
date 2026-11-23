@@ -21,34 +21,35 @@ export function SuperAdminMetricsCards({
   companiesCount,
   isLoading
 }: SuperAdminMetricsCardsProps) {
-  const finalUsers = usersCount ?? metrics?.totalUsers ?? 1;
-  const finalCompanies = companiesCount ?? metrics?.totalCompanies ?? 5;
+  const finalUsers = usersCount ?? metrics?.totalUsers;
+  const finalCompanies = companiesCount ?? metrics?.totalCompanies;
+  const formatMetric = (val?: number) => (isLoading ? '...' : val != null ? val.toLocaleString('es-MX') : '—');
 
   const cards = [
     {
       title: 'Usuarios Totales',
-      value: isLoading ? '...' : finalUsers.toLocaleString('es-MX'),
+      value: formatMetric(finalUsers),
       subtitle: 'Cuentas registradas en Supabase Auth',
       icon: Users,
       color: 'blue'
     },
     {
       title: 'Empresas Fiscales',
-      value: isLoading ? '...' : finalCompanies.toLocaleString('es-MX'),
+      value: formatMetric(finalCompanies),
       subtitle: 'Tenants activos en la plataforma',
       icon: Building2,
       color: 'emerald'
     },
     {
       title: 'Pólizas Contables',
-      value: isLoading ? '...' : (metrics?.totalPolizas ?? 25).toLocaleString('es-MX'),
+      value: formatMetric(metrics?.totalPolizas),
       subtitle: 'Asientos de diario, ingresos y egresos',
       icon: ReceiptText,
       color: 'indigo'
     },
     {
       title: 'CFDI 4.0 Bóveda',
-      value: isLoading ? '...' : (metrics?.totalCfdis ?? 20).toLocaleString('es-MX'),
+      value: formatMetric(metrics?.totalCfdis),
       subtitle: 'Comprobantes fiscales XML procesados',
       icon: FileCode2,
       color: 'purple'
@@ -111,14 +112,14 @@ export function SuperAdminMetricsCards({
               className="bg-white border border-slate-300/80 rounded-2xl p-4 shadow-2xs flex items-center justify-between"
             >
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   {c.title}
                 </p>
                 <p className="text-2xl font-black text-slate-900 mt-1">{c.value}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{c.subtitle}</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">{c.subtitle}</p>
               </div>
               <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-blue-600 shrink-0">
-                <Icon className="w-6 h-6" />
+                <Icon className="w-6 h-6" aria-hidden="true" />
               </div>
             </div>
           );

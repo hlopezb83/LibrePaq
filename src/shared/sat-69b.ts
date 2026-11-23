@@ -105,19 +105,15 @@ export function parseSat69BCsv(csvContent: string): Sat69BParseResult {
     if (situacionCandidate.includes('DEFINITIV')) {
       situacion = 'DEFINITIVO';
       status = 'DEFINITIVO_EFOS';
-      definitivos++;
     } else if (situacionCandidate.includes('DESVIRTUAD')) {
       situacion = 'DESVIRTUADO';
       status = 'DESVIRTUADO';
-      desvirtuados++;
     } else if (situacionCandidate.includes('SENTENCIA') || situacionCandidate.includes('FAVORABLE')) {
       situacion = 'FAVORABLE';
       status = 'LIMPIO';
-      favorables++;
     } else {
       situacion = 'PRESUNTO';
       status = 'PRESUNTO_EFOS';
-      presuntos++;
     }
 
     records.set(rfcCandidate, {
@@ -127,6 +123,17 @@ export function parseSat69BCsv(csvContent: string): Sat69BParseResult {
       status,
       publicacionDof: dofCandidate
     });
+  }
+
+  presuntos = 0;
+  definitivos = 0;
+  desvirtuados = 0;
+  favorables = 0;
+  for (const rec of records.values()) {
+    if (rec.situacion === 'DEFINITIVO') definitivos++;
+    else if (rec.situacion === 'DESVIRTUADO') desvirtuados++;
+    else if (rec.situacion === 'FAVORABLE') favorables++;
+    else presuntos++;
   }
 
   return {
@@ -142,11 +149,28 @@ export function parseSat69BCsv(csvContent: string): Sat69BParseResult {
 /**
  * Divide una fila CSV respetando campos entre comillas
  */
+function detectUnquotedDelimiter(row: string): ';' | ',' {
+  let inQuotes = false;
+  let semiCount = 0;
+  let commaCount = 0;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') {
+      if (inQuotes && row[i + 1] === '"') i++;
+      else inQuotes = !inQuotes;
+    } else if (!inQuotes) {
+      if (ch === ';') semiCount++;
+      else if (ch === ',') commaCount++;
+    }
+  }
+  return semiCount > commaCount ? ';' : ',';
+}
+
 function parseCsvRow(row: string): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
-  const delimiter = row.includes(';') ? ';' : ',';
+  const delimiter = detectUnquotedDelimiter(row);
 
   for (let i = 0; i < row.length; i++) {
     const char = row[i];

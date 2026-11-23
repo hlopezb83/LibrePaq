@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckCircle2, Layers, X } from 'lucide-react';
-import { SAT_GROUP_CODES } from '../../shared/sat-catalog';
+import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
+import { SAT_GROUP_CODES } from '../../shared/sat-constants';
 import type { AccountType, AccountWithBalance, Company } from '../../shared/types';
 
 export interface AccountEditorModalProps {
@@ -60,15 +61,16 @@ export function AccountEditorModal({
   onSave,
   isSaving
 }: AccountEditorModalProps) {
+  useDialogLightDismiss(dialogRef, onClose);
+
   return (
     <dialog
       ref={dialogRef}
       closedby="any"
       aria-labelledby="modal-account-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-xl overflow-hidden max-h-[92dvh]"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
-      <div className="p-4 sm:p-5 max-h-[92dvh] overflow-y-auto overscroll-contain space-y-3.5">
-        <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
+      <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
               <Layers className="w-5 h-5" aria-hidden="true" />
@@ -105,8 +107,9 @@ export function AccountEditorModal({
             e.preventDefault();
             onSave();
           }}
-          className="mt-3.5 space-y-3.5"
+          className="flex-1 min-h-0 flex flex-col overflow-hidden"
         >
+          <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-3.5">
           {formError && (
             <div
               role="alert"
@@ -138,6 +141,8 @@ export function AccountEditorModal({
                     setNature(parentObj.nature);
                     setLevel(parentObj.level + 1);
                     setCode(suggestNextCodeForParent(pCode));
+                  } else {
+                    setLevel(1);
                   }
                 }}
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white font-mono disabled:bg-slate-100"
@@ -271,6 +276,7 @@ export function AccountEditorModal({
               <input
                 id="acc-init-bal"
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={initialBalance}
                 onChange={(e) => setInitialBalance(Number(e.target.value || 0))}
@@ -278,26 +284,26 @@ export function AccountEditorModal({
               />
             </div>
           </div>
+          </div>
 
-          <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+          <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70 cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
             >
               <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-              {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+              {isSaving ? 'Guardando...' : editingAccountId ? 'Guardar Cambios' : 'Crear Cuenta'}
             </button>
           </div>
         </form>
-      </div>
     </dialog>
   );
 }

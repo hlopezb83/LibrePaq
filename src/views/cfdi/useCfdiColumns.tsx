@@ -22,6 +22,7 @@ export interface UseCfdiColumnsProps {
   onOpenXmlViewer: (cfdi: CfdiDocument) => void;
   onVerifySat: (id: string) => void;
   isVerifySatPending: boolean;
+  verifyingCfdiId?: string | null;
   confirmDeleteCfdiId: string | null;
   setConfirmDeleteCfdiId: (id: string | null) => void;
   onConfirmDelete: (id: string) => void;
@@ -41,6 +42,7 @@ export function useCfdiColumns({
   onOpenXmlViewer,
   onVerifySat,
   isVerifySatPending,
+  verifyingCfdiId = null,
   confirmDeleteCfdiId,
   setConfirmDeleteCfdiId,
   onConfirmDelete,
@@ -127,6 +129,10 @@ export function useCfdiColumns({
               ? 'REP 2.0 (Pago)'
               : row.tipoComprobante === 'N'
               ? 'Nómina 1.2'
+              : row.tipoComprobante === 'E'
+              ? 'Egreso (Nota Créd.)'
+              : row.tipoComprobante === 'T'
+              ? 'Traslado (T)'
               : `Ingreso (${row.metodoPago})`;
           return (
             <div className="space-y-1">
@@ -170,7 +176,7 @@ export function useCfdiColumns({
                     className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-900 border border-red-300 shrink-0"
                     title="Contribuyente listado en Artículo 69-B del CFF (EFOS SAT). Comprobante presuntamente no deducible."
                   >
-                    <ShieldAlert className="w-3 h-3 text-red-700" />
+                    <ShieldAlert className="w-3 h-3 text-red-700" aria-hidden="true" />
                     69-B: {efosCheck.record?.situacion || 'EFOS'}
                   </span>
                 )}
@@ -261,9 +267,16 @@ export function useCfdiColumns({
             );
           }
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-              Sin Póliza
-            </span>
+            <div className="flex flex-wrap items-center gap-1">
+              {row.statusSat === 'CANCELADO' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
+                  Cancelado SAT
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                Sin Póliza
+              </span>
+            </div>
           );
         }
       }),
@@ -281,6 +294,7 @@ export function useCfdiColumns({
             onOpenContabilizarModal={onOpenContabilizarModal}
             onVerifySat={onVerifySat}
             isVerifySatPending={isVerifySatPending}
+            isVerifyingThisRow={verifyingCfdiId === info.row.original.id}
             onPreviewInvoice={onPreviewInvoice}
             onOpenXmlViewer={onOpenXmlViewer}
           />
@@ -292,6 +306,7 @@ export function useCfdiColumns({
       confirmDeleteCfdiId,
       isDeletePending,
       isVerifySatPending,
+      verifyingCfdiId,
       navigate,
       selectedCfdiIds,
       filteredCfdis,

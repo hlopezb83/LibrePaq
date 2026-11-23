@@ -9,6 +9,7 @@ import {
   parseCfdiXmlString,
   type ParsedCfdiPayload
 } from '../../shared/cfdi-xml';
+import { parseCalendarDate } from '../../shared/date-utils';
 import { SAFETY_BOUNDS } from '../../shared/sat-constants';
 import type { CfdiDocument, Company, Poliza } from '../../shared/types';
 import { getCompanyById } from './companies.repo';
@@ -176,9 +177,12 @@ export function deleteCfdiRecord(cfdiId: string): {
   if (!row) return { found: false, hasPoliza: false, deleted: false };
   if (row.poliza_id) return { found: true, hasPoliza: true, deleted: false };
 
-  const cfdiDate = new Date(row.fecha);
-  const year = isNaN(cfdiDate.getFullYear()) ? new Date().getFullYear() : cfdiDate.getFullYear();
-  const period = isNaN(cfdiDate.getMonth()) ? new Date().getMonth() + 1 : cfdiDate.getMonth() + 1;
+  const now = new Date();
+  const { year, month: period } = parseCalendarDate(
+    row.fecha,
+    now.getFullYear(),
+    now.getMonth() + 1
+  );
   assertPeriodOpen(row.company_id, year, period);
 
   const res = db.prepare('DELETE FROM cfdi_documents WHERE id = ?').run(cfdiId);
@@ -205,9 +209,11 @@ export function generateAutoPolizaFromCfdiId(
   const company = getCompanyById(cfdi.companyId);
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
-  const cfdiDate = new Date(cfdi.fecha);
-  const cfdiYear = isNaN(cfdiDate.getFullYear()) ? company.currentYear : cfdiDate.getFullYear();
-  const cfdiPeriod = isNaN(cfdiDate.getMonth()) ? company.currentPeriod : cfdiDate.getMonth() + 1;
+  const { year: cfdiYear, month: cfdiPeriod } = parseCalendarDate(
+    cfdi.fecha,
+    company.currentYear,
+    company.currentPeriod
+  );
 
   assertPeriodOpen(company.id, cfdiYear, cfdiPeriod);
 

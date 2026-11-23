@@ -26,6 +26,7 @@ export {
   computeFixedAssetWithDepreciation,
   buildDepreciationPolizaPlan,
   computeFiscalWorkpaper,
+  computeFiscalWorkpaperFromTrialBalance,
   calculateResicoPfRate
 } from './engine/fiscal.engine';
 
@@ -36,7 +37,10 @@ export {
   buildExchangeFluctuationMovements
 } from './engine/tax-provision.engine';
 
-export { buildYearCloseMovements } from './engine/bank-and-closing.engine';
+export {
+  buildBankLinePolizaPlan,
+  buildYearCloseMovements
+} from './engine/bank-and-closing.engine';
 
 export {
   validateRfcModulo11,

@@ -68,9 +68,9 @@ export function AjustesEfirmaTab({
               }`}
             >
               {fielStatus?.hasCredentials && !fielStatus.isExpired ? (
-                <ShieldCheck className={`w-5 h-5 shrink-0 mt-0.5 ${fielStatus.hasPrivateKey ? 'text-emerald-600' : 'text-blue-600'}`} />
+                <ShieldCheck className={`w-5 h-5 shrink-0 mt-0.5 ${fielStatus.hasPrivateKey ? 'text-emerald-600' : 'text-blue-600'}`} aria-hidden="true" />
               ) : (
-                <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
               )}
               <div>
                 <div className="text-xs font-bold uppercase tracking-wide">
@@ -95,28 +95,28 @@ export function AjustesEfirmaTab({
             {fielStatus?.hasCredentials && (
               <div className="space-y-2.5 text-xs text-slate-700 border-t border-slate-200 pt-3">
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">RFC Titular</span>
+                  <span className="text-slate-600 block text-[10px] uppercase font-bold">RFC Titular</span>
                   <span className="font-mono font-bold text-slate-900">{fielStatus.rfcTitular}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">No. de Serie</span>
+                  <span className="text-slate-600 block text-[10px] uppercase font-bold">No. de Serie</span>
                   <span className="font-mono text-slate-800">{fielStatus.numeroSerieCertificado}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Vigencia</span>
+                  <span className="text-slate-600 block text-[10px] uppercase font-bold">Vigencia</span>
                   <span className="text-slate-800">
                     Del {fielStatus.validFrom ? formatShortDate(fielStatus.validFrom) : 'N/A'} al {fielStatus.validTo ? formatShortDate(fielStatus.validTo) : 'N/A'}
                   </span>
                 </div>
                 {fielStatus.sha1Fingerprint && (
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Huella SHA-1</span>
-                    <span className="font-mono text-[10px] text-slate-500 break-all">{fielStatus.sha1Fingerprint}</span>
+                    <span className="text-slate-600 block text-[10px] uppercase font-bold">Huella del Certificado</span>
+                    <span className="font-mono text-[10px] text-slate-600 break-all">{fielStatus.sha1Fingerprint}</span>
                   </div>
                 )}
                 {fielStatus.rfcTitular && activeCompany.rfc && fielStatus.rfcTitular !== activeCompany.rfc && (
                   <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-[11px] text-amber-900 flex items-start gap-2">
-                    <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
                     <div>
                       <span className="font-bold block">Aviso de RFC Titular:</span>
                       El certificado cargado pertenece a <strong>{fielStatus.rfcTitular}</strong>, distinto a la empresa activa (<strong>{activeCompany.rfc}</strong>).
@@ -134,7 +134,7 @@ export function AjustesEfirmaTab({
                 className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
-                ⚡ Cargar e.firma de prueba (Solo Demo)
+                Cargar e.firma de prueba (Solo Demo)
               </button>
             ) : (
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
@@ -156,17 +156,17 @@ export function AjustesEfirmaTab({
           >
             <div className="border-b border-slate-200 pb-3">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Upload className="w-4 h-4 text-blue-700" />
+                <Upload className="w-4 h-4 text-blue-700" aria-hidden="true" />
                 Actualizar Certificado Digital del SAT (.cer y .key)
               </h2>
-              <p className="text-xs text-slate-500">
-                Las credenciales se cifran localmente con AES-256-GCM y nunca se comparten con servidores de terceros.
+              <p className="text-xs text-slate-600">
+                Tus archivos se protegen desde tu navegador antes de enviarse y nunca se comparten con terceros.
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-700 block">Certificado X.509 (.cer) *</span>
+                <span className="text-xs font-bold text-slate-700 block">Certificado Público SAT (.cer) *</span>
                 <label
                   htmlFor="efirma-cer-input"
                   className={`relative border-2 border-dashed rounded-xl p-3.5 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 focus-within:border-blue-600 ${
@@ -202,7 +202,7 @@ export function AjustesEfirmaTab({
               </div>
 
               <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-700 block">Clave Privada PKCS#8 (.key) *</span>
+                <span className="text-xs font-bold text-slate-700 block">Clave Privada (.key) *</span>
                 <label
                   htmlFor="efirma-key-input"
                   className={`relative border-2 border-dashed rounded-xl p-3.5 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 focus-within:border-blue-600 ${
@@ -268,7 +268,7 @@ export function AjustesEfirmaTab({
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
               {fielStatus?.hasCredentials && !fielStatus?.hasPrivateKey ? (
                 <span className="text-xs text-blue-700 font-medium">
-                  💡 Tus archivos ya están cargados. Ingresa tu contraseña para autorizar la descarga del SAT.
+                  Tus archivos ya están cargados. Ingresa tu contraseña para autorizar la descarga del SAT.
                 </span>
               ) : (
                 <span className="text-[11px] text-slate-500">

@@ -6,10 +6,10 @@ export function AjustesAtajosTab() {
       <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-4">
         <div className="border-b border-slate-200 pb-3">
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Keyboard className="w-4 h-4 text-blue-700" />
+            <Keyboard className="w-4 h-4 text-blue-700" aria-hidden="true" />
             Guía de Atajos de Teclado Profesionales para Contadores
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-600">
             Diseñados para acelerar la captura contable masiva sin necesidad de despegar las manos del teclado.
           </p>
         </div>
@@ -18,7 +18,7 @@ export function AjustesAtajosTab() {
           {/* Categoría: Navegación */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-blue-700" />
+              <Building2 className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
               Navegación del Sistema
             </h3>
             <div className="space-y-1.5 text-xs">
@@ -46,7 +46,7 @@ export function AjustesAtajosTab() {
           {/* Categoría: Periodos y Ejercicios */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-blue-700" />
+              <Calendar className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
               Control de Periodos
             </h3>
             <div className="space-y-1.5 text-xs">
@@ -68,7 +68,7 @@ export function AjustesAtajosTab() {
           {/* Categoría: Pólizas */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <FileCode2 className="w-3.5 h-3.5 text-blue-700" />
+              <FileCode2 className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
               Captura de Pólizas
             </h3>
             <div className="space-y-1.5 text-xs">
@@ -96,7 +96,7 @@ export function AjustesAtajosTab() {
           {/* Categoría: Catálogo y ADD */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-blue-700" />
+              <Sparkles className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
               Bóveda ADD y Catálogo
             </h3>
             <div className="space-y-1.5 text-xs">

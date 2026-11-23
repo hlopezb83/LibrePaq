@@ -108,8 +108,12 @@ ${ctasXml}
             const numCta = truncXml(m.accountCode, 100);
             const desCta = truncXml(m.accountName, 200);
             const movConcepto = truncXml(m.concepto || p.concepto || 'Movimiento contable', 300);
-            const debe = (m.cargo || 0).toFixed(2);
-            const haber = (m.abono || 0).toFixed(2);
+            const fmtVal = (n: number) => {
+              const safe = Number.isFinite(n) && n !== 0 ? n : 0;
+              return safe.toFixed(2);
+            };
+            const debe = fmtVal(m.cargo || 0);
+            const haber = fmtVal(m.abono || 0);
 
             let compNode = '';
             const rawUuid = (m.cfdiUuid || p.cfdiUuid || '').trim();
@@ -186,10 +190,14 @@ ${polizasXml}
   const balanzaCtasXml = trialBalance
     .map((acc) => {
       const numCta = truncXml(acc.code, 100);
-      const saldoIni = (acc.initialBalanceComputed || 0).toFixed(2);
-      const debe = (acc.periodCharges || 0).toFixed(2);
-      const haber = (acc.periodCredits || 0).toFixed(2);
-      const saldoFin = (acc.finalBalance || 0).toFixed(2);
+      const fmtVal = (n: number) => {
+        const safe = Number.isFinite(n) && n !== 0 ? n : 0;
+        return safe.toFixed(2);
+      };
+      const saldoIni = fmtVal(acc.initialBalanceComputed || 0);
+      const debe = fmtVal(acc.periodCharges || 0);
+      const haber = fmtVal(acc.periodCredits || 0);
+      const saldoFin = fmtVal(acc.finalBalance || 0);
       return `  <BCE:Ctas NumCta="${numCta}" SaldoIni="${saldoIni}" Debe="${debe}" Haber="${haber}" SaldoFin="${saldoFin}"/>`;
     })
     .join('\n');

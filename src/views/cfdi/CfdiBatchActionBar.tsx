@@ -42,9 +42,14 @@ export function CfdiBatchActionBar({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          disabled={isBatchContabilizarPending}
+          disabled={isBatchContabilizarPending || isPeriodLocked}
           onClick={onBatchContabilizarSelected}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
+          title={
+            isPeriodLocked
+              ? 'Periodo bloqueado ante el SAT. No se pueden generar pólizas.'
+              : 'Contabilizar los comprobantes seleccionados en lote'
+          }
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
         >
           <Sparkles className={`w-3.5 h-3.5 ${isBatchContabilizarPending ? 'animate-spin' : ''}`} aria-hidden="true" />
           {isBatchContabilizarPending

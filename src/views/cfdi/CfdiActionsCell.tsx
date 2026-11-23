@@ -19,6 +19,7 @@ interface CfdiActionsCellProps {
   onOpenContabilizarModal: (cfdi: CfdiDocument) => void;
   onVerifySat: (id: string) => void;
   isVerifySatPending: boolean;
+  isVerifyingThisRow?: boolean;
   onPreviewInvoice: (cfdi: CfdiDocument) => void;
   onOpenXmlViewer: (cfdi: CfdiDocument) => void;
 }
@@ -33,6 +34,7 @@ function CfdiActionsCellBase({
   onOpenContabilizarModal,
   onVerifySat,
   isVerifySatPending,
+  isVerifyingThisRow = false,
   onPreviewInvoice,
   onOpenXmlViewer
 }: CfdiActionsCellProps) {
@@ -89,17 +91,20 @@ function CfdiActionsCellBase({
       <button
         type="button"
         disabled={isVerifySatPending}
+        aria-busy={isVerifyingThisRow}
         onClick={() => onVerifySat(row.id)}
         title="Consultar vigencia fiscal y Lista 69-B directamente en el SAT"
-        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer"
+        aria-label={`Verificar estatus SAT de ${row.serie}-${row.folio}`}
+        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
         <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
-        SAT
+        {isVerifyingThisRow ? 'Consultando...' : 'SAT'}
       </button>
       <button
         type="button"
         onClick={() => onPreviewInvoice(row)}
         title="Ver Representación Impresa CFDI 4.0"
+        aria-label={`Ver factura impresa ${row.serie}-${row.folio}`}
         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
       >
         <FileText className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
@@ -108,6 +113,7 @@ function CfdiActionsCellBase({
       <button
         type="button"
         onClick={() => onOpenXmlViewer(row)}
+        aria-label={`Ver XML de ${row.serie}-${row.folio}`}
         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
       >
         <Code2 className="w-3.5 h-3.5" aria-hidden="true" />

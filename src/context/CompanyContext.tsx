@@ -30,7 +30,7 @@ const CompanyContext = createContext<CompanyContextValue | null>(null);
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const isOwner = checkIsSuperAdmin(user);
   const userScope = user?.id || 'demo';
   const storageKey = `librepaq_company_id_${userScope}`;
@@ -131,7 +131,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const { data: companies = [], isLoading, isError } = useQuery({
     queryKey: ['companies', userScope],
     queryFn: apiClient.getCompanies,
-    enabled: !isOwner
+    enabled: Boolean(user) && !authLoading && !isOwner
   });
 
   useEffect(() => {

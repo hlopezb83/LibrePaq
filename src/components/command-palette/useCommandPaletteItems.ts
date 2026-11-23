@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { BookOpen, Building2, Calendar, ReceiptText } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 import type { AccountWithBalance, Company, Poliza } from '../../shared/types';
 import { getQuickActionItems } from './commandPaletteQuickActions';
 import { FlattenedItem, normalizeText, type CommandPaletteNavItem } from './commandPaletteTypes';

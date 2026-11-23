@@ -1,4 +1,4 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import { fromCents, toCents } from '../../shared/accounting-engine';
 import type {
   AccountLedgerEntry,
@@ -7,6 +7,7 @@ import type {
   PolizaType
 } from '../../shared/types';
 import { mapSupabaseCompany, supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
+import { chunkArray, fetchAllRows } from './supabase-pagination';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
 
 export const supabaseAccountLedger = {
@@ -79,29 +80,33 @@ export const supabaseAccountLedger = {
       };
     }
 
-    // Consultar movimientos en Supabase por código o ID
-    const { data: movementsData, error: movErr } = await supabase
-      .from('poliza_movements')
-      .select(`
-        id,
-        poliza_id,
-        account_id,
-        account_code,
-        account_name,
-        referencia,
-        concepto,
-        cfdi_uuid,
-        cargo,
-        abono,
-        polizas!inner(id, company_id, ejercicio, periodo, tipo, folio, fecha)
-      `)
-      .eq('polizas.company_id', company.id)
-      .eq('polizas.ejercicio', ejercicio)
-      .eq('polizas.periodo', periodo)
-      .in('account_code', codesArray);
-
-    if (movErr) {
-      throw new Error(`Error consultando movimientos de mayor: ${movErr.message}`);
+    // Consultar movimientos en Supabase paginados y por lotes para evitar el límite de 1,000 filas
+    const movementsData: Array<Record<string, unknown>> = [];
+    for (const codeChunk of chunkArray(codesArray, 100)) {
+      const chunkRows = await fetchAllRows(async (from, to) =>
+        getRequiredSupabase()
+          .from('poliza_movements')
+          .select(`
+            id,
+            poliza_id,
+            account_id,
+            account_code,
+            account_name,
+            referencia,
+            concepto,
+            cfdi_uuid,
+            cargo,
+            abono,
+            polizas!inner(id, company_id, ejercicio, periodo, tipo, folio, fecha)
+          `)
+          .eq('polizas.company_id', company.id)
+          .eq('polizas.ejercicio', ejercicio)
+          .eq('polizas.periodo', periodo)
+          .in('account_code', codeChunk)
+          .order('id', { ascending: true })
+          .range(from, to)
+      );
+      movementsData.push(...chunkRows);
     }
 
     interface SupabasePolizaMovementRow {

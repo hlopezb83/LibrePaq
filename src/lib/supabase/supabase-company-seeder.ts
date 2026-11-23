@@ -60,7 +60,7 @@ export async function seedCompanyDefaultsInSupabase(
     const fecha = `${currentYear}-${String(Math.min(12, currentPeriod)).padStart(2, '0')}-01`;
     const now = new Date().toISOString();
 
-    await client.from('polizas').insert({
+    const { error: polErr } = await client.from('polizas').insert({
       id: polizaId,
       company_id: companyId,
       tipo: 'DIARIO',
@@ -73,8 +73,9 @@ export async function seedCompanyDefaultsInSupabase(
       origin: 'MANUAL',
       created_at: now
     });
+    if (polErr) throw new Error(`Error creando póliza de apertura: ${polErr.message}`);
 
-    await client.from('poliza_movements').insert([
+    const { error: movErr } = await client.from('poliza_movements').insert([
       {
         id: `mov_${polizaId}_1`,
         poliza_id: polizaId,
@@ -98,6 +99,10 @@ export async function seedCompanyDefaultsInSupabase(
         abono: bankBalance
       }
     ]);
+    if (movErr) {
+      await client.from('polizas').delete().eq('id', polizaId);
+      throw new Error(`Error creando movimientos de apertura: ${movErr.message}`);
+    }
   }
 
   if (input.fielCerBase64 && input.fielKeyBase64) {
@@ -110,14 +115,7 @@ export async function seedCompanyDefaultsInSupabase(
           passphrase: input.fielPassword
         });
       } else {
-        await client.from('fiel_credentials').insert({
-          company_id: companyId,
-          cer_base64: input.fielCerBase64,
-          key_base64: input.fielKeyBase64,
-          rfc_titular: input.cleanRfc,
-          nombre_titular: input.name.trim(),
-          updated_at: new Date().toISOString()
-        });
+        console.warn('[Supabase] FIEL omitida en onboarding: se requiere contraseña para cifrar la llave privada.');
       }
     } catch (fielErr) {
       console.warn('[Supabase] Advertencia al persistir FIEL en onboarding:', fielErr);

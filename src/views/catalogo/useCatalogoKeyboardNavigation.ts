@@ -4,6 +4,7 @@ import type { AccountWithBalance } from '../../shared/types';
 interface UseCatalogoKeyboardNavigationProps {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   ledgerAccountId: string | null;
+  isPeriodLocked?: boolean;
   filteredAccounts: AccountWithBalance[];
   selectedAccountId: string | null;
   selectedIndex: number;
@@ -18,6 +19,7 @@ interface UseCatalogoKeyboardNavigationProps {
 export function useCatalogoKeyboardNavigation({
   dialogRef,
   ledgerAccountId,
+  isPeriodLocked = false,
   filteredAccounts,
   selectedAccountId,
   selectedIndex,
@@ -71,8 +73,10 @@ export function useCatalogoKeyboardNavigation({
       if (isModalOpen || isInputActive) return;
 
       if (e.altKey && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        openCreateModal();
+        if (!isPeriodLocked) {
+          e.preventDefault();
+          openCreateModal();
+        }
         return;
       }
 
@@ -120,17 +124,19 @@ export function useCatalogoKeyboardNavigation({
       const isCtrlD = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd';
       const isInsert = e.key === 'Insert';
       if (isCtrlD || isInsert) {
-        e.preventDefault();
-        if (currentSelected) {
-          openCreateSubaccountModal(currentSelected);
-        } else if (isInsert) {
-          openCreateModal();
+        if (!isPeriodLocked) {
+          e.preventDefault();
+          if (currentSelected) {
+            openCreateSubaccountModal(currentSelected);
+          } else if (isInsert) {
+            openCreateModal();
+          }
         }
         return;
       }
 
       if (e.key === 'F2' || e.key === 'Enter') {
-        if (currentSelected) {
+        if (currentSelected && !isPeriodLocked) {
           e.preventDefault();
           openEditModal(currentSelected);
         }
@@ -178,6 +184,7 @@ export function useCatalogoKeyboardNavigation({
     selectedIndex,
     collapsedCodes,
     ledgerAccountId,
+    isPeriodLocked,
     dialogRef,
     setSelectedAccountId,
     setCollapsedCodes,

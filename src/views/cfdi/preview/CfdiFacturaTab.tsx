@@ -45,9 +45,9 @@ export function CfdiFacturaTab({
               </span>
             )}
           </div>
-          <h1 className="text-lg font-bold text-slate-900 leading-tight pt-1">
+          <h3 className="text-lg font-bold text-slate-900 leading-tight pt-1">
             {cfdi.emisorNombre}
-          </h1>
+          </h3>
           <div className="flex items-center gap-2 text-xs font-mono text-slate-600 flex-wrap">
             <span>
               RFC: <strong className="text-slate-900">{cfdi.emisorRfc}</strong>

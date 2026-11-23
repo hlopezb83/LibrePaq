@@ -67,6 +67,8 @@ Deno.serve(async (req: Request) => {
       user.app_metadata?.role === 'superadmin' ||
       user.email?.toLowerCase() === 'hlopezb@gmail.com';
 
+    const action = payload.action || 'solicita-descarga';
+
     if (!isSuperAdmin) {
       const { data: company, error: compErr } = await supabase
         .from('companies')
@@ -76,16 +78,15 @@ Deno.serve(async (req: Request) => {
 
       const hasCompanyAccess =
         company &&
-        (company.user_id === user.id ||
-          company.user_id === 'demo' ||
-          user.id === 'usr_guest_demo');
+        (action === 'store-fiel'
+          ? company.user_id === user.id
+          : company.user_id === user.id || company.user_id === 'demo');
 
       if (compErr || !hasCompanyAccess) {
         return jsonResponse({ ok: false, error: 'No tienes autorización sobre esta empresa' }, 403, headers);
       }
     }
 
-    const action = payload.action || 'solicita-descarga';
     if (action === 'store-fiel') {
       return handleStoreFiel(supabase, payload, headers);
     }

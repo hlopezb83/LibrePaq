@@ -1,4 +1,4 @@
-import { BookOpen, Building, Plus, Sparkles } from 'lucide-react';
+import { AlertCircle, BookOpen, Building, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { AccountWithBalance, FixedAssetCategory } from '../../shared/types';
 import { ActivosFijosTable } from './ActivosFijosTable';
@@ -9,18 +9,23 @@ export interface ActivosFijosTabProps {
   companyId: string;
   year: number;
   accounts: AccountWithBalance[];
-  onFeedback: (msg: string) => void;
+  isPeriodLocked?: boolean;
+  onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export function ActivosFijosTab({
   companyId,
   year,
   accounts,
+  isPeriodLocked = false,
   onFeedback
 }: ActivosFijosTabProps) {
   const {
     fixedAssetsData,
     loadingAssets,
+    isErrorAssets,
+    errorAssets,
+    refetchAssets,
     assetCode,
     setAssetCode,
     assetName,
@@ -45,8 +50,29 @@ export function ActivosFijosTab({
 
   return (
     <div className="space-y-5">
-      {loadingAssets || !fixedAssetsData ? (
-        <div className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
+      {isErrorAssets ? (
+        <div role="alert" className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs">
+          <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
+          <p className="text-sm font-bold text-slate-900">Error al cargar los activos fijos</p>
+          <p className="text-xs text-slate-600">
+            {errorAssets instanceof Error ? errorAssets.message : 'Error de conexión con el servidor contable.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetchAssets()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Reintentar
+          </button>
+        </div>
+      ) : loadingAssets || !fixedAssetsData ? (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500"
+        >
           Calculando depreciación mensual contable y actualización fiscal con INPC...
         </div>
       ) : (
@@ -114,9 +140,14 @@ export function ActivosFijosTab({
                 </button>
                 <button
                   type="button"
-                  disabled={genDepPolizaMutation.isPending}
+                  disabled={genDepPolizaMutation.isPending || isPeriodLocked}
+                  title={
+                    isPeriodLocked
+                      ? 'Periodo fiscal bloqueado ante el SAT'
+                      : 'Generar póliza mensual de depreciación contable'
+                  }
                   onClick={() => genDepPolizaMutation.mutate()}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-2xs cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" aria-hidden="true" />
                   {genDepPolizaMutation.isPending
@@ -132,7 +163,7 @@ export function ActivosFijosTab({
                 e.preventDefault();
                 createAssetMutation.mutate();
               }}
-              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
             >
               <div>
                 <label htmlFor="asset-code" className="block text-[10px] font-bold text-slate-700 mb-1">
@@ -148,7 +179,7 @@ export function ActivosFijosTab({
                 />
               </div>
 
-              <div className="xl:col-span-2">
+              <div>
                 <label htmlFor="asset-name" className="block text-[10px] font-bold text-slate-700 mb-1">
                   Descripción del Bien *
                 </label>
@@ -209,6 +240,7 @@ export function ActivosFijosTab({
                 <input
                   id="asset-moi"
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   required
                   value={assetMoi}
@@ -219,37 +251,39 @@ export function ActivosFijosTab({
 
               <div>
                 <label htmlFor="asset-inpc-adq" className="block text-[10px] font-bold text-slate-700 mb-1">
-                  INPC Adq / Medio Periodo
+                  INPC Adquisición (INEGI DOF)
                 </label>
-                <div className="flex gap-1">
-                  <input
-                    id="asset-inpc-adq"
-                    type="number"
-                    step="0.001"
-                    title="INPC Adquisición (INEGI DOF)"
-                    aria-label="INPC Adquisición (INEGI DOF)"
-                    value={assetInpcAdq}
-                    onChange={(e) => setAssetInpcAdq(Number(e.target.value))}
-                    className="w-1/2 px-1.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
-                  />
-                  <input
-                    id="asset-inpc-mid"
-                    type="number"
-                    step="0.001"
-                    title="INPC Medio Periodo (INEGI DOF)"
-                    aria-label="INPC Medio Periodo (INEGI DOF)"
-                    value={assetInpcUso}
-                    onChange={(e) => setAssetInpcUso(Number(e.target.value))}
-                    className="w-1/2 px-1.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
-                  />
-                </div>
+                <input
+                  id="asset-inpc-adq"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.001"
+                  value={assetInpcAdq}
+                  onChange={(e) => setAssetInpcAdq(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="asset-inpc-mid" className="block text-[10px] font-bold text-slate-700 mb-1">
+                  INPC Medio Periodo (INEGI DOF)
+                </label>
+                <input
+                  id="asset-inpc-mid"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.001"
+                  value={assetInpcUso}
+                  onChange={(e) => setAssetInpcUso(Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                />
               </div>
 
               <div className="flex items-end">
                 <button
                   type="submit"
                   disabled={createAssetMutation.isPending}
-                  className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 text-white cursor-pointer"
+                  className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 disabled:opacity-50 text-white cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                   Agregar Activo

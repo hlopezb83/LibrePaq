@@ -92,11 +92,12 @@ export function buildTaxProvisionMovements(
       const retFavorCents = toCents(wp.ivaDefinitivo.ivaRetenidoAcreditable ?? 0);
       const saldoFavorAntCents = toCents(wp.ivaDefinitivo.saldoFavorIvaAcreditable ?? 0);
       const retAplicadaCents = Math.min(ivaPorPagarCents, retFavorCents);
+      const retFavorExcedenteCents = retFavorCents - retAplicadaCents;
       const remanente1Cents = ivaPorPagarCents - retAplicadaCents;
       const saldoFavorAntAplicadoCents = Math.min(remanente1Cents, saldoFavorAntCents);
       const ivaNetoCents = remanente1Cents - saldoFavorAntAplicadoCents;
 
-      if (retAplicadaCents > 0) {
+      if (retFavorCents > 0) {
         const accRetFavor = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_RETENIDO');
         movements.push({
           accountId: accRetFavor.id,
@@ -105,7 +106,19 @@ export function buildTaxProvisionMovements(
           referencia: `IVA-M${periodo}`,
           concepto: 'Acreditamiento de IVA Retenido por Clientes',
           cargo: 0,
-          abono: fromCents(retAplicadaCents)
+          abono: fromCents(retFavorCents)
+        });
+      }
+
+      if (retFavorExcedenteCents > 0) {
+        movements.push({
+          accountId: accIvaFavor.id,
+          accountCode: accIvaFavor.code,
+          accountName: accIvaFavor.name,
+          referencia: `IVA-M${periodo}`,
+          concepto: `Remanente de IVA Saldo a Favor por Retenciones (${periodo}/${ejercicio})`,
+          cargo: fromCents(retFavorExcedenteCents),
+          abono: 0
         });
       }
 

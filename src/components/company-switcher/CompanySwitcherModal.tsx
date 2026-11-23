@@ -8,11 +8,11 @@ import {
   ShieldCheck,
   X
 } from 'lucide-react';
-import type { Company } from '../shared/types';
-import { MESES_SAT } from '../shared/sat-catalog';
-import { getCompanyTheme, type CompanyTheme } from './company-switcher/companyThemes';
-import { CompanySwitchConfirmView } from './company-switcher/CompanySwitchConfirmView';
-import { useDialogLightDismiss } from '../hooks/useDialogLightDismiss';
+import type { Company } from '../../shared/types';
+import { MESES_SAT } from '../../shared/sat-constants';
+import { getCompanyTheme, type CompanyTheme } from './companyThemes';
+import { CompanySwitchConfirmView } from './CompanySwitchConfirmView';
+import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
 export { getCompanyTheme, type CompanyTheme };
 
@@ -162,7 +162,10 @@ export function CompanySwitcherModal({
             </div>
 
             <div className="space-y-2.5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-1">
+              <div
+                aria-live="polite"
+                className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-1"
+              >
                 Empresas Registradas en tu Despacho ({filteredCompanies.length})
               </div>
 
@@ -173,10 +176,18 @@ export function CompanySwitcherModal({
                       ? 'Tu Despacho aún no tiene empresas fiscales registradas.'
                       : 'No se encontraron empresas con ese criterio de búsqueda.'}
                   </p>
-                  {companies.length === 0 && (
+                  {companies.length === 0 ? (
                     <p className="text-[11px] text-slate-500">
-                      Usa el botón «+ Nueva Empresa (Onboarding)» abajo para registrar tu primera razón social o RFC.
+                      Usa el botón «+ Nueva Empresa» abajo para registrar tu primera razón social o RFC.
                     </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSearch('')}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer"
+                    >
+                      Limpiar búsqueda
+                    </button>
                   )}
                 </div>
               )}
@@ -308,6 +319,11 @@ export function CompanySwitcherModal({
               <button
                 type="button"
                 disabled={!hasAcknowledged}
+                title={
+                  !hasAcknowledged
+                    ? 'Marca la casilla de confirmación fiscal arriba para continuar'
+                    : undefined
+                }
                 onClick={handleConfirmSwitch}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-xs cursor-pointer"
               >

@@ -6,7 +6,7 @@ import { useUIModal } from '../../context/UIModalContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
 import { sumCents } from '../../shared/accounting-engine';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 
 export function useDashboardManager() {
   const { activeCompany, activeCompanyId, updatePeriod } = useCompany();

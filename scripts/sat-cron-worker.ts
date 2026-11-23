@@ -85,7 +85,7 @@ export async function runSatCronWorker(): Promise<{
           .from('cfdi_documents')
           .select('id', { count: 'exact', head: true })
           .eq('company_id', req.company_id)
-          .gte('fecha', `${req.fecha_inicial}T00:00:00`)
+          .gte('fecha', req.fecha_inicial)
           .lte('fecha', `${req.fecha_final}T23:59:59`);
 
         if (count === 0) {
@@ -235,13 +235,13 @@ export async function runSatCronWorker(): Promise<{
           continue;
         }
 
-        if (estadoSol === '4' || estadoSol === '5') {
-          console.warn(`[SAT Worker] Solicitud ${req.id_solicitud_sat} rechazada por el SAT (Código ${estadoSol}).`);
+        if (estadoSol === '0' || estadoSol === '4' || estadoSol === '5' || estadoSol === '6') {
+          console.warn(`[SAT Worker] Solicitud ${req.id_solicitud_sat} rechazada/vencida en el SAT (Código ${estadoSol}).`);
           await supabase
             .from('sat_download_requests')
             .update({
               estado_solicitud: 'ERROR',
-              mensaje_sat: `SAT: Solicitud rechazada o con error en el SAT (Código ${estadoSol}).`
+              mensaje_sat: `SAT: Solicitud rechazada, vencida o con error en el SAT (Código ${estadoSol}).`
             })
             .eq('id', req.id);
           continue;
@@ -301,23 +301,30 @@ export async function runSatCronWorker(): Promise<{
             let unzipped: Record<string, Uint8Array>;
             try {
               const zipBytes = Buffer.from(paqueteMatch[1] || '', 'base64');
-              // Límite de seguridad: Paquete ZIP no mayor a 100MB
+              // Límite de seguridad: Paquete ZIP no mayor a 100MB ni > 90MB descomprimido / 5,000 archivos
               if (zipBytes.length > 100 * 1024 * 1024) {
                 console.warn(`[SAT Worker] Paquete ${idPaquete} excede límite de seguridad (100MB). Omitiendo.`);
                 continue;
               }
-              unzipped = fflate.unzipSync(new Uint8Array(zipBytes));
+              let entryCount = 0;
+              let totalUncompressedBytes = 0;
+              unzipped = fflate.unzipSync(new Uint8Array(zipBytes), {
+                filter(file) {
+                  entryCount += 1;
+                  totalUncompressedBytes += file.originalSize;
+                  return (
+                    entryCount <= 5000 &&
+                    file.originalSize <= 50 * 1024 * 1024 &&
+                    totalUncompressedBytes <= 90 * 1024 * 1024
+                  );
+                }
+              });
             } catch (zipErr) {
               console.warn(`[SAT Worker] Error descomprimiendo paquete ZIP ${idPaquete}:`, zipErr);
               continue;
             }
 
             const fileNames = Object.keys(unzipped);
-            // Límite de seguridad: máximo 10,000 archivos por paquete
-            if (fileNames.length > 10000) {
-              console.warn(`[SAT Worker] Paquete ${idPaquete} contiene más de 10,000 archivos. Limitando.`);
-              fileNames.length = 10000;
-            }
 
             for (const fName of fileNames) {
               if (!fName.toLowerCase().endsWith('.xml')) continue;
@@ -330,7 +337,7 @@ export async function runSatCronWorker(): Promise<{
                   parsed.emisorRfc && parsed.emisorRfc.toUpperCase() === companyRfc
                     ? 'EMITIDO'
                     : 'RECIBIDO';
-                const id = `cfdi_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+                const id = `cfdi_${crypto.randomUUID().slice(0, 12)}`;
 
                 parsedList.push({
                   uuid: parsed.uuid,
@@ -354,20 +361,14 @@ export async function runSatCronWorker(): Promise<{
                     subtotal: parsed.subtotal || 0,
                     descuento: parsed.descuento || 0,
                     iva_trasladado: parsed.ivaTrasladado || 0,
-                    ieps_trasladado: 0,
                     isr_retenido: parsed.isrRetenido || 0,
                     iva_retenido: parsed.ivaRetenido || 0,
-                    base_iva_16:
-                      (parsed.ivaTrasladado || 0) > 0
-                        ? Math.max(0, Number(((parsed.subtotal || 0) - (parsed.descuento || 0)).toFixed(2)))
-                        : 0,
-                    base_iva_8: 0,
-                    base_iva_0: 0,
-                    base_iva_exento: 0,
                     total: parsed.total || 0,
                     metodo_pago: parsed.metodoPago || 'PUE',
                     forma_pago: parsed.formaPago || '03',
                     uso_cfdi: parsed.usoCfdi || 'G03',
+                    uuid_relacionado: parsed.uuidRelacionado || null,
+                    status_sat: 'VIGENTE',
                     xml_raw: xmlRaw
                   }
                 });
@@ -377,7 +378,7 @@ export async function runSatCronWorker(): Promise<{
             }
           }
 
-          // Verificación de duplicados en un solo batch
+          // Verificación y deduplicación intra-lote de UUIDs
           const allUuids = Array.from(new Set(parsedList.map((p) => p.uuid)));
           const existingUuids = new Set<string>();
           for (let i = 0; i < allUuids.length; i += 100) {
@@ -392,17 +393,24 @@ export async function runSatCronWorker(): Promise<{
             }
           }
 
-          const toInsert = parsedList
-            .filter((p) => !existingUuids.has(p.uuid))
-            .map((p) => p.doc);
+          const toInsert: Array<Record<string, unknown>> = [];
+          for (const item of parsedList) {
+            if (existingUuids.has(item.uuid)) continue;
+            existingUuids.add(item.uuid);
+            toInsert.push(item.doc);
+          }
 
           let insertedCount = 0;
+          let hadInsertError = false;
           for (let i = 0; i < toInsert.length; i += 50) {
             const batch = toInsert.slice(i, i + 50);
-            const { error: insErr } = await supabase.from('cfdi_documents').insert(batch);
+            const { error: insErr } = await supabase
+              .from('cfdi_documents')
+              .upsert(batch, { onConflict: 'company_id,uuid', ignoreDuplicates: true });
             if (!insErr) {
               insertedCount += batch.length;
             } else {
+              hadInsertError = true;
               console.warn('[SAT Worker] Error en batch insert CFDI:', insErr.message);
             }
           }
@@ -410,16 +418,26 @@ export async function runSatCronWorker(): Promise<{
           totalDownloaded += insertedCount;
           console.log(`[SAT Worker] Solicitud ${req.id_solicitud_sat} integrada: +${insertedCount} XMLs.`);
 
-          await supabase
-            .from('sat_download_requests')
-            .update({
-              estado_solicitud: 'TERMINADA',
-              codigo_estado_sat: '5000',
-              mensaje_sat: `SAT 5000: ${insertedCount} comprobantes descargados e integrados exitosamente.`,
-              cfdis_descargados: insertedCount,
-              id_paquete_sat: packageIds.join(',')
-            })
-            .eq('id', req.id);
+          if (!hadInsertError) {
+            await supabase
+              .from('sat_download_requests')
+              .update({
+                estado_solicitud: 'TERMINADA',
+                codigo_estado_sat: '5000',
+                mensaje_sat: `SAT 5000: ${insertedCount} comprobantes descargados e integrados exitosamente.`,
+                cfdis_descargados: insertedCount,
+                id_paquete_sat: packageIds.join(',')
+              })
+              .eq('id', req.id);
+          } else {
+            await supabase
+              .from('sat_download_requests')
+              .update({
+                estado_solicitud: 'EN_PROCESO',
+                mensaje_sat: `SAT 5000: Error parcial al guardar CFDIs en BD (+${insertedCount} insertados). Se reintentará en el siguiente ciclo.`
+              })
+              .eq('id', req.id);
+          }
         }
       } catch (reqErr) {
         console.warn(`[SAT Worker] Error procesando solicitud ${req.id_solicitud_sat}:`, reqErr);

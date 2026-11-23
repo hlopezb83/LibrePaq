@@ -55,7 +55,7 @@ export function PolizasHeaderActions({
 
   return (
     <div
-      className="flex items-center gap-2 shrink-0 no-print w-full sm:w-auto"
+      className="flex flex-wrap items-center gap-2 shrink-0 no-print w-full sm:w-auto"
       ref={menuRef}
     >
       {/* Botones directos en pantallas medianas y grandes */}

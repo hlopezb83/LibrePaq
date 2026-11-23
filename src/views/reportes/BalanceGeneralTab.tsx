@@ -5,6 +5,7 @@ import type { AccountWithBalance, Company } from '../../shared/types';
 interface BalanceGeneralTabProps {
   company: Company;
   ejercicio: number;
+  periodo?: number;
   mesNombre: string;
   balanceSheet: {
     activos: AccountWithBalance[];
@@ -24,10 +25,17 @@ interface BalanceGeneralTabProps {
 export function BalanceGeneralTab({
   company,
   ejercicio,
+  periodo,
   mesNombre,
   balanceSheet,
   onSelectAccount
 }: BalanceGeneralTabProps) {
+  const lastDay = new Date(
+    ejercicio,
+    Math.min(12, Math.max(1, periodo ?? company.currentPeriod ?? 10)),
+    0
+  ).getDate();
+  const isLoss = balanceSheet.utilidadEjercicio < 0;
   const isBalanced =
     balanceSheet.isBalanced ??
     Math.abs(balanceSheet.totalActivo - balanceSheet.totalPasivoMasCapital) < 0.05;
@@ -47,13 +55,14 @@ export function BalanceGeneralTab({
               {company.name}
             </h2>
             <div className="text-xs font-mono text-slate-600 mt-0.5 truncate">
-              RFC: <span className="font-semibold">{company.rfc}</span> • Régimen Fiscal: General de Ley Personas Morales (601)
+              RFC: <span className="font-semibold">{company.rfc}</span> • Régimen Fiscal:{' '}
+              {company.regimenFiscal || '601 - General de Ley Personas Morales'}
             </div>
             <div className="text-sm font-bold text-blue-900 mt-1 uppercase tracking-wide">
               Balance General o Estado de Situación Financiera (NIF B-6)
             </div>
             <div className="text-xs text-slate-500">
-              Al 31 de {mesNombre} de {ejercicio} • Cifras expresadas en Pesos Mexicanos (MXN)
+              Al {String(lastDay).padStart(2, '0')} de {mesNombre} de {ejercicio} • Cifras expresadas en Pesos Mexicanos (MXN)
             </div>
           </div>
           <div className="text-right hidden sm:block">
@@ -119,31 +128,38 @@ export function BalanceGeneralTab({
               <span className="font-mono text-[10px] text-slate-600">Saldo | % Activo</span>
             </div>
             <div className="divide-y divide-slate-100">
-              {balanceSheet.activos.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => onSelectAccount(acc.id)}
-                  className={`w-full py-2 flex justify-between text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
-                    acc.level === 2
-                      ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
-                      : 'pl-5 pr-2 text-slate-700'
-                  }`}
-                >
-                  <span>
-                    <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                      {acc.code}
+              {balanceSheet.activos.length === 0 ? (
+                <p className="text-xs text-slate-500 italic py-3 px-2">
+                  Sin cuentas de activo registradas en el periodo.
+                </p>
+              ) : (
+                balanceSheet.activos.map((acc) => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => onSelectAccount(acc.id)}
+                    title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+                    className={`w-full py-2 flex justify-between gap-2 text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
+                      acc.level === 2
+                        ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
+                        : 'pl-5 pr-2 text-slate-700'
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
+                        {acc.code}
+                      </span>
+                      {acc.name}
                     </span>
-                    {acc.name}
-                  </span>
-                  <span className="flex items-center gap-3 font-mono shrink-0">
-                    <span>{formatCurrency(acc.finalBalance)}</span>
-                    <span className="w-12 text-right text-[11px] text-slate-500">
-                      {formatVerticalPct(acc.finalBalance, balanceSheet.totalActivo)}
+                    <span className="flex items-center gap-3 font-mono shrink-0">
+                      <span>{formatCurrency(acc.finalBalance)}</span>
+                      <span className="w-12 text-right text-[11px] text-slate-500">
+                        {formatVerticalPct(acc.finalBalance, balanceSheet.totalActivo)}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                ))
+              )}
             </div>
           </div>
 
@@ -166,31 +182,38 @@ export function BalanceGeneralTab({
                 <span className="font-mono text-[10px] text-slate-600">Saldo | % Activo</span>
               </div>
               <div className="divide-y divide-slate-100">
-                {balanceSheet.pasivos.map((acc) => (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => onSelectAccount(acc.id)}
-                    className={`w-full py-2 flex justify-between text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
-                      acc.level === 2
-                        ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
-                        : 'pl-5 pr-2 text-slate-700'
-                    }`}
-                  >
-                    <span>
-                      <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                        {acc.code}
+                {balanceSheet.pasivos.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic py-3 px-2">
+                    Sin cuentas de pasivo registradas en el periodo.
+                  </p>
+                ) : (
+                  balanceSheet.pasivos.map((acc) => (
+                    <button
+                      key={acc.id}
+                      type="button"
+                      onClick={() => onSelectAccount(acc.id)}
+                      title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+                      className={`w-full py-2 flex justify-between gap-2 text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
+                        acc.level === 2
+                          ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
+                          : 'pl-5 pr-2 text-slate-700'
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
+                          {acc.code}
+                        </span>
+                        {acc.name}
                       </span>
-                      {acc.name}
-                    </span>
-                    <span className="flex items-center gap-3 font-mono shrink-0">
-                      <span>{formatCurrency(acc.finalBalance)}</span>
-                      <span className="w-12 text-right text-[11px] text-slate-500">
-                        {formatVerticalPct(acc.finalBalance, balanceSheet.totalActivo)}
+                      <span className="flex items-center gap-3 font-mono shrink-0">
+                        <span>{formatCurrency(acc.finalBalance)}</span>
+                        <span className="w-12 text-right text-[11px] text-slate-500">
+                          {formatVerticalPct(acc.finalBalance, balanceSheet.totalActivo)}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                )}
               </div>
               <div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-900 px-2">
                 <span>Total Pasivo</span>
@@ -218,13 +241,14 @@ export function BalanceGeneralTab({
                     key={acc.id}
                     type="button"
                     onClick={() => onSelectAccount(acc.id)}
-                    className={`w-full py-2 flex justify-between text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
+                    title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+                    className={`w-full py-2 flex justify-between gap-2 text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
                       acc.level === 2
                         ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
                         : 'pl-5 pr-2 text-slate-700'
                     }`}
                   >
-                    <span>
+                    <span className="min-w-0">
                       <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
                         {acc.code}
                       </span>
@@ -238,11 +262,17 @@ export function BalanceGeneralTab({
                     </span>
                   </button>
                 ))}
-                <div className="py-2 pl-5 pr-2 flex justify-between text-xs font-bold text-emerald-800 bg-emerald-50/60 rounded">
-                  <span>305-01-001 Resultado (Utilidad) del Ejercicio Actual</span>
+                <div
+                  className={`py-2 pl-5 pr-2 flex justify-between gap-2 text-xs font-bold rounded ${
+                    isLoss ? 'text-red-800 bg-red-50/70' : 'text-emerald-800 bg-emerald-50/60'
+                  }`}
+                >
+                  <span>
+                    305-01-001 Resultado ({isLoss ? 'Pérdida' : 'Utilidad'}) del Ejercicio Actual
+                  </span>
                   <span className="flex items-center gap-3 font-mono shrink-0">
                     <span>{formatCurrency(balanceSheet.utilidadEjercicio)}</span>
-                    <span className="w-12 text-right text-[11px] text-emerald-700">
+                    <span className={`w-12 text-right text-[11px] ${isLoss ? 'text-red-700' : 'text-emerald-700'}`}>
                       {formatVerticalPct(
                         balanceSheet.utilidadEjercicio,
                         balanceSheet.totalActivo

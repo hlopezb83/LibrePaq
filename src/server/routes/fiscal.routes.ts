@@ -161,10 +161,15 @@ fiscalRoutes.post('/fixed-assets', async (c) => {
 });
 
 fiscalRoutes.delete('/fixed-assets/:id', (c) => {
-  const id = c.req.param('id');
-  const deleted = deleteFixedAssetRecord(id);
-  if (!deleted) return c.json({ error: 'Activo fijo no encontrado.' }, 404);
-  return c.json({ deleted: true });
+  try {
+    const id = c.req.param('id');
+    const deleted = deleteFixedAssetRecord(id);
+    if (!deleted) return c.json({ error: 'Activo fijo no encontrado.' }, 404);
+    return c.json({ deleted: true });
+  } catch (err) {
+    const { message, status } = errorStatus(err);
+    return c.json({ error: message }, status);
+  }
 });
 
 fiscalRoutes.post('/fixed-assets/depreciation-poliza', async (c) => {

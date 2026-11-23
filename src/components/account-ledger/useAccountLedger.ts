@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
 import { exportAccountLedgerXlsx } from '../../lib/excel-export';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
 export function useAccountLedger(
@@ -42,7 +42,7 @@ export function useAccountLedger(
     }
   }, [accountId]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['account-ledger', companyId, accountId, currentYear, currentPeriod],
     queryFn: () =>
       apiClient.getAccountLedger(companyId, accountId ?? '', currentYear, currentPeriod),
@@ -140,6 +140,9 @@ export function useAccountLedger(
     dialogRef,
     data,
     isLoading,
+    isError,
+    error,
+    refetch,
     mesNombre,
     ledgerSearch,
     setLedgerSearch,

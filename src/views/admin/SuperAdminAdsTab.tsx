@@ -10,11 +10,11 @@ export function SuperAdminAdsTab() {
     <div className="space-y-4">
       <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
         <div>
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Target className="w-5 h-5 text-blue-600" />
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Target className="w-5 h-5 text-blue-600" aria-hidden="true" />
             Adquisición, Tráfico & Campañas Google Ads
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          </h2>
+          <p className="text-xs text-slate-600 mt-0.5">
             Monitoreo de conversiones, eventos analíticos y canales de captación para librepaq.com
           </p>
         </div>
@@ -24,12 +24,12 @@ export function SuperAdminAdsTab() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-700">Google Ads Tag</span>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />
                 Vinculado
               </span>
             </div>
             <p className="font-mono text-sm font-bold text-slate-900">{measurementId}</p>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-600 mt-1">
               Etiqueta global activa en todas las vistas de LibrePaq Pro.
             </p>
           </div>
@@ -38,12 +38,12 @@ export function SuperAdminAdsTab() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-700">Atención WhatsApp</span>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />
                 En Línea
               </span>
             </div>
             <p className="font-mono text-sm font-bold text-slate-900">+{DEFAULT_WHATSAPP_PHONE}</p>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-600 mt-1">
               Widget flotante conectado para soporte directo a prospectos y contadores.
             </p>
           </div>
@@ -56,7 +56,7 @@ export function SuperAdminAdsTab() {
               </span>
             </div>
             <p className="text-xs font-bold text-slate-900">Sign up for product or service</p>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-600 mt-1">
               Optimizado para registros gratuitos en software contable en México.
             </p>
           </div>
@@ -64,9 +64,9 @@ export function SuperAdminAdsTab() {
 
         {/* Enlaces Rápidos a Consolas Externas */}
         <div className="pt-2">
-          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
             Consolas de Gestión Externa
-          </h4>
+          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
             <a
               href="https://ads.google.com"
@@ -83,7 +83,7 @@ export function SuperAdminAdsTab() {
                   <p className="text-[10px] text-slate-500">Campañas, palabras clave y presupuesto</p>
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-blue-600" aria-hidden="true" />
             </a>
 
             <a
@@ -101,7 +101,7 @@ export function SuperAdminAdsTab() {
                   <p className="text-[10px] text-slate-500">Métricas en tiempo real y embudo</p>
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-amber-600" />
+              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-amber-600" aria-hidden="true" />
             </a>
 
             <a
@@ -119,7 +119,7 @@ export function SuperAdminAdsTab() {
                   <p className="text-[10px] text-slate-500">Dominio librepaq.com y SSL</p>
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-orange-600" />
+              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-orange-600" aria-hidden="true" />
             </a>
           </div>
         </div>

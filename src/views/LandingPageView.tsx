@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { AuthModal } from '../components/AuthModal';
+import { AuthModal } from '../components/auth/AuthModal';
 import { useAuth } from '../context/AuthContext';
 import { trackAnalyticsEvent } from '../lib/analytics';
 import { LandingNavbar } from './landing/LandingNavbar';
@@ -19,13 +19,13 @@ export function LandingPageView() {
   const openSignupAuth = () => {
     setAuthMode('signup');
     trackAnalyticsEvent('click_cta_comenzar_gratis', { location: 'landing', mode: 'signup' });
-    authDialogRef.current?.showModal();
+    if (authDialogRef.current && !authDialogRef.current.open) authDialogRef.current.showModal();
   };
 
   const openSigninAuth = () => {
     setAuthMode('signin');
     trackAnalyticsEvent('click_cta_iniciar_sesion', { location: 'navbar', mode: 'signin' });
-    authDialogRef.current?.showModal();
+    if (authDialogRef.current && !authDialogRef.current.open) authDialogRef.current.showModal();
   };
 
   const handleOpenDemo = async () => {
@@ -41,8 +41,9 @@ export function LandingPageView() {
       {/* 1. Header / Barra de Navegación Sticky */}
       <LandingNavbar user={user} onOpenAuth={openSignupAuth} onOpenSignIn={openSigninAuth} />
 
-      {/* 2. Hero Section Principal con Maqueta Interactiva */}
-      <LandingHeroSection onOpenAuth={openSignupAuth} onOpenDemo={handleOpenDemo} />
+      <main>
+        {/* 2. Hero Section Principal con Maqueta Interactiva */}
+        <LandingHeroSection onOpenAuth={openSignupAuth} onOpenDemo={handleOpenDemo} />
 
       {/* 3. Comparativa Cara a Cara: CONTPAQi® vs. LibrePaq Pro */}
       <LandingComparisonSection />
@@ -56,8 +57,9 @@ export function LandingPageView() {
       {/* 6. Planes de Precios Transparentes */}
       <LandingPricingSection onOpenAuth={openSignupAuth} />
 
-      {/* 7. Preguntas Frecuentes (FAQ Accordion) */}
-      <LandingFaqSection />
+        {/* 7. Preguntas Frecuentes (FAQ Accordion) */}
+        <LandingFaqSection />
+      </main>
 
       {/* 8. Llamado a la Acción Final y Footer */}
       <LandingFooterSection onOpenAuth={openSignupAuth} />

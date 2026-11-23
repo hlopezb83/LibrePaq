@@ -1,5 +1,8 @@
 import type { createClient } from 'jsr:@supabase/supabase-js@2';
-import { buildSatAutenticaSoapXml } from './crypto-helpers.ts';
+import {
+  buildSatAutenticaSoapXml,
+  decryptPrivateKeyIfNeeded
+} from './crypto-helpers.ts';
 
 export type SupabaseClient = ReturnType<typeof createClient>;
 
@@ -75,7 +78,9 @@ export async function resolveCompanyFielCredentials(
 
   if (creds) {
     cerBase64 = creds.cer_base64 || '';
-    privateKeyPem = creds.private_key_pem || '';
+    privateKeyPem = creds.private_key_pem
+      ? await decryptPrivateKeyIfNeeded(creds.private_key_pem)
+      : '';
     if (!companyRfc && creds.rfc_titular) {
       companyRfc = creds.rfc_titular;
     }

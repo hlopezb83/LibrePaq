@@ -1,22 +1,22 @@
 import { useMemo } from 'react';
 import { createColumnHelper, tableFeatures } from '@tanstack/react-table';
 import {
-  BookOpen,
+  Check,
   ChevronDown,
   ChevronRight,
-  Copy,
-  Pencil,
-  Plus,
-  Trash2
+  Copy
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { AccountWithBalance } from '../../shared/types';
+import { CatalogoActionsCell } from './CatalogoActionsCell';
 
 export const catalogoTableFeatures = tableFeatures({});
 const columnHelper = createColumnHelper<typeof catalogoTableFeatures, AccountWithBalance>();
 
 export interface UseCatalogoColumnsProps {
   collapsedCodes: Record<string, boolean>;
+  isPeriodLocked?: boolean;
+  copiedCode?: string | null;
   onToggleNodeCollapse: (code: string) => void;
   onSelectAccount: (id: string) => void;
   onOpenLedger: (id: string) => void;
@@ -30,6 +30,8 @@ export interface UseCatalogoColumnsProps {
 
 export function useCatalogoColumns({
   collapsedCodes,
+  isPeriodLocked = false,
+  copiedCode = null,
   onToggleNodeCollapse,
   onSelectAccount,
   onOpenLedger,
@@ -81,6 +83,7 @@ export function useCatalogoColumns({
               {isParent ? (
                 <button
                   type="button"
+                  aria-expanded={!isCollapsed}
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggleNodeCollapse(row.code);
@@ -126,11 +129,15 @@ export function useCatalogoColumns({
                   e.stopPropagation();
                   onCopyCode(row.code);
                 }}
-                title="Copiar código contable"
+                title={copiedCode === row.code ? 'Código copiado' : 'Copiar código contable'}
                 aria-label={`Copiar código ${row.code}`}
                 className="p-1 rounded text-slate-400 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer opacity-70 hover:opacity-100"
               >
-                <Copy className="w-2.5 h-2.5" aria-hidden="true" />
+                {copiedCode === row.code ? (
+                  <Check className="w-2.5 h-2.5 text-emerald-600" aria-hidden="true" />
+                ) : (
+                  <Copy className="w-2.5 h-2.5" aria-hidden="true" />
+                )}
               </button>
             </div>
           );
@@ -231,77 +238,24 @@ export function useCatalogoColumns({
       columnHelper.display({
         id: 'actions',
         header: () => <div className="text-right whitespace-nowrap min-w-[140px] pr-1">Auxiliar / Acciones</div>,
-        cell: (info) => {
-          const row = info.row.original;
-          return (
-            <div className="flex items-center justify-end gap-1.5">
-              {!row.isAffectable && (
-                <button
-                  type="button"
-                  onClick={() => onOpenCreateSubaccount(row)}
-                  title={`Crear subcuenta hija bajo ${row.code}`}
-                  aria-label={`Crear subcuenta bajo ${row.code}`}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer"
-                >
-                  <Plus className="w-3 h-3 text-emerald-600" aria-hidden="true" />
-                  + Subcuenta
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onOpenLedger(row.id)}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer"
-              >
-                <BookOpen className="w-3 h-3" aria-hidden="true" />
-                Mayor
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenEditModal(row)}
-                title="Editar cuenta"
-                aria-label={`Editar cuenta ${row.code}`}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
-              >
-                <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-              {row.isAffectable && row.periodCharges === 0 && row.periodCredits === 0 && (
-                confirmDeleteId === row.id ? (
-                  <div className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5">
-                    <button
-                      type="button"
-                      onClick={() => onConfirmDelete(row.id)}
-                      className="text-[10px] font-bold text-red-800 hover:underline cursor-pointer"
-                    >
-                      Sí
-                    </button>
-                    <span className="text-slate-300">/</span>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteId(null)}
-                      className="text-[10px] font-bold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      No
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteId(row.id)}
-                    title="Eliminar cuenta sin movimientos"
-                    aria-label={`Eliminar cuenta ${row.code}`}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-700 hover:bg-red-50 cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                )
-              )}
-            </div>
-          );
-        }
+        cell: (info) => (
+          <CatalogoActionsCell
+            row={info.row.original}
+            isPeriodLocked={isPeriodLocked}
+            confirmDeleteId={confirmDeleteId}
+            setConfirmDeleteId={setConfirmDeleteId}
+            onOpenCreateSubaccount={onOpenCreateSubaccount}
+            onOpenLedger={onOpenLedger}
+            onOpenEditModal={onOpenEditModal}
+            onConfirmDelete={onConfirmDelete}
+          />
+        )
       })
     ]),
     [
       collapsedCodes,
+      isPeriodLocked,
+      copiedCode,
       onToggleNodeCollapse,
       onSelectAccount,
       onOpenLedger,

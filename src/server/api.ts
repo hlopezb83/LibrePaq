@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { Hono } from 'hono';
-import { initDatabase } from './db';
+import { companyExistsById, db, getCompanyById, initDatabase } from './db';
 import { companiesRoutes } from './routes/companies.routes';
 import { dashboardRoutes } from './routes/dashboard.routes';
 import { accountsRoutes } from './routes/accounts.routes';
@@ -20,6 +20,58 @@ import { adminRoutes } from './routes/admin.routes';
 initDatabase();
 
 export const api = new Hono().basePath('/api');
+
+const ENTITY_TABLE_PREFIXES: Array<[RegExp, string]> = [
+  [/^\/api\/accounts\/([^/]+)$/, 'accounts'],
+  [/^\/api\/polizas\/([^/]+)$/, 'polizas'],
+  [/^\/api\/cfdi\/([^/]+)/, 'cfdi_documents'],
+  [/^\/api\/bank\/lines\/([^/]+)/, 'bank_statement_lines'],
+  [/^\/api\/fiscal\/fixed-assets\/([^/]+)$/, 'fixed_assets']
+];
+
+// Aislamiento Multi-Tenant en rutas de dominio: verifica propiedad cuando el recurso pertenece a un tenant privado
+api.use('*', async (c, next) => {
+  const path = c.req.path;
+  if (path.startsWith('/api/companies') || path.startsWith('/api/admin')) {
+    return next();
+  }
+
+  const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+  let targetCompanyId = c.req.query('companyId') || c.req.query('company_id') || '';
+
+  if (!targetCompanyId && (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH')) {
+    const ct = c.req.header('content-type') || '';
+    if (ct.includes('application/json')) {
+      try {
+        const body = (await c.req.raw.clone().json()) as { companyId?: unknown };
+        if (typeof body?.companyId === 'string') targetCompanyId = body.companyId;
+      } catch {
+        // Ignorar payloads no JSON; el handler devolverá 400 si corresponde
+      }
+    }
+  }
+
+  if (!targetCompanyId) {
+    for (const [regex, table] of ENTITY_TABLE_PREFIXES) {
+      const m = regex.exec(path);
+      if (m?.[1]) {
+        const row = db
+          .query(`SELECT company_id FROM ${table} WHERE id = ?`)
+          .get(m[1]) as { company_id?: string } | null;
+        if (row?.company_id) {
+          targetCompanyId = row.company_id;
+        }
+        break;
+      }
+    }
+  }
+
+  if (targetCompanyId && companyExistsById(targetCompanyId) && !getCompanyById(targetCompanyId, userId)) {
+    return c.json({ error: 'No tienes autorización sobre esta empresa' }, 403);
+  }
+
+  return next();
+});
 
 // Montaje modular de subrutas de dominio
 api.route('/', companiesRoutes);

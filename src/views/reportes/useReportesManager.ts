@@ -20,7 +20,13 @@ export function useReportesManager() {
     enabled: Boolean(activeCompanyId)
   });
 
-  const { data: satXmlData, isLoading: isLoadingXml } = useQuery({
+  const {
+    data: satXmlData,
+    isLoading: isLoadingXml,
+    isError: isErrorXml,
+    error: xmlError,
+    refetch: refetchXml
+  } = useQuery({
     queryKey: ['sat-xml', activeCompanyId, satXmlType, currentYear, currentPeriod],
     queryFn: () => apiClient.getSatXml(activeCompanyId, satXmlType, currentYear, currentPeriod),
     enabled: Boolean(activeCompanyId && activeTab === 'ANEXO24')
@@ -74,6 +80,9 @@ export function useReportesManager() {
     refetch,
     satXmlData,
     isLoadingXml,
+    isErrorXml,
+    xmlError,
+    refetchXml,
     handleDownloadXml,
     handleExportBalanzaCsv
   };

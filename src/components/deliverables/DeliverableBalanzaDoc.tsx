@@ -1,4 +1,4 @@
-import { CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { Company, AccountWithBalance } from '../../shared/types';
 import { DeliverableSignaturesBlock } from './DeliverableSignaturesBlock';
@@ -37,6 +37,8 @@ export function DeliverableBalanzaDoc({
   legalRepName,
   legalRepTitle
 }: DeliverableBalanzaDocProps) {
+  const isBalanced = Math.abs(totals.totalCargos - totals.totalAbonos) < 0.01;
+
   return (
     <article className="max-w-5xl mx-auto bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 space-y-5 print-page-break mb-8">
       {/* Membrete Oficial del Documento */}
@@ -61,25 +63,37 @@ export function DeliverableBalanzaDoc({
         <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
           <div>Folio: DOC-BAL-{year}-{String(period).padStart(2, '0')}</div>
           <div>Emisión: {issuanceDate}</div>
-          <div className="inline-flex items-center gap-1 text-emerald-800 font-bold mt-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Partida Doble Cuadrada</span>
-          </div>
+          {isBalanced ? (
+            <div className="inline-flex items-center gap-1 text-emerald-800 font-bold mt-1">
+              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Partida Doble Cuadrada</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1 text-amber-800 font-bold mt-1">
+              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>
+                Diferencia: {formatCurrency(Math.abs(totals.totalCargos - totals.totalAbonos))}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabla de Balanza */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
+          <caption className="visually-hidden">
+            Balanza de Comprobación de {company.name} — {mesNombre} {year}
+          </caption>
           <thead>
             <tr className="border-b-2 border-slate-800 bg-slate-100/80 text-[10px] font-bold uppercase tracking-wider text-slate-700">
-              <th className="py-2 px-2.5">Código</th>
-              <th className="py-2 px-2.5">Nombre de la Cuenta</th>
-              <th className="py-2 px-2 text-center">SAT</th>
-              <th className="py-2 px-2.5 text-right">Saldo Inicial</th>
-              <th className="py-2 px-2.5 text-right">Cargos (Debe)</th>
-              <th className="py-2 px-2.5 text-right">Abonos (Haber)</th>
-              <th className="py-2 px-2.5 text-right">Saldo Final</th>
+              <th scope="col" className="py-2 px-2.5">Código</th>
+              <th scope="col" className="py-2 px-2.5">Nombre de la Cuenta</th>
+              <th scope="col" className="py-2 px-2 text-center">SAT</th>
+              <th scope="col" className="py-2 px-2.5 text-right">Saldo Inicial</th>
+              <th scope="col" className="py-2 px-2.5 text-right">Cargos (Debe)</th>
+              <th scope="col" className="py-2 px-2.5 text-right">Abonos (Haber)</th>
+              <th scope="col" className="py-2 px-2.5 text-right">Saldo Final</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">

@@ -7,7 +7,7 @@ export function PrivacyPolicyView() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Barra Superior */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-2">
           <Link to="/" className="flex items-center gap-2">
             <LibrePaqLogo variant="horizontal" size="sm" theme="light" badge="PRO" />
           </Link>
@@ -15,7 +15,7 @@ export function PrivacyPolicyView() {
             to="/"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
             <span>Volver al Inicio</span>
           </Link>
         </div>
@@ -27,7 +27,7 @@ export function PrivacyPolicyView() {
           {/* Encabezado */}
           <div className="border-b border-slate-100 pb-6">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold mb-3 border border-blue-200">
-              <ShieldCheck className="w-3.5 h-3.5" />
+              <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Aviso de Privacidad Integral</span>
             </div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -71,23 +71,26 @@ export function PrivacyPolicyView() {
           {/* Sección 3 - Cumplimiento específico Google API */}
           <section className="space-y-3 bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
             <h2 className="text-lg font-bold text-blue-950 flex items-center gap-2">
-              <Lock className="w-5 h-5 text-blue-600" />
-              Uso de Datos de Servicios de Google (Google API Limited Use)
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
+                3
+              </span>
+              <Lock className="w-4 h-4 text-blue-600 shrink-0" aria-hidden="true" />
+              <span>Uso de Datos de Servicios de Google (Google API Limited Use)</span>
             </h2>
             <p className="text-sm text-slate-700 leading-relaxed">
               El uso y la transferencia que LibrePaq Pro hace de la información recibida desde las APIs de Google se apegan estrictamente a la <strong>Política de Datos de Usuario de los Servicios de Google API (Google API Services User Data Policy)</strong>, incluidos los requisitos de Uso Limitado (Limited Use):
             </p>
             <ul className="text-sm text-slate-700 space-y-2 pl-2">
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
                 <span>Solo solicitamos los permisos básicos de autenticación (<code>email</code>, <code>profile</code> y <code>openid</code>) para verificar tu identidad y permitirte el acceso seguro.</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
                 <span><strong>No vendemos, rentamos ni transferimos</strong> tus datos personales o fiscales a corredores de datos ni a terceros con fines comerciales o de publicidad.</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
                 <span>No utilizamos tus datos personales ni tu información contable para entrenar modelos generalizados de inteligencia artificial sin tu expreso consentimiento.</span>
               </li>
             </ul>
@@ -97,7 +100,7 @@ export function PrivacyPolicyView() {
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
-                3
+                4
               </span>
               Finalidades del Tratamiento
             </h2>
@@ -116,7 +119,7 @@ export function PrivacyPolicyView() {
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
-                4
+                5
               </span>
               Soberanía de Datos y Derechos ARCO
             </h2>
@@ -133,9 +136,10 @@ export function PrivacyPolicyView() {
           </section>
 
           {/* Footer de la política */}
-          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
             <p>© {new Date().getFullYear()} LibrePaq Pro • librepaq.com</p>
             <div className="flex items-center gap-4">
+              <Link to="/terms" className="hover:text-blue-600 transition font-medium">Términos y Condiciones</Link>
               <Link to="/" className="hover:text-blue-600 transition">Volver al Inicio</Link>
             </div>
           </div>

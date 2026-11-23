@@ -1,8 +1,8 @@
 import { createPortal } from 'react-dom';
-import { BookOpen, Download, Printer, Search, X } from 'lucide-react';
-import { formatCurrency } from '../lib/formatters';
-import { AccountLedgerTable } from './account-ledger/AccountLedgerTable';
-import { useAccountLedger } from './account-ledger/useAccountLedger';
+import { AlertTriangle, BookOpen, Download, Loader2, Printer, RefreshCw, Search, X } from 'lucide-react';
+import { formatCurrency } from '../../lib/formatters';
+import { AccountLedgerTable } from './AccountLedgerTable';
+import { useAccountLedger } from './useAccountLedger';
 
 interface AccountLedgerModalProps {
   companyId: string;
@@ -19,6 +19,9 @@ export function AccountLedgerModal({
     dialogRef,
     data,
     isLoading,
+    isError,
+    error,
+    refetch,
     mesNombre,
     ledgerSearch,
     setLedgerSearch,
@@ -35,20 +38,20 @@ export function AccountLedgerModal({
       closedby="any"
       onClose={onClose}
       aria-labelledby="ledger-modal-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-5xl overflow-hidden backdrop:bg-slate-900/60"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-5xl max-h-[92dvh] overflow-hidden backdrop:bg-slate-900/60"
     >
-      <div className="p-4 sm:p-5 max-h-[86dvh] scrollable-panel space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
-          <div className="flex items-center gap-3">
+      <div className="flex flex-col max-h-[92dvh]">
+        <header className="p-4 sm:p-5 shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
               <BookOpen className="w-5 h-5" aria-hidden="true" />
             </div>
-            <div>
-              <h2 id="ledger-modal-title" className="text-base font-bold text-slate-900">
+            <div className="min-w-0">
+              <h2 id="ledger-modal-title" className="text-base font-bold text-slate-900 truncate">
                 Tarjeta Auxiliar de Movimientos (Libro Mayor)
               </h2>
               {data && (
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-600 truncate">
                   <span className="font-mono font-bold text-blue-800 mr-1.5">
                     {data.account.code}
                   </span>
@@ -60,18 +63,23 @@ export function AccountLedgerModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 no-print">
+          <div className="flex flex-wrap items-center gap-2 no-print">
             {data && (
               <>
                 <button
                   type="button"
                   disabled={isExporting}
+                  aria-busy={isExporting}
                   onClick={handleExportXlsx}
                   title="Descargar libro mayor en formato nativo Excel (.xlsx)"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs transition cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                  {isExporting ? 'Generando...' : 'Excel (.XLSX)'}
+                  {isExporting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                  )}
+                  <span>{isExporting ? 'Generando...' : 'Excel (.XLSX)'}</span>
                 </button>
                 <button
                   type="button"
@@ -95,18 +103,38 @@ export function AccountLedgerModal({
               type="button"
               onClick={onClose}
               aria-label="Cerrar auxiliar de cuenta"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              className="min-h-[36px] min-w-[36px] flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
             >
               <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
-        </div>
+        </header>
 
-        {isLoading || !data ? (
-          <div className="p-10 text-center text-xs text-slate-500">
-            Consultando movimientos auxiliares y calculando saldo progresivo...
-          </div>
-        ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4">
+          {isError ? (
+            <div role="alert" className="p-8 text-center space-y-3 bg-red-50/60 border border-red-200 rounded-2xl">
+              <AlertTriangle className="w-7 h-7 text-red-700 mx-auto" aria-hidden="true" />
+              <p className="text-sm font-bold text-red-900">
+                No fue posible consultar el auxiliar de la cuenta
+              </p>
+              <p className="text-xs text-red-800">
+                {error instanceof Error ? error.message : 'Verifica tu conexión e intenta nuevamente.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-bold cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Reintentar</span>
+              </button>
+            </div>
+          ) : isLoading || !data ? (
+            <div role="status" aria-live="polite" className="p-10 text-center text-xs text-slate-600 flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-700" aria-hidden="true" />
+              <span>Consultando movimientos auxiliares y calculando saldo progresivo...</span>
+            </div>
+          ) : (
           <>
             {/* Resumen del Auxiliar con Arrastre de Saldos */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -168,10 +196,20 @@ export function AccountLedgerModal({
                   onChange={(e) => setLedgerSearch(e.target.value)}
                   aria-label="Filtrar por concepto, referencia o UUID en el auxiliar"
                   placeholder="Filtrar por concepto, referencia o UUID..."
-                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
+                {ledgerSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setLedgerSearch('')}
+                    aria-label="Limpiar búsqueda en auxiliar"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                )}
               </div>
-              <div className="text-slate-500 text-[11px] font-medium">
+              <div aria-live="polite" className="text-slate-600 text-[11px] font-medium">
                 {ledgerSearch.trim() ? (
                   <span>
                     Mostrando <strong>{filteredEntries.length}</strong> de {data.entries.length} movimientos
@@ -194,6 +232,7 @@ export function AccountLedgerModal({
             />
           </>
         )}
+        </div>
       </div>
     </dialog>,
     document.body

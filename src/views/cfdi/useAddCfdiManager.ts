@@ -71,7 +71,7 @@ export function useAddCfdiManager() {
   });
   const isPeriodLocked = Boolean(periodLock?.isLocked);
 
-  const { data: cfdis = [], isLoading } = useQuery({
+  const { data: cfdis = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['cfdis', activeCompanyId],
     queryFn: () => apiClient.getCfdis(activeCompanyId),
     enabled: Boolean(activeCompanyId)
@@ -161,8 +161,13 @@ export function useAddCfdiManager() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      await processXmlFiles(e.target.files);
-      e.target.value = '';
+      try {
+        await processXmlFiles(e.target.files);
+      } catch (err: unknown) {
+        toast.error(`Error al importar XML: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        e.target.value = '';
+      }
     }
   };
 
@@ -170,7 +175,11 @@ export function useAddCfdiManager() {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await processXmlFiles(e.dataTransfer.files);
+      try {
+        await processXmlFiles(e.dataTransfer.files);
+      } catch (err: unknown) {
+        toast.error(`Error al importar XML: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   };
 
@@ -179,12 +188,16 @@ export function useAddCfdiManager() {
     const defaults = resolveDefaultAccountsForCfdi(cfdi, accounts);
     setOperationAccountCode(defaults.operationAccountCode);
     setCounterAccountCode(defaults.counterAccountCode);
-    contabilizarModalRef.current?.showModal();
+    if (contabilizarModalRef.current && !contabilizarModalRef.current.open) {
+      contabilizarModalRef.current.showModal();
+    }
   };
 
   const openXmlViewer = (cfdi: CfdiDocument) => {
     setSelectedCfdi(cfdi);
-    xmlModalRef.current?.showModal();
+    if (xmlModalRef.current && !xmlModalRef.current.open) {
+      xmlModalRef.current.showModal();
+    }
   };
 
   const handleCopyUuid = (uuid: string) => {
@@ -195,7 +208,7 @@ export function useAddCfdiManager() {
 
   const handleDownloadSelectedXml = () => {
     if (!selectedCfdi) return;
-    downloadCfdiXmlFile(selectedCfdi);
+    void downloadCfdiXmlFile(selectedCfdi, toast);
   };
 
   const previewMovements = useMemo(() => {
@@ -266,7 +279,8 @@ export function useAddCfdiManager() {
     selectedCfdiIds, setSelectedCfdiIds, previewInvoiceCfdi, setPreviewInvoiceCfdi,
     isDragging, setIsDragging, copiedUuid, confirmDeleteCfdiId, setConfirmDeleteCfdiId,
     showSoapFielPanel, setShowSoapFielPanel, periodScope, setPeriodScope,
-    cfdis, countInCurrentPeriod, accounts, affectableAccounts, pendingCfdis, isLoading,
+    cfdis, countInCurrentPeriod, accounts, affectableAccounts, pendingCfdis, isLoading, isError, error, refetch,
+    verifyingCfdiId: verifySatMutation.isPending ? verifySatMutation.variables ?? null : null,
     uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
     batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
     processXmlFiles, handleFileUpload, handleDrop,

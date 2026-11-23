@@ -1,13 +1,15 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import type { Poliza, PolizaType } from '../../shared/types';
 import { resolvePolizaYearPeriod } from '../../shared/date-utils';
 import { validateDoubleEntryMovements } from '../../shared/accounting-engine';
+import { chunkArray, fetchAllRows } from './supabase-pagination';
 import {
   assertSupabasePeriodOpen,
   buildPolizaMovementInsertRows,
   mapSupabasePoliza,
   resolveAccountsMap,
-  resolveNextSupabasePolizaFolio
+  resolveNextSupabasePolizaFolio,
+  syncUpdatedPolizaCfdiLink
 } from './supabase-polizas-mappers';
 
 export { mapSupabasePoliza, assertSupabasePeriodOpen };
@@ -15,20 +17,21 @@ export { mapSupabasePoliza, assertSupabasePeriodOpen };
 export const supabasePolizas = {
   async getPolizas(companyId: string, year?: number, period?: number): Promise<Poliza[]> {
     if (!supabase) return [];
-    let query = supabase
-      .from('polizas')
-      .select('*, poliza_movements(*)')
-      .eq('company_id', companyId);
+    const data = await fetchAllRows(async (from, to) => {
+      let query = getRequiredSupabase()
+        .from('polizas')
+        .select('*, poliza_movements(*)')
+        .eq('company_id', companyId);
 
-    if (year) query = query.eq('ejercicio', year);
-    if (period) query = query.eq('periodo', period);
+      if (year) query = query.eq('ejercicio', year);
+      if (period) query = query.eq('periodo', period);
 
-    const { data, error } = await query.order('folio', { ascending: false });
-    if (error) {
-      console.error('[Supabase] Error al consultar pólizas:', error);
-      throw new Error(`[Supabase Error ${error.code || 'UNKNOWN'}]: ${error.message}`);
-    }
-    return (data || []).map((row) =>
+      return query
+        .order('folio', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to);
+    });
+    return data.map((row) =>
       mapSupabasePoliza(row as Record<string, unknown>, (row as Record<string, unknown>).poliza_movements)
     );
   },
@@ -61,10 +64,11 @@ export const supabasePolizas = {
     // Candado Fiscal: Garantizar que el periodo de la póliza no esté cerrado
     await assertSupabasePeriodOpen(payload.companyId, year, period);
 
-    // Validar partida doble contable
-    validateDoubleEntryMovements(payload.movements);
+    const accMap = await resolveAccountsMap(payload.companyId);
+    // Validar partida doble contable y existencia de cuentas en catálogo
+    validateDoubleEntryMovements(payload.movements, accMap);
 
-    const polizaId = `pol_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const polizaId = `pol_${crypto.randomUUID().slice(0, 12)}`;
     const nextFolio = await resolveNextSupabasePolizaFolio(payload.companyId, payload.tipo, year, period);
     const now = new Date().toISOString();
 
@@ -84,7 +88,6 @@ export const supabasePolizas = {
 
     if (polErr) throw new Error(polErr.message);
 
-    const accMap = await resolveAccountsMap(payload.companyId);
     const movementsToInsert = buildPolizaMovementInsertRows(
       polizaId,
       payload.movements,
@@ -103,11 +106,12 @@ export const supabasePolizas = {
     }
 
     if (payload.cfdiUuid) {
-      await supabase
+      const { error: cfdiErr } = await supabase
         .from('cfdi_documents')
         .update({ poliza_id: polizaId })
         .eq('company_id', payload.companyId)
         .eq('uuid', payload.cfdiUuid);
+      if (cfdiErr) throw new Error(cfdiErr.message);
     }
 
     return mapSupabasePoliza(
@@ -133,6 +137,7 @@ export const supabasePolizas = {
     payload: {
       tipo: PolizaType;
       fecha: string;
+      periodo?: number | null;
       concepto: string;
       cfdiUuid?: string | null;
       movements: Array<{
@@ -150,7 +155,7 @@ export const supabasePolizas = {
 
     const { data: existingPol } = await supabase
       .from('polizas')
-      .select('company_id, ejercicio, periodo')
+      .select('company_id, ejercicio, periodo, tipo, folio, fecha, concepto, cfdi_uuid')
       .eq('id', polizaId)
       .maybeSingle();
 
@@ -158,27 +163,45 @@ export const supabasePolizas = {
       throw new Error('Póliza no encontrada.');
     }
 
-    await assertSupabasePeriodOpen(
-      String(existingPol.company_id),
-      Number(existingPol.ejercicio),
-      Number(existingPol.periodo)
-    );
+    const compId = String(existingPol.company_id);
+    const origYear = Number(existingPol.ejercicio);
+    const origPeriod = Number(existingPol.periodo);
 
-    validateDoubleEntryMovements(payload.movements);
+    await assertSupabasePeriodOpen(compId, origYear, origPeriod);
 
-    const currentPeriod = existingPol ? Number(existingPol.periodo) : undefined;
-    const resolved = resolvePolizaYearPeriod(payload.fecha, currentPeriod);
+    const accMap = await resolveAccountsMap(compId);
+    validateDoubleEntryMovements(payload.movements, accMap);
+
+    const explicitPeriodo =
+      payload.periodo !== undefined
+        ? (payload.periodo ?? undefined)
+        : payload.fecha === existingPol.fecha
+          ? origPeriod
+          : undefined;
+    const resolved = resolvePolizaYearPeriod(payload.fecha, explicitPeriodo, origYear, origPeriod);
     const newYear = resolved.ejercicio;
     const newPeriod = resolved.periodo;
 
-    if (existingPol && (newYear !== existingPol.ejercicio || newPeriod !== existingPol.periodo)) {
-      await assertSupabasePeriodOpen(String(existingPol.company_id), newYear, newPeriod);
+    if (newYear !== origYear || newPeriod !== origPeriod) {
+      await assertSupabasePeriodOpen(compId, newYear, newPeriod);
     }
+
+    const periodOrTypeChanged =
+      payload.tipo !== existingPol.tipo || newYear !== origYear || newPeriod !== origPeriod;
+    const nextFolio = periodOrTypeChanged
+      ? await resolveNextSupabasePolizaFolio(compId, payload.tipo, newYear, newPeriod)
+      : Number(existingPol.folio);
+
+    const { data: oldMovs } = await supabase
+      .from('poliza_movements')
+      .select('*')
+      .eq('poliza_id', polizaId);
 
     const { error: polErr } = await supabase
       .from('polizas')
       .update({
         tipo: payload.tipo,
+        folio: nextFolio,
         concepto: payload.concepto.trim(),
         fecha: payload.fecha,
         ejercicio: newYear,
@@ -189,16 +212,18 @@ export const supabasePolizas = {
 
     if (polErr) throw new Error(polErr.message);
 
-    const { data: oldMovs } = await supabase
-      .from('poliza_movements')
-      .select('*')
-      .eq('poliza_id', polizaId);
+    const oldMovIds = ((oldMovs || []) as Array<{ id: string }>).map((m) => m.id);
+    for (const idChunk of chunkArray(oldMovIds, 100)) {
+      const { error: unmatchErr } = await supabase
+        .from('bank_statement_lines')
+        .update({ matched_movement_id: null })
+        .in('matched_movement_id', idChunk);
+      if (unmatchErr) throw new Error(unmatchErr.message);
+    }
 
     const { error: delErr } = await supabase.from('poliza_movements').delete().eq('poliza_id', polizaId);
     if (delErr) throw new Error(delErr.message);
 
-    const compId = existingPol?.company_id ? String(existingPol.company_id) : '';
-    const accMap = await resolveAccountsMap(compId);
     const movementsToInsert = buildPolizaMovementInsertRows(
       polizaId,
       payload.movements,
@@ -213,9 +238,28 @@ export const supabasePolizas = {
         if (oldMovs && oldMovs.length > 0) {
           await supabase.from('poliza_movements').insert(oldMovs);
         }
-        throw new Error(`Error al insertar nuevos movimientos: ${insErr.message}. Se restauraron los movimientos previos.`);
+        await supabase
+          .from('polizas')
+          .update({
+            tipo: existingPol.tipo,
+            folio: existingPol.folio,
+            concepto: existingPol.concepto,
+            fecha: existingPol.fecha,
+            ejercicio: existingPol.ejercicio,
+            periodo: existingPol.periodo,
+            cfdi_uuid: existingPol.cfdi_uuid
+          })
+          .eq('id', polizaId);
+        throw new Error(`Error al insertar nuevos movimientos: ${insErr.message}. Se restauró la póliza previa.`);
       }
     }
+
+    await syncUpdatedPolizaCfdiLink(
+      compId,
+      polizaId,
+      existingPol.cfdi_uuid ? String(existingPol.cfdi_uuid) : null,
+      payload.cfdiUuid ?? null
+    );
 
     return { updated: true };
   },

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { Company } from '../../shared/types';
-import type { CommandPaletteNavItem } from '../CommandPaletteModal';
+import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 
 interface UseAppShellDocumentTitleProps {
   currentPath: string;

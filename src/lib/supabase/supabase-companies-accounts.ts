@@ -1,6 +1,8 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
+import { assertAccountingInvariant, validateAccountHierarchy } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import { mapSupabaseCompany, mapSupabaseAccount } from './supabase-mappers';
+import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen } from './supabase-polizas';
 import { seedCompanyDefaultsInSupabase } from './supabase-company-seeder';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
@@ -125,21 +127,37 @@ export const supabaseCompaniesAndAccounts = {
 
   async deleteCompany(companyId: string): Promise<{ deleted: boolean }> {
     if (!supabase) return { deleted: false };
+    const existing = await this.getCompanies();
+    if (existing.length <= 1 && existing.some((c) => c.id === companyId)) {
+      throw new Error('Debe existir al menos una empresa activa en el sistema.');
+    }
+
     const { error: rpcError } = await supabase.rpc('delete_company_cascade', { company_id_param: companyId });
     if (!rpcError) return { deleted: true };
 
     // Fallback secuencial cliente si la RPC en PostgreSQL no está disponible
     const { data: pols } = await supabase.from('polizas').select('id').eq('company_id', companyId);
     const polIds = (pols || []).map((p: { id: string }) => p.id);
-    if (polIds.length > 0) await supabase.from('poliza_movements').delete().in('poliza_id', polIds);
-    await Promise.allSettled([
-      supabase.from('polizas').delete().eq('company_id', companyId),
-      supabase.from('cfdi_documents').delete().eq('company_id', companyId),
-      supabase.from('bank_statement_lines').delete().eq('company_id', companyId),
-      supabase.from('fixed_assets').delete().eq('company_id', companyId),
-      supabase.from('third_parties').delete().eq('company_id', companyId)
-    ]);
-    await supabase.from('accounts').delete().eq('company_id', companyId);
+    if (polIds.length > 0) {
+      const { error: movErr } = await supabase.from('poliza_movements').delete().in('poliza_id', polIds);
+      if (movErr) throw new Error(movErr.message);
+    }
+    const childTables = [
+      'bank_statement_lines',
+      'cfdi_documents',
+      'polizas',
+      'fixed_assets',
+      'third_parties',
+      'period_locks',
+      'tax_parameters',
+      'fiel_credentials',
+      'sat_download_requests',
+      'accounts'
+    ];
+    for (const table of childTables) {
+      const { error: childErr } = await supabase.from(table).delete().eq('company_id', companyId);
+      if (childErr) throw new Error(`[Delete ${table}] ${childErr.message}`);
+    }
     const { error } = await supabase.from('companies').delete().eq('id', companyId);
     if (error) throw new Error(error.message);
     return { deleted: true };
@@ -182,16 +200,16 @@ export const supabaseCompaniesAndAccounts = {
       }
     }
 
-    const { data, error } = await supabase
-      .from('accounts')
-      .select('*')
-      .eq('company_id', companyId)
-      .order('code', { ascending: true });
-    if (error) {
-      console.error('[Supabase] Error al consultar cuentas:', error);
-      throw new Error(`[Supabase Error ${error.code || 'UNKNOWN'}]: ${error.message}`);
-    }
-    return (data || []).map(mapSupabaseAccount);
+    const data = await fetchAllRows(async (from, to) =>
+      getRequiredSupabase()
+        .from('accounts')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('code', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
+    return data.map(mapSupabaseAccount);
   },
 
   async createAccount(payload: {
@@ -207,23 +225,36 @@ export const supabaseCompaniesAndAccounts = {
     initialBalance: number;
   }): Promise<{ id: string; code: string; name: string }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const id = `${payload.companyId}_${payload.code}`;
+    const cleanCode = payload.code.trim();
+    const cleanParent = payload.parentCode?.trim() || null;
+    const existingAccounts = await this.getAccounts(payload.companyId);
+    const duplicate = existingAccounts.find((a) => a.code === cleanCode);
+    assertAccountingInvariant(
+      duplicate === undefined,
+      'DUPLICATE_ACCOUNT_CODE',
+      `Ya existe una cuenta con el código ${cleanCode}.`
+    );
+
+    const hierarchy = validateAccountHierarchy(existingAccounts, cleanParent, cleanCode);
+    const resolvedLevel = cleanParent ? hierarchy.level : payload.level;
+
+    const id = `${payload.companyId}_${cleanCode}`;
     const { error } = await supabase.from('accounts').insert({
       id,
       company_id: payload.companyId,
-      code: payload.code.trim(),
+      code: cleanCode,
       name: payload.name.trim(),
-      parent_code: payload.parentCode?.trim() || null,
+      parent_code: cleanParent,
       type: payload.type,
       nature: payload.nature,
-      level: payload.level,
+      level: resolvedLevel,
       is_affectable: payload.isAffectable,
       sat_group_code: payload.satGroupCode.trim(),
       currency: 'MXN',
       initial_balance: Number(payload.initialBalance || 0)
     });
     if (error) throw new Error(error.message);
-    return { id, code: payload.code, name: payload.name };
+    return { id, code: cleanCode, name: payload.name };
   },
 
   async updateAccount(
@@ -236,11 +267,17 @@ export const supabaseCompaniesAndAccounts = {
       const { data: comp } = await supabase.from('companies').select('current_year').eq('id', ex.company_id).maybeSingle();
       await assertSupabasePeriodOpen(String(ex.company_id), comp?.current_year || 2026, 1);
     }
+    const cleanName = payload.name.trim();
     const { error } = await supabase.from('accounts').update({
-      name: payload.name.trim(), sat_group_code: payload.satGroupCode.trim(),
+      name: cleanName, sat_group_code: payload.satGroupCode.trim(),
       nature: payload.nature, type: payload.type, initial_balance: Number(payload.initialBalance || 0)
     }).eq('id', accountId);
     if (error) throw new Error(error.message);
+    const { error: movErr } = await supabase
+      .from('poliza_movements')
+      .update({ account_name: cleanName })
+      .eq('account_id', accountId);
+    if (movErr) throw new Error(movErr.message);
     return { updated: true };
   },
 

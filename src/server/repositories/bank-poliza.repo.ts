@@ -1,14 +1,9 @@
 import { db, type BankLineDbRow } from '../connection';
 import {
   assertAccountingInvariant,
-  fromCents,
-  resolveFiscalAccount,
-  toCents
+  buildBankLinePolizaPlan
 } from '../../shared/accounting-engine';
-import type {
-  BankReconciliationResponse,
-  PolizaType
-} from '../../shared/types';
+import type { BankReconciliationResponse } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
 import { getCompanyById } from './companies.repo';
 import { insertMovementStmt, insertPolizaStmt, maxFolioQuery } from './polizas.repo';
@@ -33,23 +28,17 @@ export function createPolizaFromBankLineTransaction(
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
   const accounts = getAccounts(company.id);
-  const bankAcc =
-    accounts.find((a) => a.id === bLine.account_id) ??
-    resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL');
+  const plan = buildBankLinePolizaPlan({
+    accounts,
+    accountId: bLine.account_id,
+    cargoBanco: bLine.cargo_banco,
+    abonoBanco: bLine.abono_banco,
+    referencia: bLine.referencia,
+    descripcion: bLine.descripcion,
+    desglosarIva: options?.desglosarIva,
+    counterAccountCode: options?.counterAccountCode
+  });
 
-  const isWithdrawal = toCents(bLine.cargo_banco) > 0;
-  const amountCents = isWithdrawal ? toCents(bLine.cargo_banco) : toCents(bLine.abono_banco);
-  const desglosarIva = options?.desglosarIva !== undefined ? Boolean(options.desglosarIva) : true;
-
-  const counterAcc = isWithdrawal
-    ? resolveFiscalAccount(accounts, 'COMISIONES_BANCARIAS', options?.counterAccountCode)
-    : resolveFiscalAccount(accounts, 'INGRESOS_TASA_16', options?.counterAccountCode);
-
-  const ivaAcc = isWithdrawal
-    ? resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO')
-    : resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO');
-
-  const tipo: PolizaType = isWithdrawal ? 'EGRESO' : 'INGRESO';
   const lineYear = parseInt(bLine.fecha.slice(0, 4), 10) || company.currentYear;
   const linePeriod = parseInt(bLine.fecha.slice(5, 7), 10) || company.currentPeriod;
 
@@ -58,7 +47,7 @@ export function createPolizaFromBankLineTransaction(
 
   const maxRow = maxFolioQuery.get(
     company.id,
-    tipo,
+    plan.tipo,
     lineYear,
     linePeriod
   ) as { max_folio: number } | null;
@@ -67,14 +56,11 @@ export function createPolizaFromBankLineTransaction(
   const bankMovId = `${polizaId}_m_bank`;
   const now = new Date().toISOString();
 
-  const subtotalCents = desglosarIva ? Math.round(amountCents / 1.16) : amountCents;
-  const ivaCents = desglosarIva ? amountCents - subtotalCents : 0;
-
   const tx = db.transaction(() => {
     insertPolizaStmt.run(
       polizaId,
       company.id,
-      tipo,
+      plan.tipo,
       nextFolio,
       bLine.fecha,
       lineYear,
@@ -85,85 +71,21 @@ export function createPolizaFromBankLineTransaction(
       now
     );
 
-    if (isWithdrawal) {
+    plan.movements.forEach((mov, idx) => {
+      const movId = mov.isBankMovement ? bankMovId : `${polizaId}_m${idx + 1}`;
       insertMovementStmt.run(
-        `${polizaId}_m1`,
+        movId,
         polizaId,
-        counterAcc.id,
-        counterAcc.code,
-        counterAcc.name,
-        bLine.referencia,
-        bLine.descripcion,
-        fromCents(subtotalCents),
-        0,
+        mov.accountId,
+        mov.accountCode,
+        mov.accountName,
+        mov.referencia,
+        mov.concepto,
+        mov.cargo,
+        mov.abono,
         null
       );
-      if (ivaCents > 0) {
-        insertMovementStmt.run(
-          `${polizaId}_m2`,
-          polizaId,
-          ivaAcc.id,
-          ivaAcc.code,
-          ivaAcc.name,
-          bLine.referencia,
-          `IVA 16% ${bLine.referencia}`,
-          fromCents(ivaCents),
-          0,
-          null
-        );
-      }
-      insertMovementStmt.run(
-        bankMovId,
-        polizaId,
-        bankAcc.id,
-        bankAcc.code,
-        bankAcc.name,
-        bLine.referencia,
-        bLine.descripcion,
-        0,
-        fromCents(amountCents),
-        null
-      );
-    } else {
-      insertMovementStmt.run(
-        bankMovId,
-        polizaId,
-        bankAcc.id,
-        bankAcc.code,
-        bankAcc.name,
-        bLine.referencia,
-        bLine.descripcion,
-        fromCents(amountCents),
-        0,
-        null
-      );
-      insertMovementStmt.run(
-        `${polizaId}_m1`,
-        polizaId,
-        counterAcc.id,
-        counterAcc.code,
-        counterAcc.name,
-        bLine.referencia,
-        bLine.descripcion,
-        0,
-        fromCents(subtotalCents),
-        null
-      );
-      if (ivaCents > 0) {
-        insertMovementStmt.run(
-          `${polizaId}_m2`,
-          polizaId,
-          ivaAcc.id,
-          ivaAcc.code,
-          ivaAcc.name,
-          bLine.referencia,
-          `IVA 16% ${bLine.referencia}`,
-          0,
-          fromCents(ivaCents),
-          null
-        );
-      }
-    }
+    });
 
     db.prepare('UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ?').run(
       bankMovId,
@@ -178,7 +100,7 @@ export function createPolizaFromBankLineTransaction(
     createdPolizaId: polizaId,
     reconciliation: getBankReconciliation(
       company.id,
-      bankAcc.id,
+      plan.bankAcc.id,
       lineYear,
       linePeriod
     )

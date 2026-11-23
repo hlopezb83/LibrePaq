@@ -1,0 +1,322 @@
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient, invalidateAccountingQueries } from '../../../lib/api-client';
+import { useToast } from '../../../context/ToastContext';
+import { fileToBase64 } from './satSoapHelpers';
+
+export interface UseSatSoapFielManagerParams {
+  companyId: string;
+  companyRfc: string;
+  defaultStartDate: string;
+  defaultEndDate: string;
+  isDemoCompany?: boolean;
+  onDownloadSuccess?: (message: string) => void;
+}
+
+/**
+ * Encapsula la gestión de estado, consultas y mutaciones del panel de
+ * e.firma y Descarga Masiva SAT (SOAP CFDI 4.0).
+ */
+export function useSatSoapFielManager({
+  companyId,
+  companyRfc,
+  defaultStartDate,
+  defaultEndDate,
+  isDemoCompany,
+  onDownloadSuccess
+}: UseSatSoapFielManagerParams) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const cerInputRef = useRef<HTMLInputElement>(null);
+  const keyInputRef = useRef<HTMLInputElement>(null);
+
+  const [cerFileName, setCerFileName] = useState('');
+  const [keyFileName, setKeyFileName] = useState('');
+  const [cerBase64, setCerBase64] = useState('');
+  const [keyBase64, setKeyBase64] = useState('');
+  const [passphrase, setPassphrase] = useState('');
+  const [showChangeFiel, setShowChangeFiel] = useState(false);
+  const [tipoSolicitud, setTipoSolicitud] = useState<'RECIBIDOS' | 'EMITIDOS' | 'AMBOS'>('AMBOS');
+  const [fechaInicial, setFechaInicial] = useState(defaultStartDate);
+  const [fechaFinal, setFechaFinal] = useState(defaultEndDate);
+  const [modoEjecucion, setModoEjecucion] = useState<'SAT_LIVE' | 'SANDBOX_CRYPTO'>('SAT_LIVE');
+
+  const [panelFeedback, setPanelFeedback] = useState<string | null>(null);
+  const [panelError, setPanelError] = useState<string | null>(null);
+  const [generatedTestFiles, setGeneratedTestFiles] = useState<{
+    cerBase64: string;
+    keyBase64: string;
+    passphrase: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    setFechaInicial(defaultStartDate);
+    setFechaFinal(defaultEndDate > today ? today : defaultEndDate);
+  }, [defaultStartDate, defaultEndDate]);
+
+  useEffect(() => {
+    setCerFileName('');
+    setKeyFileName('');
+    setCerBase64('');
+    setKeyBase64('');
+    setPassphrase('');
+    setShowChangeFiel(false);
+    setPanelFeedback(null);
+    setPanelError(null);
+    setGeneratedTestFiles(null);
+  }, [companyId]);
+
+  const { data: fielStatus } = useQuery({
+    queryKey: ['fiel-status', companyId],
+    queryFn: () => apiClient.getFielStatus(companyId),
+    enabled: Boolean(companyId)
+  });
+
+  const { data: satRequests = [] } = useQuery({
+    queryKey: ['sat-requests', companyId],
+    queryFn: () => apiClient.getSatDownloadRequests(companyId),
+    enabled: Boolean(companyId),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasPending = data?.some(
+        (r) => r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO'
+      );
+      return hasPending ? 30000 : false;
+    }
+  });
+
+  const prevPendingIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const pendingSet = new Set(
+      satRequests
+        .filter((r) => r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO')
+        .map((r) => r.id)
+    );
+    for (const prevId of prevPendingIdsRef.current) {
+      if (!pendingSet.has(prevId)) {
+        const done = satRequests.find((r) => r.id === prevId && r.estadoSolicitud === 'TERMINADA');
+        if (done) {
+          toast.success(
+            '¡Descarga SAT Completada!',
+            `${done.cfdisDescargados || 0} comprobantes integrados a tu Bóveda ADD.`
+          );
+        }
+      }
+    }
+    prevPendingIdsRef.current = pendingSet;
+  }, [satRequests, toast]);
+
+  const verifyPendingMutation = useMutation({
+    mutationFn: () => apiClient.verifyPendingSatRequests(companyId),
+    onSuccess: (res) => {
+      invalidateAccountingQueries(queryClient, [
+        'cfdis',
+        'sat-requests',
+        'dashboard',
+        'fiscal-workpaper'
+      ]);
+      if (res.downloadedCount > 0) {
+        const msg = `¡Sincronización completada! ${res.downloadedCount} comprobante(s) integrados con éxito a la Bóveda ADD.`;
+        setPanelFeedback(msg);
+        toast.success('Sincronización SAT Exitosa', msg);
+      } else if (
+        res.rejectedCount &&
+        res.rejectedCount > 0 &&
+        (!res.pendingCount || res.pendingCount === 0)
+      ) {
+        const msg =
+          res.message ||
+          'El SAT reportó solicitud rechazada (Código 5: posible duplicidad o periodo ya descargado).';
+        setPanelError(msg);
+        toast.warning('Aviso del SAT', msg);
+      } else if (res.pendingCount && res.pendingCount > 0) {
+        setPanelFeedback(
+          'Verificación con el SAT: El paquete sigue preparándose en los servidores del SAT.'
+        );
+        toast.info('SAT en Proceso', 'El paquete sigue preparándose en los servidores del SAT.');
+      } else {
+        const msg = res.message || 'Verificación completada: sin solicitudes pendientes.';
+        setPanelFeedback(msg);
+        toast.info('Verificación SAT', msg);
+      }
+    },
+    onError: (err: Error) => {
+      const msg = `Error al verificar con el SAT: ${err.message}`;
+      setPanelError(msg);
+      toast.error('Error SAT', msg);
+    }
+  });
+
+  const saveFielMutation = useMutation({
+    mutationFn: () => apiClient.saveFielCredentials({ companyId, cerBase64, keyBase64, passphrase }),
+    onSuccess: (saved) => {
+      setPanelError(null);
+      setShowChangeFiel(false);
+      setPanelFeedback(
+        `e.firma de ${saved.nombreTitular || saved.rfcTitular} guardada y validada correctamente (Serie ${saved.numeroSerieCertificado}). Ya puedes descargar comprobantes.`
+      );
+      void queryClient.invalidateQueries({ queryKey: ['fiel-status', companyId] });
+    },
+    onError: (err: Error) => {
+      setPanelFeedback(null);
+      setPanelError(err.message);
+    }
+  });
+
+  const generateTestFielMutation = useMutation({
+    mutationFn: () => apiClient.generateTestFiel(companyId, passphrase || 'Contpaq2026'),
+    onSuccess: (res) => {
+      setPanelError(null);
+      setShowChangeFiel(false);
+      setGeneratedTestFiles(res.generatedFiles);
+      setCerBase64(res.generatedFiles.cerBase64);
+      setKeyBase64(res.generatedFiles.keyBase64);
+      setPassphrase(res.generatedFiles.passphrase);
+      setCerFileName(`${companyRfc}_efirma_sat.cer`);
+      setKeyFileName(`${companyRfc}_efirma_sat.key`);
+      setPanelFeedback(
+        `Certificados Demo generados e instalados para ${res.status.rfcTitular}. Ya puedes realizar descargas.`
+      );
+      void queryClient.invalidateQueries({ queryKey: ['fiel-status', companyId] });
+    },
+    onError: (err: Error) => {
+      setPanelFeedback(null);
+      setPanelError(err.message);
+    }
+  });
+
+  const soapDownloadMutation = useMutation({
+    mutationFn: async () => {
+      const exec = (tipo: 'RECIBIDOS' | 'EMITIDOS') =>
+        apiClient.executeSatSoapDownload({
+          companyId,
+          tipoSolicitud: tipo,
+          fechaInicial,
+          fechaFinal,
+          modoEjecucion,
+          isDemoCompany
+        });
+      if (tipoSolicitud === 'AMBOS') {
+        const rRec = await exec('RECIBIDOS');
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const rEmit = await exec('EMITIDOS');
+        return {
+          requestRecord: rEmit.requestRecord,
+          receivedRecord: rRec.requestRecord,
+          totalCount: rRec.downloadedCfdis.length + rEmit.downloadedCfdis.length,
+          tipoDescarga: 'AMBOS' as const
+        };
+      }
+      const res = await exec(tipoSolicitud);
+      return {
+        requestRecord: res.requestRecord,
+        totalCount: res.downloadedCfdis.length,
+        tipoDescarga: tipoSolicitud
+      };
+    },
+    onSuccess: (res) => {
+      setPanelError(null);
+      const desc =
+        res.tipoDescarga === 'AMBOS'
+          ? 'gastos e ingresos'
+          : res.tipoDescarga === 'EMITIDOS'
+            ? 'emitidas (ingresos)'
+            : 'recibidas (gastos)';
+      const msg = !isDemoCompany
+        ? res.requestRecord.mensajeSat ||
+          `Solicitud transmitida con Folio ${res.requestRecord.idSolicitudSat.slice(0, 8)}. El SAT está empaquetando tus facturas.`
+        : res.totalCount === 0
+          ? `Sincronización SAT al día: ${res.requestRecord.cfdisDescargados} comprobante(s) de ${desc} ya están en la Bóveda.`
+          : `Sincronización exitosa: ${res.totalCount} factura(s) ${desc} integradas a la Bóveda.`;
+      setPanelFeedback(msg);
+      invalidateAccountingQueries(queryClient, [
+        'cfdis',
+        'sat-requests',
+        'third-parties',
+        'dashboard',
+        'fiscal-workpaper'
+      ]);
+      onDownloadSuccess?.(msg);
+    },
+    onError: (err: Error) => {
+      setPanelFeedback(null);
+      setPanelError(err.message);
+    }
+  });
+
+  const handleCerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCerFileName(file.name);
+      setCerBase64(await fileToBase64(file));
+    }
+  };
+
+  const handleKeySelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setKeyFileName(file.name);
+      setKeyBase64(await fileToBase64(file));
+    }
+  };
+
+  const handleFilesDrop = async (files: File[]) => {
+    for (const file of files) {
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith('.cer') || lower.endsWith('.crt')) {
+        setCerFileName(file.name);
+        setCerBase64(await fileToBase64(file));
+      } else if (lower.endsWith('.key') || lower.endsWith('.der')) {
+        setKeyFileName(file.name);
+        setKeyBase64(await fileToBase64(file));
+      }
+    }
+  };
+
+  const handleVerifyPending = () => {
+    toast.info(
+      'Consultando al SAT...',
+      'Verificando estatus de empaquetado de comprobantes oficiales...'
+    );
+    verifyPendingMutation.mutate();
+  };
+
+  return {
+    cerInputRef,
+    keyInputRef,
+    cerFileName,
+    keyFileName,
+    cerBase64,
+    keyBase64,
+    passphrase,
+    setPassphrase,
+    showChangeFiel,
+    setShowChangeFiel,
+    tipoSolicitud,
+    setTipoSolicitud,
+    fechaInicial,
+    setFechaInicial,
+    fechaFinal,
+    setFechaFinal,
+    modoEjecucion,
+    setModoEjecucion,
+    panelFeedback,
+    setPanelFeedback,
+    panelError,
+    setPanelError,
+    generatedTestFiles,
+    fielStatus,
+    hasCredentials: Boolean(fielStatus?.hasCredentials),
+    satRequests,
+    verifyPendingMutation,
+    saveFielMutation,
+    generateTestFielMutation,
+    soapDownloadMutation,
+    handleCerSelect,
+    handleKeySelect,
+    handleFilesDrop,
+    handleVerifyPending
+  };
+}

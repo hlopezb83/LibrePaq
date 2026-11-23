@@ -4,9 +4,9 @@ import { createCompanyRecord, deleteCompanyRecord } from '../repositories/compan
 import {
   generateAndInstallTestFielForCompany,
   getFielCredentialStatus,
-  getSatDownloadRequests,
   saveFielCredentialsForCompany
-} from '../repositories/sat-fiel.repo';
+} from '../repositories/fiel-credentials.repo';
+import { getSatDownloadRequests } from '../repositories/sat-soap-download.service';
 import { generateTestFielCredentials } from '../sat-soap';
 import { db } from '../connection';
 

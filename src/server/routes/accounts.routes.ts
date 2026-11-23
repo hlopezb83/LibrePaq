@@ -80,6 +80,12 @@ accountsRoutes.delete('/accounts/:id', (c) => {
       400
     );
   }
+  if (res.hasChildren) {
+    return c.json(
+      { error: 'No se puede eliminar una cuenta que contiene subcuentas dependientes.' },
+      400
+    );
+  }
   if (!res.deleted) {
     return c.json({ error: 'Cuenta no encontrada.' }, 404);
   }

@@ -5,7 +5,7 @@ import { parseCalendarDate } from '../../shared/date-utils';
 import type { CfdiDocument, Poliza } from '../../shared/types';
 import { mapSupabasePoliza, assertSupabasePeriodOpen } from './supabase-polizas';
 import { fetchCompanyAccountsFromDb } from './supabase-mappers';
-import { fetchAllRows } from './supabase-pagination';
+import { chunkArray, fetchAllRows } from './supabase-pagination';
 import {
   buildParsedCfdiInsertRow,
   fetchCfdiPolizaLookup,
@@ -68,36 +68,56 @@ export const supabaseCfdi = {
     if (!supabase) throw new Error('Supabase no disponible');
     const xmlString = payload.xmlRaw || '';
     const parsed = xmlString ? parseCfdiXmlString(xmlString) : null;
-    const id = `cfdi_${Date.now().toString(36)}`;
+    const id = `cfdi_${crypto.randomUUID().slice(0, 12)}`;
+
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('rfc')
+      .eq('id', payload.companyId)
+      .maybeSingle();
+    const companyRfc = (comp?.rfc || '').toUpperCase();
+    const direction: 'EMITIDO' | 'RECIBIDO' =
+      parsed && companyRfc
+        ? parsed.emisorRfc.toUpperCase() === companyRfc
+          ? 'EMITIDO'
+          : 'RECIBIDO'
+        : payload.direction || 'EMITIDO';
+    const simSub = payload.subtotal || 0;
+    const simIva = Math.round(simSub * 16) / 100;
+    const simTotal = Math.max(
+      0,
+      Math.round((simSub + simIva - (payload.isrRetenido || 0) - (payload.ivaRetenido || 0)) * 100) / 100
+    );
 
     const { data, error } = await supabase
       .from('cfdi_documents')
       .insert({
         id,
         company_id: payload.companyId,
-        uuid: parsed?.uuid || `TEST-${Date.now()}`,
+        uuid: parsed?.uuid || crypto.randomUUID().toUpperCase(),
         fecha: parsed?.fecha || payload.fecha || new Date().toISOString().split('T')[0],
         tipo_comprobante: parsed?.tipoComprobante || payload.tipoComprobante || 'I',
-        direction: payload.direction || 'EMITIDO',
+        direction,
         serie: parsed?.serie || '',
         folio: parsed?.folio || '',
-        emisor_rfc: parsed?.emisorRfc || 'XAXX010101000',
+        emisor_rfc: parsed?.emisorRfc || (direction === 'EMITIDO' ? companyRfc || 'XAXX010101000' : payload.counterpartyRfc || 'XAXX010101000'),
         emisor_nombre: parsed?.emisorNombre || 'Empresa Emisora',
-        receptor_rfc: parsed?.receptorRfc || payload.counterpartyRfc || 'XAXX010101000',
+        receptor_rfc: parsed?.receptorRfc || (direction === 'RECIBIDO' ? companyRfc || 'XAXX010101000' : payload.counterpartyRfc || 'XAXX010101000'),
         receptor_nombre: parsed?.receptorNombre || payload.counterpartyName || 'Cliente General',
         concepto_principal: parsed?.conceptoPrincipal || payload.conceptoPrincipal || 'Factura general',
         clave_prod_serv: parsed?.claveProdServ || '01010101',
         moneda: parsed?.moneda || 'MXN',
         tipo_cambio: parsed?.tipoCambio || 1,
-        subtotal: parsed?.subtotal || payload.subtotal || 0,
+        subtotal: parsed?.subtotal ?? simSub,
         descuento: parsed?.descuento || 0,
-        iva_trasladado: parsed?.ivaTrasladado || 0,
-        isr_retenido: parsed?.isrRetenido || payload.isrRetenido || 0,
-        iva_retenido: parsed?.ivaRetenido || payload.ivaRetenido || 0,
-        total: parsed?.total || (payload.subtotal || 0) * 1.16,
+        iva_trasladado: parsed?.ivaTrasladado ?? simIva,
+        isr_retenido: parsed?.isrRetenido ?? (payload.isrRetenido || 0),
+        iva_retenido: parsed?.ivaRetenido ?? (payload.ivaRetenido || 0),
+        total: parsed?.total ?? simTotal,
         metodo_pago: parsed?.metodoPago || payload.metodoPago || 'PUE',
         forma_pago: parsed?.formaPago || '03',
         uso_cfdi: parsed?.usoCfdi || 'G03',
+        uuid_relacionado: parsed?.uuidRelacionado || payload.uuidRelacionado || null,
         status_sat: 'VIGENTE',
         xml_raw: xmlString
       })
@@ -135,13 +155,18 @@ export const supabaseCfdi = {
     if (parsedItems.length === 0) return { uploaded: [], skippedDuplicates: 0 };
 
     const uuids = Array.from(new Set(parsedItems.map((p) => p.parsed.uuid)));
-    const { data: existingRows } = await supabase
-      .from('cfdi_documents')
-      .select('uuid')
-      .eq('company_id', companyId)
-      .in('uuid', uuids);
-
-    const existingSet = new Set((existingRows || []).map((r: { uuid: string }) => r.uuid));
+    const existingSet = new Set<string>();
+    for (const uuidChunk of chunkArray(uuids, 150)) {
+      const { data: existingRows, error: exErr } = await supabase
+        .from('cfdi_documents')
+        .select('uuid')
+        .eq('company_id', companyId)
+        .in('uuid', uuidChunk);
+      if (exErr) throw new Error(exErr.message);
+      for (const r of (existingRows || []) as Array<{ uuid: string }>) {
+        existingSet.add(r.uuid);
+      }
+    }
     const toInsert = [];
 
     for (const item of parsedItems) {
@@ -152,16 +177,17 @@ export const supabaseCfdi = {
       }
       existingSet.add(parsed.uuid);
       const direction = (companyRfc && parsed.emisorRfc.toUpperCase() === companyRfc) ? 'EMITIDO' : 'RECIBIDO';
-      const id = `cfdi_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      const id = `cfdi_${crypto.randomUUID().slice(0, 12)}`;
       toInsert.push(buildParsedCfdiInsertRow(id, companyId, parsed, direction, xmlRaw));
     }
 
-    if (toInsert.length > 0) {
+    for (const insertChunk of chunkArray(toInsert, 100)) {
       const { data: insertedRows, error } = await supabase
         .from('cfdi_documents')
-        .insert(toInsert)
+        .insert(insertChunk)
         .select();
-      if (!error && insertedRows) {
+      if (error) throw new Error(error.message);
+      if (insertedRows) {
         uploaded.push(...insertedRows.map((r) => mapSupabaseCfdi(r)));
       }
     }
@@ -215,7 +241,7 @@ export const supabaseCfdi = {
 
     const { year, month: period } = parseCalendarDate(cfdi.fecha);
     await assertSupabasePeriodOpen(cfdi.companyId, year, period);
-    const polizaId = `pol_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const polizaId = `pol_${crypto.randomUUID().slice(0, 12)}`;
 
     const { data: maxRows } = await supabase
       .from('polizas')
@@ -259,7 +285,11 @@ export const supabaseCfdi = {
       }
     }
 
-    await supabase.from('cfdi_documents').update({ poliza_id: polizaId }).eq('id', cfdiId);
+    const { error: linkErr } = await supabase.from('cfdi_documents').update({ poliza_id: polizaId }).eq('id', cfdiId);
+    if (linkErr) {
+      await supabase.from('polizas').delete().eq('id', polizaId);
+      throw new Error(linkErr.message);
+    }
 
     return mapSupabasePoliza(polizaData, movementsToInsert);
   },

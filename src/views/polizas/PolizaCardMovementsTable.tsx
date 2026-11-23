@@ -74,7 +74,7 @@ export function PolizaCardMovementsTable({
       </table>
 
       {/* Bloques de firmas contables para impresión y auditoría */}
-      <div className="px-4 sm:px-6 py-3 bg-slate-50/60 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 text-center text-[11px] text-slate-500">
+      <div className="px-4 sm:px-6 py-3 bg-slate-50/60 border-t border-slate-200 hidden print:grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 text-center text-[11px] text-slate-500">
         <div className="pt-4 border-t border-slate-300">
           <strong className="text-slate-700 block">ELABORÓ</strong>
           <span>Auxiliar / Contador General</span>

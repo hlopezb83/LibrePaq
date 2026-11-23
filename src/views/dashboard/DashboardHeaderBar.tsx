@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { Clock, FileCode2, Printer, ReceiptText, Sparkles } from 'lucide-react';
-import { MESES_SAT } from '../../shared/sat-catalog';
+import { MESES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
 
 export interface DashboardHeaderBarProps {

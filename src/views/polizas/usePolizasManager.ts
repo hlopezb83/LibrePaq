@@ -43,6 +43,7 @@ export function usePolizasManager() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [ledgerAccountId, setLedgerAccountId] = useState<string | null>(null);
   const [copiedPolizaId, setCopiedPolizaId] = useState<string | null>(null);
+  const [isPedimentoModalOpen, setIsPedimentoModalOpen] = useState(false);
 
   useEffect(() => {
     if (urlSearchParam) {
@@ -73,7 +74,7 @@ export function usePolizasManager() {
   const [cfdiUuid, setCfdiUuid] = useState('');
 
   // Queries
-  const { data: polizas = [], isLoading } = useQuery({
+  const { data: polizas = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['polizas', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getPolizas(activeCompanyId, currentYear ?? 2026, currentPeriod ?? 10),
     enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
@@ -131,7 +132,12 @@ export function usePolizasManager() {
     resetDraftMovements();
   }, [activeCompanyId]);
 
-  const { savePolizaMutation, deletePolizaMutation, closeYearMutation } = usePolizasMutations({
+  const {
+    savePolizaMutation,
+    deletePolizaMutation,
+    closeYearMutation,
+    createPedimentoMutation
+  } = usePolizasMutations({
     activeCompanyId,
     currentYear,
     currentPeriod,
@@ -142,7 +148,9 @@ export function usePolizasManager() {
     concepto,
     cfdiUuid,
     movements,
+    accounts,
     dialogRef,
+    onPedimentoSuccess: () => setIsPedimentoModalOpen(false),
     setFormError,
     setConfirmDeleteId
   });
@@ -167,10 +175,10 @@ export function usePolizasManager() {
     const defaultAcc1 = affectableAccounts[0]?.id || '';
     const defaultAcc2 = affectableAccounts[1]?.id || defaultAcc1;
     setMovements([
-      { accountId: defaultAcc1, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 },
-      { accountId: defaultAcc2, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 }
+      { _rowId: crypto.randomUUID(), accountId: defaultAcc1, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 },
+      { _rowId: crypto.randomUUID(), accountId: defaultAcc2, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 }
     ]);
-    dialogRef.current?.showModal();
+    if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
   }, [defaultPeriodDate, affectableAccounts]);
 
   const openEditPolizaModal = useCallback((pol: Poliza) => {
@@ -182,6 +190,7 @@ export function usePolizasManager() {
     setFormError(null);
     setMovements(
       pol.movements.map((m) => ({
+        _rowId: m.id || crypto.randomUUID(),
         accountId: m.accountId,
         referencia: m.referencia,
         concepto: m.concepto,
@@ -189,7 +198,7 @@ export function usePolizasManager() {
         abono: m.abono
       }))
     );
-    dialogRef.current?.showModal();
+    if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
   }, []);
 
   const openDuplicatePolizaModal = (pol: Poliza) => {
@@ -201,6 +210,7 @@ export function usePolizasManager() {
     setFormError(null);
     setMovements(
       pol.movements.map((m) => ({
+        _rowId: crypto.randomUUID(),
         accountId: m.accountId,
         referencia: m.referencia,
         concepto: m.concepto,
@@ -208,14 +218,29 @@ export function usePolizasManager() {
         abono: m.abono
       }))
     );
-    dialogRef.current?.showModal();
+    if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     toast.info('Póliza Duplicada', 'Revisa los importes y fecha antes de guardar.');
   };
 
   const handleCopyPoliza = (pol: Poliza) => {
-    openDuplicatePolizaModal(pol);
-    setCopiedPolizaId(pol.id);
-    setTimeout(() => setCopiedPolizaId(null), 2500);
+    const lines = [
+      `PÓLIZA ${pol.tipo} #${pol.folio} | Fecha: ${pol.fecha}`,
+      `Concepto: ${pol.concepto}`,
+      ...pol.movements.map(
+        (m) => `  ${m.accountCode} ${m.accountName} | Debe: ${m.cargo.toFixed(2)} | Haber: ${m.abono.toFixed(2)}`
+      ),
+      `Sumas Iguales: Debe ${pol.totalCargos.toFixed(2)} | Haber ${pol.totalAbonos.toFixed(2)}`
+    ].join('\n');
+    navigator.clipboard
+      ?.writeText(lines)
+      .then(() => {
+        setCopiedPolizaId(pol.id);
+        toast.success('Asiento copiado al portapapeles');
+        setTimeout(() => setCopiedPolizaId((prev) => (prev === pol.id ? null : prev)), 2500);
+      })
+      .catch(() => {
+        toast.error('No se pudo copiar al portapapeles');
+      });
   };
 
   const handleSelectCfdiForForm = (uuid: string) => {
@@ -229,6 +254,7 @@ export function usePolizasManager() {
     setConcepto(plan.polizaConcept);
     setMovements(
       plan.movements.map((m) => ({
+        _rowId: crypto.randomUUID(),
         accountId: m.accountId,
         referencia: m.referencia,
         concepto: m.concepto,
@@ -278,7 +304,7 @@ export function usePolizasManager() {
 
   return {
     activeCompany, activeCompanyId, currentYear, currentPeriod, isPeriodLocked, dialogRef,
-    polizas, filteredPolizas, filteredPolizasTotals, isLoading,
+    polizas, filteredPolizas, filteredPolizasTotals, isLoading, isError, error, refetch,
     filterTipo, setFilterTipo, originFilter, setOriginFilter,
     searchQuery, setSearchQuery, compactMode, setCompactMode,
     expandedIds, setExpandedIds, confirmDeleteId, setConfirmDeleteId,
@@ -286,7 +312,8 @@ export function usePolizasManager() {
     tipo, setTipo, fecha, setFecha, concepto, setConcepto,
     cfdiUuid, formError, setFormError, accounts, affectableAccounts, pendingCfdis,
     predictedNextFolio, isDateDifferentPeriod, savePolizaMutation, deletePolizaMutation,
-    closeYearMutation, openNewPolizaModal, openEditPolizaModal, openDuplicatePolizaModal,
+    closeYearMutation, createPedimentoMutation, isPedimentoModalOpen, setIsPedimentoModalOpen,
+    openNewPolizaModal, openEditPolizaModal, openDuplicatePolizaModal,
     handleCopyPoliza, handleSelectCfdiForForm, handleExportPolizasCsv,
     ...draft
   };

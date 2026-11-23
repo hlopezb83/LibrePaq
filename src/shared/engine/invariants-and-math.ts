@@ -31,8 +31,8 @@ export function assertAccountingInvariant(
  */
 export function toCents(amount: number | undefined | null): number {
   const num = Number(amount ?? 0);
-  if (!Number.isFinite(num)) return 0;
-  return Math.round(num * 100);
+  if (!Number.isFinite(num) || num === 0) return 0;
+  return Math.sign(num) * Math.round((Math.abs(num) + Number.EPSILON) * 100);
 }
 
 export function fromCents(cents: number): number {
@@ -41,8 +41,7 @@ export function fromCents(cents: number): number {
 
 export function sumCents(values: readonly number[]): number {
   let total = 0;
-  const bound = Math.min(values.length, SAFETY_BOUNDS.MAX_CSV_ROWS);
-  for (let i = 0; i < bound; i += 1) {
+  for (let i = 0; i < values.length; i += 1) {
     total += toCents(values[i]);
   }
   return total;

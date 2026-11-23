@@ -58,20 +58,28 @@ export function LandingFaqSection() {
               className="rounded-xl border border-slate-200 bg-white overflow-hidden transition-all shadow-xs"
             >
               <button
+                id={`faq-btn-${idx}`}
                 type="button"
                 aria-expanded={openFaq === idx}
+                aria-controls={`faq-panel-${idx}`}
                 onClick={() => toggleFaq(idx)}
                 className="w-full py-4 px-6 text-left flex items-center justify-between gap-4 font-semibold text-slate-900 hover:text-blue-600 transition cursor-pointer"
               >
                 <span className="text-base text-balance">{item.q}</span>
                 <ChevronDown
-                  className={`w-5 h-5 text-slate-400 shrink-0 transition-transform ${
+                  aria-hidden="true"
+                  className={`w-5 h-5 text-slate-500 shrink-0 transition-transform ${
                     openFaq === idx ? 'rotate-180 text-blue-600' : ''
                   }`}
                 />
               </button>
               {openFaq === idx && (
-                <div className="px-6 pb-5 pt-1 text-sm text-slate-600 leading-relaxed border-t border-slate-100 text-pretty">
+                <div
+                  id={`faq-panel-${idx}`}
+                  role="region"
+                  aria-labelledby={`faq-btn-${idx}`}
+                  className="px-6 pb-5 pt-1 text-sm text-slate-600 leading-relaxed border-t border-slate-100 text-pretty"
+                >
                   {item.a}
                 </div>
               )}

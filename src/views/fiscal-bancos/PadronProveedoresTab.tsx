@@ -1,7 +1,9 @@
 import {
+  AlertCircle,
   AlertTriangle,
   CheckCircle2,
   Plus,
+  RefreshCw,
   ShieldAlert,
   ShieldCheck,
   Users
@@ -11,10 +13,17 @@ import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import { Importar69BModal } from './Importar69BModal';
 import { usePadronProveedores } from './usePadronProveedores';
 
+const EFOS_LABELS: Record<Efos69BStatus, string> = {
+  LIMPIO: '69-B Limpio',
+  PRESUNTO_EFOS: 'Presunto EFOS',
+  DEFINITIVO_EFOS: 'Definitivo EFOS',
+  DESVIRTUADO: 'Desvirtuado'
+};
+
 export interface PadronProveedoresTabProps {
   companyId: string;
   accounts: AccountWithBalance[];
-  onFeedback: (msg: string) => void;
+  onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export function PadronProveedoresTab({
@@ -26,6 +35,8 @@ export function PadronProveedoresTab({
     affectableAccounts,
     thirdParties,
     loadingTp,
+    isErrorTp,
+    refetchTp,
     tpRfc,
     tpNombre,
     setTpNombre,
@@ -86,11 +97,11 @@ export function PadronProveedoresTab({
                 <div className="flex items-center gap-1">
                   {tpRfcRes.isValidCheckDigit ? (
                     <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-0.5">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> M11 OK
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" /> M11 OK
                     </span>
                   ) : (
                     <span className="text-[10px] font-bold text-amber-800 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3 text-amber-600" /> M11: {tpRfcRes.expectedCheckDigit}
+                      <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" /> M11: {tpRfcRes.expectedCheckDigit}
                       {tpRfcRes.expectedRfc && (
                         <button
                           type="button"
@@ -209,26 +220,49 @@ export function PadronProveedoresTab({
           </div>
         </form>
 
-        {loadingTp ? (
-          <div className="p-8 text-center text-xs text-slate-500">
+        {isErrorTp ? (
+          <div role="alert" className="p-6 text-center rounded-xl border border-red-200 bg-red-50/70 space-y-2.5">
+            <AlertCircle className="w-6 h-6 text-red-600 mx-auto" aria-hidden="true" />
+            <p className="text-xs font-bold text-red-900">Error al cargar el padrón fiscal de terceros</p>
+            <button
+              type="button"
+              onClick={() => void refetchTp()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white text-xs font-bold cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Reintentar
+            </button>
+          </div>
+        ) : loadingTp ? (
+          <div role="status" aria-live="polite" aria-busy="true" className="p-8 text-center text-xs text-slate-500">
             Cargando padrón fiscal de terceros...
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
+              <caption className="visually-hidden">
+                Padrón fiscal de proveedores, clientes y verificación 69-B SAT
+              </caption>
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                  <th className="py-2.5 px-3">RFC</th>
-                  <th className="py-2.5 px-3">Razón Social</th>
-                  <th className="py-2.5 px-3">Rol</th>
-                  <th className="py-2.5 px-3">Cuenta Asignada</th>
-                  <th className="py-2.5 px-3">Contrapartida</th>
-                  <th className="py-2.5 px-3">IVA / DIOT</th>
-                  <th className="py-2.5 px-3 text-center">Estatus 69-B SAT</th>
+                  <th scope="col" className="py-2.5 px-3">RFC</th>
+                  <th scope="col" className="py-2.5 px-3">Razón Social</th>
+                  <th scope="col" className="py-2.5 px-3">Rol</th>
+                  <th scope="col" className="py-2.5 px-3">Cuenta Asignada</th>
+                  <th scope="col" className="py-2.5 px-3">Contrapartida</th>
+                  <th scope="col" className="py-2.5 px-3">IVA / DIOT</th>
+                  <th scope="col" className="py-2.5 px-3 text-center">Estatus 69-B SAT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-xs">
-                {thirdParties.map((tp) => {
+                {thirdParties.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                      No hay proveedores o clientes registrados aún en el padrón fiscal.
+                    </td>
+                  </tr>
+                ) : (
+                  thirdParties.map((tp) => {
                   const tpCheck = validateRfcModulo11(tp.rfc);
                   return (
                     <tr key={tp.id} className="hover:bg-blue-50/30">
@@ -278,13 +312,13 @@ export function PadronProveedoresTab({
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-900 border border-red-300">
                             <ShieldAlert className="w-3 h-3" aria-hidden="true" />
-                            {tp.estatus69B}
+                            {EFOS_LABELS[tp.estatus69B] ?? tp.estatus69B}
                           </span>
                         )}
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

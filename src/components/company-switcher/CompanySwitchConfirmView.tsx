@@ -20,7 +20,7 @@ export function CompanySwitchConfirmView({
   setHasAcknowledged
 }: CompanySwitchConfirmViewProps) {
   return (
-    <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+    <div className="flex-1 min-h-0 p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-4">
       {/* Comparativa Visual De -> A */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">

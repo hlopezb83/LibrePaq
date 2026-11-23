@@ -75,7 +75,7 @@ export function BankBookMovementsTable({ reconData }: BankBookMovementsTableProp
                       Cruzado con Banco
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200/80 text-slate-800 border border-slate-300">
                       En Tránsito
                     </span>
                   )}

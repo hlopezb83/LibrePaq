@@ -24,7 +24,7 @@ export function DossierEntregablesTab({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
-              <FileCheck2 className="w-3.5 h-3.5" />
+              <FileCheck2 className="w-3.5 h-3.5" aria-hidden="true" />
               Dossier Oficial de Entregables
             </span>
             <h2 className="text-xl font-bold text-white tracking-tight">
@@ -41,7 +41,7 @@ export function DossierEntregablesTab({
               onClick={onOpenDeliverablesModal}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-md transition cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4" aria-hidden="true" />
               <span>Abrir Centro de Impresión / PDF</span>
             </button>
           </div>
@@ -72,8 +72,10 @@ export function DossierEntregablesTab({
             <p className="text-xs text-slate-500 mt-0.5">NIF B-3 Integral con Análisis %</p>
           </div>
           <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between">
-            <span>Utilidad Neta:</span>
-            <strong className="text-slate-900">{formatCurrency(incomeStatement.utilidadNeta)}</strong>
+            <span>{incomeStatement.utilidadNeta < 0 ? 'Pérdida Neta:' : 'Utilidad Neta:'}</span>
+            <strong className={incomeStatement.utilidadNeta < 0 ? 'text-red-700' : 'text-slate-900'}>
+              {formatCurrency(incomeStatement.utilidadNeta)}
+            </strong>
           </div>
         </div>
 

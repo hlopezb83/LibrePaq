@@ -1,29 +1,33 @@
 import React, { Suspense, lazy } from 'react';
 import type { Company, AccountWithBalance, Poliza } from '../../shared/types';
-import type { CommandPaletteNavItem } from '../CommandPaletteModal';
+import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 import type { ToastContextType } from '../../context/ToastContext';
 import { useUIModal } from '../../context/UIModalContext';
 
 const CommandPaletteModal = lazy(() =>
-  import('../CommandPaletteModal').then((m) => ({ default: m.CommandPaletteModal }))
+  import('../command-palette/CommandPaletteModal').then((m) => ({ default: m.CommandPaletteModal }))
 );
 const CompanySwitcherModal = lazy(() =>
-  import('../CompanySwitcherModal').then((m) => ({ default: m.CompanySwitcherModal }))
+  import('../company-switcher/CompanySwitcherModal').then((m) => ({ default: m.CompanySwitcherModal }))
 );
 const AuthModal = lazy(() =>
-  import('../AuthModal').then((m) => ({ default: m.AuthModal }))
+  import('../auth/AuthModal').then((m) => ({ default: m.AuthModal }))
 );
 const AccountLedgerModal = lazy(() =>
-  import('../AccountLedgerModal').then((m) => ({ default: m.AccountLedgerModal }))
+  import('../account-ledger/AccountLedgerModal').then((m) => ({ default: m.AccountLedgerModal }))
 );
 const CompanyOnboardingWizardModal = lazy(() =>
-  import('../CompanyOnboardingWizardModal').then((m) => ({ default: m.CompanyOnboardingWizardModal }))
+  import('../onboarding/CompanyOnboardingWizardModal').then((m) => ({
+    default: m.CompanyOnboardingWizardModal
+  }))
 );
 const KeyboardShortcutsModal = lazy(() =>
-  import('../KeyboardShortcutsModal').then((m) => ({ default: m.KeyboardShortcutsModal }))
+  import('../keyboard-shortcuts/KeyboardShortcutsModal').then((m) => ({
+    default: m.KeyboardShortcutsModal
+  }))
 );
 const ExecutiveDeliverablePackageModal = lazy(() =>
-  import('../ExecutiveDeliverablePackageModal').then((m) => ({
+  import('../deliverables/ExecutiveDeliverablePackageModal').then((m) => ({
     default: m.ExecutiveDeliverablePackageModal
   }))
 );

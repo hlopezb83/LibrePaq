@@ -170,18 +170,18 @@ export function AjustesDirectorioTab({
                         </span>
                         {isCurrent && (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shrink-0">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />
                             Activa en Uso
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 line-clamp-1">
+                      <p className="text-xs text-slate-600 line-clamp-1">
                         {c.regimenFiscal}
                       </p>
                     </div>
 
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-slate-50 border-slate-200 text-slate-600">
-                      <Building2 className="w-4 h-4" />
+                      <Building2 className="w-4 h-4" aria-hidden="true" />
                     </div>
                   </div>
 
@@ -271,8 +271,13 @@ export function AjustesDirectorioTab({
 
       {/* Confirmación protegida de baja de una empresa */}
       {(companyPendingDelete || (confirmDeleteCompany && companies.length > 1 && activeCompany)) && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs space-y-2">
-          <div className="flex items-center gap-2 text-red-900 font-bold">
+        <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby="confirm-delete-company-title"
+          className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs space-y-2"
+        >
+          <div id="confirm-delete-company-title" className="flex items-center gap-2 text-red-900 font-bold">
             <AlertTriangle className="w-4 h-4 text-red-700" aria-hidden="true" />
             <span>
               Confirmar baja definitiva de &ldquo;

@@ -44,11 +44,10 @@ export function computeDiotReportData({
       (c.metodoPago === 'PUE' || c.tipoComprobante === 'P' || c.tipoComprobante === 'E')
   );
 
-  const byRfc = new Map<string, InternalDiotRow>();
+  const byRfcOp = new Map<string, InternalDiotRow>();
 
   for (const doc of paidRecibidos) {
     const rfc = doc.emisorRfc.toUpperCase();
-    const existing = byRfc.get(rfc);
     const concLower = doc.conceptoPrincipal.toLowerCase();
     let tipoOperacion: '03' | '06' | '85' = '85';
     if (concLower.includes('renta') || concLower.includes('arrendamiento')) {
@@ -60,6 +59,8 @@ export function computeDiotReportData({
     ) {
       tipoOperacion = '03';
     }
+    const groupKey = `${rfc}::${tipoOperacion}`;
+    const existing = byRfcOp.get(groupKey);
 
     const tc =
       doc.moneda && doc.moneda !== 'MXN' && (doc.tipoCambio || 1) > 0
@@ -81,15 +82,15 @@ export function computeDiotReportData({
       rfc === 'XEXX010101000' || rfc.startsWith('XEXX') ? '05' : '04';
 
     if (!existing) {
-      byRfc.set(rfc, {
+      byRfcOp.set(groupKey, {
         rfc,
         nombre: doc.emisorNombre,
         tipoTercero,
         tipoOperacion,
         actosPagados16: fromCents(toCents(subtotal16)),
         ivaAcreditable16: fromCents(toCents(isCreditNote ? -ivaTrasladadoMxn : ivaTrasladadoMxn)),
-        ivaRetenido: fromCents(toCents(ivaRetenidoMxn)),
-        isrRetenido: fromCents(toCents(isrRetenidoMxn)),
+        ivaRetenido: fromCents(toCents(isCreditNote ? -ivaRetenidoMxn : ivaRetenidoMxn)),
+        isrRetenido: fromCents(toCents(isCreditNote ? -isrRetenidoMxn : isrRetenidoMxn)),
         totalPagado: fromCents(toCents(isCreditNote ? -totalMxn : totalMxn)),
         cfdiCount: 1,
         batchLine: '',
@@ -105,10 +106,10 @@ export function computeDiotReportData({
         toCents(existing.ivaAcreditable16) + toCents(isCreditNote ? -ivaTrasladadoMxn : ivaTrasladadoMxn)
       );
       existing.ivaRetenido = fromCents(
-        toCents(existing.ivaRetenido) + toCents(ivaRetenidoMxn)
+        toCents(existing.ivaRetenido) + toCents(isCreditNote ? -ivaRetenidoMxn : ivaRetenidoMxn)
       );
       existing.isrRetenido = fromCents(
-        toCents(existing.isrRetenido) + toCents(isrRetenidoMxn)
+        toCents(existing.isrRetenido) + toCents(isCreditNote ? -isrRetenidoMxn : isrRetenidoMxn)
       );
       existing.totalPagado = fromCents(
         toCents(existing.totalPagado) + toCents(isCreditNote ? -totalMxn : totalMxn)
@@ -120,7 +121,7 @@ export function computeDiotReportData({
     }
   }
 
-  const rows: DiotSupplierRow[] = Array.from(byRfc.values()).map((r) => {
+  const rows: DiotSupplierRow[] = Array.from(byRfcOp.values()).map((r) => {
     const baseRounded = Math.round(r.actosPagados16);
     const ivaRetRounded = Math.round(r.ivaRetenido);
     // SAT DEM Formato A-29: 20 campos delimitados por 19 plecas (|), sin plecas externas

@@ -8,12 +8,11 @@ import {
 import {
   ArrowDown,
   ArrowUp,
-  ArrowUpDown,
-  CheckCircle2,
-  Search
+  ArrowUpDown
 } from 'lucide-react';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import { balanzaTableFeatures, useBalanzaColumns } from './useBalanzaColumns';
+import { BalanzaToolbar, type BalanzaLevelScope } from './BalanzaToolbar';
 import { BalanzaTotalsFooter } from './BalanzaTotalsFooter';
 
 interface BalanzaTabProps {
@@ -31,20 +30,32 @@ export function BalanzaTab({
   mesNombre,
   onSelectAccount
 }: BalanzaTabProps) {
-  const [levelScope, setLevelScope] = useState<'ALL' | 'MAYOR' | 'SUBCUENTAS' | 'AFECTABLES'>('ALL');
+  const [levelScope, setLevelScope] = useState<BalanzaLevelScope>('ALL');
   const [hideZeroBalances, setHideZeroBalances] = useState(false);
   const [balanzaSearch, setBalanzaSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  const zeroCount = useMemo(() => {
-    return trialBalance.filter(
-      (r) =>
+  const { zeroCount, trialDiff } = useMemo(() => {
+    let zeros = 0;
+    let cargos = 0;
+    let abonos = 0;
+    for (const r of trialBalance) {
+      if (
         Math.abs(r.initialBalanceComputed) < 0.01 &&
         Math.abs(r.periodCharges) < 0.01 &&
         Math.abs(r.periodCredits) < 0.01 &&
         Math.abs(r.finalBalance) < 0.01
-    ).length;
+      ) {
+        zeros += 1;
+      }
+      if (r.isAffectable) {
+        cargos += r.periodCharges;
+        abonos += r.periodCredits;
+      }
+    }
+    return { zeroCount: zeros, trialDiff: Math.abs(cargos - abonos) };
   }, [trialBalance]);
+  const isTrialBalanced = trialDiff < 0.01;
 
   const balanzaRows = useMemo(() => {
     return trialBalance.filter((r) => {
@@ -131,70 +142,22 @@ export function BalanzaTab({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
-      <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-            Sumas Iguales Verificadas ✔
-          </span>
-          <div className="relative w-56 sm:w-64 no-print">
-            <Search
-              className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              value={balanzaSearch}
-              onChange={(e) => setBalanzaSearch(e.target.value)}
-              aria-label="Buscar cuenta o agrupador SAT en la balanza"
-              placeholder="Buscar cuenta o agrupador SAT..."
-              className="w-full pl-8 pr-3 py-1 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-600 bg-white"
-            />
-          </div>
-        </div>
+      <BalanzaToolbar
+        isTrialBalanced={isTrialBalanced}
+        trialDiff={trialDiff}
+        balanzaSearch={balanzaSearch}
+        onSearchChange={setBalanzaSearch}
+        levelScope={levelScope}
+        onLevelScopeChange={setLevelScope}
+        hideZeroBalances={hideZeroBalances}
+        onToggleHideZero={setHideZeroBalances}
+        zeroCount={zeroCount}
+      />
 
-        <div className="flex flex-wrap items-center gap-3 no-print max-w-full overflow-x-auto">
-          <div
-            className="inline-flex items-center rounded-xl bg-slate-200/70 p-0.5 border border-slate-300 text-xs shadow-2xs shrink-0"
-            role="group"
-            aria-label="Filtrar por nivel contable"
-          >
-            {[
-              { id: 'ALL' as const, label: 'Todas' },
-              { id: 'MAYOR' as const, label: 'Solo Mayor (N1)' },
-              { id: 'SUBCUENTAS' as const, label: 'Hasta N2' },
-              { id: 'AFECTABLES' as const, label: 'Afectables (N3)' }
-            ].map((lvl) => (
-              <button
-                key={lvl.id}
-                type="button"
-                aria-pressed={levelScope === lvl.id}
-                onClick={() => setLevelScope(lvl.id)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
-                  levelScope === lvl.id
-                    ? 'bg-white text-blue-900 shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {lvl.label}
-              </button>
-            ))}
-          </div>
-
-          <label htmlFor="balanza-hide-zero" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
-            <input
-              id="balanza-hide-zero"
-              type="checkbox"
-              checked={hideZeroBalances}
-              onChange={(e) => setHideZeroBalances(e.target.checked)}
-              className="rounded text-blue-700"
-            />
-            <span>Ocultar saldo $0.00 {zeroCount > 0 && `(${zeroCount})`}</span>
-          </label>
-        </div>
-      </div>
-
-      <div ref={parentRef} className="overflow-auto max-h-[480px] rounded-xl border border-slate-200 shadow-2xs">
+      <div
+        ref={parentRef}
+        className="overflow-auto max-h-[min(480px,55dvh)] rounded-xl border border-slate-200 shadow-2xs"
+      >
         <table className="w-full text-left border-collapse erp-sticky-table">
           <caption className="visually-hidden">
             Balanza de comprobación de {company.name} en {mesNombre} {ejercicio}
@@ -212,31 +175,47 @@ export function BalanzaTab({
                     <th
                       key={header.id}
                       scope="col"
-                      className={`py-3 px-4 ${
+                      aria-sort={
                         isSortable
-                          ? 'cursor-pointer select-none hover:bg-slate-100 transition'
-                          : ''
-                      }`}
-                      onClick={isSortable ? header.column.getToggleSortingHandler() : undefined}
+                          ? sorted === 'asc'
+                            ? 'ascending'
+                            : sorted === 'desc'
+                            ? 'descending'
+                            : 'none'
+                          : undefined
+                      }
+                      className="py-3 px-4"
                     >
-                      <div className="flex items-center gap-1.5">
-                        <span>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
-                        </span>
-                        {isSortable && (
-                          <span className="text-slate-400">
+                      {isSortable ? (
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="w-full flex items-center gap-1.5 uppercase tracking-wider font-bold text-left hover:text-blue-800 transition cursor-pointer"
+                        >
+                          <span className="flex-1">
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(header.column.columnDef.header, header.getContext())}
+                          </span>
+                          <span className="text-slate-400 shrink-0" aria-hidden="true">
                             {sorted === 'asc' ? (
-                              <ArrowUp className="w-3.5 h-3.5 text-blue-700" />
+                              <ArrowUp className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
                             ) : sorted === 'desc' ? (
-                              <ArrowDown className="w-3.5 h-3.5 text-blue-700" />
+                              <ArrowDown className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                              <ArrowUpDown className="w-3 h-3 text-slate-400" aria-hidden="true" />
                             )}
                           </span>
-                        )}
-                      </div>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span>
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(header.column.columnDef.header, header.getContext())}
+                          </span>
+                        </div>
+                      )}
                     </th>
                   );
                 })}
@@ -244,46 +223,69 @@ export function BalanzaTab({
             ))}
           </thead>
           <tbody className="divide-y divide-slate-200 text-xs">
-            {paddingTop > 0 && (
+            {rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={table.getAllLeafColumns().length}
-                  style={{ height: `${paddingTop}px` }}
-                />
+                <td colSpan={table.getAllLeafColumns().length} className="py-10 px-4 text-center">
+                  <p className="text-xs text-slate-500">
+                    No se encontraron cuentas con los filtros actuales.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLevelScope('ALL');
+                      setHideZeroBalances(false);
+                      setBalanzaSearch('');
+                    }}
+                    className="mt-2 inline-flex items-center px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-blue-800 transition cursor-pointer"
+                  >
+                    Limpiar filtros
+                  </button>
+                </td>
               </tr>
-            )}
-            {virtualItems.map((virtualRow) => {
-              const row = rows[virtualRow.index];
-              if (!row) return null;
-              const lvl = row.original.level;
-              return (
-                <tr
-                  key={row.id}
-                  ref={rowVirtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  className={
-                    lvl === 1
-                      ? 'bg-slate-100'
-                      : lvl === 2
-                      ? 'bg-slate-50/70'
-                      : 'hover:bg-blue-50/30'
-                  }
-                >
-                  {row.getAllCells().map((cell) => (
-                    <td key={cell.id} className="py-2.5 px-4">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-            {paddingBottom > 0 && (
-              <tr>
-                <td
-                  colSpan={table.getAllLeafColumns().length}
-                  style={{ height: `${paddingBottom}px` }}
-                />
-              </tr>
+            ) : (
+              <>
+                {paddingTop > 0 && (
+                  <tr>
+                    <td
+                      colSpan={table.getAllLeafColumns().length}
+                      style={{ height: `${paddingTop}px` }}
+                    />
+                  </tr>
+                )}
+                {virtualItems.map((virtualRow) => {
+                  const row = rows[virtualRow.index];
+                  if (!row) return null;
+                  const lvl = row.original.level;
+                  return (
+                    <tr
+                      key={row.id}
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      className={
+                        lvl === 1
+                          ? 'bg-slate-100'
+                          : lvl === 2
+                          ? 'bg-slate-50/70'
+                          : 'hover:bg-blue-50/30'
+                      }
+                    >
+                      {row.getAllCells().map((cell) => (
+                        <td key={cell.id} className="py-2.5 px-4">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+                {paddingBottom > 0 && (
+                  <tr>
+                    <td
+                      colSpan={table.getAllLeafColumns().length}
+                      style={{ height: `${paddingBottom}px` }}
+                    />
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
           <BalanzaTotalsFooter

@@ -61,6 +61,9 @@ export function CfdiTable(props: CfdiTableProps) {
   return (
     <div ref={parentRef} className="overflow-auto max-h-[calc(100vh-280px)]">
       <table className="w-full text-left border-collapse erp-sticky-table">
+        <caption className="visually-hidden">
+          Comprobantes fiscales digitales en Bóveda ADD
+        </caption>
         <thead className="sticky top-0 z-10">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr
@@ -103,7 +106,7 @@ export function CfdiTable(props: CfdiTableProps) {
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                       >
                         <CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>⚡ Descargar del SAT (e.firma)</span>
+                        <span>Descargar del SAT (e.firma)</span>
                       </button>
                     )}
                     {props.onUploadXmlClick && (

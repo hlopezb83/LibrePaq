@@ -102,10 +102,14 @@ export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | nu
 
   const subtotal = hasExplicitBases
     ? base16 + base8 + base0 + baseExento
-    : Number((montoTotalPagos / 1.16).toFixed(2));
+    : pagoTotales !== null
+      ? montoTotalPagos
+      : Number((montoTotalPagos / 1.16).toFixed(2));
   const ivaTrasladado = hasExplicitBases
     ? imp16 + imp8
-    : Number((montoTotalPagos - subtotal).toFixed(2));
+    : pagoTotales !== null
+      ? 0
+      : Number((montoTotalPagos - subtotal).toFixed(2));
 
   const isrRetenido = parseFloat(getAttr(pagoTotales, 'TotalRetencionesISR') || '0') || 0;
   const ivaRetenido = parseFloat(getAttr(pagoTotales, 'TotalRetencionesIVA') || '0') || 0;
@@ -138,14 +142,18 @@ export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | nu
 export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number) {
   const nominaAttrs = findNode(doc, 'Nomina');
   const deduccionesAttrs = findNode(doc, 'Deducciones');
+  const rawTotalPercepciones = getAttr(nominaAttrs, 'TotalPercepciones');
   const totalPercepciones =
-    parseFloat(getAttr(nominaAttrs, 'TotalPercepciones') || '0') || baseSubtotal;
+    rawTotalPercepciones !== '' ? parseFloat(rawTotalPercepciones) || 0 : baseSubtotal;
   const totalOtrosPagos = parseFloat(getAttr(nominaAttrs, 'TotalOtrosPagos') || '0') || 0;
   const totalImpuestosRet =
     parseFloat(getAttr(deduccionesAttrs, 'TotalImpuestosRetenidos') || '0') || 0;
   const totalOtrasDed = parseFloat(getAttr(deduccionesAttrs, 'TotalOtrasDeducciones') || '0') || 0;
 
-  const subtotal = Number((totalPercepciones + totalOtrosPagos).toFixed(2));
+  const subtotal =
+    rawTotalPercepciones !== ''
+      ? Number((totalPercepciones + totalOtrosPagos).toFixed(2))
+      : Number(baseSubtotal.toFixed(2));
   const isrRetenido = Number(totalImpuestosRet.toFixed(2));
   const descuento = Number(totalOtrasDed.toFixed(2));
   const total = Number((subtotal - isrRetenido - descuento).toFixed(2));
@@ -160,9 +168,16 @@ export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number) {
 }
 
 export function parseStandardImpuestos(doc: XmlNode) {
-  const globalImpuestosNodes = findNodes(doc, 'Impuestos');
-  const globalImpuestosAttrs =
-    globalImpuestosNodes.length > 0 ? globalImpuestosNodes[globalImpuestosNodes.length - 1] : null;
+  const comprobanteNode = findNode(doc, 'Comprobante');
+  const directImpuestosRaw = comprobanteNode?.['Impuestos'];
+  const globalImpuestosAttrs: XmlNode | null = Array.isArray(directImpuestosRaw)
+    ? ((directImpuestosRaw[directImpuestosRaw.length - 1] as XmlNode) ?? null)
+    : directImpuestosRaw && typeof directImpuestosRaw === 'object'
+      ? (directImpuestosRaw as XmlNode)
+      : null;
+
+  const conceptosNode = comprobanteNode?.['Conceptos'] ?? doc['Conceptos'];
+  const conceptImpuestosNodes = conceptosNode ? findNodes(conceptosNode, 'Impuestos') : [];
 
   let ivaTrasladado = 0;
   let isrRetenido = 0;
@@ -176,8 +191,8 @@ export function parseStandardImpuestos(doc: XmlNode) {
       if (imp === '002' || !imp) ivaTrasladado += importe;
     }
   } else {
-    const allTraslados = findNodes(doc, 'Traslado');
-    for (const t of allTraslados) {
+    const conceptTraslados = conceptImpuestosNodes.flatMap((ci) => findNodes(ci, 'Traslado'));
+    for (const t of conceptTraslados) {
       const imp = getAttr(t, 'Impuesto');
       const importe = parseFloat(getAttr(t, 'Importe') || '0') || 0;
       if (imp === '002' || !imp) ivaTrasladado += importe;
@@ -190,7 +205,9 @@ export function parseStandardImpuestos(doc: XmlNode) {
 
   const retencionesNodes = globalImpuestosAttrs ? findNodes(globalImpuestosAttrs, 'Retencion') : [];
   const targetRetenciones =
-    retencionesNodes.length > 0 ? retencionesNodes : findNodes(doc, 'Retencion');
+    retencionesNodes.length > 0
+      ? retencionesNodes
+      : conceptImpuestosNodes.flatMap((ci) => findNodes(ci, 'Retencion'));
   for (const r of targetRetenciones) {
     const imp = getAttr(r, 'Impuesto');
     const importe = parseFloat(getAttr(r, 'Importe') || '0') || 0;

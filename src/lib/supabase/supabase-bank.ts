@@ -1,14 +1,14 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import {
+  buildBankLinePolizaPlan,
   fromCents,
-  resolveFiscalAccount,
-  sumCents,
-  toCents
+  sumCents
 } from '../../shared/accounting-engine';
 import { parseCalendarDate } from '../../shared/date-utils';
 import { findBankReconciliationMatches } from '../../shared/engine/bank-and-closing.engine';
 import type { BankReconciliationResponse } from '../../shared/types';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
+import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 
 export const supabaseBank = {
@@ -28,17 +28,19 @@ export const supabaseBank = {
         initialBalance: 0, initialBalanceComputed: 0, periodCharges: 0, periodCredits: 0, finalBalance: 0
       };
 
-    let query = supabase
-      .from('bank_statement_lines')
-      .select('*')
-      .eq('company_id', companyId)
-      .eq('ejercicio', currentYear)
-      .eq('periodo', currentPeriod);
+    const lines = await fetchAllRows(async (from, to) => {
+      let query = getRequiredSupabase()
+        .from('bank_statement_lines')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('ejercicio', currentYear)
+        .eq('periodo', currentPeriod);
 
-    if (accountId) query = query.eq('account_id', accountId);
+      if (accountId) query = query.eq('account_id', accountId);
+      return query.order('fecha', { ascending: true }).order('id', { ascending: true }).range(from, to);
+    });
 
-    const { data: lines } = await query;
-    const statementLines = (lines || []).map((l: Record<string, unknown>) => ({
+    const statementLines = lines.map((l: Record<string, unknown>) => ({
       id: String(l.id),
       companyId: String(l.company_id),
       accountId: String(l.account_id || effectiveAcc.id),
@@ -59,14 +61,17 @@ export const supabaseBank = {
 
     const polizas = await supabasePolizas.getPolizas(companyId, currentYear, currentPeriod);
     const bookMovements: BankReconciliationResponse['bookMovements'] = [];
+    const movementFolioMap = new Map<string, string>();
 
     for (const p of polizas) {
+      const pFolio = `${p.tipo} #${p.folio}`;
       for (const m of p.movements) {
+        movementFolioMap.set(m.id, pFolio);
         if (m.accountId === effectiveAcc.id || m.accountCode === effectiveAcc.code) {
           bookMovements.push({
             movementId: m.id,
             polizaId: p.id,
-            polizaFolio: `${p.tipo} #${p.folio}`,
+            polizaFolio: pFolio,
             fecha: p.fecha,
             referencia: m.referencia || '',
             concepto: m.concepto || p.concepto,
@@ -75,6 +80,12 @@ export const supabaseBank = {
             isMatched: matchedMovementIds.has(m.id)
           });
         }
+      }
+    }
+
+    for (const line of statementLines) {
+      if (line.matchedMovementId && !line.matchedPolizaFolio) {
+        line.matchedPolizaFolio = movementFolioMap.get(line.matchedMovementId) ?? null;
       }
     }
 
@@ -122,14 +133,18 @@ export const supabaseBank = {
       await assertSupabasePeriodOpen(payload.companyId, Number(yStr) || 2026, Number(pStr) || 10);
     }
 
-    const { data: existingLines } = await supabase
-      .from('bank_statement_lines')
-      .select('fecha, referencia, descripcion, cargo_banco, abono_banco')
-      .eq('company_id', payload.companyId)
-      .eq('account_id', payload.accountId);
+    const existingLines = await fetchAllRows(async (from, to) =>
+      getRequiredSupabase()
+        .from('bank_statement_lines')
+        .select('id, fecha, referencia, descripcion, cargo_banco, abono_banco')
+        .eq('company_id', payload.companyId)
+        .eq('account_id', payload.accountId)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const existingSet = new Set(
-      (existingLines || []).map(
+      existingLines.map(
         (e) =>
           `${e.fecha}|${e.referencia}|${e.descripcion}|${Number(e.cargo_banco).toFixed(2)}|${Number(e.abono_banco).toFixed(2)}`
       )
@@ -137,10 +152,10 @@ export const supabaseBank = {
 
     const toInsert = payload.lines
       .filter((l) => !existingSet.has(`${l.fecha}|${l.referencia}|${l.descripcion}|${Number(l.cargoBanco || 0).toFixed(2)}|${Number(l.abonoBanco || 0).toFixed(2)}`))
-      .map((l, idx) => {
+      .map((l) => {
         const { year, month } = parseCalendarDate(l.fecha);
         return {
-          id: `bank_${Date.now()}_${idx}`,
+          id: `bank_${crypto.randomUUID().slice(0, 12)}`,
           company_id: payload.companyId,
           account_id: payload.accountId,
           fecha: l.fecha,
@@ -154,9 +169,18 @@ export const supabaseBank = {
       });
 
     if (toInsert.length > 0) {
-      await supabase.from('bank_statement_lines').insert(toInsert);
+      const { error: insErr } = await supabase.from('bank_statement_lines').insert(toInsert);
+      if (insErr) throw new Error(insErr.message);
     }
-    return this.getBankReconciliation(payload.companyId, payload.accountId);
+    const targetPeriod = payload.lines[0]
+      ? parseCalendarDate(payload.lines[0].fecha)
+      : undefined;
+    return this.getBankReconciliation(
+      payload.companyId,
+      payload.accountId,
+      targetPeriod?.year,
+      targetPeriod?.month
+    );
   },
 
   async autoMatchBankReconciliation(
@@ -174,10 +198,11 @@ export const supabaseBank = {
 
     const pairs = findBankReconciliationMatches(current.statementLines, current.bookMovements);
     for (const pair of pairs) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('bank_statement_lines')
         .update({ matched_movement_id: pair.movementId })
         .eq('id', pair.statementLineId);
+      if (updErr) throw new Error(updErr.message);
     }
 
     const updated = await this.getBankReconciliation(companyId, accountId, effY, effP);
@@ -188,27 +213,29 @@ export const supabaseBank = {
     lineId: string
   ): Promise<{ unmatched: boolean; reconciliation: BankReconciliationResponse }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const { data: bLine } = await supabase
+    const { data: bLine, error: fetchErr } = await supabase
       .from('bank_statement_lines')
       .select('company_id, account_id, ejercicio, periodo')
       .eq('id', lineId)
       .maybeSingle();
 
+    if (fetchErr) throw new Error(fetchErr.message);
     if (!bLine) throw new Error('Movimiento bancario no encontrado');
-    await assertSupabasePeriodOpen(
-      String(bLine.company_id),
-      Number(bLine.ejercicio) || 2026,
-      Number(bLine.periodo) || 10
-    );
+    const lineYear = Number(bLine.ejercicio) || 2026;
+    const linePeriod = Number(bLine.periodo) || 10;
+    await assertSupabasePeriodOpen(String(bLine.company_id), lineYear, linePeriod);
 
-    await supabase
+    const { error: updErr } = await supabase
       .from('bank_statement_lines')
       .update({ matched_movement_id: null })
       .eq('id', lineId);
+    if (updErr) throw new Error(updErr.message);
 
     const reconciliation = await this.getBankReconciliation(
       String(bLine.company_id),
-      String(bLine.account_id)
+      String(bLine.account_id),
+      lineYear,
+      linePeriod
     );
     return { unmatched: true, reconciliation };
   },
@@ -218,12 +245,13 @@ export const supabaseBank = {
     options?: { counterAccountCode?: string; desglosarIva?: boolean }
   ): Promise<{ createdPolizaId: string; reconciliation: BankReconciliationResponse }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const { data: bLine } = await supabase
+    const { data: bLine, error: fetchErr } = await supabase
       .from('bank_statement_lines')
       .select('*')
       .eq('id', lineId)
       .maybeSingle();
 
+    if (fetchErr) throw new Error(fetchErr.message);
     if (!bLine) throw new Error('Movimiento bancario no encontrado');
     if (bLine.matched_movement_id) throw new Error('El movimiento ya se encuentra conciliado');
 
@@ -233,99 +261,41 @@ export const supabaseBank = {
     const periodo = Number(bLine.periodo) || 10;
 
     const accounts = await supabaseCompaniesAndAccounts.getAccounts(companyId, ejercicio, periodo);
-    const bankAcc =
-      accounts.find((a) => a.id === accountId) ||
-      resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL');
-
-    const isWithdrawal = toCents(Number(bLine.cargo_banco)) > 0;
-    const amountCents = isWithdrawal
-      ? toCents(Number(bLine.cargo_banco))
-      : toCents(Number(bLine.abono_banco));
-    const desglosarIva = options?.desglosarIva !== undefined ? Boolean(options.desglosarIva) : true;
-
-    const counterAcc = isWithdrawal
-      ? resolveFiscalAccount(accounts, 'COMISIONES_BANCARIAS', options?.counterAccountCode)
-      : resolveFiscalAccount(accounts, 'INGRESOS_TASA_16', options?.counterAccountCode);
-
-    const ivaAcc = isWithdrawal
-      ? resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO')
-      : resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO');
-
-    const tipo = isWithdrawal ? 'EGRESO' : 'INGRESO';
-    const subtotalCents = desglosarIva ? Math.round(amountCents / 1.16) : amountCents;
-    const ivaCents = desglosarIva ? amountCents - subtotalCents : 0;
-
-    const movements = isWithdrawal
-      ? [
-          {
-            accountId: counterAcc.id,
-            referencia: String(bLine.referencia || 'MOV-BANCO'),
-            concepto: String(bLine.descripcion || 'Gasto registrado desde banco'),
-            cargo: fromCents(subtotalCents),
-            abono: 0
-          },
-          ...(ivaCents > 0
-            ? [
-                {
-                  accountId: ivaAcc.id,
-                  referencia: String(bLine.referencia || 'IVA'),
-                  concepto: 'IVA Acreditable Pagado 16% desglosado de banco',
-                  cargo: fromCents(ivaCents),
-                  abono: 0
-                }
-              ]
-            : []),
-          {
-            accountId: bankAcc.id,
-            referencia: String(bLine.referencia || 'BANCO'),
-            concepto: String(bLine.descripcion || 'Salida de banco'),
-            cargo: 0,
-            abono: fromCents(amountCents)
-          }
-        ]
-      : [
-          {
-            accountId: bankAcc.id,
-            referencia: String(bLine.referencia || 'BANCO'),
-            concepto: String(bLine.descripcion || 'Entrada a banco'),
-            cargo: fromCents(amountCents),
-            abono: 0
-          },
-          {
-            accountId: counterAcc.id,
-            referencia: String(bLine.referencia || 'INGRESO'),
-            concepto: String(bLine.descripcion || 'Ingreso cobrado en banco'),
-            cargo: 0,
-            abono: fromCents(subtotalCents)
-          },
-          ...(ivaCents > 0
-            ? [
-                {
-                  accountId: ivaAcc.id,
-                  referencia: String(bLine.referencia || 'IVA'),
-                  concepto: 'IVA Trasladado Cobrado 16% desglosado de banco',
-                  cargo: 0,
-                  abono: fromCents(ivaCents)
-                }
-              ]
-            : [])
-        ];
+    const plan = buildBankLinePolizaPlan({
+      accounts,
+      accountId,
+      cargoBanco: Number(bLine.cargo_banco),
+      abonoBanco: Number(bLine.abono_banco),
+      referencia: String(bLine.referencia || ''),
+      descripcion: String(bLine.descripcion || ''),
+      desglosarIva: options?.desglosarIva,
+      counterAccountCode: options?.counterAccountCode
+    });
 
     const poliza = await supabasePolizas.createPoliza({
       companyId,
-      tipo,
+      tipo: plan.tipo,
       fecha: String(bLine.fecha),
+      ejercicio,
+      periodo,
       concepto: String(bLine.descripcion || 'Póliza generada desde estado de cuenta bancario'),
       cfdiUuid: null,
-      movements
+      movements: plan.movements.map((m) => ({
+        accountId: m.accountId,
+        referencia: m.referencia,
+        concepto: m.concepto,
+        cargo: m.cargo,
+        abono: m.abono
+      }))
     });
 
-    const bankMov = poliza.movements.find((m) => m.accountId === bankAcc.id);
+    const bankMov = poliza.movements.find((m) => m.accountId === plan.bankAcc.id);
     if (bankMov) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('bank_statement_lines')
         .update({ matched_movement_id: bankMov.id })
         .eq('id', lineId);
+      if (updErr) throw new Error(updErr.message);
     }
 
     const reconciliation = await this.getBankReconciliation(companyId, accountId, ejercicio, periodo);

@@ -2,14 +2,15 @@ import React, { useState, useRef, useEffect, useMemo, useId } from 'react';
 import { Search, ChevronDown } from 'lucide-react';
 import { useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { Account, AccountWithBalance } from '../shared/types';
-import { AccountPickerDropdown } from './account-picker/AccountPickerDropdown';
+import type { Account, AccountWithBalance } from '../../shared/types';
+import { AccountPickerDropdown } from './AccountPickerDropdown';
 
 interface AccountPickerComboboxProps {
   accounts: (Account | AccountWithBalance)[];
   value: string;
   onChange: (accountId: string) => void;
   onAdvance?: () => void;
+  onInputRef?: (el: HTMLInputElement | null) => void;
   placeholder?: string;
   ariaLabel?: string;
   autoFocus?: boolean;
@@ -20,6 +21,7 @@ function AccountPickerComboboxBase({
   value,
   onChange,
   onAdvance,
+  onInputRef,
   placeholder = 'Buscar por código o nombre...',
   ariaLabel = 'Cuenta contable',
   autoFocus = false
@@ -168,7 +170,10 @@ function AccountPickerComboboxBase({
           aria-hidden="true"
         />
         <input
-          ref={inputRef}
+          ref={(el) => {
+            inputRef.current = el;
+            onInputRef?.(el);
+          }}
           type="text"
           role="combobox"
           aria-expanded={isOpen}

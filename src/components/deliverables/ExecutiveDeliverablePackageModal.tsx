@@ -1,12 +1,13 @@
 import { createPortal } from 'react-dom';
-import type { Company } from '../shared/types';
-import { DeliverableConfigTab } from './deliverables/DeliverableConfigTab';
-import { DeliverableBalanzaDoc } from './deliverables/DeliverableBalanzaDoc';
-import { DeliverableResultadosDoc } from './deliverables/DeliverableResultadosDoc';
-import { DeliverableBalanceDoc } from './deliverables/DeliverableBalanceDoc';
-import { DeliverableDia17Doc } from './deliverables/DeliverableDia17Doc';
-import { DeliverableModalHeader } from './deliverables/DeliverableModalHeader';
-import { useExecutiveDeliverables } from './deliverables/useExecutiveDeliverables';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import type { Company } from '../../shared/types';
+import { DeliverableConfigTab } from './DeliverableConfigTab';
+import { DeliverableBalanzaDoc } from './DeliverableBalanzaDoc';
+import { DeliverableResultadosDoc } from './DeliverableResultadosDoc';
+import { DeliverableBalanceDoc } from './DeliverableBalanceDoc';
+import { DeliverableDia17Doc } from './DeliverableDia17Doc';
+import { DeliverableModalHeader } from './DeliverableModalHeader';
+import { useExecutiveDeliverables } from './useExecutiveDeliverables';
 
 export interface ExecutiveDeliverablePackageModalProps {
   company: Company;
@@ -55,6 +56,10 @@ export function ExecutiveDeliverablePackageModal({
     copiedSummary,
     reportsData,
     fiscalData,
+    isLoadingData,
+    isErrorData,
+    dataError,
+    refetchData,
     mesNombre,
     isrSaldoNoAplicado,
     fechaVencimientoDia17,
@@ -80,6 +85,7 @@ export function ExecutiveDeliverablePackageModal({
         mesNombre={mesNombre}
         year={year}
         copiedSummary={copiedSummary}
+        isDataReady={Boolean(reportsData)}
         onCopySummary={handleCopyExecutiveSummary}
         onExportXlsx={handleExportAllXlsx}
         isExporting={isExporting}
@@ -90,7 +96,66 @@ export function ExecutiveDeliverablePackageModal({
         setActiveTab={setActiveTab}
       />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/60 scrollable-panel printable-dossier">
+      <div
+        role="tabpanel"
+        id={`deliv-panel-${activeTab}`}
+        aria-labelledby={`deliv-tab-${activeTab}`}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 bg-slate-100/60 scrollable-panel printable-dossier"
+      >
+        {isErrorData && activeTab !== 'CONFIG' && (
+          <div
+            role="alert"
+            className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-xs"
+          >
+            <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
+            <h2 className="text-sm font-bold text-slate-900">
+              No se pudieron calcular los entregables del periodo
+            </h2>
+            <p className="text-xs text-slate-600">
+              {dataError instanceof Error ? dataError.message : 'Error de conexión al servidor contable.'}
+            </p>
+            <button
+              type="button"
+              onClick={refetchData}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {!isErrorData && isLoadingData && activeTab !== 'CONFIG' && (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            className="max-w-lg mx-auto my-8 p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500 shadow-xs"
+          >
+            Calculando estados financieros y cédula Día 17 para impresión...
+          </div>
+        )}
+
+        {activeTab === 'DOSSIER' &&
+          !isErrorData &&
+          !isLoadingData &&
+          !includeBalanza &&
+          !includeResultados &&
+          !includeBalance &&
+          !includeDia17 && (
+            <div className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-slate-200 text-center space-y-3 shadow-xs">
+              <p className="text-xs text-slate-600">
+                No hay documentos seleccionados para el dossier de cierre.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('CONFIG')}
+                className="inline-flex items-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Ir a Firmas y Membrete
+              </button>
+            </div>
+          )}
           {activeTab === 'CONFIG' && (
             <DeliverableConfigTab
               firmName={firmName}

@@ -55,7 +55,7 @@ export function AppShellFooter({
             <span>{isTrialBalanced ? 'Balanza Cuadrada ✔' : 'Balanza Descuadrada ⚠'}</span>
           </span>
           <span className="text-slate-600 hidden md:inline">|</span>
-          <span className="hidden md:inline font-mono text-slate-500 text-[10px]">
+          <span className="hidden md:inline font-mono text-slate-400 text-[10px]">
             v1.2.0 Cloud
           </span>
         </div>

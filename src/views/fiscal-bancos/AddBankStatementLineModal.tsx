@@ -1,5 +1,6 @@
 import React from 'react';
 import { Landmark, X } from 'lucide-react';
+import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
 interface AddBankStatementLineModalProps {
   addBankModalRef: React.RefObject<HTMLDialogElement | null>;
@@ -32,14 +33,16 @@ export function AddBankStatementLineModal({
   onAddBankLineSubmit,
   isAddBankLinePending
 }: AddBankStatementLineModalProps) {
+  useDialogLightDismiss(addBankModalRef, () => addBankModalRef.current?.close());
+
   return (
     <dialog
       ref={addBankModalRef}
       closedby="closerequest"
       aria-labelledby="modal-add-bank-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md overflow-hidden"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
-      <div className="p-4 sm:p-5 max-h-[86dvh] overflow-y-auto space-y-3.5">
+      <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-3.5">
         <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
@@ -58,7 +61,7 @@ export function AddBankStatementLineModal({
             type="button"
             onClick={() => addBankModalRef.current?.close()}
             aria-label="Cerrar modal"
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -111,6 +114,7 @@ export function AddBankStatementLineModal({
               <input
                 id="bank-line-amount"
                 type="number"
+                inputMode="decimal"
                 min="0.01"
                 step="0.01"
                 required

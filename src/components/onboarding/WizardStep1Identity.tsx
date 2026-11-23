@@ -5,7 +5,7 @@ import {
   CreditCard,
   Sparkles
 } from 'lucide-react';
-import { REGIMENES_FISCALES_SAT, MESES_SAT } from '../../shared/sat-catalog';
+import { REGIMENES_FISCALES_SAT, MESES_SAT } from '../../shared/sat-constants';
 import type { RfcModulo11Result } from '../../shared/accounting-engine';
 import type { CfdiCompanyCandidate } from '../../shared/cfdi-company-extractor';
 import { WizardXmlAutofillBox } from './WizardXmlAutofillBox';
@@ -79,9 +79,10 @@ export function WizardStep1Identity({
         <span id="wizard-person-type-label" className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
           Tipo de Contribuyente SAT
         </span>
-        <div role="group" aria-labelledby="wizard-person-type-label" className="grid grid-cols-2 gap-2.5">
+        <div role="group" aria-labelledby="wizard-person-type-label" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <button
             type="button"
+            aria-pressed={personType === 'MORAL'}
             onClick={() => {
               setPersonType('MORAL');
               setRegimenFiscal(REGIMENES_FISCALES_SAT[0] ?? '601 - General de Ley Personas Morales');
@@ -92,7 +93,7 @@ export function WizardStep1Identity({
                 : 'border-slate-300 hover:border-slate-400 text-slate-700'
             }`}
           >
-            <Building2 className={`w-5 h-5 ${personType === 'MORAL' ? 'text-blue-700' : 'text-slate-500'}`} />
+            <Building2 className={`w-5 h-5 shrink-0 ${personType === 'MORAL' ? 'text-blue-700' : 'text-slate-500'}`} aria-hidden="true" />
             <div>
               <div className="text-xs font-bold">Persona Moral</div>
               <div className="text-[11px] text-slate-500">Empresas S.A., S.A.P.I., S. de R.L. (RFC 12)</div>
@@ -101,6 +102,7 @@ export function WizardStep1Identity({
 
           <button
             type="button"
+            aria-pressed={personType === 'FISICA'}
             onClick={() => {
               setPersonType('FISICA');
               setRegimenFiscal('612 - Personas Físicas con Actividades Empresariales y Profesionales');
@@ -111,7 +113,7 @@ export function WizardStep1Identity({
                 : 'border-slate-300 hover:border-slate-400 text-slate-700'
             }`}
           >
-            <CreditCard className={`w-5 h-5 ${personType === 'FISICA' ? 'text-blue-700' : 'text-slate-500'}`} />
+            <CreditCard className={`w-5 h-5 shrink-0 ${personType === 'FISICA' ? 'text-blue-700' : 'text-slate-500'}`} aria-hidden="true" />
             <div>
               <div className="text-xs font-bold">Persona Física</div>
               <div className="text-[11px] text-slate-500">Honorarios, RESICO, Actividad Emp. (RFC 13)</div>
@@ -152,7 +154,7 @@ export function WizardStep1Identity({
                     className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1"
                     title={rfcModulo11.message}
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> SAT Módulo 11 OK
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" /> SAT Módulo 11 OK
                   </span>
                 ) : (
                   <>
@@ -160,7 +162,7 @@ export function WizardStep1Identity({
                       className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1"
                       title={rfcModulo11.message}
                     >
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
                       M11: {rfcModulo11.expectedCheckDigit}
                     </span>
                     {rfcModulo11.expectedRfc && (
@@ -173,7 +175,7 @@ export function WizardStep1Identity({
                         }}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors shadow-xs cursor-pointer"
                       >
-                        <Sparkles className="w-3 h-3 text-blue-600" />
+                        <Sparkles className="w-3 h-3 text-blue-600" aria-hidden="true" />
                         Corregir a {rfcModulo11.expectedCheckDigit}
                       </button>
                     )}
@@ -181,8 +183,9 @@ export function WizardStep1Identity({
                 )}
                 <button
                   type="button"
+                  aria-expanded={showModulo11Breakdown}
                   onClick={() => setShowModulo11Breakdown(!showModulo11Breakdown)}
-                  className="text-[11px] font-medium text-slate-500 hover:text-slate-800 underline ml-0.5 cursor-pointer"
+                  className="text-[11px] font-medium text-slate-600 hover:text-slate-800 underline ml-0.5 cursor-pointer"
                 >
                   {showModulo11Breakdown ? 'Ocultar M11' : 'Ver M11'}
                 </button>

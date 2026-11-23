@@ -23,6 +23,8 @@ export function BroadcastBanner() {
 
   return (
     <aside
+      role="status"
+      aria-live="polite"
       aria-label="Aviso oficial de la plataforma"
       className={`px-4 py-2.5 border-b text-xs flex items-center justify-between gap-3 transition-colors ${
         broadcast.type === 'warning'
@@ -34,14 +36,16 @@ export function BroadcastBanner() {
     >
       <div className="flex items-center gap-2 min-w-0">
         {broadcast.type === 'warning' ? (
-          <AlertCircle className="w-4 h-4 shrink-0 text-slate-950" />
+          <AlertCircle className="w-4 h-4 shrink-0 text-slate-950" aria-hidden="true" />
         ) : broadcast.type === 'success' ? (
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-white" aria-hidden="true" />
         ) : (
-          <Info className="w-4 h-4 shrink-0 text-white" />
+          <Info className="w-4 h-4 shrink-0 text-white" aria-hidden="true" />
         )}
         <span className="font-bold shrink-0">{broadcast.title}:</span>
-        <span className="truncate">{broadcast.message}</span>
+        <span className="line-clamp-2 sm:truncate" title={broadcast.message}>
+          {broadcast.message}
+        </span>
       </div>
 
       <button
@@ -50,7 +54,7 @@ export function BroadcastBanner() {
         className="p-1 rounded hover:bg-black/10 transition cursor-pointer shrink-0"
         aria-label="Cerrar aviso"
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
     </aside>
   );

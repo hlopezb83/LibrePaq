@@ -1,5 +1,6 @@
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
+import { splitCsvLine } from '../../shared/csv-bank-parser';
 import type { AccountType, AccountWithBalance } from '../../shared/types';
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -49,7 +50,7 @@ export async function importCatalogoCsvFile(
   queryClient: QueryClient,
   toast: { success: (title: string, desc?: string) => void; error: (title: string, desc?: string) => void }
 ) {
-  const text = await file.text();
+  const text = (await file.text()).replace(/^\uFEFF/, '');
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -64,9 +65,7 @@ export async function importCatalogoCsvFile(
   }> = [];
 
   for (const line of lines) {
-    const cols = line
-      .split(',')
-      .map((c) => c.replace(/^"|"$/g, '').trim());
+    const cols = splitCsvLine(line);
     const rawCode = cols[0] ?? '';
     const rawName = cols[1] ?? '';
     if (!/^\d{3}-\d{2}-\d{3}$/.test(rawCode) || !rawName) continue;

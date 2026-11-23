@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import * as fflate from 'npm:fflate@0.8.2';
 import {
   parseAndDecryptFiel,
+  encryptPrivateKeyIfConfigured,
   buildSatSolicitaDescargaSoapXml,
   buildSatVerificaDescargaSoapXml,
   buildSatDescargaPaqueteSoapXml,
@@ -63,6 +64,7 @@ export async function handleStoreFiel(
     return jsonResponse({ ok: false, error: msg }, 400, headers);
   }
 
+  const storedPrivateKeyPem = await encryptPrivateKeyIfConfigured(fielData.privateKeyPem);
   const nowIso = new Date().toISOString();
   const { error: upsertErr } = await supabase.from('fiel_credentials').upsert(
     {
@@ -75,7 +77,7 @@ export async function handleStoreFiel(
       sha1_fingerprint: fielData.sha1Fingerprint,
       cer_base64: fielData.certificateBase64,
       key_base64: keyBase64.replace(/\s+/g, ''),
-      private_key_pem: fielData.privateKeyPem,
+      private_key_pem: storedPrivateKeyPem,
       updated_at: nowIso
     },
     { onConflict: 'company_id' }
@@ -128,8 +130,8 @@ export async function handleSolicitaDescarga(
     return jsonResponse({ ok: false, error: 'companyRfc es requerido para la solicitud al SAT' }, 400, headers);
   }
 
-  // Clamping de fechaFinal para prevenir error 301 del SAT
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // Clamping de fechaFinal en horario oficial CDMX (UTC-6) para prevenir error 301 del SAT
+  const todayIso = new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
   if (fechaFinal > todayIso) fechaFinal = todayIso;
   if (fechaInicial > fechaFinal) fechaInicial = fechaFinal;
 
@@ -189,6 +191,16 @@ export async function handleSolicitaDescarga(
             headers
           );
         }
+      } else {
+        const errBody = await solRes.text().catch(() => '');
+        return jsonResponse(
+          {
+            ok: false,
+            error: `El Web Service del SAT devolvió HTTP ${solRes.status} al solicitar descarga.${errBody ? ` ${errBody.slice(0, 180)}` : ''}`
+          },
+          502,
+          headers
+        );
       }
     } catch (soapErr) {
       console.warn('[SAT SOAP Sync Error]', soapErr);
@@ -237,6 +249,13 @@ export async function handleSolicitaDescarga(
   return jsonResponse({ ok: true, requestRecord, hasPrivateKey: Boolean(creds.privateKeyPem) }, 200, headers);
 }
 
+interface IngestPackageResult {
+  insertedCount: number;
+  skippedDuplicates: number;
+  totalParsed: number;
+  hadInsertErrors: boolean;
+}
+
 async function ingestSatPackage(params: {
   supabase: SupabaseClient;
   companyId: string;
@@ -245,7 +264,7 @@ async function ingestSatPackage(params: {
   cerBase64: string;
   privateKeyPem: string;
   authHeader: string;
-}): Promise<number> {
+}): Promise<IngestPackageResult> {
   const { supabase, companyId, companyRfc, idPaq, cerBase64, privateKeyPem, authHeader } = params;
   const { soapXml: descXml } = buildSatDescargaPaqueteSoapXml({
     rfcSolicitante: companyRfc,
@@ -267,20 +286,34 @@ async function ingestSatPackage(params: {
       signal: AbortSignal.timeout(30000)
     }
   );
-  if (!descRes.ok) return 0;
+  if (!descRes.ok) {
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true };
+  }
 
   const descText = await descRes.text();
   const paqMatch = descText.match(/<Paquete>([^<]+)<\/Paquete>/i);
-  if (!paqMatch?.[1]) return 0;
+  if (!paqMatch?.[1]) {
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true };
+  }
 
   const zipBuf = Buffer.from(paqMatch[1], 'base64');
+  let entryCount = 0;
+  let totalUncompressedBytes = 0;
+  const MAX_ZIP_ENTRIES = 500;
+  const MAX_TOTAL_UNCOMPRESSED_BYTES = 80 * 1024 * 1024;
   const unzipped = fflate.unzipSync(new Uint8Array(zipBuf), {
     filter(file) {
-      return file.originalSize <= 50 * 1024 * 1024;
+      entryCount += 1;
+      totalUncompressedBytes += file.originalSize;
+      return (
+        entryCount <= MAX_ZIP_ENTRIES &&
+        file.originalSize <= 50 * 1024 * 1024 &&
+        totalUncompressedBytes <= MAX_TOTAL_UNCOMPRESSED_BYTES
+      );
     }
   });
   const fileNames = Object.keys(unzipped);
-  if (fileNames.length > 500) {
+  if (fileNames.length > MAX_ZIP_ENTRIES) {
     throw new Error('El paquete SAT excede el límite máximo de 500 archivos');
   }
 
@@ -291,7 +324,9 @@ async function ingestSatPackage(params: {
     const parsed = parseCfdiQuick(xmlRaw);
     if (parsed?.uuid) parsedList.push({ parsed, xmlRaw });
   }
-  if (parsedList.length === 0) return 0;
+  if (parsedList.length === 0) {
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: false };
+  }
 
   const uuids = Array.from(new Set(parsedList.map((p) => p.parsed.uuid)));
   const existingUuids = new Set<string>();
@@ -306,13 +341,17 @@ async function ingestSatPackage(params: {
   }
 
   const toInsert: Array<Record<string, unknown>> = [];
+  let skippedDuplicates = 0;
   for (const item of parsedList) {
     const p = item.parsed;
-    if (existingUuids.has(p.uuid)) continue;
+    if (existingUuids.has(p.uuid)) {
+      skippedDuplicates += 1;
+      continue;
+    }
     existingUuids.add(p.uuid);
 
     const dir = p.emisorRfc.toUpperCase() === companyRfc.toUpperCase() ? 'EMITIDO' : 'RECIBIDO';
-    const newId = `cfdi_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const newId = `cfdi_${crypto.randomUUID().slice(0, 12)}`;
     toInsert.push({
       id: newId,
       company_id: companyId,
@@ -344,13 +383,22 @@ async function ingestSatPackage(params: {
   }
 
   let totalIngested = 0;
+  let hadInsertErrors = false;
   for (let i = 0; i < toInsert.length; i += 50) {
     const batch = toInsert.slice(i, i + 50);
     const { error: insErr } = await supabase.from('cfdi_documents').insert(batch);
     if (!insErr) totalIngested += batch.length;
-    else console.warn('[Error batch insert CFDI]', insErr);
+    else {
+      hadInsertErrors = true;
+      console.warn('[Error batch insert CFDI]', insErr);
+    }
   }
-  return totalIngested;
+  return {
+    insertedCount: totalIngested,
+    skippedDuplicates,
+    totalParsed: parsedList.length,
+    hadInsertErrors
+  };
 }
 
 export async function handleVerificaDescarga(
@@ -427,9 +475,11 @@ export async function handleVerificaDescarga(
           const idsPaquetes = [...verText.matchAll(/<IdsPaquetes>([^<]+)<\/IdsPaquetes>/gi)].map((m) => m[1]);
           if (idsPaquetes.length === 0) idsPaquetes.push(`${reqItem.id_solicitud_sat}_01`);
 
+          let skippedDuplicatesTotal = 0;
+          let hadAnyPackageError = false;
           for (const idPaq of idsPaquetes) {
             try {
-              totalIngested += await ingestSatPackage({
+              const pkgRes = await ingestSatPackage({
                 supabase,
                 companyId: payload.companyId,
                 companyRfc,
@@ -438,7 +488,11 @@ export async function handleVerificaDescarga(
                 privateKeyPem,
                 authHeader
               });
+              totalIngested += pkgRes.insertedCount;
+              skippedDuplicatesTotal += pkgRes.skippedDuplicates;
+              if (pkgRes.hadInsertErrors) hadAnyPackageError = true;
             } catch (paqErr) {
+              hadAnyPackageError = true;
               console.warn('[Error descargando paquete SAT]', idPaq, paqErr);
             }
           }
@@ -446,9 +500,12 @@ export async function handleVerificaDescarga(
           if (totalIngested > 0) {
             nuevoEstado = 'TERMINADA';
             nuevoMensaje = `SAT 5000: ${totalIngested} comprobantes descargados e integrados exitosamente a la Bóveda ADD.`;
+          } else if (!hadAnyPackageError && skippedDuplicatesTotal > 0) {
+            nuevoEstado = 'TERMINADA';
+            nuevoMensaje = `SAT 5000: Paquete procesado; los ${skippedDuplicatesTotal} comprobantes ya existían en la Bóveda ADD.`;
           } else {
             nuevoEstado = 'EN_PROCESO';
-            nuevoMensaje = `SAT 5000: ${numCfdis} comprobantes listos en servidores del SAT. Descargando paquete e integrando a Bóveda ADD...`;
+            nuevoMensaje = `SAT 5000: ${numCfdis} comprobantes listos en servidores del SAT. Reintentando descarga e integración a Bóveda ADD...`;
           }
         }
       } else if (['0', '4', '5', '6'].includes(estadoSol) || codEstatus === '5004') {

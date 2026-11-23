@@ -49,7 +49,8 @@ export function DashboardTrendSection({
           </div>
         </div>
 
-        <div className="relative h-48 flex items-end justify-between gap-1 sm:gap-2 pt-8 pb-2 px-1 sm:px-2 border-b border-slate-200">
+        <div className="overflow-x-auto">
+          <div className={`relative h-48 flex items-end justify-between gap-1 sm:gap-2 pt-8 pb-2 px-1 sm:px-2 border-b border-slate-200 ${monthlyTrend.length > 6 ? 'min-w-[340px]' : ''}`}>
           {/* Líneas horizontales de referencia */}
           <div
             aria-hidden="true"
@@ -60,15 +61,22 @@ export function DashboardTrendSection({
             <div className="border-b border-dashed border-slate-200 w-full" />
           </div>
 
-          {monthlyTrend.map((item) => {
+          {monthlyTrend.map((item, idx) => {
             const ingHeight = Math.max(8, Math.round((item.ingresos / maxBar) * 124));
             const egrHeight = Math.max(8, Math.round((item.egresos / maxBar) * 124));
             const isCurrent = item.periodo === currentPeriod;
             const utilMes = item.ingresos - item.egresos;
+            const tooltipPos =
+              idx === 0
+                ? 'left-0'
+                : idx === monthlyTrend.length - 1
+                ? 'right-0'
+                : 'left-1/2 -translate-x-1/2';
             return (
               <button
                 key={item.periodo}
                 type="button"
+                aria-pressed={isCurrent}
                 onClick={() => onUpdatePeriod(companyYear, item.periodo)}
                 aria-label={`Cambiar a ${item.mesNombre}: Ingresos ${formatCurrency(
                   item.ingresos
@@ -80,7 +88,7 @@ export function DashboardTrendSection({
                 }`}
               >
                 {/* Tooltip flotante en Hover o Foco */}
-                <div className="pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity absolute -top-14 left-1/2 -translate-x-1/2 z-20 bg-[#0A1120] text-white text-[10px] font-mono rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap border border-slate-700">
+                <div className={`pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity absolute -top-14 ${tooltipPos} z-20 bg-[#0A1120] text-white text-[10px] font-mono rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap border border-slate-700`}>
                   <div className="text-blue-300">Ing: {formatCurrency(item.ingresos)}</div>
                   <div className="text-slate-300">Egr: {formatCurrency(item.egresos)}</div>
                   <div
@@ -120,6 +128,7 @@ export function DashboardTrendSection({
               </button>
             );
           })}
+          </div>
         </div>
 
         <div className="visually-hidden">

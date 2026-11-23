@@ -37,6 +37,11 @@ export function DeliverableBalanceDoc({
   legalRepName,
   legalRepTitle
 }: DeliverableBalanceDocProps) {
+  const lastDay = new Date(year, Math.min(12, Math.max(1, period)), 0).getDate();
+  const isBalanced =
+    Math.abs(balanceSheet.totalActivo - balanceSheet.totalPasivoMasCapital) < 0.05;
+  const isLoss = balanceSheet.utilidadEjercicio < 0;
+
   return (
     <article className="max-w-5xl mx-auto bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 space-y-5 print-page-break mb-8">
       <div className="border-b-2 border-slate-900 pb-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -54,13 +59,17 @@ export function DeliverableBalanceDoc({
             Estado de Situación Financiera / Balance General (NIF B-6)
           </div>
           <div className="text-[11px] text-slate-500">
-            Al 31 de {mesNombre} de {year} • Cifras en Pesos Mexicanos (MXN)
+            Al {String(lastDay).padStart(2, '0')} de {mesNombre} de {year} • Cifras en Pesos Mexicanos (MXN)
           </div>
         </div>
         <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
           <div>Folio: DOC-SIT-{year}-{String(period).padStart(2, '0')}</div>
           <div>Emisión: {issuanceDate}</div>
-          <div className="text-emerald-800 font-bold mt-1">Ecuación A = P + C Verificada</div>
+          <div className={`${isBalanced ? 'text-emerald-800' : 'text-amber-800'} font-bold mt-1`}>
+            {isBalanced
+              ? 'Ecuación A = P + C Verificada'
+              : `Diferencia: ${formatCurrency(Math.abs(balanceSheet.totalActivo - balanceSheet.totalPasivoMasCapital))}`}
+          </div>
         </div>
       </div>
 
@@ -145,8 +154,8 @@ export function DeliverableBalanceDoc({
                 </span>
               </div>
             ))}
-            <div className="flex justify-between px-1 py-0.5 text-blue-900 font-semibold balance-row">
-              <span>Utilidad del Ejercicio Actual:</span>
+            <div className={`flex justify-between px-1 py-0.5 font-semibold balance-row ${isLoss ? 'text-red-700' : 'text-blue-900'}`}>
+              <span>{isLoss ? 'Pérdida del Ejercicio Actual:' : 'Utilidad del Ejercicio Actual:'}</span>
               <span className="font-mono">{formatCurrency(balanceSheet.utilidadEjercicio)}</span>
             </div>
             <div className="pt-2 border-t-2 border-slate-800 font-bold flex justify-between text-slate-900 balance-total">

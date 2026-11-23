@@ -26,7 +26,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
                 className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white hover:bg-slate-100 text-blue-900 font-extrabold text-base transition-all shadow-xl shadow-blue-950/20 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Acceder al Tablero Fiscal Gratis</span>
-                <ArrowRight className="w-5 h-5 text-blue-700" />
+                <ArrowRight className="w-5 h-5 text-blue-700" aria-hidden="true" />
               </button>
             ) : (
               <Link
@@ -34,7 +34,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
                 className="w-full sm:w-auto px-8 py-4 rounded-xl bg-white hover:bg-slate-100 text-blue-900 font-extrabold text-base transition-all shadow-xl shadow-blue-950/20 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Acceder al Tablero Fiscal Gratis</span>
-                <ArrowRight className="w-5 h-5 text-blue-700" />
+                <ArrowRight className="w-5 h-5 text-blue-700" aria-hidden="true" />
               </Link>
             )}
           </div>
@@ -56,7 +56,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
             </div>
 
             <div>
-              <h5 className="font-bold text-white text-sm mb-3">Módulos Contables</h5>
+              <h3 className="font-bold text-white text-sm mb-3">Módulos Contables</h3>
               <ul className="space-y-2">
                 <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">Tablero Fiscal y Cierre</a></li>
                 <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">Pólizas y Movimientos</a></li>
@@ -68,7 +68,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
             </div>
 
             <div>
-              <h5 className="font-bold text-white text-sm mb-3">Cumplimiento Fiscal</h5>
+              <h3 className="font-bold text-white text-sm mb-3">Cumplimiento Fiscal</h3>
               <ul className="space-y-2">
                 <li><span className="text-slate-300">Anexo 24 de la RMF (XML v1.3)</span></li>
                 <li><span className="text-slate-300">CFDI 4.0 y Complemento de Pagos 2.0</span></li>
@@ -79,7 +79,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
             </div>
 
             <div>
-              <h5 className="font-bold text-white text-sm mb-3">Legal y Soporte</h5>
+              <h3 className="font-bold text-white text-sm mb-3">Legal y Soporte</h3>
               <ul className="space-y-2">
                 <li><Link to="/privacy" className="hover:text-white transition">Aviso de Privacidad Integral (LFPDPPP)</Link></li>
                 <li><Link to="/terms" className="hover:text-white transition">Términos y Condiciones de Uso</Link></li>
@@ -90,7 +90,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
             </div>
           </div>
 
-          <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+          <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
             <p>© {new Date().getFullYear()} LibrePaq Pro. Todos los derechos reservados.</p>
             <p className="max-w-xl text-center sm:text-right">
               Aviso legal: CONTPAQi® es una marca registrada propiedad de Computación en Acción, S.A. de C.V.

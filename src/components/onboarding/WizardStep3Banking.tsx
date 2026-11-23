@@ -38,7 +38,7 @@ export function WizardStep3Banking({
   return (
     <div className="space-y-4">
       <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
-        <Landmark className="w-4 h-4 text-blue-700 shrink-0" />
+        <Landmark className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
         <span>
           Configura la cuenta de cheques o tesorería con la que la empresa inicia operaciones para la conciliación bancaria.
         </span>
@@ -110,13 +110,17 @@ export function WizardStep3Banking({
             Generar Asiento de Apertura Automático (Póliza de Diario #1)
           </span>
         </label>
-        {createOpeningEntry && initialBankBalance > 0 && (
+        {createOpeningEntry && initialBankBalance > 0 ? (
           <p className="text-[11px] text-blue-800 pl-6">
             Se creará una póliza balanceada al día 1 del mes con:
             <br />• <strong>Cargo:</strong> 102-01-001 ({initialBankName}) por {formatCurrency(initialBankBalance)}
             <br />• <strong>Abono:</strong> 301-01-001 (Capital Social Fijo) por {formatCurrency(initialBankBalance)}
           </p>
-        )}
+        ) : createOpeningEntry && initialBankBalance <= 0 ? (
+          <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 ml-6">
+            Captura un saldo inicial mayor a $0.00 para generar la Póliza de Apertura; en $0.00 se omitirá automáticamente.
+          </p>
+        ) : null}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import type { AccountWithBalance, Company } from '../../shared/types';
 interface EstadoResultadosTabProps {
   company: Company;
   ejercicio: number;
+  periodo?: number;
   mesNombre: string;
   incomeStatement: {
     ingresos: AccountWithBalance[];
@@ -24,10 +25,13 @@ interface EstadoResultadosTabProps {
 export function EstadoResultadosTab({
   company,
   ejercicio,
+  periodo,
   mesNombre,
   incomeStatement,
   onSelectAccount
 }: EstadoResultadosTabProps) {
+  const lastDay = new Date(ejercicio, Math.min(12, Math.max(1, periodo ?? company.currentPeriod ?? 10)), 0).getDate();
+  const isLoss = incomeStatement.utilidadNeta < 0;
   const formatVerticalPct = (amount: number, base: number) => {
     if (!base || Math.abs(base) < 0.01) return '0.0%';
     return `${((amount / base) * 100).toFixed(1)}%`;
@@ -43,13 +47,14 @@ export function EstadoResultadosTab({
               {company.name}
             </h2>
             <div className="text-xs font-mono text-slate-600 mt-0.5 truncate">
-              RFC: <span className="font-semibold">{company.rfc}</span> • Régimen Fiscal: General de Ley Personas Morales (601)
+              RFC: <span className="font-semibold">{company.rfc}</span> • Régimen Fiscal:{' '}
+              {company.regimenFiscal || '601 - General de Ley Personas Morales'}
             </div>
             <div className="text-sm font-bold text-blue-900 mt-1 uppercase tracking-wide">
               Estado de Resultados Integral Acumulado (NIF B-3)
             </div>
             <div className="text-xs text-slate-500">
-              Del 01 de Enero al 31 de {mesNombre} de {ejercicio} • Cifras expresadas en Pesos Mexicanos (MXN)
+              Del 01 de Enero al {String(lastDay).padStart(2, '0')} de {mesNombre} de {ejercicio} • Cifras expresadas en Pesos Mexicanos (MXN)
             </div>
           </div>
           <div className="text-right hidden sm:block">
@@ -67,29 +72,36 @@ export function EstadoResultadosTab({
           <span>(+) Ingresos Operativos</span>
           <span className="font-mono text-[11px] text-slate-600">Importe | % Vertical</span>
         </div>
-        {incomeStatement.ingresos.map((acc) => (
-          <button
-            key={acc.id}
-            type="button"
-            onClick={() => onSelectAccount(acc.id)}
-            className={`w-full flex items-center justify-between text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
-              acc.level === 2 ? 'font-bold text-slate-900' : 'pl-7 text-slate-700'
-            }`}
-          >
-            <span>
-              <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                {acc.code}
+        {incomeStatement.ingresos.length === 0 ? (
+          <p className="text-xs text-slate-500 italic px-3 py-1.5">
+            Sin movimientos acumulados en este rubro.
+          </p>
+        ) : (
+          incomeStatement.ingresos.map((acc) => (
+            <button
+              key={acc.id}
+              type="button"
+              onClick={() => onSelectAccount(acc.id)}
+              title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+              className={`w-full flex items-center justify-between gap-2 text-left text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
+                acc.level === 2 ? 'font-bold text-slate-900' : 'pl-7 text-slate-700'
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
+                  {acc.code}
+                </span>
+                {acc.name}
               </span>
-              {acc.name}
-            </span>
-            <span className="flex items-center gap-4 font-mono">
-              <span>{formatCurrency(acc.finalBalance)}</span>
-              <span className="w-14 text-right text-[11px] text-slate-500">
-                {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+              <span className="flex items-center gap-4 font-mono shrink-0">
+                <span>{formatCurrency(acc.finalBalance)}</span>
+                <span className="w-14 text-right text-[11px] text-slate-500">
+                  {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+                </span>
               </span>
-            </span>
-          </button>
-        ))}
+            </button>
+          ))
+        )}
         <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-300 pt-2 px-3">
           <span>Total de Ingresos Netos</span>
           <span className="flex items-center gap-4 font-mono">
@@ -104,29 +116,36 @@ export function EstadoResultadosTab({
         <div className="text-xs font-bold uppercase tracking-wider text-slate-800 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg">
           (-) Costo de Ventas y Servicios
         </div>
-        {incomeStatement.costos.map((acc) => (
-          <button
-            key={acc.id}
-            type="button"
-            onClick={() => onSelectAccount(acc.id)}
-            className={`w-full flex items-center justify-between text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
-              acc.level === 2 ? 'font-bold text-slate-900' : 'pl-7 text-slate-700'
-            }`}
-          >
-            <span>
-              <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                {acc.code}
+        {incomeStatement.costos.length === 0 ? (
+          <p className="text-xs text-slate-500 italic px-3 py-1.5">
+            Sin movimientos acumulados en este rubro.
+          </p>
+        ) : (
+          incomeStatement.costos.map((acc) => (
+            <button
+              key={acc.id}
+              type="button"
+              onClick={() => onSelectAccount(acc.id)}
+              title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+              className={`w-full flex items-center justify-between gap-2 text-left text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
+                acc.level === 2 ? 'font-bold text-slate-900' : 'pl-7 text-slate-700'
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
+                  {acc.code}
+                </span>
+                {acc.name}
               </span>
-              {acc.name}
-            </span>
-            <span className="flex items-center gap-4 font-mono">
-              <span>{formatCurrency(acc.finalBalance)}</span>
-              <span className="w-14 text-right text-[11px] text-slate-500">
-                {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+              <span className="flex items-center gap-4 font-mono shrink-0">
+                <span>{formatCurrency(acc.finalBalance)}</span>
+                <span className="w-14 text-right text-[11px] text-slate-500">
+                  {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+                </span>
               </span>
-            </span>
-          </button>
-        ))}
+            </button>
+          ))
+        )}
         <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-300 pt-2 px-3 bg-slate-50 rounded-lg py-2">
           <span>(=) Utilidad Bruta</span>
           <span className="flex items-center gap-4 font-mono">
@@ -146,29 +165,36 @@ export function EstadoResultadosTab({
         <div className="text-xs font-bold uppercase tracking-wider text-slate-800 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg">
           (-) Gastos Generales de Operación y Administración
         </div>
-        {incomeStatement.gastos.map((acc) => (
-          <button
-            key={acc.id}
-            type="button"
-            onClick={() => onSelectAccount(acc.id)}
-            className={`w-full flex items-center justify-between text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
-              acc.level === 2 ? 'font-bold text-slate-900' : 'pl-7 text-slate-700'
-            }`}
-          >
-            <span>
-              <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                {acc.code}
+        {incomeStatement.gastos.length === 0 ? (
+          <p className="text-xs text-slate-500 italic px-3 py-1.5">
+            Sin movimientos acumulados en este rubro.
+          </p>
+        ) : (
+          incomeStatement.gastos.map((acc) => (
+            <button
+              key={acc.id}
+              type="button"
+              onClick={() => onSelectAccount(acc.id)}
+              title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+              className={`w-full flex items-center justify-between gap-2 text-left text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
+                acc.level === 2 ? 'font-bold text-slate-900' : 'pl-7 text-slate-700'
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
+                  {acc.code}
+                </span>
+                {acc.name}
               </span>
-              {acc.name}
-            </span>
-            <span className="flex items-center gap-4 font-mono">
-              <span>{formatCurrency(acc.finalBalance)}</span>
-              <span className="w-14 text-right text-[11px] text-slate-500">
-                {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+              <span className="flex items-center gap-4 font-mono shrink-0">
+                <span>{formatCurrency(acc.finalBalance)}</span>
+                <span className="w-14 text-right text-[11px] text-slate-500">
+                  {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+                </span>
               </span>
-            </span>
-          </button>
-        ))}
+            </button>
+          ))
+        )}
         <div className="flex justify-between text-xs font-bold text-slate-800 border-t border-slate-300 pt-2 px-3">
           <span>Total de Gastos de Operación</span>
           <span className="flex items-center gap-4 font-mono">
@@ -194,17 +220,18 @@ export function EstadoResultadosTab({
               key={acc.id}
               type="button"
               onClick={() => onSelectAccount(acc.id)}
-              className={`w-full flex items-center justify-between text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
+              title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+              className={`w-full flex items-center justify-between gap-2 text-left text-xs py-1.5 px-3 hover:bg-blue-50/40 rounded-lg transition cursor-pointer ${
                 acc.level === 2 ? 'font-bold text-slate-900' : 'pl-7 text-slate-700'
               }`}
             >
-              <span>
+              <span className="min-w-0">
                 <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
                   {acc.code}
                 </span>
                 {acc.name}
               </span>
-              <span className="flex items-center gap-4 font-mono">
+              <span className="flex items-center gap-4 font-mono shrink-0">
                 <span>{formatCurrency(acc.finalBalance)}</span>
                 <span className="w-14 text-right text-[11px] text-slate-500">
                   {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
@@ -231,11 +258,13 @@ export function EstadoResultadosTab({
       <div className="p-4 rounded-xl bg-[#0A1120] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="text-sm font-bold">
-            (=) Utilidad (o Pérdida) Neta Acumulada del Ejercicio
+            {isLoss
+              ? '(=) Pérdida Neta Acumulada del Ejercicio'
+              : '(=) Utilidad Neta Acumulada del Ejercicio'}
           </div>
           <div className="text-xs text-slate-400">
             Margen Neto sobre Ventas:{' '}
-            <strong className="text-emerald-300 font-mono">
+            <strong className={`${isLoss ? 'text-red-300' : 'text-emerald-300'} font-mono`}>
               {formatVerticalPct(
                 incomeStatement.utilidadNeta,
                 incomeStatement.totalIngresos
@@ -243,7 +272,7 @@ export function EstadoResultadosTab({
             </strong>
           </div>
         </div>
-        <div className="text-xl font-bold font-mono text-emerald-400">
+        <div className={`text-xl font-bold font-mono ${isLoss ? 'text-red-400' : 'text-emerald-400'}`}>
           {formatCurrency(incomeStatement.utilidadNeta)}
         </div>
       </div>

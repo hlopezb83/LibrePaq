@@ -14,9 +14,10 @@ const GENERIC_RFCS = new Set(['XAXX010101000', 'XEXX010101000']);
 
 function getAttr(tagContent: string, attrName: string): string {
   if (!tagContent) return '';
-  const regex = new RegExp(`\\b${attrName}\\s*=\\s*["']([^"']*)["']`, 'i');
+  const regex = new RegExp(`\\b${attrName}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i');
   const match = tagContent.match(regex);
-  return match && match[1] !== undefined ? decodeXmlEntities(match[1].trim()) : '';
+  const raw = match?.[1] ?? match?.[2];
+  return raw !== undefined ? decodeXmlEntities(raw.trim()) : '';
 }
 
 function findTag(xml: string, tagName: string): string {

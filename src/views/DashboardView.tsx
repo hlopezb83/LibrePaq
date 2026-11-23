@@ -32,7 +32,10 @@ export function DashboardView() {
 
   if (isError) {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
+      <div
+        role="alert"
+        className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12"
+      >
         <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
           <AlertCircle className="w-6 h-6" aria-hidden="true" />
         </div>
@@ -56,7 +59,13 @@ export function DashboardView() {
 
   if (isLoading || !derived) {
     return (
-      <div className="space-y-6 animate-pulse">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        className="space-y-6 animate-pulse"
+      >
+        <span className="visually-hidden">Cargando tablero financiero del periodo...</span>
         <div className="h-24 bg-slate-200/70 rounded-2xl" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (

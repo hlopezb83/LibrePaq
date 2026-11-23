@@ -246,6 +246,13 @@ export function buildStandardIngresoMovements(
   const isrRetCents = toMxnCents(cfdi.isrRetenido, cfdi);
   const ivaRetCents = toMxnCents(cfdi.ivaRetenido, cfdi);
   const totalCents = toMxnCents(cfdi.total, cfdi);
+  // Diferencia por impuestos distintos de IVA (IEPS / ISH / cuotas locales) integrada al gasto o ingreso
+  const rawFiscalDiffCents = totalCents + isrRetCents + ivaRetCents - (subtotalNetoCents + ivaCents);
+  const nonIvaTaxCents =
+    rawFiscalDiffCents > 5 && rawFiscalDiffCents <= Math.round(totalCents * 0.5)
+      ? rawFiscalDiffCents
+      : 0;
+  const effectiveSubtotalCents = subtotalNetoCents + nonIvaTaxCents;
   const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
   const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;
   const movements: AutoPolizaMovementDraft[] = [];
@@ -261,7 +268,7 @@ export function buildStandardIngresoMovements(
       ? resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO')
       : resolveFiscalAccount(accounts, 'IVA_PENDIENTE_PAGO');
 
-    movements.push(makeDraft(accGasto, ref, subtotalNetoCents, 0, cfdi.conceptoPrincipal));
+    movements.push(makeDraft(accGasto, ref, effectiveSubtotalCents, 0, cfdi.conceptoPrincipal));
     if (ivaCents > 0) {
       movements.push(makeDraft(accIva, ref, ivaCents, 0, `IVA Acreditable 16% ${ref}`));
     }
@@ -316,7 +323,7 @@ export function buildStandardIngresoMovements(
     const accIvaRet = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_RETENIDO');
     movements.push(makeDraft(accIvaRet, ref, ivaRetCents, 0, `Retención IVA clientes ${ref}`));
   }
-  movements.push(makeDraft(accIngreso, ref, 0, subtotalNetoCents, cfdi.conceptoPrincipal));
+  movements.push(makeDraft(accIngreso, ref, 0, effectiveSubtotalCents, cfdi.conceptoPrincipal));
   if (ivaCents > 0) {
     movements.push(makeDraft(accIva, ref, 0, ivaCents, `IVA 16% ${ref}`));
   }

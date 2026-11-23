@@ -1,11 +1,12 @@
 import type {
+  AccountWithBalance,
   CfdiDocument,
   Company,
   FiscalWorkpaperResponse,
   TaxParametersRecord
 } from '../types';
 import { SAFETY_BOUNDS } from '../sat-constants';
-import { fromCents, toCents } from './invariants-and-math';
+import { fromCents, sumCents, toCents } from './invariants-and-math';
 import { calculateArt106PfIsr } from './art106-tax.engine';
 
 export {
@@ -96,10 +97,11 @@ export function computeFiscalWorkpaper(params: {
   let isrNetoAPagarCents = 0;
 
   if (esResico && isPersonaFisica) {
-    utilidadFiscalEstimadaCents = ingresosMesCents;
+    const positiveMesCents = Math.max(0, ingresosMesCents);
+    utilidadFiscalEstimadaCents = positiveMesCents;
     perdidasAplicadasCents = 0;
-    baseGravableIsrCents = ingresosMesCents;
-    tasaIsrPct = calculateResicoPfRate(ingresosMesCents);
+    baseGravableIsrCents = positiveMesCents;
+    tasaIsrPct = calculateResicoPfRate(positiveMesCents);
     isrCausadoCents = Math.round(baseGravableIsrCents * (tasaIsrPct / 100));
     isrNetoAPagarCents = Math.max(0, isrCausadoCents - isrRetenidoAcreditableCents);
   } else if (esResico && !isPersonaFisica) {
@@ -124,7 +126,7 @@ export function computeFiscalWorkpaper(params: {
       isrCausadoCents - pagosPreviosCents - isrRetenidoAcreditableCents
     );
   } else {
-    utilidadFiscalEstimadaCents = Math.round(ingresosAcumCents * cu);
+    utilidadFiscalEstimadaCents = Math.max(0, Math.round(ingresosAcumCents * cu));
     perdidasAplicadasCents = Math.min(utilidadFiscalEstimadaCents, perdidasDisponiblesCents);
     baseGravableIsrCents = Math.max(0, utilidadFiscalEstimadaCents - perdidasAplicadasCents);
     tasaIsrPct = 30.0;
@@ -152,6 +154,8 @@ export function computeFiscalWorkpaper(params: {
   const tcDof = parameters.tipoCambioDofCierre > 0 ? parameters.tipoCambioDofCierre : 19.85;
   let netUsdCents = 0;
   let bookMxnCents = 0;
+  let grossUsdCents = 0;
+  let grossBookMxnCents = 0;
   let validUsdCount = 0;
   const boundUsd = Math.min(usdCfdis.length, SAFETY_BOUNDS.MAX_BATCH_CFDI);
 
@@ -172,16 +176,19 @@ export function computeFiscalWorkpaper(params: {
     const sign = (doc.direction === 'EMITIDO' ? 1 : -1) * creditNoteFlip;
     const usdAmountCents = toCents(doc.total);
     const tcDoc = doc.tipoCambio > 1 ? doc.tipoCambio : 19.5;
+    const mxnAmountCents = Math.round(usdAmountCents * tcDoc);
     netUsdCents += sign * usdAmountCents;
-    bookMxnCents += sign * Math.round(usdAmountCents * tcDoc);
+    bookMxnCents += sign * mxnAmountCents;
+    grossUsdCents += Math.abs(usdAmountCents);
+    grossBookMxnCents += Math.abs(mxnAmountCents);
     validUsdCount += 1;
   }
 
   const closingDofMxnCents = Math.round(netUsdCents * tcDof);
   const diffCambiariaCents = closingDofMxnCents - bookMxnCents;
   const tcPromedio =
-    netUsdCents !== 0
-      ? Number(Math.abs(bookMxnCents / netUsdCents).toFixed(4))
+    grossUsdCents > 0
+      ? Number((grossBookMxnCents / grossUsdCents).toFixed(4))
       : Number(tcDof.toFixed(4));
 
   const retIsrEnterarCents = toCents(isrRetenidoPorPagar);
@@ -242,4 +249,93 @@ export function computeFiscalWorkpaper(params: {
       totalEstimadoDia17: fromCents(totalDia17Cents)
     }
   };
+}
+
+/**
+ * Extrae saldos fiscales desde una balanza de comprobación y CFDIs usando reglas unificadas
+ * (excluye cuentas 801, grupo SAT 611 ISR y 601-01-006 depreciación contable) para alimentar
+ * computeFiscalWorkpaper con paridad exacta entre SQLite local y Supabase Cloud.
+ */
+export function computeFiscalWorkpaperFromTrialBalance(params: {
+  company: Company;
+  ejercicio: number;
+  periodo: number;
+  parameters: TaxParametersRecord;
+  trialBalance: readonly AccountWithBalance[];
+  cfdis: readonly CfdiDocument[];
+}): FiscalWorkpaperResponse {
+  const { company, ejercicio, periodo, parameters, trialBalance, cfdis } = params;
+
+  const ingresosAccounts = trialBalance.filter((a) => a.isAffectable && a.type === 'INGRESOS');
+  const egresosAccounts = trialBalance.filter(
+    (a) =>
+      a.isAffectable &&
+      (a.type === 'COSTOS' || a.type === 'GASTOS') &&
+      !a.code.startsWith('801') &&
+      !a.satGroupCode?.startsWith('801') &&
+      !a.satGroupCode?.startsWith('611') &&
+      a.code !== '601-01-006'
+  );
+
+  const ingresosPeriodo = fromCents(
+    sumCents(ingresosAccounts.map((a) => a.periodCredits - a.periodCharges))
+  );
+  const ingresosAcumuladosEjercicio = fromCents(
+    sumCents(ingresosAccounts.map((a) => a.finalBalance))
+  );
+  const deduccionesAutorizadasPeriodo = fromCents(
+    sumCents(egresosAccounts.map((a) => a.periodCharges - a.periodCredits))
+  );
+  const deduccionesAcumuladasEjercicio = fromCents(
+    sumCents(egresosAccounts.map((a) => a.finalBalance))
+  );
+
+  const accIvaCobrado = trialBalance.find(
+    (a) => a.code === '208-01-001' || a.satGroupCode === '208.01'
+  );
+  const accIvaPagado = trialBalance.find(
+    (a) => a.code === '118-01-001' || a.satGroupCode === '118.01'
+  );
+  const accRetIsr = trialBalance.find(
+    (a) => a.code === '216-01-001' || a.satGroupCode === '216.01'
+  );
+  const accRetIva = trialBalance.find(
+    (a) => a.code === '216-01-002' || a.satGroupCode === '216.02'
+  );
+  const accIsrFavor = trialBalance.find(
+    (a) => a.code === '113-02-001' || a.satGroupCode === '113.02'
+  );
+  const accIvaFavor = trialBalance.find((a) => a.code === '113-01-002');
+
+  const settledPpdUuids = new Set(
+    cfdis
+      .filter((c) => c.tipoComprobante === 'P' && c.statusSat !== 'CANCELADO' && c.uuidRelacionado)
+      .map((c) => String(c.uuidRelacionado).toUpperCase())
+  );
+
+  const usdCfdis = cfdis.filter(
+    (c) =>
+      c.moneda?.toUpperCase() === 'USD' &&
+      c.statusSat !== 'CANCELADO' &&
+      c.metodoPago === 'PPD' &&
+      !settledPpdUuids.has((c.uuid || '').toUpperCase())
+  );
+
+  return computeFiscalWorkpaper({
+    company,
+    ejercicio,
+    periodo,
+    parameters,
+    ingresosPeriodo,
+    ingresosAcumuladosEjercicio,
+    deduccionesAutorizadasPeriodo,
+    deduccionesAcumuladasEjercicio,
+    ivaTrasladadoCobrado: accIvaCobrado?.periodCredits ?? 0,
+    ivaAcreditablePagado: accIvaPagado?.periodCharges ?? 0,
+    isrRetenidoPorPagar: accRetIsr?.periodCredits ?? 0,
+    ivaRetenidoPorPagar: accRetIva?.periodCredits ?? 0,
+    isrRetenidoFavorPeriodo: accIsrFavor?.periodCharges ?? 0,
+    ivaRetenidoFavorPeriodo: accIvaFavor?.periodCharges ?? 0,
+    usdCfdis
+  });
 }

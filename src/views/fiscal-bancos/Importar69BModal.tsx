@@ -29,14 +29,18 @@ export function Importar69BModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [parseResult, setParseResult] = useState<Sat69BParseResult | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
-  useDialogLightDismiss(dialogRef, onClose);
+  useDialogLightDismiss(dialogRef, onClose, { isOpen });
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (isOpen) {
+      setParseResult(null);
+      setParseError(null);
+      setFileName(null);
       if (!dialog.open) dialog.showModal();
     } else if (dialog.open) {
       dialog.close();
@@ -52,6 +56,8 @@ export function Importar69BModal({
     if (!file) return;
 
     setFileName(file.name);
+    setParseError(null);
+    setParseResult(null);
     setIsProcessing(true);
 
     const reader = new FileReader();
@@ -59,12 +65,23 @@ export function Importar69BModal({
       try {
         const text = (event.target?.result as string) || '';
         const parsed = parseSat69BCsv(text);
+        if (parsed.total === 0) {
+          setParseError('No se encontraron registros 69-B válidos en el CSV seleccionado.');
+        }
         setParseResult(parsed);
-      } catch {
-        // Fallback en caso de error
+      } catch (err: unknown) {
+        setParseError(
+          `No se pudo leer el archivo CSV: ${err instanceof Error ? err.message : 'Formato inválido'}`
+        );
       } finally {
         setIsProcessing(false);
+        e.target.value = '';
       }
+    };
+    reader.onerror = () => {
+      setParseError('No se pudo abrir el archivo CSV seleccionado.');
+      setIsProcessing(false);
+      e.target.value = '';
     };
     reader.readAsText(file);
   };
@@ -132,27 +149,35 @@ export function Importar69BModal({
         </div>
 
         <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 text-center bg-slate-50 hover:bg-slate-100/70 transition-colors">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            aria-label="Cargar archivo CSV del padrón 69-B del SAT"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-            <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white cursor-pointer mb-1"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Seleccionar archivo Listado_Completo_69-B.csv
-            </button>
-            <p className="text-[11px] text-slate-500">
-              {fileName ? `Archivo: ${fileName}` : 'Formato oficial de texto separado por comas o punto y coma'}
-            </p>
+          <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-400 mb-2" aria-hidden="true" />
+          <label
+            htmlFor="csv-69b-upload"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white cursor-pointer mb-1"
+          >
+            <input
+              id="csv-69b-upload"
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleFileChange}
+              className="visually-hidden"
+            />
+            <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Seleccionar archivo Listado_Completo_69-B.csv</span>
+          </label>
+          <p className="text-[11px] text-slate-500">
+            {fileName ? `Archivo: ${fileName}` : 'Formato oficial de texto separado por comas o punto y coma'}
+          </p>
+        </div>
+
+        {parseError && (
+          <div
+            role="alert"
+            className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 font-medium"
+          >
+            {parseError}
           </div>
+        )}
 
           {isProcessing && (
             <div className="text-center py-2 text-slate-600 font-semibold">
@@ -204,7 +229,7 @@ export function Importar69BModal({
             onClick={handleApply}
             className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white cursor-pointer"
           >
-            <ShieldCheck className="w-4 h-4" />
+            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
             Aplicar y Sincronizar ({parseResult ? parseResult.total.toLocaleString() : 0} RFCs)
           </button>
         </div>

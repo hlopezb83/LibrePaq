@@ -1,10 +1,9 @@
 import { fromCents, toCents } from './invariants-and-math';
 import { resolveFiscalAccount } from './auto-poliza.engine';
-import { MESES_SAT } from '../sat-constants';
 import type {
+  Account,
   AccountWithBalance,
   Company,
-  DashboardSummary,
   FinancialStatementsResponse
 } from '../types';
 
@@ -76,6 +75,32 @@ export function computeFinancialStatementsData(
     }
   }
 
+  const computedAccounts = rollUpTrialBalanceAccounts(
+    accounts,
+    priorChargesMap,
+    priorCreditsMap,
+    currentChargesMap,
+    currentCreditsMap
+  );
+  return buildFinancialStatementsFromTrialBalance(
+    company,
+    computedAccounts,
+    ejercicio,
+    periodo
+  );
+}
+
+/**
+ * Calcula saldos iniciales, cargos/abonos del periodo, saldo final y roll-up
+ * jerárquico por nivel descendente (incluyendo cuentas complementarias con signo opuesto).
+ */
+export function rollUpTrialBalanceAccounts(
+  accounts: readonly Account[],
+  priorChargesMap: ReadonlyMap<string, number>,
+  priorCreditsMap: ReadonlyMap<string, number>,
+  currentChargesMap: ReadonlyMap<string, number>,
+  currentCreditsMap: ReadonlyMap<string, number>
+): AccountWithBalance[] {
   const byCode = new Map<string, AccountWithBalance>();
   for (const acc of accounts) {
     const priorChg = priorChargesMap.get(acc.id) || 0;
@@ -124,7 +149,28 @@ export function computeFinancialStatementsData(
     parent.finalBalance = fromCents(parentFinal);
   }
 
-  const computedAccounts = accounts.map((a) => byCode.get(a.code) || a);
+  return accounts.map(
+    (a) =>
+      byCode.get(a.code) ?? {
+        ...a,
+        initialBalanceComputed: 0,
+        periodCharges: 0,
+        periodCredits: 0,
+        finalBalance: 0
+      }
+  );
+}
+
+/**
+ * Construye los Estados Financieros (Totales de Balanza, Estado de Resultados y Balance General)
+ * a partir de una balanza de comprobación ya calculada y totalizada por nivel jerárquico.
+ */
+export function buildFinancialStatementsFromTrialBalance(
+  company: Company,
+  computedAccounts: AccountWithBalance[],
+  ejercicio: number,
+  periodo: number
+): FinancialStatementsResponse {
   const l1 = computedAccounts.filter((a) => a.level === 1);
   let totalChgCents = 0;
   let totalCredCents = 0;
@@ -159,35 +205,48 @@ export function computeFinancialStatementsData(
   const pasivosAccs = computedAccounts.filter((a) => a.type === 'PASIVO' && a.level >= 2);
   const capitalAccs = computedAccounts.filter((a) => a.type === 'CAPITAL' && a.level >= 2);
 
-  const sumL2Abs = (accs: AccountWithBalance[]) =>
-    accs.reduce((s, a) => s + (a.level === 2 ? Math.abs(a.finalBalance) : 0), 0);
+  const sumL2Signed = (accs: AccountWithBalance[]) =>
+    fromCents(
+      accs.reduce((s, a) => s + (a.level === 2 ? toCents(a.finalBalance) : 0), 0)
+    );
 
-  const totalIngresos = Math.abs(
-    computedAccounts.find((a) => a.code === '400-00-000')?.finalBalance ?? sumL2Abs(ingresosAccs)
+  const totalIngresosCents = toCents(
+    computedAccounts.find((a) => a.code === '400-00-000')?.finalBalance ?? sumL2Signed(ingresosAccs)
   );
-  const totalCostos = Math.abs(
-    computedAccounts.find((a) => a.code === '500-00-000')?.finalBalance ?? sumL2Abs(costosAccs)
+  const totalCostosCents = toCents(
+    computedAccounts.find((a) => a.code === '500-00-000')?.finalBalance ?? sumL2Signed(costosAccs)
   );
-  const totalGastos = Math.abs(
-    computedAccounts.find((a) => a.code === '600-00-000')?.finalBalance ?? sumL2Abs(gastosAccs)
+  const totalGastosCents = toCents(
+    computedAccounts.find((a) => a.code === '600-00-000')?.finalBalance ?? sumL2Signed(gastosAccs)
   );
-  const totalIsr = Math.abs(
+  const totalIsrCents = toCents(
     computedAccounts.find((a) => a.code === '800-00-000' || a.code === '801-00-000')
-      ?.finalBalance ?? sumL2Abs(isrAccs)
+      ?.finalBalance ?? sumL2Signed(isrAccs)
   );
-  const utilidadBruta = totalIngresos - totalCostos;
-  const utilidadNeta = utilidadBruta - totalGastos - totalIsr;
+  const utilidadBrutaCents = totalIngresosCents - totalCostosCents;
+  const utilidadNetaCents = utilidadBrutaCents - totalGastosCents - totalIsrCents;
 
-  const totalActivo = Math.abs(
-    computedAccounts.find((a) => a.code === '100-00-000')?.finalBalance ?? sumL2Abs(activosAccs)
+  const totalActivoCents = toCents(
+    computedAccounts.find((a) => a.code === '100-00-000')?.finalBalance ?? sumL2Signed(activosAccs)
   );
-  const totalPasivo = Math.abs(
-    computedAccounts.find((a) => a.code === '200-00-000')?.finalBalance ?? sumL2Abs(pasivosAccs)
+  const totalPasivoCents = toCents(
+    computedAccounts.find((a) => a.code === '200-00-000')?.finalBalance ?? sumL2Signed(pasivosAccs)
   );
-  const totalCapitalBase =
-    computedAccounts.find((a) => a.code === '300-00-000')?.finalBalance ??
-    capitalAccs.reduce((s, a) => s + (a.level === 2 ? a.finalBalance : 0), 0);
-  const totalPasivoMasCapital = totalPasivo + totalCapitalBase + utilidadNeta;
+  const totalCapitalBaseCents = toCents(
+    computedAccounts.find((a) => a.code === '300-00-000')?.finalBalance ?? sumL2Signed(capitalAccs)
+  );
+  const totalPasivoMasCapitalCents = totalPasivoCents + totalCapitalBaseCents + utilidadNetaCents;
+
+  const totalIngresos = fromCents(totalIngresosCents);
+  const totalCostos = fromCents(totalCostosCents);
+  const totalGastos = fromCents(totalGastosCents);
+  const totalIsr = fromCents(totalIsrCents);
+  const utilidadBruta = fromCents(utilidadBrutaCents);
+  const utilidadNeta = fromCents(utilidadNetaCents);
+  const totalActivo = fromCents(totalActivoCents);
+  const totalPasivo = fromCents(totalPasivoCents);
+  const totalCapitalBase = fromCents(totalCapitalBaseCents);
+  const totalPasivoMasCapital = fromCents(totalPasivoMasCapitalCents);
 
   return {
     company,
@@ -226,48 +285,4 @@ export function computeFinancialStatementsData(
       isBalanced: Math.abs(totalActivo - totalPasivoMasCapital) < 0.05
     }
   };
-}
-
-export interface DashboardTrendPolizaInput {
-  periodo: number;
-  poliza_movements?: Array<{
-    cargo?: number | null;
-    abono?: number | null;
-    accounts?: { type?: string } | null;
-  }> | null;
-}
-
-export function buildMonthlyTrendFromPolizas(
-  months: number[],
-  tPols: DashboardTrendPolizaInput[]
-): DashboardSummary['monthlyTrend'] {
-  const mTrendMap = new Map<number, { ing: number; cos: number; gas: number }>();
-  for (const m of months) mTrendMap.set(m, { ing: 0, cos: 0, gas: 0 });
-
-  for (const pol of tPols) {
-    const entry = mTrendMap.get(pol.periodo);
-    if (!entry) continue;
-    for (const mov of pol.poliza_movements || []) {
-      const accType = mov.accounts?.type;
-      const c = Number(mov.cargo || 0);
-      const a = Number(mov.abono || 0);
-      if (accType === 'INGRESOS') entry.ing += a - c;
-      else if (accType === 'COSTOS') entry.cos += c - a;
-      else if (accType === 'GASTOS') entry.gas += c - a;
-    }
-  }
-
-  return months.map((mIdx) => {
-    const mesObj = MESES_SAT.find((m) => m.periodo === mIdx);
-    const d = mTrendMap.get(mIdx) || { ing: 0, cos: 0, gas: 0 };
-    const ingVal = fromCents(toCents(d.ing));
-    const egVal = fromCents(toCents(d.cos + d.gas));
-    return {
-      periodo: mIdx,
-      mesNombre: mesObj?.nombre || `M${mIdx}`,
-      ingresos: ingVal,
-      egresos: egVal,
-      utilidad: fromCents(toCents(ingVal - egVal))
-    };
-  });
 }
