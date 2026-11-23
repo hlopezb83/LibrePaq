@@ -20,6 +20,7 @@ export function ReportesView() {
     setSatXmlType,
     data,
     prevReports,
+    isLoadingPrevReports,
     isLoading,
     isError,
     error,
@@ -148,6 +149,7 @@ export function ReportesView() {
             mesNombre={mesNombre}
             trialBalance={data.trialBalance}
             previousTrialBalance={prevReports?.trialBalance ?? null}
+            isLoadingPrevReports={isLoadingPrevReports}
             onSelectAccount={openLedger}
           />
         </div>

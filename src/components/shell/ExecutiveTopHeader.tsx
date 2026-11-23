@@ -40,7 +40,7 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
   const roleMeta = getExecutiveRoleMeta(platformRole);
 
   return (
-    <header className="bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2.5 sm:px-5 py-1.5 sticky top-0 z-20 shadow-2xs no-print min-h-[42px] flex items-center justify-between gap-2">
+    <header className="bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2.5 sm:px-5 py-1.5 shadow-2xs no-print min-h-[42px] flex items-center justify-between gap-2">
       {/* Lado Izquierdo: Identidad de Dueño */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-50 border border-amber-300 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
@@ -51,7 +51,7 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
             <span className="text-xs font-black text-slate-900 tracking-tight truncate">
               <span className="hidden sm:inline">LibrePaq Pro • </span>{roleMeta.shortTitle}
             </span>
-            <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.2 rounded-full border font-mono shrink-0 ${roleMeta.badgeClass}`}>
+            <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full border font-mono shrink-0 ${roleMeta.badgeClass}`}>
               {roleMeta.badgeLabel}
             </span>
           </div>
@@ -102,7 +102,7 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
             onClick={onSignOut}
             title="Cerrar Sesión de Administrador"
             aria-label="Cerrar Sesión de Administrador"
-            className="p-1.5 rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition cursor-pointer shrink-0 ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+            className="min-w-[36px] min-h-[36px] inline-flex items-center justify-center p-2 rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition cursor-pointer shrink-0 ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
           >
             <LogOut className="w-4 h-4" aria-hidden="true" />
           </button>

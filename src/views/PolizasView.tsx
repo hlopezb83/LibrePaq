@@ -1,4 +1,4 @@
-import { AlertCircle, FilePlus2, Lock, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertCircle, Eye, FilePlus2, Lock, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useUIModal } from '../context/UIModalContext';
 import { PedimentoEditorModal } from './polizas/PedimentoEditorModal';
@@ -28,6 +28,18 @@ export function PolizasView() {
               Este periodo mensual se encuentra protegido contra modificaciones involuntarias para salvaguardar la contabilidad declarada.
             </p>
           </div>
+        </div>
+      )}
+
+      {m.isReadOnlyClient && !m.isPeriodLocked && (
+        <div
+          role="status"
+          className="bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 flex items-start gap-3 text-sky-950 text-xs shadow-2xs"
+        >
+          <Eye className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>
+            <strong>Modo Solo lectura:</strong> Puedes consultar pólizas, partidas, Libro Mayor y exportar CSV, pero no capturar, duplicar, editar ni eliminar pólizas.
+          </span>
         </div>
       )}
 
@@ -96,9 +108,11 @@ export function PolizasView() {
                 ? 'Ninguna póliza coincide con los filtros actuales'
                 : 'No se encontraron pólizas en este periodo'}
             </p>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed">
               {m.polizas.length > 0
                 ? 'Ajusta o limpia los filtros de búsqueda, tipo o comprobante para ver todas las pólizas registradas.'
+                : m.isReadOnlyClient
+                ? 'No hay pólizas registradas en este periodo. Tu rol Cliente (Solo lectura) permite consultar otros periodos desde el selector superior o revisar los comprobantes en la Bóveda ADD.'
                 : 'Inicia capturando una póliza contable con cuadre automático, o genera pólizas en lote desde tus facturas CFDI 4.0.'}
             </p>
           </div>
@@ -122,7 +136,7 @@ export function PolizasView() {
               disabled={m.isWriteBlocked}
               title={
                 m.isReadOnlyClient
-                  ? 'Modo solo lectura'
+                  ? 'Tu rol Cliente (Solo lectura) no permite capturar pólizas'
                   : m.isPeriodLocked
                   ? 'Periodo fiscal bloqueado ante el SAT'
                   : undefined
@@ -131,9 +145,11 @@ export function PolizasView() {
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
               <span>Capturar Nueva Póliza</span>
-              <kbd className="font-mono text-[10px] bg-blue-900/80 px-1 py-0.5 rounded border border-blue-500/40 text-blue-200">
-                Alt+N
-              </kbd>
+              {!m.isWriteBlocked && (
+                <kbd className="font-mono text-[10px] bg-blue-900/80 px-1 py-0.5 rounded border border-blue-500/40 text-blue-200">
+                  Alt+N
+                </kbd>
+              )}
             </button>
             <Link
               to="/add"

@@ -7,13 +7,15 @@ export interface AjustesEmpresaComplianceCardsProps {
   compMask: string;
   periodLock?: { isLocked: boolean } | null;
   togglePeriodLockMutation: { mutate: (lock: boolean) => void; isPending: boolean };
+  isReadOnly?: boolean;
 }
 
 export function AjustesEmpresaComplianceCards({
   activeCompany,
   compMask,
   periodLock,
-  togglePeriodLockMutation
+  togglePeriodLockMutation,
+  isReadOnly = false
 }: AjustesEmpresaComplianceCardsProps) {
   const [confirmLockToggle, setConfirmLockToggle] = useState(false);
 
@@ -106,9 +108,16 @@ export function AjustesEmpresaComplianceCards({
           ) : (
             <button
               type="button"
-              disabled={togglePeriodLockMutation.isPending}
-              onClick={() => setConfirmLockToggle(true)}
-              className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+              disabled={isReadOnly || togglePeriodLockMutation.isPending}
+              title={
+                isReadOnly
+                  ? 'Modo solo lectura: no tienes permisos para bloquear o reabrir periodos'
+                  : undefined
+              }
+              onClick={() => {
+                if (!isReadOnly) setConfirmLockToggle(true);
+              }}
+              className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                 periodLock?.isLocked
                   ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-2xs'
                   : 'bg-amber-600 hover:bg-amber-700 text-white border-transparent shadow-xs'

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Eye, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { REGIMENES_FISCALES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
 import { AccountingRulesCard } from './AccountingRulesCard';
@@ -23,6 +23,7 @@ export interface AjustesEmpresaTabProps {
   updateCompanyMutation: { mutate: () => void; isPending: boolean };
   periodLock?: { isLocked: boolean } | null;
   togglePeriodLockMutation: { mutate: (lock: boolean) => void; isPending: boolean };
+  isReadOnly?: boolean;
 }
 
 export function AjustesEmpresaTab({
@@ -43,17 +44,30 @@ export function AjustesEmpresaTab({
   rfcModulo11,
   updateCompanyMutation,
   periodLock,
-  togglePeriodLockMutation
+  togglePeriodLockMutation,
+  isReadOnly = false
 }: AjustesEmpresaTabProps) {
   return (
     <section className="space-y-5">
+      {isReadOnly && (
+        <div
+          role="status"
+          className="px-4 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 text-xs flex items-center gap-2 shadow-2xs"
+        >
+          <Eye className="w-4 h-4 text-sky-700 shrink-0" aria-hidden="true" />
+          <span>
+            <strong>Modo Solo lectura:</strong> Puedes consultar la ficha fiscal, candado de periodo y reglas contables de la empresa, pero no realizar modificaciones.
+          </span>
+        </div>
+      )}
+
       {/* Grid Equilibrado: Formulario Fiscal + Parámetros de Operación */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Columna 1: Formulario de Identidad Fiscal Oficial (CSF) */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            updateCompanyMutation.mutate();
+            if (!isReadOnly) updateCompanyMutation.mutate();
           }}
           className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden flex flex-col justify-between"
         >
@@ -84,9 +98,10 @@ export function AjustesEmpresaTab({
                   id="set-name"
                   type="text"
                   required
+                  disabled={isReadOnly}
                   value={compName}
                   onChange={(e) => setCompName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-blue-700 focus:border-blue-700 transition"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:outline-blue-700 focus:border-blue-700 transition disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
                   placeholder="Ej. TECNOLOGIAS NUBE DEL NORTE S.A. DE C.V."
                 />
               </div>
@@ -109,7 +124,7 @@ export function AjustesEmpresaTab({
                             <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" /> SAT M11: {rfcModulo11.expectedCheckDigit}
                             </span>
-                            {rfcModulo11.expectedRfc && (
+                            {rfcModulo11.expectedRfc && !isReadOnly && (
                               <button
                                 type="button"
                                 onClick={() => setCompRfc(rfcModulo11.expectedRfc!)}
@@ -130,12 +145,13 @@ export function AjustesEmpresaTab({
                     id="set-rfc"
                     type="text"
                     required
+                    disabled={isReadOnly}
                     maxLength={13}
                     aria-invalid={!isRfcValid}
                     aria-describedby="set-rfc-help"
                     value={compRfc}
                     onChange={(e) => setCompRfc(e.target.value.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, ''))}
-                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold tracking-wider uppercase focus:outline-blue-700 ${
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold tracking-wider uppercase focus:outline-blue-700 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
                       isRfcValid
                         ? rfcModulo11?.isValidCheckDigit
                           ? 'border-emerald-300 bg-emerald-50/20 text-emerald-900'
@@ -160,13 +176,14 @@ export function AjustesEmpresaTab({
                     type="text"
                     inputMode="numeric"
                     required
+                    disabled={isReadOnly}
                     pattern="\d{5}"
                     maxLength={5}
                     aria-invalid={!isCpValid}
                     aria-describedby="set-cp-help"
                     value={compCp}
                     onChange={(e) => setCompCp(e.target.value.replace(/\D/g, ''))}
-                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 focus:outline-blue-700 ${
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 focus:outline-blue-700 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed ${
                       isCpValid ? 'border-slate-300' : 'border-red-300 bg-red-50/30'
                     }`}
                     placeholder="64000"
@@ -187,9 +204,10 @@ export function AjustesEmpresaTab({
                 </label>
                 <select
                   id="set-regimen"
+                  disabled={isReadOnly}
                   value={compRegimen}
                   onChange={(e) => setCompRegimen(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 bg-white focus:outline-blue-700 cursor-pointer font-medium"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 bg-white focus:outline-blue-700 cursor-pointer font-medium disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
                 >
                   {REGIMENES_FISCALES_SAT.map((r) => (
                     <option key={r} value={r}>
@@ -219,7 +237,7 @@ export function AjustesEmpresaTab({
               )}
             </div>
             <div className="flex items-center gap-2 ml-auto">
-              {isCompanyDirty && (
+              {isCompanyDirty && !isReadOnly && (
                 <button
                   type="button"
                   onClick={onResetCompany}
@@ -231,10 +249,12 @@ export function AjustesEmpresaTab({
               )}
               <button
                 type="submit"
-                disabled={updateCompanyMutation.isPending || !isRfcValid || !isCpValid || !isCompanyDirty}
+                disabled={isReadOnly || updateCompanyMutation.isPending || !isRfcValid || !isCpValid || !isCompanyDirty}
                 aria-busy={updateCompanyMutation.isPending}
                 title={
-                  !isRfcValid || !isCpValid
+                  isReadOnly
+                    ? 'Modo solo lectura: no tienes permisos para editar la ficha fiscal'
+                    : !isRfcValid || !isCpValid
                     ? 'Verifica que RFC y Código Postal sean válidos'
                     : !isCompanyDirty
                     ? 'No hay modificaciones pendientes por guardar'
@@ -255,6 +275,7 @@ export function AjustesEmpresaTab({
           compMask={compMask}
           periodLock={periodLock}
           togglePeriodLockMutation={togglePeriodLockMutation}
+          isReadOnly={isReadOnly}
         />
       </div>
 

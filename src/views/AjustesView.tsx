@@ -1,6 +1,8 @@
-import { useRef, type ComponentType, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType, type KeyboardEvent } from 'react';
 import {
   Building2,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   HardDrive,
   KeyRound,
@@ -29,84 +31,35 @@ const AJUSTES_TABS: Array<{
   { id: 'fiscal', label: '4. Cédula Día 17', icon: Coins },
   { id: 'respaldos', label: '5. Respaldos', icon: HardDrive },
   { id: 'atajos', label: '6. Atajos F1', icon: Keyboard },
-  { id: 'equipo', label: '7. Equipo RBAC', icon: ShieldCheck }
+  { id: 'equipo', label: '7. Equipo y Bitácora', icon: ShieldCheck }
 ];
 
 export function AjustesView() {
-  const state = useAjustesState();
-  const {
-    companies,
-    companiesLoading,
-    activeCompany,
-    setActiveCompanyId,
-    activeTab,
-    setActiveTab,
-    compName,
-    setCompName,
-    compRfc,
-    setCompRfc,
-    compRegimen,
-    setCompRegimen,
-    compCp,
-    setCompCp,
-    compMask,
-    isRfcValid,
-    isCpValid,
-    isCompanyDirty,
-    resetCompanyForm,
-    rfcModulo11,
-    updateCompanyMutation,
-    confirmDeleteCompany,
-    setConfirmDeleteCompany,
-    deleteCompanyMutation,
-    periodLock,
-    togglePeriodLockMutation,
-    fielStatus,
-    soapRequests,
-    cerFile,
-    setCerFile,
-    keyFile,
-    setKeyFile,
-    fielPass,
-    setFielPass,
-    showFielPass,
-    setShowFielPass,
-    isUploadingFiel,
-    handleUploadFiel,
-    handleGenerateTestFiel,
-    currentYear,
-    currentPeriod,
-    coefUtilidad,
-    setCoefUtilidad,
-    tcDof,
-    setTcDof,
-    perdidasAnt,
-    setPerdidasAnt,
-    pagosAnt,
-    setPagosAnt,
-    saldoIvaAnt,
-    setSaldoIvaAnt,
-    isFiscalDirty,
-    resetFiscalForm,
-    saveFiscalParamsMutation,
-    fiscalWp,
-    accountsList,
-    polizasData,
-    cfdisList,
-    isExportingBackup,
-    isRestoringBackup,
-    pendingRestore,
-    confirmRestoreBackup,
-    cancelRestoreBackup,
-    handleExportBackup,
-    handleRestoreBackupFile,
-    handleImportCsvCatalog,
-    restoreInputRef,
-    csvCatalogInputRef,
-    toast
-  } = state;
+  const s = useAjustesState();
+  const { activeTab, setActiveTab, activeCompany, companies, companiesLoading } = s;
+  const isReadOnly = s.isReadOnlySupportMode || s.isReadOnlyClient;
 
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const tabListRef = useRef<HTMLDivElement | null>(null);
+  const [tabScrollState, setTabScrollState] = useState({ left: false, right: false });
+
+  const updateTabScrollState = useCallback(() => {
+    const el = tabListRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 4;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setTabScrollState((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }, []);
+
+  useEffect(() => {
+    updateTabScrollState();
+    window.addEventListener('resize', updateTabScrollState);
+    return () => window.removeEventListener('resize', updateTabScrollState);
+  }, [updateTabScrollState]);
+
+  const scrollTabsBy = (delta: number) => {
+    tabListRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  };
 
   const selectAndFocusTab = (nextTab: AjustesTab) => {
     setActiveTab(nextTab);
@@ -153,52 +106,78 @@ export function AjustesView() {
               </span>
             </div>
             <p className="text-xs text-slate-600 mt-0.5">
-              Identidad fiscal, e.firma SAT Anexo 24, parámetros y respaldos
+              Identidad fiscal, e.firma SAT Anexo 24, reglas contables, equipo y bitácora
             </p>
           </div>
         </div>
 
-        <div
-          role="tablist"
-          aria-label="Secciones de configuración del despacho"
-          className="flex items-center gap-1 erp-tab-scroller max-w-full shrink-0 py-0.5"
-        >
-          {AJUSTES_TABS.map((tab, index) => {
-            const Icon = tab.icon;
-            const isSelected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                ref={(el) => {
-                  tabRefs.current[tab.id] = el;
-                }}
-                id={`ajustes-tab-${tab.id}`}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                aria-controls={`ajustes-panel-${tab.id}`}
-                tabIndex={isSelected ? 0 : -1}
-                onClick={() => selectAndFocusTab(tab.id)}
-                onKeyDown={(e) => handleTabKeyDown(e, index)}
-                className={`snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
-                  isSelected
-                    ? 'bg-blue-600 text-white border-blue-950 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                <span>{tab.label}</span>
-                {tab.id === 'efirma' && fielStatus?.hasCredentials && (
-                  <span
-                    className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"
-                    role="img"
-                    aria-label="e.firma activa"
-                    title="e.firma activa"
-                  />
-                )}
-              </button>
-            );
-          })}
+        <div className="relative flex items-center gap-1 max-w-full min-w-0">
+          {tabScrollState.left && (
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Desplazar pestañas a la izquierda"
+              onClick={() => scrollTabsBy(-160)}
+              className="shrink-0 w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer shadow-2xs"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          )}
+          <div
+            ref={tabListRef}
+            onScroll={updateTabScrollState}
+            role="tablist"
+            aria-label="Secciones de configuración del despacho"
+            className="flex flex-nowrap items-center gap-1 erp-tab-scroller max-w-full min-w-0 flex-1 py-0.5"
+          >
+            {AJUSTES_TABS.map((tab, index) => {
+              const Icon = tab.icon;
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
+                  id={`ajustes-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  aria-controls={`ajustes-panel-${tab.id}`}
+                  tabIndex={isSelected ? 0 : -1}
+                  onClick={() => selectAndFocusTab(tab.id)}
+                  onKeyDown={(e) => handleTabKeyDown(e, index)}
+                  className={`snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-600 text-white border-blue-950 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>{tab.label}</span>
+                  {tab.id === 'efirma' && s.fielStatus?.hasCredentials && (
+                    <span
+                      className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"
+                      role="img"
+                      aria-label="e.firma activa"
+                      title="e.firma activa"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {tabScrollState.right && (
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Desplazar pestañas a la derecha"
+              onClick={() => scrollTabsBy(160)}
+              className="shrink-0 w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer shadow-2xs"
+            >
+              <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -232,99 +211,100 @@ export function AjustesView() {
         )}
 
         {activeTab === 'directorio' && (
-        <AjustesDirectorioTab
-          companies={companies}
-          activeCompany={activeCompany}
-          setActiveCompanyId={setActiveCompanyId}
-          deleteCompanyMutation={deleteCompanyMutation}
-          confirmDeleteCompany={confirmDeleteCompany}
-          setConfirmDeleteCompany={setConfirmDeleteCompany}
-          onConfigureFicha={() => setActiveTab('empresa')}
-          toast={toast}
-        />
-      )}
+          <AjustesDirectorioTab
+            companies={companies}
+            activeCompany={activeCompany}
+            setActiveCompanyId={s.setActiveCompanyId}
+            deleteCompanyMutation={s.deleteCompanyMutation}
+            confirmDeleteCompany={s.confirmDeleteCompany}
+            setConfirmDeleteCompany={s.setConfirmDeleteCompany}
+            onConfigureFicha={() => setActiveTab('empresa')}
+            toast={s.toast}
+          />
+        )}
 
-      {activeTab === 'empresa' && activeCompany && (
-        <AjustesEmpresaTab
-          activeCompany={activeCompany}
-          compName={compName}
-          setCompName={setCompName}
-          compRfc={compRfc}
-          setCompRfc={setCompRfc}
-          compRegimen={compRegimen}
-          setCompRegimen={setCompRegimen}
-          compCp={compCp}
-          setCompCp={setCompCp}
-          compMask={compMask}
-          isRfcValid={isRfcValid}
-          isCpValid={isCpValid}
-          isCompanyDirty={isCompanyDirty}
-          onResetCompany={resetCompanyForm}
-          rfcModulo11={rfcModulo11}
-          updateCompanyMutation={updateCompanyMutation}
-          periodLock={periodLock}
-          togglePeriodLockMutation={togglePeriodLockMutation}
-        />
-      )}
+        {activeTab === 'empresa' && activeCompany && (
+          <AjustesEmpresaTab
+            activeCompany={activeCompany}
+            compName={s.compName}
+            setCompName={s.setCompName}
+            compRfc={s.compRfc}
+            setCompRfc={s.setCompRfc}
+            compRegimen={s.compRegimen}
+            setCompRegimen={s.setCompRegimen}
+            compCp={s.compCp}
+            setCompCp={s.setCompCp}
+            compMask={s.compMask}
+            isRfcValid={s.isRfcValid}
+            isCpValid={s.isCpValid}
+            isCompanyDirty={s.isCompanyDirty}
+            onResetCompany={s.resetCompanyForm}
+            rfcModulo11={s.rfcModulo11}
+            updateCompanyMutation={s.updateCompanyMutation}
+            periodLock={s.periodLock}
+            togglePeriodLockMutation={s.togglePeriodLockMutation}
+            isReadOnly={isReadOnly}
+          />
+        )}
 
-      {activeTab === 'efirma' && activeCompany && (
-        <AjustesEfirmaTab
-          activeCompany={activeCompany}
-          fielStatus={fielStatus}
-          soapRequests={soapRequests}
-          isUploadingFiel={isUploadingFiel}
-          handleGenerateTestFiel={handleGenerateTestFiel}
-          handleUploadFiel={handleUploadFiel}
-          cerFile={cerFile}
-          setCerFile={setCerFile}
-          keyFile={keyFile}
-          setKeyFile={setKeyFile}
-          fielPass={fielPass}
-          setFielPass={setFielPass}
-          showFielPass={showFielPass}
-          setShowFielPass={setShowFielPass}
-        />
-      )}
+        {activeTab === 'efirma' && activeCompany && (
+          <AjustesEfirmaTab
+            activeCompany={activeCompany}
+            fielStatus={s.fielStatus}
+            soapRequests={s.soapRequests}
+            isUploadingFiel={s.isUploadingFiel}
+            handleGenerateTestFiel={s.handleGenerateTestFiel}
+            handleUploadFiel={s.handleUploadFiel}
+            cerFile={s.cerFile}
+            setCerFile={s.setCerFile}
+            keyFile={s.keyFile}
+            setKeyFile={s.setKeyFile}
+            fielPass={s.fielPass}
+            setFielPass={s.setFielPass}
+            showFielPass={s.showFielPass}
+            setShowFielPass={s.setShowFielPass}
+          />
+        )}
 
-      {activeTab === 'fiscal' && activeCompany && (
-        <AjustesFiscalTab
-          currentYear={currentYear}
-          currentPeriod={currentPeriod}
-          coefUtilidad={coefUtilidad}
-          setCoefUtilidad={setCoefUtilidad}
-          tcDof={tcDof}
-          setTcDof={setTcDof}
-          perdidasAnt={perdidasAnt}
-          setPerdidasAnt={setPerdidasAnt}
-          pagosAnt={pagosAnt}
-          setPagosAnt={setPagosAnt}
-          saldoIvaAnt={saldoIvaAnt}
-          setSaldoIvaAnt={setSaldoIvaAnt}
-          isFiscalDirty={isFiscalDirty}
-          onResetFiscal={resetFiscalForm}
-          saveFiscalParamsMutation={saveFiscalParamsMutation}
-          fiscalWp={fiscalWp}
-        />
-      )}
+        {activeTab === 'fiscal' && activeCompany && (
+          <AjustesFiscalTab
+            currentYear={s.currentYear}
+            currentPeriod={s.currentPeriod}
+            coefUtilidad={s.coefUtilidad}
+            setCoefUtilidad={s.setCoefUtilidad}
+            tcDof={s.tcDof}
+            setTcDof={s.setTcDof}
+            perdidasAnt={s.perdidasAnt}
+            setPerdidasAnt={s.setPerdidasAnt}
+            pagosAnt={s.pagosAnt}
+            setPagosAnt={s.setPagosAnt}
+            saldoIvaAnt={s.saldoIvaAnt}
+            setSaldoIvaAnt={s.setSaldoIvaAnt}
+            isFiscalDirty={s.isFiscalDirty}
+            onResetFiscal={s.resetFiscalForm}
+            saveFiscalParamsMutation={s.saveFiscalParamsMutation}
+            fiscalWp={s.fiscalWp}
+          />
+        )}
 
-      {activeTab === 'respaldos' && activeCompany && (
-        <AjustesRespaldosTab
-          activeCompany={activeCompany}
-          accountsList={accountsList}
-          polizasData={polizasData}
-          cfdisList={cfdisList}
-          isExportingBackup={isExportingBackup}
-          isRestoringBackup={isRestoringBackup}
-          pendingRestore={pendingRestore}
-          confirmRestoreBackup={confirmRestoreBackup}
-          cancelRestoreBackup={cancelRestoreBackup}
-          handleExportBackup={handleExportBackup}
-          handleRestoreBackupFile={handleRestoreBackupFile}
-          handleImportCsvCatalog={handleImportCsvCatalog}
-          restoreInputRef={restoreInputRef}
-          csvCatalogInputRef={csvCatalogInputRef}
-        />
-      )}
+        {activeTab === 'respaldos' && activeCompany && (
+          <AjustesRespaldosTab
+            activeCompany={activeCompany}
+            accountsList={s.accountsList}
+            polizasData={s.polizasData}
+            cfdisList={s.cfdisList}
+            isExportingBackup={s.isExportingBackup}
+            isRestoringBackup={s.isRestoringBackup}
+            pendingRestore={s.pendingRestore}
+            confirmRestoreBackup={s.confirmRestoreBackup}
+            cancelRestoreBackup={s.cancelRestoreBackup}
+            handleExportBackup={s.handleExportBackup}
+            handleRestoreBackupFile={s.handleRestoreBackupFile}
+            handleImportCsvCatalog={s.handleImportCsvCatalog}
+            restoreInputRef={s.restoreInputRef}
+            csvCatalogInputRef={s.csvCatalogInputRef}
+          />
+        )}
 
         {activeTab === 'atajos' && <AjustesAtajosTab />}
 
@@ -332,7 +312,7 @@ export function AjustesView() {
           <AjustesEquipoTab
             activeCompany={activeCompany}
             companies={companies}
-            toast={toast}
+            toast={s.toast}
           />
         )}
       </div>

@@ -22,6 +22,7 @@ import { useAppShellDocumentTitle } from './shell/useAppShellDocumentTitle';
 import { useAppShellData } from './shell/useAppShellData';
 import { WhatsAppSupportButton } from './WhatsAppSupportButton';
 import { BroadcastBanner } from './shell/BroadcastBanner';
+import { ReadOnlyRoleBanner } from './shell/ReadOnlyRoleBanner';
 import { SupportModeBanner } from './shell/SupportModeBanner';
 import { ExecutiveTopHeader } from './shell/ExecutiveTopHeader';
 import { WorkspaceEmptyView } from './workspace/WorkspaceEmptyView';
@@ -31,7 +32,7 @@ import { GuestDemoBanner } from './shell/GuestDemoBanner';
 import { AppErrorBoundary } from './AppErrorBoundary';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { workspace, renameWorkspace, companies, activeCompany, activeCompanyId, setActiveCompanyId, updatePeriod, isLoading: companiesLoading, isReadOnlySupportMode } = useCompany();
+  const { workspace, renameWorkspace, companies, activeCompany, activeCompanyId, setActiveCompanyId, updatePeriod, isLoading: companiesLoading, isReadOnlySupportMode, isReadOnlyClient, effectiveCompanyRole } = useCompany();
   const activeYear = activeCompany?.currentYear;
   const activePeriod = activeCompany?.currentPeriod;
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
@@ -215,6 +216,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           toast.info(`Crea tu primera empresa o abre la Empresa Ejemplo para usar "${label}".`)
         }
         user={user}
+        isReadOnlyClient={isReadOnlyClient}
+        effectiveCompanyRole={effectiveCompanyRole}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -241,12 +244,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               updatePeriod={updatePeriod}
               isPeriodLocked={Boolean(periodLock?.isLocked)}
               isTogglingLock={togglePeriodLockMutation.isPending}
-              onTogglePeriodLock={(next) => togglePeriodLockMutation.mutate(next)}
+              onTogglePeriodLock={(next) => {
+                if (!isReadOnlySupportMode && !isReadOnlyClient) togglePeriodLockMutation.mutate(next);
+              }}
+              isReadOnlyClient={isReadOnlyClient}
+              effectiveCompanyRole={effectiveCompanyRole}
               user={user}
               onSignOut={signOut}
             />
           )}
         </div>
+        {isReadOnlyClient && !supportSession && effectiveCompanyRole === 'CLIENTE_LECTURA' && (
+          <ReadOnlyRoleBanner />
+        )}
         <BroadcastBanner />
 
         <main

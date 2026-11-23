@@ -46,6 +46,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const inFlightInvitesUserRef = useRef<string | null>(null);
 
   const [workspaceNameOverride, setWorkspaceNameOverride] = useState<string | null>(null);
+  const [viewedPeriods, setViewedPeriods] = useState<Record<string, { year: number; period: number }>>({});
 
   const [activeCompanyId, setActiveCompanyIdState] = useState<string>(() => {
     if (typeof window !== 'undefined' && window.location.search) {
@@ -154,17 +155,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       const clean = nextName.trim();
       if (!clean || !user) return;
       setWorkspaceNameOverride(clean);
-      try {
-        localStorage.setItem(wsStorageKey, clean);
-      } catch {
-        // ignore storage errors
-      }
+      try { localStorage.setItem(wsStorageKey, clean); } catch { /* ignore */ }
       const wsId = String(user.user_metadata?.workspace_id || `ws_${user.id.slice(0, 8)}`);
-      await apiClient.updateUserProfileWorkspace({
-        userId: user.id,
-        workspaceId: wsId,
-        workspaceName: clean
-      });
+      await apiClient.updateUserProfileWorkspace({ userId: user.id, workspaceId: wsId, workspaceName: clean });
     },
     [isSupportImpersonation, user, wsStorageKey]
   );
@@ -224,10 +217,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const setActiveCompanyId = useCallback(
     (id: string, newCompany?: Company) => {
       if (newCompany) {
-        queryClient.setQueryData<Company[]>(['companies', userScope], (prev = []) => {
-          const filtered = prev.filter((c) => c.id !== newCompany.id);
-          return [...filtered, newCompany];
-        });
+        queryClient.setQueryData<Company[]>(['companies', userScope], (prev = []) => [
+          ...prev.filter((c) => c.id !== newCompany.id),
+          newCompany
+        ]);
       }
       setActiveCompanyIdState(id);
       localStorage.setItem(storageKey, id);
@@ -243,17 +236,20 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     [queryClient, userScope, storageKey]
   );
 
-  const activeCompany = supportCompany ?? companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null;
-
-  const resolvedActiveCompanyId = activeCompany?.id ?? '';
+  const baseActiveCompany = supportCompany ?? companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null;
+  const resolvedActiveCompanyId = baseActiveCompany?.id ?? '';
+  const viewedOverride = resolvedActiveCompanyId ? viewedPeriods[resolvedActiveCompanyId] : undefined;
+  const activeCompany = useMemo(
+    () =>
+      baseActiveCompany && viewedOverride
+        ? { ...baseActiveCompany, currentYear: viewedOverride.year, currentPeriod: viewedOverride.period }
+        : baseActiveCompany,
+    [baseActiveCompany, viewedOverride]
+  );
 
   const shouldCheckCompanyRole = Boolean(
-    user &&
-      resolvedActiveCompanyId &&
-      !isSupportImpersonation &&
-      !hasAdminAccess &&
-      !checkIsSuperAdmin(user) &&
-      !user.user_metadata?.is_guest
+    user && resolvedActiveCompanyId && !isSupportImpersonation &&
+      !hasAdminAccess && !checkIsSuperAdmin(user) && !user.user_metadata?.is_guest
   );
 
   const { data: effectiveRoleInfo, isLoading: effectiveRoleLoading } = useQuery({
@@ -267,20 +263,14 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const isRoleUnresolved = shouldCheckCompanyRole && (effectiveRoleLoading || !effectiveRoleInfo);
   const isFailClosedNullRole = shouldCheckCompanyRole && effectiveRoleInfo?.role === null;
   const isReadOnlyClient = Boolean(
-    isRoleUnresolved ||
-      isFailClosedNullRole ||
-      effectiveRoleInfo?.isReadOnlyClient ||
-      effectiveRoleInfo?.role === 'CLIENTE_LECTURA'
+    isRoleUnresolved || isFailClosedNullRole ||
+      effectiveRoleInfo?.isReadOnlyClient || effectiveRoleInfo?.role === 'CLIENTE_LECTURA'
   );
   const effectiveCompanyRole: DespachoRole | 'OWNER' | null = isSupportImpersonation
     ? 'CLIENTE_LECTURA'
     : shouldCheckCompanyRole
-      ? isRoleUnresolved || !effectiveRoleInfo?.role
-        ? null
-        : effectiveRoleInfo.role
-      : activeCompany
-        ? 'OWNER'
-        : null;
+      ? isRoleUnresolved || !effectiveRoleInfo?.role ? null : effectiveRoleInfo.role
+      : baseActiveCompany ? 'OWNER' : null;
   const isReadOnlySupportMode = isSupportImpersonation || isReadOnlyClient;
 
   useEffect(() => {
@@ -307,10 +297,15 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const updatePeriod = useCallback(
     (year: number, period: number) => {
-      if (isReadOnlySupportMode || !resolvedActiveCompanyId) return;
+      if (!resolvedActiveCompanyId) return;
+      // En modo soporte o cliente de solo lectura navegamos periodos localmente sin mutar Supabase
+      if (isReadOnlySupportMode || isReadOnlyClient) {
+        setViewedPeriods((prev) => ({ ...prev, [resolvedActiveCompanyId]: { year, period } }));
+        return;
+      }
       mutatePeriod({ year, period });
     },
-    [isReadOnlySupportMode, resolvedActiveCompanyId, mutatePeriod]
+    [isReadOnlySupportMode, isReadOnlyClient, resolvedActiveCompanyId, mutatePeriod]
   );
 
   const contextValue = useMemo<CompanyContextValue>(

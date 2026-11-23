@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { Company } from '../../shared/types';
 import { DeliverableConfigTab } from './DeliverableConfigTab';
 import { DeliverableBalanzaDoc } from './DeliverableBalanzaDoc';
@@ -63,6 +63,7 @@ export function ExecutiveDeliverablePackageModal({
     mesNombre,
     isrSaldoNoAplicado,
     fechaVencimientoDia17,
+    isUsingDefaultSignatures,
     handlePrint,
     handleExportAllCsv,
     handleExportAllXlsx,
@@ -102,6 +103,28 @@ export function ExecutiveDeliverablePackageModal({
         aria-labelledby={`deliv-tab-${activeTab}`}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 bg-slate-100/60 scrollable-panel printable-dossier"
       >
+        {isUsingDefaultSignatures && activeTab !== 'CONFIG' && (
+          <div
+            role="status"
+            className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-950 shadow-2xs no-print"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+              <span>
+                Los entregables muestran firmas y cédula profesional de ejemplo (
+                <strong>{auditorName}</strong>). Personalízalas antes de imprimir o enviar al cliente.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('CONFIG')}
+              className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold transition cursor-pointer shrink-0"
+            >
+              Personalizar firmas
+            </button>
+          </div>
+        )}
+
         {isErrorData && activeTab !== 'CONFIG' && (
           <div
             role="alert"

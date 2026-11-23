@@ -32,8 +32,11 @@ export function useAjustesState() {
     activeCompany,
     activeCompanyId,
     setActiveCompanyId,
-    isLoading: companiesLoading
+    isLoading: companiesLoading,
+    isReadOnlySupportMode,
+    isReadOnlyClient
   } = useCompany();
+  const isReadOnly = isReadOnlySupportMode || isReadOnlyClient;
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -107,6 +110,7 @@ export function useAjustesState() {
 
   const updateCompanyMutation = useMutation({
     mutationFn: async () => {
+      if (isReadOnly) throw new Error('Modo solo lectura: no es posible modificar datos fiscales.');
       if (!activeCompanyId) throw new Error('No hay empresa activa seleccionada');
       if (!isRfcValid) {
         throw new Error(
@@ -172,6 +176,7 @@ export function useAjustesState() {
 
   const togglePeriodLockMutation = useMutation({
     mutationFn: async (isLocked: boolean) => {
+      if (isReadOnly) throw new Error('Modo solo lectura: no tienes permisos para modificar el candado fiscal.');
       if (!activeCompany) return;
       return apiClient.setPeriodLock({
         companyId: activeCompany.id,
@@ -282,6 +287,8 @@ export function useAjustesState() {
   return {
     companies,
     companiesLoading,
+    isReadOnlySupportMode,
+    isReadOnlyClient,
     activeCompany,
     activeCompanyId,
     setActiveCompanyId,

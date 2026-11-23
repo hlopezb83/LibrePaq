@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Cloud,
+  Eye,
   Loader2,
   Lock,
   LockOpen,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
+import type { DespachoRole } from '../../shared/types/despacho-rbac.types';
 import type { User } from '@supabase/supabase-js';
 
 interface AppShellTopHeaderProps {
@@ -27,6 +29,8 @@ interface AppShellTopHeaderProps {
   isPeriodLocked: boolean;
   isTogglingLock: boolean;
   onTogglePeriodLock: (nextLocked: boolean) => void;
+  isReadOnlyClient?: boolean;
+  effectiveCompanyRole?: DespachoRole | 'OWNER' | null;
   user: User | null;
   onSignOut: () => void;
 }
@@ -43,11 +47,13 @@ export function AppShellTopHeader({
   isPeriodLocked,
   isTogglingLock,
   onTogglePeriodLock,
+  isReadOnlyClient = false,
+  effectiveCompanyRole = null,
   user,
   onSignOut
 }: AppShellTopHeaderProps) {
   return (
-    <header className="@container bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2 sm:px-3.5 py-1.5 sticky top-0 z-20 shadow-2xs no-print">
+    <header className="@container bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2 sm:px-3.5 py-1.5 shadow-2xs no-print">
       <div className="max-w-[1800px] mx-auto flex flex-wrap items-center justify-between gap-1.5">
         {/* Despacho y Conmutador de Empresa Activa */}
         <div className="flex items-center gap-1.5 min-w-0 flex-1 @[600px]:flex-initial">
@@ -134,6 +140,16 @@ export function AppShellTopHeader({
               : 'shrink-0 ml-auto'
           }`}
         >
+          {isReadOnlyClient && effectiveCompanyRole === 'CLIENTE_LECTURA' && (
+            <span
+              title="Acceso de Cliente (Solo lectura)"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 text-[11px] font-bold shrink-0"
+            >
+              <Eye className="w-3.5 h-3.5 text-sky-700 shrink-0" aria-hidden="true" />
+              <span className="hidden @[700px]:inline">Solo lectura</span>
+            </span>
+          )}
+
           {activeCompany?.currentPeriod === 13 && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold shrink-0">
               <Lock className="w-3 h-3 text-amber-800" aria-hidden="true" />
@@ -221,19 +237,27 @@ export function AppShellTopHeader({
             {activeCompany && (
               <button
                 type="button"
-                disabled={isTogglingLock}
+                disabled={isTogglingLock || isReadOnlyClient}
                 aria-pressed={isPeriodLocked}
                 aria-busy={isTogglingLock}
                 onClick={() => onTogglePeriodLock(!isPeriodLocked)}
                 aria-label={isPeriodLocked ? 'Reabrir periodo contable' : 'Bloquear periodo contable'}
                 title={
-                  isTogglingLock
+                  isReadOnlyClient
+                    ? 'Tu rol Cliente (Solo lectura) no permite bloquear o reabrir periodos'
+                    : isTogglingLock
                     ? 'Actualizando candado de periodo...'
                     : isPeriodLocked
                     ? 'Periodo bloqueado contra cambios. Clic para reabrir periodo.'
                     : 'Periodo abierto para captura. Clic para bloquear tras presentar declaración mensual.'
                 }
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl border text-xs font-bold transition cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-wait ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl border text-xs font-bold transition shrink-0 ${
+                  isTogglingLock
+                    ? 'opacity-60 cursor-wait'
+                    : isReadOnlyClient
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer'
+                } ${
                   isPeriodLocked
                     ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                     : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'

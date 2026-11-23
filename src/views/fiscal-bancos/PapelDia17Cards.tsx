@@ -154,20 +154,21 @@ export function PapelDia17UsdCard({
   genExchangePolizaMutation: { isPending: boolean; mutate: () => void };
 }) {
   const isLocked = isPeriodLocked || isReadOnlyClient;
+  const noExchangeDiff = workpaper.fluctuacionCambiaria.diferenciaCambiariaMxn === 0;
   return (
     <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-2.5">
-      <div className="border-b border-slate-200 pb-2 flex items-center justify-between">
+      <div className="border-b border-slate-200 pb-2 flex items-center justify-between gap-2">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-          <Coins className="w-4 h-4 text-amber-600" aria-hidden="true" />
+          <Coins className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
           3. Fluctuación Cambiaria USD (NIF B-15)
         </h3>
-        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-semibold">
+        <span className="font-mono tabular-nums text-[11px] px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-semibold shrink-0">
           TC {workpaper.fluctuacionCambiaria.tipoCambioDofCierre.toFixed(4)}
         </span>
       </div>
 
       <div className="space-y-2 text-xs">
-        <dl className="space-y-1.5 font-mono pt-1">
+        <dl className="space-y-1.5 font-mono tabular-nums pt-1">
           <div className="flex justify-between">
             <dt className="font-sans text-slate-600">Saldo USD en CFDI/Bancos:</dt>
             <dd className="font-semibold text-slate-900">
@@ -211,11 +212,13 @@ export function PapelDia17UsdCard({
 
         <button
           type="button"
-          disabled={genExchangePolizaMutation.isPending || isLocked}
+          disabled={genExchangePolizaMutation.isPending || isLocked || noExchangeDiff}
           title={
             isLocked
               ? (isReadOnlyClient ? 'Modo solo lectura' : 'Periodo fiscal bloqueado ante el SAT')
-              : 'Generar póliza de utilidad o pérdida cambiaria USD'
+              : noExchangeDiff
+                ? 'Sin diferencia cambiaria pendiente por contabilizar'
+                : 'Generar póliza de utilidad o pérdida cambiaria USD'
           }
           onClick={() => genExchangePolizaMutation.mutate()}
           className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"

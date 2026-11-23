@@ -24,7 +24,7 @@ export function exportAllDeliverablesCsv({
   fiscalData,
   company,
   year,
-  period: _period,
+  period,
   formatVerticalPct
 }: {
   reportsData: FinancialStatementsResponse | null | undefined;
@@ -158,7 +158,8 @@ export function exportAllDeliverablesCsv({
   }
 
   const safeRfc = (company.rfc || 'EMPRESA').replace(/[^a-zA-Z0-9_-]/g, '');
+  const periodCode = `P${String(period).padStart(2, '0')}`;
   const zipped = zipSync(files, { level: 6 });
   const zipBuffer = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
-  downloadBlobFile(`Paquete_CSV_${safeRfc}_${year}.zip`, zipBuffer, 'application/zip');
+  downloadBlobFile(`Paquete_CSV_${safeRfc}_${year}_${periodCode}.zip`, zipBuffer, 'application/zip');
 }

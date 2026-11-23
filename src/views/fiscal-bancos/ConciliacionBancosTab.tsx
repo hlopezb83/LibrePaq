@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  AlertCircle, BookOpen, Filter, GitMerge, Lock, Plus, RefreshCw, Sparkles, UploadCloud
+  AlertCircle, BookOpen, Filter, GitMerge, Loader2, Lock, Plus, RefreshCw, Sparkles, UploadCloud
 } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -112,13 +112,13 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
       if (proposeReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
       if (res.proposals.length === 0) {
         setN1Proposals([]);
-        toast.info('No se detectaron grupos N-a-1 pendientes dentro de la tolerancia.');
+        toast.info('No se detectaron grupos de varias pólizas pendientes dentro de la tolerancia.');
       } else {
         setN1Proposals(res.proposals);
       }
     } catch (err: unknown) {
       if (proposeReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
-      toast.error(err instanceof Error ? err.message : 'Error buscando coincidencias N-a-1.');
+      toast.error(err instanceof Error ? err.message : 'Error buscando coincidencias de varias pólizas.');
     } finally {
       if (proposeReqIdRef.current === reqId && contextKeyRef.current === reqContext) {
         setIsSearchingN1(false);
@@ -145,10 +145,10 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
       invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], targetCompanyId);
       if (applyReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
       setN1Proposals([]);
-      toast.success(`Conciliación N-a-1 aplicada: ${res.appliedCount} partidas bancarias cruzadas.`);
+      toast.success(`Conciliación múltiple aplicada: ${res.appliedCount} partidas bancarias cruzadas.`);
     } catch (err: unknown) {
       if (applyReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
-      toast.error(err instanceof Error ? err.message : 'Error aplicando conciliación N-a-1.');
+      toast.error(err instanceof Error ? err.message : 'Error aplicando conciliación múltiple.');
     } finally {
       if (applyReqIdRef.current === reqId && contextKeyRef.current === reqContext) {
         setIsApplyingN1(false);
@@ -165,7 +165,7 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             id="bank-acc-select"
             value={effectiveBankId}
             onChange={(e) => setSelectedBankId(e.target.value)}
-            className="max-w-[280px] sm:max-w-[340px] truncate px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-semibold bg-white text-slate-800"
+            className="max-w-full sm:max-w-[340px] truncate px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-semibold bg-white text-slate-800"
           >
             {bankAccounts.map((b) => (
               <option key={b.id} value={b.id}>{b.code} — {b.name} (Saldo: {formatCurrency(b.finalBalance)})</option>
@@ -211,11 +211,12 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
           <button
             type="button"
             disabled={isWriteLocked}
+            title={isWriteLocked ? (isReadOnly ? 'Modo solo lectura' : 'Periodo bloqueado ante el SAT') : 'Importar movimientos desde estado de cuenta bancario PDF'}
             onClick={() => { if (bankPdfModalRef.current && !bankPdfModalRef.current.open) bankPdfModalRef.current.showModal(); }}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
           >
             <Sparkles className="w-4 h-4 text-indigo-600" aria-hidden="true" />
-            <span>Importar PDF Bancario (IA)</span>
+            <span>Importar PDF Bancario</span>
           </button>
 
           <button
@@ -234,11 +235,12 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
           <button
             type="button"
             disabled={isSearchingN1 || isApplyingN1 || isWriteLocked}
+            title={isWriteLocked ? (isReadOnly ? 'Modo solo lectura' : 'Periodo bloqueado ante el SAT') : 'Buscar grupos de varias pólizas que sumen un solo movimiento bancario'}
             onClick={() => void handleProposeN1()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition shrink-0"
           >
-            <GitMerge className="w-4 h-4" aria-hidden="true" />
-            {isSearchingN1 ? 'Buscando N-a-1...' : 'Auto-Conciliar N-a-1'}
+            {isSearchingN1 ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <GitMerge className="w-4 h-4" aria-hidden="true" />}
+            {isSearchingN1 ? 'Buscando grupos...' : 'Conciliar Múltiples Pólizas'}
           </button>
 
           <button

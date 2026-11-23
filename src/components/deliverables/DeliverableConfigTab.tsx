@@ -55,8 +55,11 @@ export function DeliverableConfigTab({
         <h2 className="text-base font-bold text-slate-900">
           Configuración del Membrete y Firmas del Dictamen
         </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className="text-xs text-slate-600 mt-0.5">
           Personaliza los datos del despacho contable, los auditores titulados y los documentos que se imprimirán en el Dossier.
+        </p>
+        <p className="text-[11px] font-medium text-blue-800 mt-1">
+          Los datos de membrete y firmas se guardan automáticamente por empresa en este navegador.
         </p>
       </div>
 
@@ -153,10 +156,10 @@ export function DeliverableConfigTab({
         </div>
       </div>
 
-      <div className="border-t border-slate-200 pt-4">
-        <span className="text-xs font-bold text-slate-900 block mb-2">
+      <fieldset className="border-t border-slate-200 pt-4">
+        <legend className="text-xs font-bold text-slate-900 mb-2">
           Documentos incluidos al Imprimir o Generar PDF del Dossier Completo:
-        </span>
+        </legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <label htmlFor="deliv-include-balanza" className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
             <input
@@ -202,7 +205,7 @@ export function DeliverableConfigTab({
             <span>4. Cédula Impuestos Federales Día 17</span>
           </label>
         </div>
-      </div>
+      </fieldset>
 
       <div className="flex justify-end pt-2">
         <button

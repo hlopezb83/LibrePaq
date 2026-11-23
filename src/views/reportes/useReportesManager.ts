@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
+import { annualTaxClient } from '../../lib/annual-tax-client';
 import { apiClient } from '../../lib/api-client';
 import { downloadBlobFile, downloadCsvFile } from '../../lib/formatters';
 import type { SatXmlType } from '../../shared/sat-anexo24';
@@ -65,12 +66,18 @@ export function useReportesManager() {
     enabled: Boolean(activeCompanyId)
   });
 
-  const { data: prevReports } = useQuery({
+  const { data: prevReports, isLoading: isLoadingPrevReports } = useQuery({
     queryKey: ['reports', activeCompanyId, currentYear ? currentYear - 1 : undefined, currentPeriod],
     queryFn: () => apiClient.getReports(activeCompanyId, (currentYear ?? 2026) - 1, currentPeriod),
     enabled: Boolean(
       activeCompanyId && activeTab === 'FLUJOS_CAPITAL' && currentYear && currentYear > 2000
     )
+  });
+
+  const { data: annualTaxData } = useQuery({
+    queryKey: ['annual-tax', activeCompanyId, currentYear ?? 2026],
+    queryFn: () => annualTaxClient.getAnnualTaxSummary(activeCompanyId, currentYear ?? 2026),
+    enabled: Boolean(activeCompanyId && activeTab === 'ANUAL')
   });
 
   const {
@@ -129,6 +136,40 @@ export function useReportesManager() {
       toast.success('Balance General exportado en CSV');
       return;
     }
+    if (activeTab === 'ANUAL') {
+      if (!annualTaxData) {
+        toast.info('Calculando resumen de Declaración Anual, intenta nuevamente en un segundo.');
+        return;
+      }
+      const { reconciliation: rec, determination: det, inflation: inf } = annualTaxData;
+      downloadCsvFile(
+        `Declaracion_Anual_${data.company.rfc}_${annualTaxData.ejercicio}.csv`,
+        ['Sección', 'Concepto', 'Importe / Valor'],
+        [
+          ['Conciliación Contable-Fiscal', 'Utilidad / Pérdida Contable', rec.utilidadContable],
+          ['Conciliación Contable-Fiscal', '(+) Ingresos Fiscales No Contables', rec.ingresosFiscalesNoContables],
+          ['Conciliación Contable-Fiscal', '(+) Deducciones Contables No Fiscales', rec.deduccionesContablesNoFiscales],
+          ['Conciliación Contable-Fiscal', '(-) Deducciones Fiscales No Contables', -rec.deduccionesFiscalesNoContables],
+          ['Conciliación Contable-Fiscal', '(-) PTU Pagada en el Ejercicio', -rec.ptuPagadaEjercicio],
+          ['Conciliación Contable-Fiscal', '(=) Utilidad / Pérdida Fiscal', rec.utilidadFiscal],
+          ['Conciliación Contable-Fiscal', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
+          ['Conciliación Contable-Fiscal', '(=) Resultado Fiscal Gravable', rec.resultadoFiscal],
+          ['Ajuste Anual por Inflación', 'Promedio Anual de Créditos', inf.promedioCreditos],
+          ['Ajuste Anual por Inflación', 'Promedio Anual de Deudas', inf.promedioDeudas],
+          ['Ajuste Anual por Inflación', `Efecto (${inf.tipo})`, inf.tipo === 'ACUMULABLE' ? inf.ajusteAcumulable : inf.tipo === 'DEDUCIBLE' ? -inf.ajusteDeducible : 0],
+          ['Determinación ISR Anual', 'ISR Anual Causado', det.isrAnualCausado],
+          ['Determinación ISR Anual', '(-) Pagos Provisionales Efectuados', -det.pagosProvisionalesEfectuados],
+          ['Determinación ISR Anual', '(-) ISR Retenido Acreditable', -det.isrRetenidoAcreditable],
+          ['Determinación ISR Anual', det.isrAnualCargoFavor >= 0 ? '(=) ISR Anual a Cargo' : '(=) Saldo a Favor de ISR', det.isrAnualCargoFavor >= 0 ? det.isrACargo : det.isrAFavor],
+          ['Determinación ISR Anual', 'PTU por Pagar (10%)', det.ptuPorPagar10Pct],
+          ['Determinación ISR Anual', 'Nuevo Coeficiente de Utilidad', det.nuevoCoeficienteUtilidad.toFixed(4)],
+          ['CUCA y CUFIN', 'CUCA Final Actualizada', det.cucaFinal],
+          ['CUCA y CUFIN', 'CUFIN Final Actualizada', det.cufinFinal]
+        ]
+      );
+      toast.success('Declaración Anual exportada en CSV');
+      return;
+    }
     const headers = [
       'Código Cuenta', 'Nombre de la Cuenta', 'Agrupador SAT', 'Naturaleza',
       'Nivel', 'Saldo Inicial', 'Cargos (Debe)', 'Abonos (Haber)', 'Saldo Final'
@@ -148,6 +189,7 @@ export function useReportesManager() {
     setSatXmlType,
     data,
     prevReports,
+    isLoadingPrevReports,
     isLoading,
     isError,
     error,

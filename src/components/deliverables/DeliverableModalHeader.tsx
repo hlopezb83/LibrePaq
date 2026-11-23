@@ -63,7 +63,7 @@ export function DeliverableModalHeader({
 }: DeliverableModalHeaderProps) {
   return (
     <>
-      <header className="px-4 sm:px-5 py-3.5 bg-[#0A1120] text-white flex flex-wrap items-center justify-between gap-3 shrink-0 no-print">
+      <header className="px-4 sm:px-5 py-2.5 sm:py-3.5 bg-[#0A1120] text-white flex flex-wrap items-center justify-between gap-3 shrink-0 no-print">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-blue-700/60 border border-blue-500/40 flex items-center justify-center text-blue-300 shrink-0">
             <FileCheck2 className="w-5 h-5" aria-hidden="true" />
@@ -135,24 +135,31 @@ export function DeliverableModalHeader({
             type="button"
             disabled={!isDataReady}
             onClick={onExportCsv}
-            aria-label="Descargar cédulas en formato CSV"
+            aria-label="Descargar paquete ZIP con cédulas en formato CSV"
             title={
               isDataReady
-                ? 'Descargar todas las cédulas en archivos Excel (.CSV)'
+                ? 'Descargar paquete .ZIP con todas las cédulas en formato CSV para Excel'
                 : 'Esperando cálculo de estados financieros...'
             }
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111C35] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed border border-[#1E293B] text-xs font-semibold text-slate-200 transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-blue-400 shrink-0" aria-hidden="true" />
-            <span className="text-[11px] sm:text-xs">CSV</span>
+            <span className="hidden sm:inline">Paquete .ZIP (CSV)</span>
+            <span className="sm:hidden text-[11px]">ZIP</span>
           </button>
 
           <button
             type="button"
-            disabled={!isDataReady}
+            disabled={!isDataReady || activeTab === 'CONFIG'}
             onClick={onPrint}
             aria-label="Imprimir o guardar PDF del dossier"
-            title="Imprimir o guardar como PDF formal el dossier seleccionado"
+            title={
+              !isDataReady
+                ? 'Esperando cálculo de estados financieros...'
+                : activeTab === 'CONFIG'
+                  ? 'Selecciona un documento del dossier (no la pestaña de Firmas) para imprimir o guardar PDF'
+                  : 'Imprimir o guardar como PDF formal el dossier seleccionado'
+            }
             className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white shadow-xs transition cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" aria-hidden="true" />
@@ -177,7 +184,7 @@ export function DeliverableModalHeader({
         <div
           role="tablist"
           aria-label="Secciones del paquete entregable"
-          className="erp-tab-scroller w-full sm:w-auto"
+          className="flex flex-nowrap items-center gap-2 erp-tab-scroller w-full sm:w-auto"
         >
           {DELIVERABLE_TABS.map((tab) => {
             const Icon = tab.icon;
@@ -208,7 +215,7 @@ export function DeliverableModalHeader({
           })}
         </div>
 
-        <div className="text-slate-500 font-mono text-[11px] hidden lg:block">
+        <div className="text-slate-700 font-mono text-[11px] hidden lg:block">
           Formato: <strong>Hoja Carta (Letter)</strong> • NIF Mexicanas Vigentes
         </div>
       </nav>

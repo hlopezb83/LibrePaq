@@ -16,6 +16,7 @@ const columnHelper = createColumnHelper<typeof catalogoTableFeatures, AccountWit
 export interface UseCatalogoColumnsProps {
   collapsedCodes: Record<string, boolean>;
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   copiedCode?: string | null;
   onToggleNodeCollapse: (code: string) => void;
   onSelectAccount: (id: string) => void;
@@ -31,6 +32,7 @@ export interface UseCatalogoColumnsProps {
 export function useCatalogoColumns({
   collapsedCodes,
   isPeriodLocked = false,
+  isReadOnlyClient = false,
   copiedCode = null,
   onToggleNodeCollapse,
   onSelectAccount,
@@ -215,7 +217,7 @@ export function useCatalogoColumns({
               {isInverted && (
                 <span
                   title="Alerta Contable: Saldo contrario a la naturaleza de la cuenta"
-                  className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-800 border border-red-300"
+                  className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-800 border border-red-300"
                 >
                   Saldo Rojo
                 </span>
@@ -242,6 +244,7 @@ export function useCatalogoColumns({
           <CatalogoActionsCell
             row={info.row.original}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             confirmDeleteId={confirmDeleteId}
             setConfirmDeleteId={setConfirmDeleteId}
             onOpenCreateSubaccount={onOpenCreateSubaccount}
@@ -255,6 +258,7 @@ export function useCatalogoColumns({
     [
       collapsedCodes,
       isPeriodLocked,
+      isReadOnlyClient,
       copiedCode,
       onToggleNodeCollapse,
       onSelectAccount,

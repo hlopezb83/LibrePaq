@@ -68,6 +68,7 @@ export function useAddCfdiMutations({
       cfdiId: string;
       operationAccountCode?: string;
       counterAccountCode?: string;
+      deductiblePct?: number;
     }) => {
       if (isWriteBlocked) {
         throw new Error(
@@ -78,7 +79,8 @@ export function useAddCfdiMutations({
       }
       return apiClient.autoPolizaFromCfdi(params.cfdiId, {
         operationAccountCode: params.operationAccountCode,
-        counterAccountCode: params.counterAccountCode
+        counterAccountCode: params.counterAccountCode,
+        deductiblePct: params.deductiblePct
       });
     },
     onSuccess: (poliza) => {
@@ -226,6 +228,7 @@ export function useAddCfdiMutations({
   const [satBatchAlert, setSatBatchAlert] = useState<{
     cancelledWithPolizaCount: number;
     checkedCount: number;
+    alerts: Array<{ cfdiId: string; uuid: string }>;
   } | null>(null);
 
   useEffect(() => {
@@ -250,9 +253,13 @@ export function useAddCfdiMutations({
       void queryClient.invalidateQueries({ queryKey: ['dashboard', targetCompanyId] });
       if (latestCompanyIdRef.current !== targetCompanyId) return;
       if (res.cancelledWithPolizaCount > 0) {
+        const alerts = res.items
+          .filter((item) => item.cancelledWithPoliza)
+          .map((item) => ({ cfdiId: item.cfdiId, uuid: item.uuid }));
         setSatBatchAlert({
           cancelledWithPolizaCount: res.cancelledWithPolizaCount,
-          checkedCount: res.checkedCount
+          checkedCount: res.checkedCount,
+          alerts
         });
         toast.error(
           `Alerta SAT: ${res.cancelledWithPolizaCount} de ${res.checkedCount} CFDI(s) cancelados ante el SAT aún tienen póliza contable.`

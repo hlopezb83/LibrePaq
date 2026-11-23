@@ -11,6 +11,7 @@ export interface CfdiRuleLearningBarProps {
   setDeductiblePct: (pct: number) => void;
   rememberRule: boolean;
   setRememberRule: (checked: boolean) => void;
+  disabled?: boolean;
 }
 
 export function CfdiRuleLearningBar({
@@ -20,7 +21,8 @@ export function CfdiRuleLearningBar({
   deductiblePct,
   setDeductiblePct,
   rememberRule,
-  setRememberRule
+  setRememberRule,
+  disabled = false
 }: CfdiRuleLearningBarProps) {
   const hasCustomPreset = !DEDUCTIBLE_PRESETS.includes(
     deductiblePct as (typeof DEDUCTIBLE_PRESETS)[number]
@@ -34,7 +36,7 @@ export function CfdiRuleLearningBar({
             <Sparkles className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
             Regla automática aplicada
           </span>
-          <span className="text-[11px] text-slate-600 font-medium">
+          <span className="text-[11px] text-slate-600 font-medium break-words">
             {matchedRule.name || matchedRule.matchRfc || matchedRule.matchClaveProdServ} · Cta{' '}
             <span className="font-mono font-bold text-slate-800">
               {matchedRule.operationAccountCode}
@@ -43,16 +45,25 @@ export function CfdiRuleLearningBar({
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <label className="inline-flex items-center gap-2 cursor-pointer select-none text-slate-800 font-medium">
+      <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
+        <label
+          htmlFor="cfdi-remember-rule"
+          className={`inline-flex items-center gap-2 select-none text-slate-800 font-medium min-w-0 ${
+            disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+          }`}
+        >
           <input
+            id="cfdi-remember-rule"
             type="checkbox"
             checked={rememberRule}
+            disabled={disabled}
             onChange={(e) => setRememberRule(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+            className="w-4 h-4 shrink-0 rounded border-slate-300 text-blue-700 focus:ring-blue-600 disabled:cursor-not-allowed"
           />
-          <span>
-            Recordar regla contable para este RFC{' '}
+          <span className="break-words">
+            {matchedRule
+              ? 'Actualizar regla contable guardada para este RFC'
+              : 'Recordar regla contable para este RFC'}{' '}
             {counterpartyRfc && (
               <span className="font-mono font-bold text-slate-900">({counterpartyRfc})</span>
             )}
@@ -60,7 +71,7 @@ export function CfdiRuleLearningBar({
         </label>
 
         {direction === 'RECIBIDO' && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-0 w-full sm:w-auto">
             <label
               htmlFor="cfdi-deductible-pct"
               className="text-xs font-semibold text-slate-700 whitespace-nowrap"
@@ -70,17 +81,18 @@ export function CfdiRuleLearningBar({
             <select
               id="cfdi-deductible-pct"
               value={deductiblePct}
+              disabled={disabled}
               onChange={(e) => setDeductiblePct(Number(e.target.value))}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              className="w-full sm:w-auto min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {hasCustomPreset && (
                 <option value={deductiblePct}>{deductiblePct}% (Regla)</option>
               )}
               <option value={100}>100% (Totalmente deducible)</option>
-              <option value={50}>50% (Parcial · 50% a 801)</option>
-              <option value={25}>25% (Parcial · 75% a 801)</option>
-              <option value={10}>10% (Parcial · 90% a 801)</option>
-              <option value={0}>0% (No deducible · 100% a 801)</option>
+              <option value={50}>50% (Parcial · 50% a No Deducibles 801)</option>
+              <option value={25}>25% (Parcial · 75% a No Deducibles 801)</option>
+              <option value={10}>10% (Parcial · 90% a No Deducibles 801)</option>
+              <option value={0}>0% (No deducible · 100% a No Deducibles 801)</option>
             </select>
           </div>
         )}

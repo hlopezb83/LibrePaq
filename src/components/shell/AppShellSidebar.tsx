@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   ChevronRight,
+  Eye,
   Lock,
   Menu,
   PanelLeftClose,
@@ -12,6 +13,7 @@ import {
 import { LibrePaqLogo, LibrePaqIcon } from '../LibrePaqLogo';
 import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 import type { User } from '@supabase/supabase-js';
+import type { DespachoRole } from '../../shared/types/despacho-rbac.types';
 import { useAuth, checkIsSuperAdmin } from '../../context/AuthContext';
 import { useSupportSession } from '../../lib/support-impersonation';
 import { parseNavTarget } from './parseNavTarget';
@@ -27,6 +29,8 @@ interface AppShellSidebarProps {
   isWorkspaceEmpty?: boolean;
   onEmptyModuleClick?: (label: string) => void;
   user?: User | null;
+  isReadOnlyClient?: boolean;
+  effectiveCompanyRole?: DespachoRole | 'OWNER' | null;
 }
 
 export function AppShellSidebar({
@@ -39,7 +43,9 @@ export function AppShellSidebar({
   onOpenCommandPalette,
   isWorkspaceEmpty = false,
   onEmptyModuleClick,
-  user
+  user,
+  isReadOnlyClient = false,
+  effectiveCompanyRole = null
 }: AppShellSidebarProps) {
   const { hasAdminAccess } = useAuth();
   const supportSession = useSupportSession();
@@ -116,7 +122,7 @@ export function AppShellSidebar({
                 </span>
                 <span className="text-slate-400 group-hover:text-white text-[10px] font-mono flex items-center gap-0.5">
                   <ChevronRight className="w-3 h-3" aria-hidden="true" />
-                  <span>EXP</span>
+                  <span aria-hidden="true">Abrir</span>
                 </span>
               </button>
             </div>
@@ -186,11 +192,18 @@ export function AppShellSidebar({
 
         <nav id="primary-sidebar-nav" aria-label="Menú principal" className="p-2 flex-1 space-y-1">
           {!sidebarCollapsed && (
-            <div className="px-2.5 py-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <div className="px-2.5 py-1 flex items-center justify-between gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               <span>{isOwner ? 'Consola de Propietario' : 'Módulos Contables'}</span>
-              <span className="font-mono text-[9px] text-slate-400">
-                Alt+1..7
-              </span>
+              {!isOwner && isReadOnlyClient && effectiveCompanyRole === 'CLIENTE_LECTURA' ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-900/70 text-sky-200 border border-sky-700/70 text-[9px] font-semibold normal-case tracking-normal">
+                  <Eye className="w-2.5 h-2.5" aria-hidden="true" />
+                  Solo lectura
+                </span>
+              ) : (
+                <span className="font-mono text-[9px] text-slate-400">
+                  Alt+1..7
+                </span>
+              )}
             </div>
           )}
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1" role="list">
@@ -226,14 +239,14 @@ export function AppShellSidebar({
                   search={parsedTarget.search}
                   aria-current={isActive ? 'page' : undefined}
                   aria-disabled={isLockedModule || undefined}
-                  onClick={
-                    isLockedModule
-                      ? (e) => {
-                          e.preventDefault();
-                          onEmptyModuleClick?.(item.label);
-                        }
-                      : undefined
-                  }
+                  onClick={(e) => {
+                    if (isLockedModule) {
+                      e.preventDefault();
+                      onEmptyModuleClick?.(item.label);
+                      return;
+                    }
+                    setMobileMenuOpen(false);
+                  }}
                   title={
                     isLockedModule
                       ? `Primero da de alta una empresa en tu Despacho Contable para usar ${item.label}`
@@ -302,8 +315,12 @@ export function AppShellSidebar({
                       </div>
                     </div>
                   ) : (
-                    <span className="hidden lg:block text-[9px] font-mono font-semibold text-slate-400 group-hover:text-slate-200 mt-0.5">
-                      {isLockedModule ? '🔒' : item.shortcut}
+                    <span className="hidden lg:flex items-center justify-center text-[9px] font-mono font-semibold text-slate-400 group-hover:text-slate-200 mt-0.5">
+                      {isLockedModule ? (
+                        <Lock className="w-3 h-3" aria-hidden="true" />
+                      ) : (
+                        item.shortcut
+                      )}
                     </span>
                   )}
                 </Link>

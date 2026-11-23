@@ -42,7 +42,7 @@ export function FiscalBancosTabBar({
             Tesorería, Bancos y Cierre Fiscal
           </h1>
           <p className="text-xs text-slate-600 mt-0.5">
-            Conciliación bancaria, DIOT batch, Padrón 69-B, Activos Fijos y Cédula Día 17
+            Conciliación bancaria, DIOT (.txt), Padrón 69-B, Activos Fijos, Cédula Día 17, CxC/CxP, Nómina IMSS/ISN e Inventarios/Costo de Ventas
           </p>
         </div>
       </div>
@@ -50,7 +50,7 @@ export function FiscalBancosTabBar({
       <div
         role="tablist"
         aria-label="Pestañas de Tesorería y Cierre Fiscal"
-        className="erp-tab-scroller no-print max-w-full pb-0.5 shrink-0"
+        className="erp-tab-scroller no-print flex flex-nowrap items-center gap-1.5 min-w-0 max-w-full pb-0.5"
       >
         {tabs.map((tab) => {
           const isSelected = activeTab === tab.id;
@@ -65,7 +65,7 @@ export function FiscalBancosTabBar({
               tabIndex={isSelected ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               onKeyDown={(e) => handleTablistKeyDown(e, tabs, activeTab, setActiveTab, 'fb-tab-')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                 isSelected
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'

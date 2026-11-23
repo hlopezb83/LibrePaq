@@ -41,6 +41,7 @@ export function AddCfdiView() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (document.querySelector('dialog[open]')) return;
       const el = document.activeElement as HTMLElement | null;
       const activeTag = (el?.tagName || '').toLowerCase();
       const isEditable =
@@ -78,6 +79,23 @@ export function AddCfdiView() {
 
   return (
     <div className="space-y-4">
+      {isReadOnlyClient && !isPeriodLocked && (
+        <div
+          role="status"
+          className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 flex items-start gap-3 text-blue-950 text-xs shadow-2xs"
+        >
+          <Lock className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="space-y-0.5">
+            <span className="font-bold text-sm block text-blue-950">
+              Modo Solo Lectura Activo
+            </span>
+            <p className="text-blue-900 leading-relaxed">
+              Estás consultando la Bóveda Digital ADD en modo solo lectura. La carga de XML, contabilización y eliminación de comprobantes se encuentran deshabilitadas.
+            </p>
+          </div>
+        </div>
+      )}
+
       {isPeriodLocked && (
         <div
           role="status"
@@ -140,7 +158,7 @@ export function AddCfdiView() {
       {satBatchAlert && satBatchAlert.cancelledWithPolizaCount > 0 && (
         <div
           role="alert"
-          className="bg-red-50 border border-red-300 rounded-2xl p-4 flex items-start justify-between gap-3 text-red-950 text-xs shadow-2xs"
+          className="bg-red-50 border border-red-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-red-950 text-xs shadow-2xs"
         >
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
@@ -157,14 +175,31 @@ export function AddCfdiView() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={dismissSatBatchAlert}
-            aria-label="Ocultar alerta de facturas canceladas con póliza"
-            className="px-2.5 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-900 font-semibold cursor-pointer shrink-0 transition"
-          >
-            Ocultar
-          </button>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
+            {satBatchAlert.alerts[0] && (
+              <button
+                type="button"
+                onClick={() => {
+                  const firstCancelled = satBatchAlert.alerts[0];
+                  if (!firstCancelled) return;
+                  setTab('ALL');
+                  setPeriodScope('ALL');
+                  setSearchQuery(firstCancelled.uuid);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold cursor-pointer shrink-0 transition"
+              >
+                Localizar cancelado
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={dismissSatBatchAlert}
+              aria-label="Ocultar alerta de facturas canceladas con póliza"
+              className="px-2.5 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-900 font-semibold cursor-pointer shrink-0 transition"
+            >
+              Ocultar
+            </button>
+          </div>
         </div>
       )}
 
@@ -264,12 +299,13 @@ export function AddCfdiView() {
         isPeriodLocked={isPeriodLocked}
         isReadOnlyClient={isReadOnlyClient}
         onClose={() => contabilizarModalRef.current?.close()}
-        onConfirm={() => {
+        onConfirm={(opts) => {
           if (selectedCfdi) {
             autoPolizaMutation.mutate({
               cfdiId: selectedCfdi.id,
               operationAccountCode: operationAccountCode || undefined,
-              counterAccountCode: counterAccountCode || undefined
+              counterAccountCode: counterAccountCode || undefined,
+              deductiblePct: opts?.deductiblePct
             });
           }
         }}

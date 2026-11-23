@@ -127,7 +127,7 @@ function PolizaCardItemBase({
                 <>
                   <FileCode2 className="w-3 h-3 text-slate-500 group-hover:text-blue-600" aria-hidden="true" />
                   <span>UUID: {pol.cfdiUuid.slice(0, 11)}...</span>
-                  <Copy className="w-2.5 h-2.5 text-slate-400 group-hover:text-blue-600 opacity-60 group-hover:opacity-100" aria-hidden="true" />
+                  <Copy className="w-2.5 h-2.5 text-slate-500 group-hover:text-blue-600 opacity-75 group-hover:opacity-100" aria-hidden="true" />
                 </>
               )}
               <span className="visually-hidden" aria-live="polite">
@@ -181,7 +181,7 @@ function PolizaCardItemBase({
               onClick={() => onDuplicate(pol)}
               title={
                 isReadOnlyClient
-                  ? 'Modo solo lectura'
+                  ? 'Tu rol Cliente (Solo lectura) no permite duplicar pólizas'
                   : isPeriodLocked
                   ? 'Periodo bloqueado ante el SAT'
                   : 'Duplicar esta póliza como plantilla para un nuevo registro'
@@ -203,7 +203,7 @@ function PolizaCardItemBase({
               onClick={() => onEdit(pol)}
               title={
                 isReadOnlyClient
-                  ? 'Modo solo lectura'
+                  ? 'Tu rol Cliente (Solo lectura) no permite editar pólizas'
                   : isPeriodLocked
                   ? 'Periodo bloqueado ante el SAT'
                   : 'Editar póliza'
@@ -256,7 +256,7 @@ function PolizaCardItemBase({
                 }}
                 title={
                   isReadOnlyClient
-                    ? 'Modo solo lectura'
+                    ? 'Tu rol Cliente (Solo lectura) no permite eliminar pólizas'
                     : isPeriodLocked
                     ? 'Periodo bloqueado ante el SAT'
                     : 'Eliminar póliza'
@@ -264,8 +264,8 @@ function PolizaCardItemBase({
                 aria-label={`Eliminar póliza ${pol.tipo} ${pol.folio}`}
                 className={`p-1.5 rounded-lg transition ${
                   isWriteBlocked
-                    ? 'opacity-30 cursor-not-allowed text-slate-300'
-                    : 'text-slate-400 hover:text-red-700 hover:bg-red-50 cursor-pointer'
+                    ? 'opacity-40 cursor-not-allowed text-slate-400'
+                    : 'text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer'
                 }`}
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />

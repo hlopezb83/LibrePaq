@@ -11,6 +11,7 @@ export interface CatalogoTableProps {
   filteredAccounts: AccountWithBalance[];
   isLoading: boolean;
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   copiedCode?: string | null;
   selectedAccountId: string | null;
   onSelectAccount: (id: string) => void;
@@ -30,6 +31,7 @@ export function CatalogoTable({
   filteredAccounts,
   isLoading,
   isPeriodLocked = false,
+  isReadOnlyClient = false,
   copiedCode = null,
   selectedAccountId,
   onSelectAccount,
@@ -49,6 +51,7 @@ export function CatalogoTable({
   const columns = useCatalogoColumns({
     collapsedCodes,
     isPeriodLocked,
+    isReadOnlyClient,
     copiedCode,
     onToggleNodeCollapse,
     onSelectAccount,

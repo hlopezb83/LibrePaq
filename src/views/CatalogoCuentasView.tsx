@@ -1,4 +1,4 @@
-import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
+import { AlertCircle, Eye, Lock, RefreshCw } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useUIModal } from '../context/UIModalContext';
 import { AccountEditorModal } from './catalogo/AccountEditorModal';
@@ -133,6 +133,18 @@ export function CatalogoCuentasView() {
         </div>
       )}
 
+      {isReadOnlyClient && !isPeriodLocked && (
+        <div
+          role="status"
+          className="px-4 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 text-xs flex items-center gap-2 shadow-2xs"
+        >
+          <Eye className="w-4 h-4 text-sky-700 shrink-0" aria-hidden="true" />
+          <span>
+            <strong>Modo Solo lectura:</strong> Puedes consultar el catálogo contable, abrir el Libro Mayor de cada cuenta y exportar a Excel, pero no crear, editar ni eliminar cuentas.
+          </span>
+        </div>
+      )}
+
       {/* Barra de Búsqueda, Expansión Jerárquica y Filtros */}
       <CatalogoFilterBar
         globalFilter={globalFilter}
@@ -155,7 +167,7 @@ export function CatalogoCuentasView() {
 
       {/* Tabla del Catálogo de Cuentas */}
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
-        <CatalogoKeyboardShortcutsBar selectedAccount={selectedAccount} />
+        <CatalogoKeyboardShortcutsBar selectedAccount={selectedAccount} isWriteBlocked={isWriteBlocked} />
 
         {isError ? (
           <div role="alert" className="p-8 text-center space-y-3">
@@ -179,7 +191,8 @@ export function CatalogoCuentasView() {
           <CatalogoTable
             filteredAccounts={filteredAccounts}
             isLoading={isLoading}
-            isPeriodLocked={isWriteBlocked}
+            isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             copiedCode={copiedCode}
             selectedAccountId={selectedAccountId}
             onSelectAccount={(id) => setSelectedAccountId(id)}

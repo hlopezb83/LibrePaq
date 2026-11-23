@@ -20,7 +20,7 @@ export function CatalogoHeaderBar({
 }: CatalogoHeaderBarProps) {
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   const blockedReason = isReadOnlyClient
-    ? 'Modo solo lectura'
+    ? 'Tu rol Cliente (Solo lectura) no permite modificar el catálogo'
     : 'Periodo fiscal bloqueado ante el SAT';
   return (
     <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs">
@@ -46,7 +46,7 @@ export function CatalogoHeaderBar({
               ? blockedReason
               : 'Importar catálogo de cuentas desde archivo CSV o layout CONTPAQi'
           }
-          className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition ${
+          className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 ${
             isWriteBlocked
               ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
               : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'

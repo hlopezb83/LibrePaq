@@ -183,6 +183,9 @@ export function useExecutiveDeliverables({
     [year, period]
   );
 
+  const isUsingDefaultSignatures =
+    auditorName.includes('María Elena Gómez Garza') || auditorCedula.includes('4829103');
+
   const handlePrint = () => {
     window.print();
   };
@@ -197,7 +200,7 @@ export function useExecutiveDeliverables({
       period,
       formatVerticalPct
     });
-    toast.success('¡Carpeta de Cédulas descargada exitosamente en Excel (.CSV)!');
+    toast.success('¡Paquete .ZIP (CSV) de cédulas descargado exitosamente!');
   };
 
   const handleExportAllXlsx = async () => {
@@ -215,7 +218,7 @@ export function useExecutiveDeliverables({
       toast.success('¡Dossier Ejecutivo descargado exitosamente en Excel (.XLSX)!');
     } catch (err) {
       console.warn('[Deliverables] Falló exportación XLSX, usando respaldo CSV:', err);
-      toast.warning('No se pudo generar el Excel (.XLSX); se descargó la versión .CSV.');
+      toast.warning('No se pudo generar el Excel (.XLSX); se descargó el Paquete .ZIP (CSV).');
       handleExportAllCsv();
     } finally {
       setIsExporting(false);
@@ -285,6 +288,7 @@ export function useExecutiveDeliverables({
     formatVerticalPct,
     isrSaldoNoAplicado,
     fechaVencimientoDia17,
+    isUsingDefaultSignatures,
     handlePrint,
     handleExportAllCsv,
     handleExportAllXlsx,

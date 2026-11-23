@@ -11,6 +11,7 @@ interface CfdiXmlTabProps {
 
 export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProps) {
   const preview = useMemo(() => parseCfdiPreview(cfdi), [cfdi]);
+  const isReconstructed = !cfdi.xmlRaw;
   const totalRet = preview.impuestos.totalImpuestosRetenidos;
   const retencionesSnippet =
     totalRet > 0
@@ -25,24 +26,46 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
     }>${retencionesSnippet}\n  </cfdi:Impuestos>\n</cfdi:Comprobante>`;
 
   return (
-    <div className="bg-slate-950 text-slate-100 rounded-2xl p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4">
+    <div
+      role="region"
+      aria-label="Estructura XML del CFDI"
+      className="bg-slate-950 text-slate-100 rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4"
+    >
       <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2 text-slate-300">
-          <Code2 className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+        <div className="flex items-center gap-2 text-slate-300 flex-wrap">
+          <Code2 className="w-4 h-4 text-cyan-400 shrink-0" aria-hidden="true" />
           <span className="font-bold text-white font-sans text-sm">
             Estructura Jerárquica del XML CFDI {preview.comprobante.version}
           </span>
+          {isReconstructed && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-950 text-amber-200 border border-amber-700/70 font-sans text-[11px] font-semibold">
+              Vista reconstruida (sin XML original)
+            </span>
+          )}
         </div>
         <button
           type="button"
           onClick={() => copyToClipboard(xmlPayload, 'XML_NODES')}
           aria-label="Copiar nodos XML al portapapeles"
-          className="px-2.5 py-1 rounded-lg text-[11px] font-sans font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
+          className="px-2.5 py-1.5 rounded-lg text-[11px] font-sans font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
         >
-          {copiedText === 'XML_NODES' ? <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
+          {copiedText === 'XML_NODES' ? (
+            <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+          ) : (
+            <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+          )}
           {copiedText === 'XML_NODES' ? 'XML Copiado' : 'Copiar Nodos XML'}
         </button>
+        <span className="sr-only" aria-live="polite">
+          {copiedText === 'XML_NODES' ? 'Nodos XML copiados al portapapeles' : ''}
+        </span>
       </div>
+
+      {isReconstructed && (
+        <div className="px-3 py-2 rounded-xl bg-amber-950/60 border border-amber-700/60 text-amber-200 text-[11px] font-sans">
+          Nota: El archivo XML original no está almacenado en este registro; esta vista y la copia resumen se reconstruyen con los metadatos fiscales, conceptos y timbre registrados en bóveda.
+        </div>
+      )}
 
       <div className="space-y-2.5 overflow-x-auto text-[11px] leading-relaxed">
         <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">

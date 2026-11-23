@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Building2, Calculator, CheckCircle2, RefreshCw, Sparkles, Users } from 'lucide-react';
+import { AlertCircle, Building2, Calculator, RefreshCw, Sparkles } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { formatCurrency, getLastDateForPeriod } from '../../lib/formatters';
+import { formatCurrency, formatShortDate, getLastDateForPeriod } from '../../lib/formatters';
 import {
   computePayrollPeriodSummary,
   computeSuaAndIsnProvision,
@@ -12,6 +12,8 @@ import {
 } from '../../shared/engine/payroll-summary.engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import type { SuaAndIsnProvisionResult } from '../../shared/types/payroll-summary.types';
+import { NominaKpiAmarreSection } from './NominaKpiAmarreSection';
+import { NominaProvisionPreviewTable } from './NominaProvisionPreviewTable';
 
 export interface NominaImssTabProps {
   activeCompanyId: string;
@@ -40,7 +42,14 @@ export function NominaImssTab({
   onFeedback
 }: NominaImssTabProps) {
   const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
-  const isLocked = isPeriodLocked || Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
+  const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
+  const isLocked = isPeriodLocked || isReadOnly;
+  const lockReason = isPeriodLocked
+    ? 'Periodo fiscal bloqueado ante el SAT'
+    : isReadOnly
+      ? 'Modo solo lectura'
+      : null;
+
   const toast = useToast();
   const queryClient = useQueryClient();
   const effectiveYear = currentYear ?? company?.currentYear ?? 2026;
@@ -73,20 +82,26 @@ export function NominaImssTab({
   );
 
   const [stateCode, setStateCode] = useState<string>('CMX');
-  const [baseInput, setBaseInput] = useState<string>('');
+  const [baseInput, setBaseInput] = useState<string | null>(null);
   const [imssInput, setImssInput] = useState<string>('0');
   const [rcvInput, setRcvInput] = useState<string>('0');
   const [infonavitInput, setInfonavitInput] = useState<string>('0');
+  const [confirmPoliza, setConfirmPoliza] = useState<boolean>(false);
 
   useEffect(() => {
     setStateCode('CMX');
-    setBaseInput('');
+    setBaseInput(null);
     setImssInput('0');
     setRcvInput('0');
     setInfonavitInput('0');
+    setConfirmPoliza(false);
   }, [activeCompanyId, effectiveYear, effectivePeriod]);
 
-  const resolvedBase = baseInput === '' ? summary.totalPercepciones : parseNonNeg(baseInput);
+  const resolvedBase = baseInput === null ? summary.totalPercepciones : parseNonNeg(baseInput);
+  const selectedState = useMemo(
+    () => MEXICO_ISN_RATES.find((s) => s.code === stateCode),
+    [stateCode]
+  );
 
   const { provision, provisionError } = useMemo<{
     provision: SuaAndIsnProvisionResult | null;
@@ -112,6 +127,8 @@ export function NominaImssTab({
     }
   }, [accounts, effectiveYear, effectivePeriod, stateCode, resolvedBase, imssInput, rcvInput, infonavitInput]);
 
+  const polizaDate = getLastDateForPeriod(effectiveYear, effectivePeriod);
+
   const createPolizaMutation = useMutation({
     mutationFn: ({ prov, targetCompanyId }: { prov: SuaAndIsnProvisionResult; targetCompanyId: string }) => {
       if (isLocked) {
@@ -120,7 +137,7 @@ export function NominaImssTab({
       return apiClient.createPoliza({
         companyId: targetCompanyId,
         tipo: prov.polizaTipo,
-        fecha: getLastDateForPeriod(effectiveYear, effectivePeriod),
+        fecha: polizaDate,
         concepto: prov.polizaConcept,
         origin: 'MANUAL',
         movements: prov.polizaMovements.map((m) => ({
@@ -129,6 +146,7 @@ export function NominaImssTab({
       });
     },
     onSuccess: (poliza, variables) => {
+      setConfirmPoliza(false);
       invalidateAccountingQueries(
         queryClient,
         ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
@@ -154,162 +172,143 @@ export function NominaImssTab({
   if (loadingCfdis || loadingRep) {
     return (
       <div role="status" aria-live="polite" aria-busy="true" className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-600">
+        <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2 text-blue-600" aria-hidden="true" />
         Consolidando CFDIs de Nómina 1.2 y balanza de retenciones (216-01-001)...
       </div>
     );
   }
 
   const periodLabel = `${String(effectivePeriod).padStart(2, '0')}/${effectiveYear}`;
-  const kpiCards = [
-    { label: 'Recibos Timbrados (Tipo N)', value: String(summary.nominaCount), sub: `Periodo ${periodLabel}`, tone: 'text-slate-900', icon: true },
-    { label: 'Total Percepciones', value: formatCurrency(summary.totalPercepciones), sub: `IMSS Obrero est.: ${formatCurrency(summary.imssObreroEstimado)}`, tone: 'text-slate-900' },
-    { label: 'Subsidio al Empleo / Otros Pagos', value: formatCurrency(summary.totalSubsidioEmpleo), sub: 'Complemento Nómina 1.2', tone: 'text-blue-700' },
-    { label: 'Neto Pagado', value: formatCurrency(summary.totalNetoPagado), sub: `ISR retenido: ${formatCurrency(summary.isrRetenidoCfdis)}`, tone: 'text-emerald-700' }
-  ];
 
-  const amarreMeta =
-    summary.amarreStatus === 'CUADRADO'
-      ? { badge: 'bg-emerald-50 text-emerald-800 border-emerald-300', label: 'CUADRADO vs Libros' }
-      : summary.amarreStatus === 'DIFERENCIA'
-        ? { badge: 'bg-red-50 text-red-800 border-red-300', label: 'CON DIFERENCIA' }
-        : { badge: 'bg-slate-100 text-slate-700 border-slate-300', label: 'SIN NÓMINA EN PERIODO' };
-
-  const amarreRows = [
-    { label: 'ISR Retenido CFDIs (Nómina 1.2)', value: formatCurrency(summary.isrRetenidoCfdis), tone: 'text-slate-900' },
-    { label: `Saldo Acreedor Libros (${summary.cuentaIsrCode})`, value: formatCurrency(summary.isrRetenidoLibros), tone: 'text-slate-900' },
-    { label: 'Diferencia (CFDIs − Libros)', value: formatCurrency(summary.diferenciaIsrAmarre), tone: summary.diferenciaIsrAmarre === 0 ? 'text-emerald-700' : 'text-red-700' }
-  ];
+  const polizaButtonTitle = lockReason
+    ?? (!provision ? 'Captura al menos un importe patronal o base gravable ISN > $0.00' : 'Registrar póliza de diario en contabilidad');
 
   return (
     <div className="space-y-5">
-      <section aria-label="Resumen mensual de Nómina 1.2" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpiCards.map((k) => (
-          <div key={k.label} className="bg-white p-4 rounded-2xl border border-slate-300/90 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>{k.label}</span>
-              {k.icon && <Users className="w-4 h-4 text-blue-600" aria-hidden="true" />}
-            </div>
-            <p className={`text-xl font-bold mt-1 ${k.tone}`}>{k.value}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">{k.sub}</p>
-          </div>
-        ))}
-      </section>
+      <NominaKpiAmarreSection summary={summary} periodLabel={periodLabel} />
 
-      <section className="bg-white p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Amarre ISR Retenido por Salarios vs. Contabilidad ({summary.cuentaIsrCode})</h2>
-            <p className="text-xs text-slate-500">Compara la suma de ISR retenido en CFDIs Tipo N vigentes contra los abonos del periodo en balanza</p>
-          </div>
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${amarreMeta.badge}`}>
-            {summary.amarreStatus === 'CUADRADO' && <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}
-            {summary.amarreStatus === 'DIFERENCIA' && <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />}
-            {amarreMeta.label}
-          </span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          {amarreRows.map((row) => (
-            <div key={row.label} className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <span className="text-slate-500 block">{row.label}</span>
-              <span className={`text-base font-bold ${row.tone}`}>{row.value}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="bg-white p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2.5">
-            <Calculator className="w-5 h-5 text-blue-700" aria-hidden="true" />
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Provisión Mensual SUA (IMSS / RCV / INFONAVIT) e ISN Estatal</h2>
-              <p className="text-xs text-slate-500">Calcula el Impuesto Sobre Nómina estatal y genera la póliza de diario cuadrada al centavo</p>
+      <section aria-labelledby="nomina-sua-isn-heading" className="bg-white p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Calculator className="w-5 h-5 text-blue-700 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <h2 id="nomina-sua-isn-heading" className="text-sm font-bold text-slate-900">Provisión Mensual SUA (IMSS / RCV / INFONAVIT) e ISN Estatal</h2>
+              <p className="text-xs text-slate-600">Calcula el Impuesto Sobre Nómina estatal y genera la póliza de diario cuadrada al centavo</p>
             </div>
           </div>
           <button
             type="button"
             disabled={isLocked || !provision || createPolizaMutation.isPending}
-            onClick={() => provision && createPolizaMutation.mutate({ prov: provision, targetCompanyId: activeCompanyId })}
-            title={isLocked ? (isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : 'Modo solo lectura') : 'Registrar póliza de diario en contabilidad'}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
+            onClick={() => provision && setConfirmPoliza(true)}
+            title={polizaButtonTitle}
+            className="self-start lg:self-auto shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <Sparkles className="w-4 h-4" aria-hidden="true" />
             {createPolizaMutation.isPending ? 'Registrando Póliza...' : 'Registrar Póliza de Provisión SUA + ISN'}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+        {confirmPoliza && provision && (
+          <div role="region" aria-label="Confirmación de póliza SUA e ISN" className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <p className="text-amber-950 font-medium">
+              Se generará una póliza de <strong>DIARIO</strong> por <strong className="font-mono tabular-nums">{formatCurrency(provision.totalProvision)}</strong> con fecha <strong className="font-mono">{formatShortDate(polizaDate)}</strong>. Verifica no haberla registrado previamente para evitar duplicados.
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setConfirmPoliza(false)}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isLocked || createPolizaMutation.isPending}
+                onClick={() => createPolizaMutation.mutate({ prov: provision, targetCompanyId: activeCompanyId })}
+                title={lockReason ?? 'Confirmar y registrar póliza de diario'}
+                className="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {createPolizaMutation.isPending ? 'Registrando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 text-xs">
           <div>
             <label htmlFor="isn-state-select" className="block font-semibold text-slate-700 mb-1">Estado ISN (32 Entidades)</label>
-            <select id="isn-state-select" disabled={isLocked} value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 disabled:bg-slate-100">
+            <select id="isn-state-select" disabled={isLocked} value={stateCode} onChange={(e) => { setStateCode(e.target.value); setConfirmPoliza(false); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 disabled:bg-slate-100">
               {MEXICO_ISN_RATES.map((s) => (
                 <option key={s.code} value={s.code}>{s.name} ({s.ratePct.toFixed(2)}%)</option>
               ))}
             </select>
+            {selectedState?.notes && (
+              <p className="mt-1 text-[11px] text-slate-600">{selectedState.notes}</p>
+            )}
           </div>
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
               <label htmlFor="isn-base-input" className="font-semibold text-slate-700">Base Gravable ISN ($)</label>
-              <button type="button" disabled={isLocked} onClick={() => setBaseInput(String(summary.totalPercepciones))} className="text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">Usar nómina</button>
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={() => { setBaseInput(null); setConfirmPoliza(false); }}
+                title={lockReason ?? 'Aplicar total de percepciones de los recibos Tipo N del periodo'}
+                className="text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Usar nómina
+              </button>
             </div>
-            <input id="isn-base-input" type="number" min="0" step="0.01" disabled={isLocked} value={baseInput === '' ? String(summary.totalPercepciones) : baseInput} onChange={(e) => setBaseInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
+            <input
+              id="isn-base-input"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              disabled={isLocked}
+              placeholder={String(summary.totalPercepciones)}
+              value={baseInput === null ? String(summary.totalPercepciones) : baseInput}
+              onChange={(e) => { setBaseInput(e.target.value); setConfirmPoliza(false); }}
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono tabular-nums text-slate-900 disabled:bg-slate-100"
+            />
           </div>
           <div>
             <label htmlFor="sua-imss-input" className="block font-semibold text-slate-700 mb-1">IMSS Patronal ($)</label>
-            <input id="sua-imss-input" type="number" min="0" step="0.01" disabled={isLocked} value={imssInput} onChange={(e) => setImssInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
+            <input id="sua-imss-input" type="number" inputMode="decimal" min="0" step="0.01" disabled={isLocked} value={imssInput} onChange={(e) => { setImssInput(e.target.value); setConfirmPoliza(false); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono tabular-nums text-slate-900 disabled:bg-slate-100" />
           </div>
           <div>
             <label htmlFor="sua-rcv-input" className="block font-semibold text-slate-700 mb-1">RCV Patronal ($)</label>
-            <input id="sua-rcv-input" type="number" min="0" step="0.01" disabled={isLocked} value={rcvInput} onChange={(e) => setRcvInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
+            <input id="sua-rcv-input" type="number" inputMode="decimal" min="0" step="0.01" disabled={isLocked} value={rcvInput} onChange={(e) => { setRcvInput(e.target.value); setConfirmPoliza(false); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono tabular-nums text-slate-900 disabled:bg-slate-100" />
           </div>
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
               <label htmlFor="sua-infonavit-input" className="font-semibold text-slate-700">INFONAVIT 5% ($)</label>
-              <button type="button" disabled={isLocked} onClick={() => setInfonavitInput((resolvedBase * 0.05).toFixed(2))} className="text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">Estimar 5%</button>
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={() => { setInfonavitInput((resolvedBase * 0.05).toFixed(2)); setConfirmPoliza(false); }}
+                title={lockReason ?? 'Estimar INFONAVIT como 5% de la base gravable ISN'}
+                className="text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Estimar 5%
+              </button>
             </div>
-            <input id="sua-infonavit-input" type="number" min="0" step="0.01" disabled={isLocked} value={infonavitInput} onChange={(e) => setInfonavitInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
+            <input id="sua-infonavit-input" type="number" inputMode="decimal" min="0" step="0.01" disabled={isLocked} value={infonavitInput} onChange={(e) => { setInfonavitInput(e.target.value); setConfirmPoliza(false); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono tabular-nums text-slate-900 disabled:bg-slate-100" />
           </div>
         </div>
 
         {provision ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <div><span className="text-slate-500 block">ISN {provision.stateName} ({provision.tasaIsnPct}%)</span><span className="text-sm font-bold text-slate-900">{formatCurrency(provision.isnEstatal)}</span></div>
-              <div><span className="text-slate-500 block">Total SUA Patronal (IMSS + RCV + INFONAVIT)</span><span className="text-sm font-bold text-slate-900">{formatCurrency(provision.totalSuaPatronal)}</span></div>
-              <div><span className="text-slate-500 block">Provisión Total (Póliza DIARIO)</span><span className="text-sm font-bold text-blue-800">{formatCurrency(provision.totalProvision)}</span></div>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-100 text-slate-700 font-semibold">
-                  <tr>
-                    <th className="px-3 py-2">Cuenta</th><th className="px-3 py-2">Concepto</th>
-                    <th className="px-3 py-2 text-right">Cargo</th><th className="px-3 py-2 text-right">Abono</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {provision.polizaMovements.map((m, idx) => (
-                    <tr key={`${m.accountId}-${idx}`}>
-                      <td className="px-3 py-2 font-mono text-slate-800">{m.accountCode} · {m.accountName}</td>
-                      <td className="px-3 py-2 text-slate-600">{m.concepto}</td>
-                      <td className="px-3 py-2 text-right font-mono">{m.cargo > 0 ? formatCurrency(m.cargo) : '—'}</td>
-                      <td className="px-3 py-2 text-right font-mono">{m.abono > 0 ? formatCurrency(m.abono) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-slate-50 font-bold text-slate-900 border-t border-slate-300">
-                  <tr>
-                    <td colSpan={2} className="px-3 py-2">Totales Póliza (Debe = Haber)</td>
-                    <td className="px-3 py-2 text-right font-mono">{formatCurrency(provision.totalCargos)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{formatCurrency(provision.totalAbonos)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+          <NominaProvisionPreviewTable provision={provision} />
+        ) : provisionError ? (
+          <div role="alert" className="flex items-center gap-2 text-xs text-red-900 bg-red-50 p-3 rounded-xl border border-red-200">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
+            <span>{provisionError}</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <Building2 className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
-            <span>{provisionError ?? 'Captura importes patronales o nómina gravable para previsualizar la póliza.'}</span>
+          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <Building2 className="w-4 h-4 text-slate-500 shrink-0" aria-hidden="true" />
+            <span>Captura importes patronales o nómina gravable para previsualizar la póliza.</span>
           </div>
         )}
       </section>
