@@ -4,6 +4,7 @@ import puppeteer from 'puppeteer-core';
 
 const ROOT_DIR = process.cwd();
 const OUTPUT_PDF = path.join(ROOT_DIR, 'docs', 'Manual_Usuario_LibrePaq_Pro.pdf');
+const PUBLIC_PDF = path.join(ROOT_DIR, 'public', 'Manual_Usuario_LibrePaq_Pro.pdf');
 const LOGO_PATH = path.join(ROOT_DIR, 'public', 'librepaq-app-logo-120.png');
 
 function findBrowserExecutable(): string {
@@ -567,13 +568,13 @@ function buildManualHtml(logoDataUri: string): string {
     <h1 class="cover-title">Manual de Usuario<br />para <span>Nuevos Usuarios</span></h1>
     <p class="cover-desc">
       Todo lo que necesitas para operar tu despacho contable, empresas PyME o contribuyentes RESICO:
-      descarga masiva del SAT, Auto-Póliza inteligente, conciliación bancaria N-a-1 con IA,
-      cierre fiscal del Día 17, 4 Estados Financieros NIF, Declaración Anual y Anexo 24 en .zip.
+      descarga masiva del SAT, Auto-Póliza inteligente, conciliación bancaria múltiple con IA,
+      cierre fiscal del Día 17, 4 Estados Financieros NIF, Declaración Anual y Anexo 24 en .zip oficial.
     </p>
 
     <div class="cover-pillars">
       <div class="pillar">
-        <div class="pillar-title">1. Alta con CSF/XML y Equipo RBAC</div>
+        <div class="pillar-title">1. Alta con CSF/XML y Equipo del Despacho</div>
         <div class="pillar-text">Crea empresas en segundos desde tu CSF (PDF) o CFDI 4.0 con catálogo SAT o RESICO, e invita a tu equipo o clientes por rol.</div>
       </div>
       <div class="pillar">
@@ -581,8 +582,8 @@ function buildManualHtml(logoDataUri: string): string {
         <div class="pillar-text">Descarga Emitidos + Recibidos del SAT, valida estatus en lote y Padrón 69-B en la nube, y automatiza pólizas por RFC y No Deducibles (801).</div>
       </div>
       <div class="pillar">
-        <div class="pillar-title">3. Bancos N-a-1, CxC/CxP y Nómina</div>
-        <div class="pillar-text">Importa estados de cuenta PDF con IA, concilia muchos-a-uno, controla cartera PPD por antigüedad y amarra Nómina 1.2, SUA e ISN.</div>
+        <div class="pillar-title">3. Bancos Varios a 1, CxC/CxP y Nómina</div>
+        <div class="pillar-text">Importa estados de cuenta PDF con IA, concilia múltiples pólizas (Varios a 1), controla cartera PPD por antigüedad y amarra Nómina 1.2, SUA e ISN.</div>
       </div>
       <div class="pillar">
         <div class="pillar-title">4. Día 17 RESICO, NIF y Anual</div>
@@ -594,7 +595,7 @@ function buildManualHtml(logoDataUri: string): string {
   <div class="cover-bottom">
     <div class="cover-footer">
       <div>
-        <strong>Edición 2026</strong> • Plataforma Web Multi-RFC<br />
+        <strong>Edición Noviembre 2026 • Actualizada</strong> • Plataforma Web Multi-RFC<br />
         Normativa SAT: CFDI 4.0 • Complemento Pagos 2.0 • Nómina 1.2 • Anexo 24
       </div>
       <div style="text-align: right;">
@@ -649,18 +650,18 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 7</div>
-    <div class="toc-title">Bancos N-a-1, CxC/CxP, Nómina y Día 17</div>
-    <div class="toc-desc">PDF bancario con IA, conciliación N-a-1, PPD por antigüedad, Nómina/SUA/ISN, Inventario y Cédula Día 17 RESICO e IVA.</div>
+    <div class="toc-title">Bancos, CxC/CxP, Nómina, Inventario y Día 17</div>
+    <div class="toc-desc">PDF bancario con IA, conciliación múltiple (Varios a 1), PPD por antigüedad, Nómina/SUA/ISN, Inventario y Cédula Día 17 RESICO e IVA.</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 8</div>
     <div class="toc-title">4 Estados NIF, Anual y Anexo 24 .zip</div>
-    <div class="toc-desc">Flujos NIF B-2, Capital NIF B-4, Comparativo, Declaración Anual (INPC, PTU, CUCA/CUFIN) y Anexo 24 en .zip oficial.</div>
+    <div class="toc-desc">Flujos NIF B-2, Capital NIF B-4, Comparativo, Declaración Anual (INPC, PTU, ISR Neto, CUCA/CUFIN) y Anexo 24 en .zip oficial.</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 9</div>
-    <div class="toc-title">Equipo RBAC, Bitácora y Respaldos</div>
-    <div class="toc-desc">Invitación por roles (Socio, Contador, Auxiliar, Cliente), permisos por empresa, bitácora de auditoría, e.firma y copias JSON.</div>
+    <div class="toc-title">Equipo del Despacho, Bitácora y Respaldos</div>
+    <div class="toc-desc">Acceso por roles (Socio, Contador, Auxiliar, Cliente Solo Lectura), permisos por empresa, bitácora en español, e.firma y respaldos integrales.</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 10</div>
@@ -773,24 +774,24 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><kbd>Alt</kbd>+<kbd>5</kbd></td>
       <td><strong>Bancos, DIOT y Fiscal</strong></td>
-      <td>Conciliación N-a-1 y PDF con IA, DIOT .txt, Padrón 69-B, Activos INPC, CxC/CxP PPD, Nómina/ISN, Inventario y Día 17 RESICO.</td>
+      <td>Conciliación múltiple (Varios a 1) y PDF con IA, DIOT (.txt oficial SAT), Padrón 69-B, Activos INPC, CxC/CxP PPD, Nómina/ISN, Inventario y Día 17 RESICO.</td>
     </tr>
     <tr>
       <td><kbd>Alt</kbd>+<kbd>6</kbd></td>
       <td><strong>Estados Financieros</strong></td>
-      <td>4 Estados NIF (incl. Flujos B-2, Capital B-4 y Comparativo), Declaración Anual, Anexo 24 en .zip y Dossier Excel.</td>
+      <td>4 Estados NIF (incl. Flujos B-2, Capital B-4 y Comparativo), Declaración Anual, Anexo 24 en .zip y Dossier Ejecutivo (.xlsx / Paquete .ZIP / PDF).</td>
     </tr>
     <tr>
       <td><kbd>Alt</kbd>+<kbd>7</kbd></td>
       <td><strong>Configuración y Equipo</strong></td>
-      <td>Directorio multi-RFC, reglas contables, candado mensual, e.firma, parámetros Día 17, respaldos JSON y Equipo RBAC + Bitácora.</td>
+      <td>Directorio multi-RFC, reglas contables, candado mensual, e.firma, parámetros Día 17, respaldos integrales y 7. Equipo y Bitácora.</td>
     </tr>
   </tbody>
 </table>
 
 <div class="callout callout-blue">
-  <div class="callout-title">Tip de Productividad: Paleta de Comandos (<kbd>Ctrl</kbd>+<kbd>K</kbd>) y Candado de Periodo</div>
-  Presiona <kbd>Ctrl</kbd>+<kbd>K</kbd> en cualquier pantalla para buscar cuentas, saltar entre módulos o ejecutar acciones sin usar el ratón. Cuando cierres un mes ante el SAT, activa el <strong>Candado de Periodo</strong> desde la barra superior o Ajustes para impedir modificaciones accidentales en pólizas, bancos o catálogo de ese mes.
+  <div class="callout-title">Tip de Productividad: Paleta de Comandos (<kbd>Ctrl</kbd>+<kbd>K</kbd>), Candado y Modo Cliente (Solo Lectura)</div>
+  Presiona <kbd>Ctrl</kbd>+<kbd>K</kbd> en cualquier pantalla para buscar cuentas, saltar entre módulos o ejecutar acciones sin soltar el teclado. Activa el <strong>Candado de Periodo</strong> desde la cabecera o Ajustes al cerrar un mes ante el SAT. Si ingresas con rol <strong>Cliente (Solo lectura)</strong>, verás el aviso superior informativo y podrás navegar por todos los periodos, pólizas, XML y reportes en consulta sin riesgo de alterar la contabilidad.
 </div>
 
 <!-- ==================== CAPÍTULO 2 ==================== -->
@@ -940,22 +941,22 @@ function buildManualHtml(logoDataUri: string): string {
   El SAT rechaza solicitudes cuya fecha final sea posterior al día de hoy. LibrePaq ajusta automáticamente los rangos usando el <strong>horario oficial de la Ciudad de México</strong> para evitar rechazos incluso al trabajar por la noche después de las 18:00 horas.
 </div>
 
-<h2>4.2 Validación de Estatus SAT en Lote y Padrón 69-B en la Nube</h2>
+<h2>4.2 Validación de Estatus SAT en Lote, Padrón 69-B y Visor CFDI 4.0</h2>
 <ul>
-  <li><strong>Validación de estatus SAT en lote:</strong> selecciona varios comprobantes (o todo el mes) y haz clic en <strong>Validar SAT en Lote</strong> en la barra de acciones masivas. LibrePaq consulta en serie la vigencia oficial (<em>Vigente</em> o <em>Cancelado</em>) y <strong>detecta automáticamente facturas canceladas que ya tienen póliza contable</strong>, alertándote para revertir o cancelar la póliza antes de declarar.</li>
-  <li><strong>Padrón 69-B completo en la nube:</strong> cada RFC emisor o receptor se cruza automáticamente contra el padrón oficial del <strong>Artículo 69-B del CFF (EFOS)</strong> sincronizado en la nube, mostrando alertas preventivas en la tabla, en la vista previa PDF y al contabilizar.</li>
-  <li><strong>Filtros rápidos y vista previa:</strong> cambia entre <em>Emitidos</em> / <em>Recibidos</em>, filtra por periodo, tipo (<code>I</code>, <code>E</code>, <code>P</code>, <code>N</code>, <code>T</code>) o método (<code>PUE</code>/<code>PPD</code>), busca con <kbd>/</kbd>, previsualiza el PDF con <kbd>Espacio</kbd>/<kbd>Enter</kbd> o descarga el XML con <kbd>D</kbd>.</li>
+  <li><strong>Validación de estatus SAT en lote:</strong> selecciona varios comprobantes (o todo el mes) y haz clic en <strong>Validar SAT en Lote</strong>. LibrePaq consulta la vigencia oficial (<em>Vigente</em> o <em>Cancelado</em>) y, si detecta facturas canceladas con póliza activa, muestra una alerta con el botón <strong>Localizar cancelado</strong> para ubicarlas al instante. Los CFDIs <code>CANCELADO</code> o de Traslado (<code>T</code>) quedan protegidos contra contabilización accidental.</li>
+  <li><strong>Padrón 69-B completo en la nube:</strong> cada RFC emisor o receptor se cruza automáticamente contra el padrón oficial del <strong>Artículo 69-B del CFF (EFOS)</strong>, mostrando alertas preventivas en la tabla, en la vista previa y al contabilizar.</li>
+  <li><strong>Visor CFDI 4.0 y verificación directa en el SAT:</strong> abre la vista previa con <kbd>Espacio</kbd>/<kbd>Enter</kbd> para validar el dígito verificador de RFC (<em>RFC Válido / Revisar</em>), revisar nodos XML (con aviso explícito si es reconstruido), consultar el <strong>Sello Digital real</strong> cuando está adjunto el XML o abrir el portal oficial del SAT con los datos codificados correctamente; también puedes filtrar por periodo, tipo (<code>I</code>, <code>E</code>, <code>P</code>, <code>N</code>, <code>T</code>) o método (<code>PUE</code>/<code>PPD</code>) y buscar con <kbd>/</kbd>.</li>
 </ul>
 
 <h2>4.3 Auto-Póliza en 1 Clic o en Lote</h2>
 <ol class="step-list">
   <li>
     <div class="step-num">1</div>
-    <div class="step-body"><strong>Contabilización individual (<kbd>C</kbd>):</strong> haz clic en <em>Contabilizar</em> en cualquier CFDI pendiente. Verás la vista previa con cargos y abonos sugeridos (ingresos, gasto/compra, IVA trasladado/acreditable, retenciones y cliente/proveedor o bancos según PUE/PPD) y podrás ajustar la cuenta antes de confirmar.</div>
+    <div class="step-body"><strong>Contabilización individual (<kbd>C</kbd>):</strong> haz clic en <em>Contabilizar</em> en cualquier CFDI pendiente. La vista previa valida <strong>Sumas Iguales Verificadas</strong> en tiempo real, te permite ajustar cuentas y porcentaje deducible (<code>801</code>) y aplica los cambios de inmediato al confirmar.</div>
   </li>
   <li>
     <div class="step-num">2</div>
-    <div class="step-body"><strong>Contabilización masiva en lote:</strong> marca múltiples comprobantes pendientes y ejecútalos en lote con barra de progreso en vivo. El motor resuelve <strong>moneda extranjera (USD/EUR)</strong>, <strong>Nómina 1.2</strong> y <strong>Complementos de Pago 2.0</strong> reclasificando IVA pendiente a IVA efectivamente cobrado/pagado.</div>
+    <div class="step-body"><strong>Contabilización masiva en lote:</strong> marca múltiples comprobantes pendientes y ejecútalos en lote aplicando automáticamente tus <strong>reglas contables y % deducible (801)</strong>. El motor resuelve <strong>moneda extranjera (USD/EUR)</strong>, <strong>Nómina 1.2</strong> y <strong>Complementos de Pago 2.0</strong> (incluyendo tasas exentas mixtas e IEPS en notas de crédito).</div>
   </li>
 </ol>
 
@@ -978,7 +979,7 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="info-card">
     <div class="info-card-title">División Automática a No Deducibles (801)</div>
-    <p>En gastos parcialmente deducibles conforme al <strong>Art. 28 LISR</strong> (ej. consumos, viáticos o automóviles), elige el <strong>% Deducible</strong> (<code>100%</code>, <code>50%</code>, <code>25%</code>, <code>10%</code> o <code>0%</code>). El motor divide automáticamente la parte no deducible a la cuenta <strong>No Deducibles (<code>801</code>)</strong> sin cálculos manuales.</p>
+    <p>En gastos parcialmente deducibles conforme al <strong>Art. 28 LISR</strong> (ej. consumos, viáticos o automóviles), elige el <strong>% Deducible</strong> (<code>100%</code>, <code>50%</code>, <code>25%</code>, <code>10%</code> o <code>0%</code>). El porcentaje elegido se refleja en la vista previa y se aplica al contabilizar (incluso si no guardas la regla permanente).</p>
   </div>
 </div>
 
@@ -1099,40 +1100,40 @@ function buildManualHtml(logoDataUri: string): string {
 </table>
 
 <div class="callout callout-blue">
-  <div class="callout-title">Integridad Referencial en Pólizas</div>
-  Las cuentas que ya tienen movimientos en pólizas quedan protegidas contra eliminación accidental, garantizando que el Libro Mayor y los XML del Anexo 24 nunca pierdan consistencia histórica.
+  <div class="callout-title">Integridad Referencial, Inventarios (115) y Confirmación Segura</div>
+  Las cuentas con movimientos quedan protegidas contra eliminación accidental, los catálogos incluyen cuentas base de <strong>Almacén / Inventarios (<code>115-00-000</code> y <code>115-01-001</code>)</strong> para Costo de Ventas, y toda eliminación de cuenta en el árbol solicita confirmación en línea antes de ejecutarse.
 </div>
 
 <!-- ==================== CAPÍTULO 7 ==================== -->
 <div class="page-break"></div>
 <div class="chapter-header">
   <div class="chapter-kicker">Capítulo 7</div>
-  <h1 class="chapter-title">Bancos N-a-1, CxC/CxP, Nómina, Inventario y Día 17 (<kbd>Alt</kbd>+<kbd>5</kbd>)</h1>
+  <h1 class="chapter-title">Bancos, CxC/CxP, Nómina, Inventario y Día 17 (<kbd>Alt</kbd>+<kbd>5</kbd>)</h1>
 </div>
 
 <p>
-  Este módulo reúne en un solo espacio la operación de tesorería, cartera PPD, nómina, inventarios y determinación de impuestos provisionales para Régimen General, Persona Física y RESICO:
+  Este módulo organiza en <strong>8 pestañas</strong> la operación de tesorería, cartera PPD, nómina, inventarios y determinación de impuestos provisionales para Régimen General, Persona Física y RESICO:
 </p>
 
-<h2>7.1 Pestañas Operativas y Tesorería</h2>
+<h2>7.1 Las 8 Pestañas Operativas y Tesorería</h2>
 <table>
   <thead>
     <tr>
-      <th style="width: 24%;">Pestaña / Área</th>
+      <th style="width: 25%;">Pestaña / Área</th>
       <th>Capacidades prácticas paso a paso</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td><strong>1. Conciliación Bancos (N-a-1 y PDF IA)</strong></td>
+      <td><strong>1. Conciliación Bancos</strong></td>
       <td>
-        Importa tu estado de cuenta en <strong>CSV</strong> o con <strong>Importar PDF Bancario (IA)</strong> para extraer automáticamente fechas, referencias, cargos y abonos directo del PDF bancario. Ejecuta <strong>Conciliar Automáticamente</strong> (1-a-1) o <strong>Auto-Conciliar N-a-1</strong> para empatar grupos de varias pólizas que suman un solo movimiento del banco. Si falta una póliza (comisiones/traspasos), créala en 1 clic.
+        Importa estados de cuenta en <strong>CSV</strong> o mediante <strong>Importar PDF Bancario</strong> (hasta <code>7.5 MB</code>), con edición en línea, sumas de control (<em>Total Cargos / Abonos</em>) y alertas por fila. Ejecuta <strong>Conciliar Automáticamente</strong> (1-a-1) o <strong>Conciliar Múltiples Pólizas</strong> (<em>Varios a 1</em>) con confirmación segura y creación rápida de pólizas faltantes.
       </td>
     </tr>
     <tr>
       <td><strong>2. DIOT (.txt) y 3. Padrón 69-B</strong></td>
       <td>
-        Desglosa actos pagados a proveedores al 16%, 8% frontera, 0%, exento, notas de crédito y extranjeros; descarga el archivo <strong><code>.txt</code> batch oficial SAT</strong>. En <strong>Padrón 69-B</strong> administra terceros (<code>04</code>, <code>05</code>, <code>15</code>) con verificación en la nube contra listas EFOS.
+        Desglosa actos pagados al 16%, 8% frontera, 0%, exento, notas de crédito y extranjeros (excluyendo Nómina <code>N</code>) y descarga el archivo <strong><code>.txt</code> oficial SAT</strong>. En <strong>Padrón 69-B</strong> administra terceros (<code>04</code>, <code>05</code>, <code>15</code>) con cruce en la nube contra listas EFOS.
       </td>
     </tr>
     <tr>
@@ -1144,39 +1145,39 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><strong>5. CxC / CxP (PPD)</strong></td>
       <td>
-        Controla facturas Emitidas por Cobrar y Recibidas por Pagar en método <code>PPD</code>, descontando abonos de <strong>Complementos de Pago 2.0</strong> y clasificando saldos insolutos por antigüedad: <code>0–30</code>, <code>31–60</code>, <code>61–90</code> y <code>+90</code> días.
+        Controla facturas Emitidas y Recibidas en <code>PPD</code> descontando abonos de <strong>Pagos 2.0</strong> (con conversión multimoneda USD exacta). Filtra por antigüedad interactiva (<code>0–30</code>, <code>31–60</code>, <code>61–90</code>, <code>+90</code> días), busca por RFC/nombre/folio y copia el UUID en 1 clic.
       </td>
     </tr>
     <tr>
       <td><strong>6. Nómina / IMSS / ISN</strong></td>
       <td>
-        Realiza el <strong>amarre automático de CFDIs Nómina 1.2 (Tipo N)</strong> contra la contabilidad y el Día 17 (percepciones, ISR retenido y subsidio), calcula la provisión <strong>SUA</strong> (IMSS patronal, RCV, Infonavit) y el <strong>ISN estatal</strong> con el catálogo de los <strong>32 estados</strong>.
+        Amarra CFDIs de <strong>Nómina 1.2</strong> contra la contabilidad y el Día 17, edita libremente la <strong>Base Gravable ISN ($)</strong> (con botón <em>Usar nómina</em> y catálogo de los 32 estados), valida la tabla previa y confirma antes de emitir la póliza de provisión SUA + ISN.
       </td>
     </tr>
     <tr>
-      <td><strong>Inventario y Costo de Ventas</strong></td>
+      <td><strong>7. Inventario y Costo</strong></td>
       <td>
-        Registra y controla el inventario inicial y final del ejercicio en las cuentas de Almacén (<code>115</code>) para determinar correctamente el <strong>Costo de Ventas (NIF B-3)</strong> y reflejarlo en resultados y conciliación fiscal.
+        Registra inventario inicial y final en Almacén (<code>115</code>) bajo método <em>Analítico</em> o <em>Perpetuo</em> jalando compras de balanza, alerta si el inventario final excede la mercancía disponible y solicita confirmación si ya existe una póliza de Costo de Ventas vinculada.
       </td>
     </tr>
   </tbody>
 </table>
 
-<h2>7.2 Cédula Día 17: Flujo de Efectivo RESICO, Topes e IVA Multi-Tasa</h2>
+<h2>7.2 Pestaña 8 — Cédula Día 17: Flujo RESICO, Topes e IVA Multi-Tasa</h2>
 <div class="card-grid-2">
   <div class="info-card">
     <div class="info-card-title">Base Devengada vs. Flujo de Efectivo RESICO</div>
-    <p>Para contribuyentes RESICO (PF 626 / PM 626), la cédula compara la <strong>Base Contable Devengada</strong> frente a la <strong>Base Flujo de Efectivo</strong> (ingresos cobrados <code>PUE + Pago 2.0 − Notas de Crédito</code> y deducciones pagadas), acreditando además la <strong>retención de ISR 1.25%</strong> (Art. 113-J LISR) aplicada por personas morales.</p>
+    <p>Para contribuyentes RESICO (PF 626 / PM 626), compara la <strong>Base Contable Devengada</strong> frente al <strong>Flujo de Efectivo</strong> (ingresos cobrados <code>PUE + Pago 2.0</code> sin duplicar notas de crédito <code>E</code> sobre <code>PPD</code>), acreditando la <strong>retención de ISR 1.25%</strong> (Art. 113-J LISR). El <em>Coeficiente de Utilidad</em> se marca como <em>No aplica en RESICO</em>.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">Semáforo de Topes RESICO ($3.5M / $35M)</div>
-    <p>Supervisa los ingresos acumulados del ejercicio mediante una barra de progreso con alertas tempranas (<code>OK</code>, <code>Precaución ≥ 80%</code>, <code>Crítica ≥ 95%</code> y <code>Excedido</code>) sobre el tope anual de <strong><code>$3.5 MDP</code> (Persona Física)</strong> y <strong><code>$35 MDP</code> (Persona Moral)</strong>.</p>
+    <p>Supervisa ingresos acumulados del ejercicio con alertas accesibles (<code>OK</code>, <code>Precaución ≥ 80%</code>, <code>Crítica ≥ 95%</code> y <code>Excedido</code>) sobre el tope anual de <strong><code>$3.5 MDP</code> (PF)</strong> y <strong><code>$35 MDP</code> (PM)</strong>; en régimen 612 muestra el desglose de flujo sin alertas RESICO.</p>
   </div>
 </div>
 
 <div class="callout callout-emerald">
-  <div class="callout-title">IVA Multi-Tasa, Prorrateo Art. 5 LIVA y Provisiones</div>
-  La Cédula Día 17 desglosa bases al <strong>16%</strong>, <strong>8% frontera</strong>, <strong>0%</strong>, <strong>Exento</strong> e <strong>IEPS acreditable</strong>, calculando el <strong>Factor de Prorrateo (Art. 5 LIVA)</strong> cuando existen actividades mixtas (gravadas y exentas). También determina el ISR provisional (Coeficiente de Utilidad para PM o tabla Art. 106 LISR para PF) y genera las pólizas de provisión con fecha límite oficial recorrida a día hábil.
+  <div class="callout-title">IVA Multi-Tasa, Prorrateo Art. 5 LIVA, Fluctuación USD y Provisiones</div>
+  La Cédula Día 17 desglosa bases al <strong>16%</strong>, <strong>8% frontera</strong>, <strong>0%</strong>, <strong>Exento</strong> e <strong>IEPS acreditable</strong> (incluyendo traslados exentos en CFDIs mixtos), calcula el <strong>Factor de Prorrateo (Art. 5 LIVA)</strong>, evalúa fluctuación cambiaria USD en REPs parciales/multidocumento con corte mensual y provisiona pólizas con límite recorrido a día hábil.
 </div>
 
 <!-- ==================== CAPÍTULO 8 ==================== -->
@@ -1212,25 +1213,25 @@ function buildManualHtml(logoDataUri: string): string {
 
 <h2>8.2 Pestaña Declaración Anual (Cierre Fiscal del Ejercicio)</h2>
 <p>
-  La pestaña <strong>Declaración Anual</strong> integra los papeles fiscales del ejercicio sin salir del ERP. Captura los índices INPC de cierre (Art. 44 LISR), PTU pagada, no deducibles manuales y movimientos de capital/dividendos para obtener automáticamente:
+  La pestaña <strong>Declaración Anual</strong> excluye automáticamente la Póliza de Cierre Anual (Periodo 13) para conservar intactos tus ingresos y costos acumulados. Captura índices INPC (<code>Índice</code>), PTU pagada, no deducibles manuales, capital y dividendos (<code>MXN $</code>) —con indicador de <em>cambios sin guardar</em> y exportación dedicada <strong>Anual (.CSV)</strong>— para determinar:
 </p>
 <ul>
-  <li><strong>Ajuste Anual por Inflación (INPC):</strong> promedio anual de créditos vs. promedio anual de deudas aplicando el factor de actualización del ejercicio (acumulable o deducible).</li>
-  <li><strong>Conciliación Contable-Fiscal y PTU 10%:</strong> parte de la utilidad contable, suma ingresos fiscales no contables y gastos <strong>No Deducibles (<code>801</code>)</strong>, resta deducciones fiscales y PTU pagada para determinar el <strong>Resultado Fiscal Gravable</strong> y la <strong>PTU 10%</strong> del ejercicio.</li>
-  <li><strong>Nuevo Coeficiente de Utilidad, CUCA y CUFIN:</strong> calcula el nuevo Coeficiente de Utilidad aplicable al siguiente año fiscal y actualiza los saldos de <strong>CUCA</strong> (Art. 78 LISR) y <strong>CUFIN</strong> (Art. 77 LISR).</li>
+  <li><strong>Ajuste Anual por Inflación (solo PM Régimen General):</strong> promedio anual de créditos vs. deudas aplicando el factor INPC, clasificado claramente como <em>Ingreso Acumulable</em>, <em>Deducción Autorizada</em> o <em>Sin Efecto</em> (exento automáticamente en RESICO / PF).</li>
+  <li><strong>Conciliación Contable-Fiscal, PTU 10% e ISR Neto:</strong> calcula la utilidad fiscal gravable y desglosa la <strong>Determinación de ISR Anual a Cargo / Favor</strong> (<code>ISR Causado − Pagos Provisionales Efectuados − ISR Retenido Acreditable</code>).</li>
+  <li><strong>Nuevo Coeficiente de Utilidad, CUCA y CUFIN:</strong> determina el C.U. del siguiente ejercicio (con aviso aclaratorio cuando aplica a PM Régimen General) y actualiza saldos de <strong>CUCA</strong> (Art. 78 LISR) y <strong>CUFIN</strong> (Art. 77 LISR).</li>
 </ul>
 
 <h2>8.3 Anexo 24 en .zip Oficial SAT y Dossier Ejecutivo</h2>
 <div class="callout callout-blue">
-  <div class="callout-title">Anexo 24 v1.3 en .zip Oficial SAT y Dossier de Cierre (.xlsx / PDF)</div>
-  Desde la pestaña <strong>XML SAT Anexo 24</strong> genera y valida conforme a XSD v1.3 el <em>Catálogo de Cuentas (CT)</em>, la <em>Balanza (BN Normal o Complementaria)</em> y las <em>Pólizas (PL)</em> con descarga directa empaquetada en <strong>formato <code>.zip</code> oficial SAT</strong> listo para Buzón Tributario (Regla 2.8.1.5 RMF). Además, en <strong>Dossier de Cierre</strong> exporta el libro ejecutivo multi-hoja en <strong>Excel (<code>.xlsx</code>)</strong> o genera el PDF con firma de tu despacho.
+  <div class="callout-title">Anexo 24 v1.3 en .zip Oficial SAT y Dossier de Cierre (.xlsx / Paquete .ZIP / PDF)</div>
+  En <strong>XML SAT Anexo 24</strong> descarga directamente el paquete comprimido <strong><code>.zip</code> oficial SAT</strong> (Regla 2.8.1.5 RMF) para <em>Catálogo (CT)</em>, <em>Balanza (BN Normal/Complementaria)</em> y <em>Pólizas (PL)</em> —recordando sustituir el <code>NumOrden</code>/<code>NumTramite</code> de ejemplo en <code>PL.xml</code> por el folio oficial del requerimiento SAT—. Desde <strong>Dossier Ejecutivo</strong> exporta el libro <strong>Excel (<code>.xlsx</code>)</strong>, el <strong>Paquete .ZIP (CSV)</strong> identificado por periodo (<code>_P01.._P13</code>) o el PDF (con alerta si siguen activas las firmas/cédula de ejemplo en <em>Firmas y Membrete</em>).
 </div>
 
 <!-- ==================== CAPÍTULO 9 ==================== -->
 <div class="page-break"></div>
 <div class="chapter-header">
   <div class="chapter-kicker">Capítulo 9</div>
-  <h1 class="chapter-title">Configuración, Equipo RBAC, Bitácora y Respaldos (<kbd>Alt</kbd>+<kbd>7</kbd>)</h1>
+  <h1 class="chapter-title">Configuración, Equipo del Despacho, Bitácora y Respaldos (<kbd>Alt</kbd>+<kbd>7</kbd>)</h1>
 </div>
 
 <p>
@@ -1251,7 +1252,7 @@ function buildManualHtml(logoDataUri: string): string {
     </tr>
     <tr>
       <td><strong>2. Empresa</strong></td>
-      <td>Edita razón social, RFC, régimen fiscal, código postal, activa o retira el <strong>Candado de Periodo</strong> y administra tus <strong>Reglas Contables por RFC / ClaveProdServ y No Deducibles (801)</strong>.</td>
+      <td>Edita razón social, RFC, régimen fiscal, código postal, activa o retira el <strong>Candado de Periodo</strong> y administra tus <strong>Reglas Contables por RFC / ClaveProdServ y No Deducibles (801)</strong> (con confirmación segura antes de eliminar).</td>
     </tr>
     <tr>
       <td><strong>3. e.Firma / SAT</strong></td>
@@ -1263,28 +1264,28 @@ function buildManualHtml(logoDataUri: string): string {
     </tr>
     <tr>
       <td><strong>5. Respaldos</strong></td>
-      <td>Descarga una <strong>copia de seguridad completa en JSON</strong> o restaura un respaldo previo de forma guiada; también permite importar catálogos CSV.</td>
+      <td>Descarga o restaura un <strong>respaldo integral de la empresa</strong> (incluyendo XML originales, desgloses de impuestos, reglas contables, inventarios, activos fijos y parámetros anuales); también importa catálogos CSV.</td>
     </tr>
     <tr>
       <td><strong>6. Atajos F1</strong></td>
       <td>Consulta interactiva de todos los atajos de teclado de la plataforma.</td>
     </tr>
     <tr>
-      <td><strong>7. Equipo RBAC</strong></td>
-      <td>Invita colaboradores o clientes con roles diferenciados, restringe qué empresas puede ver cada persona y revisa la <strong>Bitácora de Auditoría</strong>.</td>
+      <td><strong>7. Equipo y Bitácora</strong></td>
+      <td>Autoriza colaboradores o clientes por rol, delimita acceso por RFC con nombres comerciales visibles y consulta la <strong>Bitácora de Auditoría</strong> en español contable.</td>
     </tr>
   </tbody>
 </table>
 
-<h2>9.1 Equipo del Despacho (RBAC), Permisos por Empresa y Bitácora</h2>
+<h2>9.1 Equipo del Despacho, Permisos por Empresa y Bitácora</h2>
 <div class="card-grid-2">
   <div class="info-card">
-    <div class="info-card-title">Roles Granulares e Invitaciones</div>
-    <p>En <strong>7. Equipo RBAC</strong> invita integrantes por correo asignando uno de 4 roles: <strong>Socio</strong> (control total), <strong>Contador</strong> (operación contable y fiscal), <strong>Auxiliar</strong> (captura de pólizas y CFDIs) o <strong>Cliente</strong> (solo lectura). Puedes cambiar roles o revocar accesos en un clic.</p>
+    <div class="info-card-title">Roles Granulares e Invitación Directa</div>
+    <p>En <strong>7. Equipo y Bitácora</strong> autoriza por correo uno de 4 roles (con guía descriptiva): <strong>Socio</strong>, <strong>Contador</strong>, <strong>Auxiliar</strong> o <strong>Cliente (Solo lectura)</strong>. Al autorizar un correo, usa el botón <strong>Copiar enlace e instrucciones</strong> y compártelo con el usuario: su acceso se activará al iniciar sesión en <code>librepaq.com</code> con ese mismo correo. Revocar accesos incluye confirmación en línea.</p>
   </div>
   <div class="info-card">
-    <div class="info-card-title">Acceso por Empresa y Bitácora de Auditoría</div>
-    <p>Delimita qué empresas/RFCs específicos puede consultar cada miembro del equipo y audita en la <strong>Bitácora de Movimientos</strong> quién creó, editó, contabilizó, cerró periodo o descargó reportes con fecha, hora y usuario exacto.</p>
+    <div class="info-card-title">Acceso por Empresa y Bitácora en Español</div>
+    <p>Delimita qué empresas (<code>RFC · Razón Social</code>) puede ver cada integrante. En la <strong>Bitácora de Auditoría</strong> consulta quién creó pólizas, contabilizó CFDIs, ajustó reglas o cerró periodos en etiquetas claras en español contable, con filtro instantáneo y fecha/hora oficial CDMX.</p>
   </div>
 </div>
 
@@ -1362,17 +1363,17 @@ function buildManualHtml(logoDataUri: string): string {
 <ul class="checklist" style="margin: 2px 0 6px 0;">
   <li><span class="chk-box"></span><span><strong>Crea tu cuenta</strong> en <code>librepaq.com</code> (con Google o correo/contraseña) y verifica tu acceso.</span></li>
   <li><span class="chk-box"></span><span><strong>Registra tu primera empresa</strong> usando el Asistente de 5 Pasos (CSF PDF o XML CFDI 4.0 y catálogo General SAT o RESICO).</span></li>
-  <li><span class="chk-box"></span><span><strong>Sube tu e.firma (FIEL)</strong> en <em>Configuración → 3. e.Firma / SAT</em> e invita a tu equipo en <em>7. Equipo RBAC</em> si trabajas en despacho.</span></li>
+  <li><span class="chk-box"></span><span><strong>Sube tu e.firma (FIEL)</strong> en <em>Configuración → 3. e.Firma / SAT</em> e invita a tu equipo en <em>7. Equipo y Bitácora</em> si trabajas en despacho.</span></li>
   <li><span class="chk-box"></span><span><strong>Descarga Emitidos + Recibidos del SAT</strong> en la <em>Bóveda Digital (ADD)</em>, ejecuta <em>Validar SAT en Lote</em> y contabiliza con <em>Reglas Aprendidas</em>.</span></li>
 </ul>
 
 <h2 style="margin: 8px 0 3px 0;">10.3 Checklist de Cierre Contable y Fiscal Mensual</h2>
 <ul class="checklist" style="margin: 2px 0 6px 0;">
   <li><span class="chk-box"></span><span><strong>Bóveda ADD y 69-B al 100%:</strong> estatus SAT validado en lote (cero canceladas con póliza activa), sin alertas 69-B y 0 CFDIs pendientes.</span></li>
-  <li><span class="chk-box"></span><span><strong>Bancos N-a-1, CxC/CxP y Nómina:</strong> estado de cuenta CSV o PDF (IA) conciliado (1-a-1 y N-a-1), cartera PPD y Nómina 1.2 + SUA/ISN.</span></li>
+  <li><span class="chk-box"></span><span><strong>Bancos Varios a 1, CxC/CxP y Nómina:</strong> estado de cuenta CSV o PDF (IA) conciliado (1-a-1 y múltiple), cartera PPD y Nómina 1.2 + SUA/ISN.</span></li>
   <li><span class="chk-box"></span><span><strong>Cédula Día 17 y Provisiones:</strong> flujo de efectivo / semáforo RESICO, prorrateo IVA Art. 5, depreciación LISR e inventario; pólizas de provisión.</span></li>
-  <li><span class="chk-box"></span><span><strong>DIOT, 4 Estados NIF y Anexo 24 .zip:</strong> archivo <code>.txt</code> DIOT, Estados Financieros NIF (Flujos B-2 y Capital B-4) y paquete <code>.zip</code> Anexo 24.</span></li>
-  <li><span class="chk-box"></span><span><strong>Dossier, Bitácora y Candado:</strong> Excel <code>.xlsx</code> exportado, respaldo JSON guardado, bitácora revisada y <strong>Candado de Periodo activado</strong>.</span></li>
+  <li><span class="chk-box"></span><span><strong>DIOT, 4 Estados NIF y Anexo 24 .zip:</strong> archivo <code>.txt</code> oficial DIOT, Estados Financieros NIF (Flujos B-2 y Capital B-4) y paquete <code>.zip</code> Anexo 24.</span></li>
+  <li><span class="chk-box"></span><span><strong>Dossier, Bitácora y Candado:</strong> <em>Paquete .ZIP (CSV)</em> / Excel <code>.xlsx</code> con firmas reales exportado, respaldo integral guardado, bitácora revisada y <strong>Candado de Periodo activado</strong>.</span></li>
 </ul>
 
 <div class="callout callout-emerald" style="margin: 6px 0 0 0; padding: 7px 11px;">
@@ -1407,8 +1408,12 @@ async function main() {
       printBackground: true
     });
 
+    fs.mkdirSync(path.dirname(PUBLIC_PDF), { recursive: true });
+    fs.copyFileSync(OUTPUT_PDF, PUBLIC_PDF);
+
     const stats = fs.statSync(OUTPUT_PDF);
     console.log(`PDF generado exitosamente: ${OUTPUT_PDF} (${(stats.size / 1024).toFixed(1)} KB)`);
+    console.log(`Copia pública sincronizada: ${PUBLIC_PDF}`);
   } finally {
     await browser.close();
   }
