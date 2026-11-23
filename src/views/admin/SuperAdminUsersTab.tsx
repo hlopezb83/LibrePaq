@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  Ban, CheckCircle, Crown, Download, Loader2, Mail, Megaphone, RotateCcw, Search, UserCheck, X
+  Ban, Check, CheckCircle, Copy, Crown, Download, Loader2, Mail, Megaphone, RotateCcw, Search, UserCheck, X
 } from 'lucide-react';
 import type { AdminUserSummary, AdminUsersPageQuery, PlatformRole } from '../../shared/admin-types';
+import { useToast } from '../../context/ToastContext';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { AdminPaginationBar } from './AdminPaginationBar';
 import { exportUsersCsv } from './adminCsvExport';
 
@@ -50,6 +52,8 @@ export function SuperAdminUsersTab({
   onChangeUserRole,
   mutatingUserId = null
 }: SuperAdminUsersTabProps) {
+  const toast = useToast();
+  const { copiedKey: copiedEmail, copy: copyEmail } = useCopyToClipboard<string>(1800);
   const [searchInput, setSearchInput] = useState(query.search || '');
   const [pendingUser, setPendingUser] = useState<{ id: string; nextStatus: 'ACTIVO' | 'SUSPENDIDO' } | null>(null);
   const [pendingRole, setPendingRole] = useState<{ id: string; fullName: string; nextRole: PlatformRole } | null>(null);
@@ -113,8 +117,11 @@ export function SuperAdminUsersTab({
           <button
             type="button"
             disabled={users.length === 0}
-            title={users.length === 0 ? 'No hay usuarios en la página actual para exportar' : undefined}
-            onClick={() => exportUsersCsv(users)}
+            title={users.length === 0 ? 'No hay usuarios en la página actual para exportar' : `Exportar ${users.length} usuarios de la página actual en CSV`}
+            onClick={() => {
+              exportUsersCsv(users);
+              toast.success('CSV exportado', `Se exportaron ${users.length} usuarios de la página actual.`);
+            }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" aria-hidden="true" /> Exportar CSV
@@ -143,8 +150,8 @@ export function SuperAdminUsersTab({
               autoCapitalize="none"
               spellCheck={false}
               enterKeyHint="search"
-              placeholder="Buscar correo o nombre..."
-              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Buscar correo o nombre... (/)"
+              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             />
             {searchInput && (
               <button
@@ -160,7 +167,7 @@ export function SuperAdminUsersTab({
         </div>
       </div>
 
-      <div tabIndex={0} role="region" aria-label="Tabla de usuarios registrados" className="overflow-x-auto max-h-[68vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+      <div tabIndex={0} role="region" aria-label="Tabla de usuarios registrados" className="overflow-x-auto max-h-[68vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <caption className="visually-hidden">Directorio paginado de usuarios registrados y niveles de acceso</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
@@ -209,7 +216,19 @@ export function SuperAdminUsersTab({
                         </div>
                         <div>
                           <p className="font-bold text-slate-900">{u.fullName}</p>
-                          <p className="text-[11px] text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-600" aria-hidden="true" /> {u.email}</p>
+                          <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-slate-600 shrink-0" aria-hidden="true" />
+                            <span>{u.email}</span>
+                            <button
+                              type="button"
+                              onClick={() => void copyEmail(u.email, u.id)}
+                              aria-label={`Copiar correo ${u.email}`}
+                              title={copiedEmail === u.id ? 'Correo copiado' : `Copiar correo ${u.email}`}
+                              className="p-0.5 rounded text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer shrink-0"
+                            >
+                              {copiedEmail === u.id ? <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </th>
@@ -271,11 +290,16 @@ export function SuperAdminUsersTab({
                     </td>
                     <td className="py-3 px-3.5 font-bold text-slate-900">
                       {u.companiesCount > 0 && onViewUserCompanies ? (
-                        <button type="button" onClick={() => onViewUserCompanies(u.email.startsWith('UID ') ? u.id : u.email)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold transition cursor-pointer">
+                        <button
+                          type="button"
+                          aria-label={`Ver ${u.companiesCount} empresas de ${u.fullName}`}
+                          onClick={() => onViewUserCompanies(u.email.startsWith('UID ') ? u.id : u.email)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold tabular-nums transition cursor-pointer"
+                        >
                           {u.companiesCount} ver →
                         </button>
                       ) : (
-                        <span className="text-slate-600 font-medium">{u.companiesCount}</span>
+                        <span className="text-slate-600 font-medium tabular-nums">{u.companiesCount}</span>
                       )}
                     </td>
                     <td className="py-3 px-3.5 text-slate-600 text-[11px] whitespace-nowrap">{formatShortDate(u.createdAt)}</td>
@@ -310,6 +334,9 @@ export function SuperAdminUsersTab({
       </div>
 
       <AdminPaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} itemLabel="usuarios" isFetching={isFetching} onPageChange={(nextPage) => onQueryChange({ ...query, page: nextPage })} />
+      <span className="visually-hidden" aria-live="polite">
+        {copiedEmail ? 'Correo electrónico copiado al portapapeles' : ''}
+      </span>
     </div>
   );
 }

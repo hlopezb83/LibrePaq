@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDownUp, Building2, Calendar, Download, Eye, KeyRound, Loader2, Search, X } from 'lucide-react';
+import {
+  ArrowDownWideNarrow, ArrowUpNarrowWide, Building2, Calendar, Check, Copy, Download, Eye, KeyRound, Loader2, Search, X
+} from 'lucide-react';
 import type {
   AdminCompaniesPageQuery,
   AdminCompanySummary,
   AdminUserSummary,
   PlatformRole
 } from '../../shared/admin-types';
+import { useToast } from '../../context/ToastContext';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { CompanyUserOwnerCell } from './CompanyUserOwnerCell';
 import { SuperAdminCompanyDrawer } from './SuperAdminCompanyDrawer';
 import { AdminPaginationBar } from './AdminPaginationBar';
 import { exportCompaniesCsv } from './adminCsvExport';
-
-type CompanySort = 'createdAt' | 'polizasCount' | 'cfdisCount';
+import { enrichAndSortCompanies, type CompanySort } from './adminCompaniesHelpers';
 
 interface SuperAdminCompaniesTabProps {
   companies: AdminCompanySummary[];
@@ -44,6 +47,8 @@ export function SuperAdminCompaniesTab({
   onDeleteCompany,
   isDeletingCompany = false
 }: SuperAdminCompaniesTabProps) {
+  const toast = useToast();
+  const { copiedKey: copiedRfc, copy: copyRfc } = useCopyToClipboard<string>(1800);
   const [searchInput, setSearchInput] = useState(query.search || '');
   const sortBy: CompanySort = query.sortBy ?? 'createdAt';
   const sortDir: 'desc' | 'asc' = query.sortDir ?? 'desc';
@@ -64,35 +69,10 @@ export function SuperAdminCompaniesTab({
 
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
 
-  const enrichedCompanies = useMemo(
-    () =>
-      companies.map((c) => {
-        if (!c.userId || c.ownerType === 'demo') return { ...c, resolvedOwnerType: 'demo' as const };
-        const matched = usersById.get(c.userId);
-        const userEmail = c.userEmail || (matched && !matched.email.startsWith('UID ') ? matched.email : undefined);
-        const userFullName = c.userFullName || matched?.fullName || 'Usuario Registrado';
-        const userProvider = c.userProvider || matched?.provider;
-        const userIsSuperAdmin = Boolean(c.userIsSuperAdmin ?? matched?.isSuperAdmin);
-        return {
-          ...c,
-          userEmail,
-          userFullName,
-          userProvider,
-          userIsSuperAdmin,
-          resolvedOwnerType: userIsSuperAdmin ? ('superadmin' as const) : ('user' as const)
-        };
-      }),
-    [companies, usersById]
+  const sortedCompanies = useMemo(
+    () => enrichAndSortCompanies(companies, usersById, sortBy, sortDir),
+    [companies, usersById, sortBy, sortDir]
   );
-
-  const sortedCompanies = useMemo(() => {
-    const factor = sortDir === 'asc' ? 1 : -1;
-    return [...enrichedCompanies].sort((a, b) => {
-      if (sortBy === 'polizasCount') return ((a.polizasCount ?? 0) - (b.polizasCount ?? 0)) * factor;
-      if (sortBy === 'cfdisCount') return ((a.cfdisCount ?? 0) - (b.cfdisCount ?? 0)) * factor;
-      return ((Date.parse(a.createdAt) || 0) - (Date.parse(b.createdAt) || 0)) * factor;
-    });
-  }, [enrichedCompanies, sortBy, sortDir]);
 
   const ownerFilter = query.ownerType || 'ALL';
   const fielFilter = query.fielFilter || 'ALL';
@@ -125,7 +105,7 @@ export function SuperAdminCompaniesTab({
                 id="admin-companies-sort"
                 value={sortBy}
                 onChange={(e) => onQueryChange({ ...query, page: 1, sortBy: e.target.value as CompanySort, sortDir })}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 cursor-pointer"
               >
                 <option value="createdAt">Fecha creación</option>
                 <option value="polizasCount">Pólizas</option>
@@ -135,17 +115,25 @@ export function SuperAdminCompaniesTab({
                 type="button"
                 onClick={() => onQueryChange({ ...query, page: 1, sortBy, sortDir: sortDir === 'desc' ? 'asc' : 'desc' })}
                 aria-label={`Cambiar orden a ${sortDir === 'desc' ? 'ascendente' : 'descendente'}`}
+                title={sortDir === 'desc' ? 'Orden descendente (clic para cambiar a ascendente)' : 'Orden ascendente (clic para cambiar a descendente)'}
                 className="p-1.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                <ArrowDownUp className="w-3.5 h-3.5" aria-hidden="true" />
+                {sortDir === 'desc' ? (
+                  <ArrowDownWideNarrow className="w-3.5 h-3.5" aria-hidden="true" />
+                ) : (
+                  <ArrowUpNarrowWide className="w-3.5 h-3.5" aria-hidden="true" />
+                )}
               </button>
             </div>
 
             <button
               type="button"
               disabled={sortedCompanies.length === 0}
-              title={sortedCompanies.length === 0 ? 'No hay empresas en la página actual para exportar' : undefined}
-              onClick={() => exportCompaniesCsv(sortedCompanies)}
+              title={sortedCompanies.length === 0 ? 'No hay empresas en la página actual para exportar' : `Exportar ${sortedCompanies.length} empresas de la página actual en CSV`}
+              onClick={() => {
+                exportCompaniesCsv(sortedCompanies);
+                toast.success('CSV exportado', `Se exportaron ${sortedCompanies.length} empresas de la página actual.`);
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" aria-hidden="true" /> Exportar CSV
@@ -176,8 +164,8 @@ export function SuperAdminCompaniesTab({
                 autoCapitalize="none"
                 spellCheck={false}
                 enterKeyHint="search"
-                placeholder="Buscar RFC, empresa o correo..."
-                className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Buscar RFC, empresa o correo... (/)"
+                className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
               />
               {searchInput && (
                 <button
@@ -240,7 +228,7 @@ export function SuperAdminCompaniesTab({
         </div>
       </div>
 
-      <div tabIndex={0} role="region" aria-labelledby="admin-companies-caption" className="@container overflow-auto max-w-full max-h-[68vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+      <div tabIndex={0} role="region" aria-labelledby="admin-companies-caption" className="@container overflow-auto max-w-full max-h-[68vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <caption id="admin-companies-caption" className="sr-only">Directorio global paginado de empresas fiscales</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
@@ -279,7 +267,18 @@ export function SuperAdminCompaniesTab({
               sortedCompanies.map((c) => (
                 <tr key={c.id} className="group hover:bg-slate-50/80 transition">
                   <th scope="row" className="py-3 px-3.5 text-left font-normal border-b border-slate-100 bg-white group-hover:bg-slate-50/80 sm:sticky sm:left-0 z-[1]">
-                    <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.rfc}</span>
+                    <div className="inline-flex items-center gap-1">
+                      <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.rfc}</span>
+                      <button
+                        type="button"
+                        onClick={() => void copyRfc(c.rfc, c.id)}
+                        aria-label={`Copiar RFC ${c.rfc}`}
+                        title={copiedRfc === c.id ? 'RFC copiado' : `Copiar RFC ${c.rfc}`}
+                        className="p-1 rounded text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer"
+                      >
+                        {copiedRfc === c.id ? <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                      </button>
+                    </div>
                     <p className="font-bold text-slate-900 mt-1">{c.name}</p>
                   </th>
                   <td className="py-3 px-3.5 border-b border-slate-100 min-w-[220px]"><CompanyUserOwnerCell company={c} /></td>
@@ -325,6 +324,10 @@ export function SuperAdminCompaniesTab({
         isFetching={isFetching}
         onPageChange={(nextPage) => onQueryChange({ ...query, page: nextPage })}
       />
+
+      <span className="visually-hidden" aria-live="polite">
+        {copiedRfc ? 'RFC copiado al portapapeles' : ''}
+      </span>
 
       <SuperAdminCompanyDrawer
         companyId={inspectingCompanyId}

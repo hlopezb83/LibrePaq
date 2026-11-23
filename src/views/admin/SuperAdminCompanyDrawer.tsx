@@ -271,11 +271,11 @@ export function SuperAdminCompanyDrawer({
                   <p className="text-blue-900/80 mt-0.5">Abre las vistas del cliente bloqueando escrituras y registrando el acceso en auditoría.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button type="button" disabled={inspectMutation.isPending} onClick={() => inspectMutation.mutate()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-300 bg-white hover:bg-blue-100 text-blue-900 text-xs font-bold transition cursor-pointer disabled:opacity-60">
+                  <button type="button" disabled={inspectMutation.isPending} aria-busy={inspectMutation.isPending} onClick={() => inspectMutation.mutate()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-300 bg-white hover:bg-blue-100 text-blue-900 text-xs font-bold transition cursor-pointer disabled:opacity-60">
                     {inspectMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : supportLogged ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" /> : <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />}
                     <span>{supportLogged ? 'Registrada' : 'Solo Registrar'}</span>
                   </button>
-                  <button type="button" disabled={enteringSupport} onClick={() => void handleOpenSupportView()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-xs font-bold transition cursor-pointer">
+                  <button type="button" disabled={enteringSupport} aria-busy={enteringSupport} onClick={() => void handleOpenSupportView()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-xs font-bold transition cursor-pointer">
                     {enteringSupport ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
                     <span>Abrir en Modo Soporte</span>
                   </button>
@@ -301,7 +301,7 @@ export function SuperAdminCompanyDrawer({
                       <input id="confirm-delete-rfc" type="text" value={confirmRfc} onChange={(e) => setConfirmRfc(e.target.value)} placeholder={detail.company.rfc} autoComplete="off" className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500" />
                       <div className="flex items-center justify-end gap-2">
                         <button type="button" autoFocus onClick={() => { setShowDeleteZone(false); setConfirmRfc(''); }} className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer">Cancelar</button>
-                        <button type="button" disabled={!isRfcMatch || isDeletingCompany} onClick={() => void handleDelete()} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold cursor-pointer">
+                        <button type="button" disabled={!isRfcMatch || isDeletingCompany} aria-busy={isDeletingCompany} title={!isRfcMatch ? 'Escribe el RFC exacto para habilitar la baja' : undefined} onClick={() => void handleDelete()} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold cursor-pointer">
                           {isDeletingCompany && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />} Confirmar Eliminación
                         </button>
                       </div>
@@ -312,6 +312,9 @@ export function SuperAdminCompanyDrawer({
             </>
           )}
         </div>
+        <span className="visually-hidden" aria-live="polite">
+          {copiedKey === 'rfc' ? 'RFC copiado al portapapeles' : copiedKey === 'fiel' ? 'Número de serie e.firma copiado al portapapeles' : ''}
+        </span>
       </div>
     </dialog>,
     document.body

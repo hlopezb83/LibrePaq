@@ -23,7 +23,7 @@ const ACTION_BADGE_MAP: Array<{ match: string; label: string; className: string 
   { match: 'clear_broadcast', label: 'Retiró Comunicado', className: 'bg-amber-100 text-amber-950 border-amber-300' },
   { match: 'start_support_impersonation', label: 'Inicio Modo Soporte', className: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
   { match: 'end_support_impersonation', label: 'Fin Modo Soporte', className: 'bg-slate-100 text-slate-900 border-slate-300' },
-  { match: 'set_user_role', label: 'Cambió Rol RBAC', className: 'bg-purple-100 text-purple-900 border-purple-300' },
+  { match: 'set_user_role', label: 'Cambió Nivel de Acceso', className: 'bg-purple-100 text-purple-900 border-purple-300' },
   { match: 'upsert_workspace_quota', label: 'Actualizó Cuota', className: 'bg-teal-100 text-teal-900 border-teal-300' }
 ];
 
@@ -119,7 +119,7 @@ export function SuperAdminAuditTab({
             <option value="">Todos los objetivos</option>
             <option value="company">Empresas</option>
             <option value="user">Usuarios</option>
-            <option value="workspace">Workspaces</option>
+            <option value="workspace">Despachos</option>
             <option value="broadcast">Comunicados</option>
             <option value="platform_alert">Alertas</option>
           </select>
@@ -141,8 +141,8 @@ export function SuperAdminAuditTab({
               autoCapitalize="none"
               spellCheck={false}
               enterKeyHint="search"
-              placeholder="Filtrar por actor, acción u objetivo..."
-              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Filtrar por actor, acción u objetivo... (/)"
+              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             />
             {searchInput && (
               <button type="button" onClick={() => { setSearchInput(''); onQueryChange({ ...query, page: 1, search: '' }); }} aria-label="Limpiar búsqueda de bitácora" className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-600 hover:text-slate-900 cursor-pointer">
@@ -166,7 +166,7 @@ export function SuperAdminAuditTab({
         </div>
       )}
 
-      <div tabIndex={0} role="region" aria-label="Tabla de eventos de auditoría administrativa" className="overflow-x-auto max-h-[65vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+      <div tabIndex={0} role="region" aria-label="Tabla de eventos de auditoría administrativa" className="overflow-x-auto max-h-[65vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <caption className="visually-hidden">Bitácora cronológica de acciones administrativas en LibrePaq Pro</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">

@@ -217,7 +217,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
           <div className="md:col-span-2">
             <div className="flex items-center justify-between gap-2 mb-1">
               <label htmlFor="broadcast-title" className="block text-xs font-bold text-slate-700">Título del Comunicado</label>
-              <span className="text-[11px] font-mono tabular-nums text-slate-600" aria-live="polite">{title.length}/200</span>
+              <span className="text-[11px] font-mono tabular-nums text-slate-600">{title.length}/200</span>
             </div>
             <input id="broadcast-title" name="broadcastTitle" type="text" maxLength={200} required disabled={isPending} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible" className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100" />
           </div>
@@ -257,7 +257,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
         <div>
           <div className="flex items-center justify-between gap-2 mb-1">
             <label htmlFor="broadcast-message" className="block text-xs font-bold text-slate-700">Mensaje Completo</label>
-            <span className="text-[11px] font-mono tabular-nums text-slate-600" aria-live="polite">{message.length}/1000</span>
+            <span className="text-[11px] font-mono tabular-nums text-slate-600">{message.length}/1000</span>
           </div>
           <textarea id="broadcast-message" name="broadcastMessage" maxLength={1000} required disabled={isPending} value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:bg-slate-100" />
         </div>
@@ -281,7 +281,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pt-1">
           <div>
             <span id="broadcast-type-label" className="block text-xs font-bold text-slate-700 mb-1">Tipo de Alerta</span>
-            <div role="group" aria-labelledby="broadcast-type-label" className="flex gap-2">
+            <div role="group" aria-labelledby="broadcast-type-label" className="flex flex-wrap gap-2">
               {([{ id: 'info', label: 'Informativo' }, { id: 'warning', label: 'Advertencia' }, { id: 'success', label: 'Novedad' }] as const).map((t) => (
                 <button key={t.id} type="button" disabled={isPending} aria-pressed={type === t.id} onClick={() => setType(t.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50 ${type === t.id ? 'bg-blue-700 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
                   {t.label}
@@ -290,7 +290,13 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
             </div>
           </div>
 
-          <button type="submit" disabled={isPending} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold text-xs shadow-md transition cursor-pointer">
+          <button
+            type="submit"
+            disabled={isPending || !title.trim() || !message.trim()}
+            aria-busy={publishMutation.isPending}
+            title={!title.trim() || !message.trim() ? 'Ingresa título y mensaje para publicar' : undefined}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold text-xs shadow-md transition cursor-pointer"
+          >
             <Send className="w-3.5 h-3.5" aria-hidden="true" />
             {publishMutation.isPending ? 'Publicando...' : currentBroadcast?.active ? 'Actualizar Comunicado' : 'Publicar Comunicado en Vivo'}
           </button>
@@ -298,7 +304,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
       </form>
       ) : (
         <p className="text-xs text-slate-600 pt-2 border-t border-slate-200">
-          Solo el rol <span className="font-mono font-semibold">SUPERADMIN</span> puede publicar o retirar comunicados globales.
+          Solo el Dueño de Plataforma puede publicar o retirar comunicados globales.
         </p>
       )}
     </div>

@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import { useEffect, type ComponentType } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
   Activity,
@@ -40,6 +40,38 @@ function getRoleBadgeMeta(role: PlatformRole): { label: string; className: strin
 
 export function SuperAdminView() {
   const m = useSuperAdminManager();
+
+  useEffect(() => {
+    if (!m.hasAdminAccess) return;
+    const searchIdByTab: Partial<Record<SuperAdminTab, string>> = {
+      users: 'admin-users-search',
+      companies: 'admin-companies-search',
+      audit: 'admin-audit-search'
+    };
+    const targetId = searchIdByTab[m.activeTab];
+    if (!targetId) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        (active.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName))
+      ) {
+        return;
+      }
+      if (document.querySelector('dialog[open]')) return;
+      const input = document.getElementById(targetId);
+      if (input instanceof HTMLElement) {
+        e.preventDefault();
+        input.focus();
+        if (input instanceof HTMLInputElement) input.select();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [m.activeTab, m.hasAdminAccess]);
 
   if (m.authLoading) {
     return (
@@ -105,7 +137,7 @@ export function SuperAdminView() {
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
-                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span> · Nivel de acceso: <span className="font-mono font-semibold">{m.platformRole}</span>
+                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span> · Nivel de acceso: <span className="font-semibold text-slate-800">{roleBadge.label}</span>
               </p>
             </div>
           </div>

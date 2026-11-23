@@ -65,14 +65,16 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
       <div className="flex items-center gap-2.5 shrink-0">
         <div className="hidden lg:flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
-            Supabase Online
+            Nube Producción
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
             <CheckCircle2 className="w-3 h-3 text-blue-600" aria-hidden="true" />
-            Hosting Activo
+            Hosting Web
           </span>
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">
+          <span
+            title={`Soporte WhatsApp: +${DEFAULT_WHATSAPP_PHONE}`}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg"
+          >
             WA: +{DEFAULT_WHATSAPP_PHONE.slice(0, 4)}...
           </span>
         </div>

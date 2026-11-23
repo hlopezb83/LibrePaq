@@ -111,6 +111,7 @@ export function SuperAdminSatHealthTab({
           isMutatingId={mutatingAlertId}
           onScan={onScanAlerts}
           onUpdateStatus={onUpdateAlertStatus}
+          onInspectCompanyRfc={onInspectCompanyRfc}
         />
       )}
       <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
@@ -213,7 +214,7 @@ export function SuperAdminSatHealthTab({
             No hay certificados e.firma vencidos o próximos a vencer registrados.
           </p>
         ) : (
-          <div tabIndex={0} role="region" aria-label="Certificados e.firma próximos a vencer" className="overflow-x-auto max-h-[45vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+          <div tabIndex={0} role="region" aria-label="Certificados e.firma próximos a vencer" className="overflow-x-auto max-h-[45vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
             <table className="w-full text-left text-xs border-separate border-spacing-0">
               <caption className="visually-hidden">Certificados e.firma próximos a vencer o vencidos por empresa</caption>
               <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">
@@ -272,7 +273,7 @@ export function SuperAdminSatHealthTab({
           <p className="text-xs text-slate-600 mt-0.5">Últimas peticiones enviadas al WebService del SAT</p>
         </div>
 
-        <div tabIndex={0} role="region" aria-label="Solicitudes SAT recientes" className="overflow-x-auto max-h-[55vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+        <div tabIndex={0} role="region" aria-label="Solicitudes SAT recientes" className="overflow-x-auto max-h-[55vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
           <table className="w-full text-left text-xs border-separate border-spacing-0">
             <caption className="visually-hidden">Solicitudes recientes al servicio de descarga masiva del SAT</caption>
             <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">

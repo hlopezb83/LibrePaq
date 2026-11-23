@@ -42,12 +42,13 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
   const maxCompaniesId = `${baseId}-maxCompanies`;
   const maxCfdisId = `${baseId}-maxCfdisPerMonth`;
   const maxStorageId = `${baseId}-maxStorageMb`;
+  const storageHintId = `${baseId}-maxStorageMb-hint`;
   const notesId = `${baseId}-notes`;
 
   const [planTier, setPlanTier] = useState<WorkspacePlanTier>(DEFAULT_FORM.planTier);
-  const [maxCompanies, setMaxCompanies] = useState<number>(DEFAULT_FORM.maxCompanies);
-  const [maxCfdisPerMonth, setMaxCfdisPerMonth] = useState<number>(DEFAULT_FORM.maxCfdisPerMonth);
-  const [maxStorageMb, setMaxStorageMb] = useState<number>(DEFAULT_FORM.maxStorageMb);
+  const [maxCompaniesInput, setMaxCompaniesInput] = useState<string>(String(DEFAULT_FORM.maxCompanies));
+  const [maxCfdisInput, setMaxCfdisInput] = useState<string>(String(DEFAULT_FORM.maxCfdisPerMonth));
+  const [maxStorageInput, setMaxStorageInput] = useState<string>(String(DEFAULT_FORM.maxStorageMb));
   const [notes, setNotes] = useState<string>(DEFAULT_FORM.notes);
 
   const quotaQuery = useQuery<WorkspaceQuota | null>({
@@ -69,17 +70,38 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
 
   useEffect(() => {
     setPlanTier(baseline.planTier);
-    setMaxCompanies(baseline.maxCompanies);
-    setMaxCfdisPerMonth(baseline.maxCfdisPerMonth);
-    setMaxStorageMb(baseline.maxStorageMb);
+    setMaxCompaniesInput(String(baseline.maxCompanies));
+    setMaxCfdisInput(String(baseline.maxCfdisPerMonth));
+    setMaxStorageInput(String(baseline.maxStorageMb));
     setNotes(baseline.notes);
   }, [baseline]);
 
+  const parseQuotaInt = (raw: string): number => {
+    const trimmed = raw.trim();
+    if (!trimmed) return Number.NaN;
+    const n = Number(trimmed);
+    return Number.isInteger(n) ? n : Number.NaN;
+  };
+  const parsedCompanies = parseQuotaInt(maxCompaniesInput);
+  const parsedCfdis = parseQuotaInt(maxCfdisInput);
+  const parsedStorage = parseQuotaInt(maxStorageInput);
+  const companiesValid = Number.isFinite(parsedCompanies) && parsedCompanies >= 1;
+  const cfdisValid = Number.isFinite(parsedCfdis) && parsedCfdis >= 1;
+  const storageValid = Number.isFinite(parsedStorage) && parsedStorage >= 10;
+  const validationError = !companiesValid
+    ? 'Máx. empresas debe ser un número entero mayor o igual a 1.'
+    : !cfdisValid
+      ? 'Máx. CFDIs / mes debe ser un número entero mayor o igual a 1.'
+      : !storageValid
+        ? 'Almacenamiento debe ser un número entero de al menos 10 MB.'
+        : null;
+  const isValid = validationError === null;
+
   const isDirty =
     planTier !== baseline.planTier ||
-    maxCompanies !== baseline.maxCompanies ||
-    maxCfdisPerMonth !== baseline.maxCfdisPerMonth ||
-    maxStorageMb !== baseline.maxStorageMb ||
+    maxCompaniesInput.trim() !== String(baseline.maxCompanies) ||
+    maxCfdisInput.trim() !== String(baseline.maxCfdisPerMonth) ||
+    maxStorageInput.trim() !== String(baseline.maxStorageMb) ||
     notes.trim() !== baseline.notes.trim();
 
   const saveMutation = useMutation({
@@ -100,29 +122,29 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canEdit || !isDirty || saveMutation.isPending) return;
+    if (!canEdit || !isDirty || !isValid || saveMutation.isPending) return;
     saveMutation.mutate({
       userId: userId ?? quotaQuery.data?.userId ?? null,
       planTier,
-      maxCompanies: Math.max(1, Number(maxCompanies) || 1),
-      maxCfdisPerMonth: Math.max(1, Number(maxCfdisPerMonth) || 1),
-      maxStorageMb: Math.max(10, Number(maxStorageMb) || 10),
+      maxCompanies: parsedCompanies,
+      maxCfdisPerMonth: parsedCfdis,
+      maxStorageMb: parsedStorage,
       notes: notes.trim() || null
     });
   };
 
   const applyPlanPreset = () => {
     const preset = PLAN_PRESETS[planTier];
-    setMaxCompanies(preset.maxCompanies);
-    setMaxCfdisPerMonth(preset.maxCfdisPerMonth);
-    setMaxStorageMb(preset.maxStorageMb);
+    setMaxCompaniesInput(String(preset.maxCompanies));
+    setMaxCfdisInput(String(preset.maxCfdisPerMonth));
+    setMaxStorageInput(String(preset.maxStorageMb));
   };
 
   const handleDiscard = () => {
     setPlanTier(baseline.planTier);
-    setMaxCompanies(baseline.maxCompanies);
-    setMaxCfdisPerMonth(baseline.maxCfdisPerMonth);
-    setMaxStorageMb(baseline.maxStorageMb);
+    setMaxCompaniesInput(String(baseline.maxCompanies));
+    setMaxCfdisInput(String(baseline.maxCfdisPerMonth));
+    setMaxStorageInput(String(baseline.maxStorageMb));
     setNotes(baseline.notes);
   };
 
@@ -198,8 +220,9 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
               type="number"
               inputMode="numeric"
               min={1}
-              value={maxCompanies}
-              onChange={(e) => setMaxCompanies(Number(e.target.value))}
+              value={maxCompaniesInput}
+              onChange={(e) => setMaxCompaniesInput(e.target.value)}
+              aria-invalid={!companiesValid}
               disabled={disabled}
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
             />
@@ -213,8 +236,9 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
               type="number"
               inputMode="numeric"
               min={1}
-              value={maxCfdisPerMonth}
-              onChange={(e) => setMaxCfdisPerMonth(Number(e.target.value))}
+              value={maxCfdisInput}
+              onChange={(e) => setMaxCfdisInput(e.target.value)}
+              aria-invalid={!cfdisValid}
               disabled={disabled}
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
             />
@@ -228,13 +252,22 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
               type="number"
               inputMode="numeric"
               min={10}
-              value={maxStorageMb}
-              onChange={(e) => setMaxStorageMb(Number(e.target.value))}
+              value={maxStorageInput}
+              onChange={(e) => setMaxStorageInput(e.target.value)}
+              aria-invalid={!storageValid}
+              aria-describedby={storageHintId}
               disabled={disabled}
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
             />
+            <p id={storageHintId} className="text-[11px] text-slate-600 mt-1">Mín. 10 MB</p>
           </div>
         </div>
+
+        {validationError && (
+          <p role="alert" className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+            {validationError}
+          </p>
+        )}
 
         <div className="text-xs">
           <label htmlFor={notesId} className="font-semibold text-slate-700 block mb-1">Notas operativas</label>
@@ -264,10 +297,10 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
           )}
           <button
             type="submit"
-            disabled={disabled || !isDirty}
-            title={!isDirty ? 'No hay cambios pendientes por guardar' : undefined}
+            disabled={disabled || !isDirty || !isValid}
+            title={!isValid && validationError ? validationError : !isDirty ? 'No hay cambios pendientes por guardar' : undefined}
             aria-busy={saveMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             <Save className="w-3.5 h-3.5" aria-hidden="true" />
             {saveMutation.isPending ? 'Guardando...' : 'Guardar Cuota'}

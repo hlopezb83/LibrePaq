@@ -1,4 +1,4 @@
-import { AlertTriangle, Bell, CheckCircle2, Info, RefreshCw, RotateCcw, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCircle2, Info, Loader2, RefreshCw, RotateCcw, ShieldAlert } from 'lucide-react';
 import type {
   AdminPlatformAlert,
   PlatformAlertCategory,
@@ -15,6 +15,7 @@ export interface SuperAdminAlertsPanelProps {
   isMutatingId: string | null;
   onScan: () => void;
   onUpdateStatus: (alertId: string, status: PlatformAlertStatus) => void;
+  onInspectCompanyRfc?: (rfc: string) => void;
 }
 
 const FILTER_PILLS: ReadonlyArray<{ value: 'ALL' | PlatformAlertStatus; label: string }> = [
@@ -68,7 +69,8 @@ export function SuperAdminAlertsPanel({
   isScanning,
   isMutatingId,
   onScan,
-  onUpdateStatus
+  onUpdateStatus,
+  onInspectCompanyRfc
 }: SuperAdminAlertsPanelProps) {
   const visibleAlerts = statusFilter === 'ALL' ? alerts : alerts.filter((a) => a.status === statusFilter);
 
@@ -109,7 +111,7 @@ export function SuperAdminAlertsPanel({
               type="button"
               aria-pressed={active}
               onClick={() => onStatusFilterChange(pill.value)}
-              className={`px-3 py-1 rounded-full text-xs font-bold border transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${
+              className={`px-3 py-1 rounded-full text-xs font-bold border transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
                 active
                   ? 'bg-slate-900 text-white border-slate-900'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
@@ -155,6 +157,10 @@ export function SuperAdminAlertsPanel({
             const sev = SEVERITY_META[alert.severity];
             const SevIcon = sev.icon;
             const isBusy = isMutatingId === alert.id;
+            const companyRfc =
+              alert.targetType === 'company' && typeof alert.metadata?.rfc === 'string'
+                ? alert.metadata.rfc.trim()
+                : '';
 
             return (
               <li
@@ -184,13 +190,26 @@ export function SuperAdminAlertsPanel({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {onInspectCompanyRfc && companyRfc && (
+                    <button
+                      type="button"
+                      onClick={() => onInspectCompanyRfc(companyRfc)}
+                      aria-label={`Ver empresa ${companyRfc} en directorio`}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                    >
+                      Ver empresa
+                    </button>
+                  )}
+
                   {alert.status === 'open' && (
                     <button
                       type="button"
                       disabled={isBusy}
+                      aria-busy={isBusy}
                       onClick={() => onUpdateStatus(alert.id, 'acknowledged')}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-amber-950 border border-amber-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
+                      {isBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                       Reconocer<span className="visually-hidden"> alerta {alert.title}</span>
                     </button>
                   )}
@@ -199,10 +218,15 @@ export function SuperAdminAlertsPanel({
                     <button
                       type="button"
                       disabled={isBusy}
+                      aria-busy={isBusy}
                       onClick={() => onUpdateStatus(alert.id, 'resolved')}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-950 border border-emerald-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      {isBusy ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      )}
                       Resolver<span className="visually-hidden"> alerta {alert.title}</span>
                     </button>
                   )}
@@ -211,10 +235,15 @@ export function SuperAdminAlertsPanel({
                     <button
                       type="button"
                       disabled={isBusy}
+                      aria-busy={isBusy}
                       onClick={() => onUpdateStatus(alert.id, 'open')}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                      {isBusy ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                      )}
                       Reabrir<span className="visually-hidden"> alerta {alert.title}</span>
                     </button>
                   )}

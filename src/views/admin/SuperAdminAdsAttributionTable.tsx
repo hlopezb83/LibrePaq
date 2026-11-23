@@ -180,7 +180,7 @@ export function SuperAdminAdsAttributionTable({ users, companies }: SuperAdminAd
         tabIndex={0}
         role="region"
         aria-label="Tabla de atribución por campaña y palabra clave"
-        className="overflow-x-auto max-h-[60vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        className="overflow-x-auto max-h-[60vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
       >
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <caption className="visually-hidden">

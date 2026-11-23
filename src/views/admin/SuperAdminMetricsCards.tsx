@@ -42,7 +42,7 @@ function formatSyncTime(iso?: string): string {
   if (!iso) return 'Sin sincronización reciente';
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return 'Sin sincronización reciente';
-  return `Última sync: ${parsed.toLocaleTimeString('es-MX', {
+  return `Actualizado: ${parsed.toLocaleTimeString('es-MX', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
@@ -98,7 +98,7 @@ export function SuperAdminMetricsCards({
     {
       title: 'Empresas',
       value: formatMetric(finalCompanies),
-      subtitle: metrics?.activeCompaniesCount != null ? `${metrics.activeCompaniesCount.toLocaleString('es-MX')} activas` : 'Empresas fiscales multi-tenant',
+      subtitle: metrics?.activeCompaniesCount != null ? `${metrics.activeCompaniesCount.toLocaleString('es-MX')} activas` : 'Empresas fiscales registradas',
       icon: Building2,
       accentClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
       onAction: onNavigateTab ? () => onNavigateTab('companies') : undefined,
@@ -186,7 +186,7 @@ export function SuperAdminMetricsCards({
           type="button"
           onClick={card.onAction}
           aria-label={`${card.title}: ${card.value}. ${card.actionHint || 'Ir a la pestaña correspondiente'}`}
-          className="w-full bg-white border border-slate-300/80 hover:border-blue-400 hover:shadow-sm rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full bg-white border border-slate-300/80 hover:border-blue-400 hover:shadow-sm rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
         >
           {inner}
         </button>
