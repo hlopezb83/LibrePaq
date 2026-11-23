@@ -1,6 +1,6 @@
 /**
  * Supabase Edge Function: admin-ops
- * Operaciones privilegiadas del panel SuperAdmin con auditoría obligatoria.
+ * Operaciones privilegiadas del panel SuperAdmin con RBAC granular y auditoría obligatoria.
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -26,19 +26,35 @@ function jsonResponse(body: unknown, status: number, headers: Record<string, str
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+type PlatformRole = 'SUPERADMIN' | 'SUPPORT_READONLY' | 'BILLING_OPS' | 'NONE';
+type WorkspacePlanTier = 'FREE' | 'PRO' | 'DESPACHO' | 'ENTERPRISE';
+type PlatformAlertStatus = 'open' | 'acknowledged' | 'resolved';
+
 type AdminOpsAction =
   | 'SET_USER_STATUS'
+  | 'SET_USER_ROLE'
   | 'DELETE_COMPANY'
   | 'PUBLISH_BROADCAST'
   | 'CLEAR_BROADCAST'
+  | 'UPSERT_WORKSPACE_QUOTA'
+  | 'RESOLVE_PLATFORM_ALERT'
   | 'RECORD_AUDIT';
 
 interface AdminOpsRequestBody {
   action?: AdminOpsAction;
   userId?: string;
-  status?: 'ACTIVO' | 'SUSPENDIDO';
+  status?: 'ACTIVO' | 'SUSPENDIDO' | PlatformAlertStatus;
+  platformRole?: PlatformRole;
   reason?: string;
   companyId?: string;
+  workspaceId?: string;
+  planTier?: WorkspacePlanTier;
+  maxCompanies?: number;
+  maxCfdisPerMonth?: number;
+  maxStorageMb?: number;
+  notes?: string | null;
+  alertId?: string;
+  alertStatus?: PlatformAlertStatus;
   title?: string;
   message?: string;
   type?: 'info' | 'warning' | 'success';
@@ -47,6 +63,29 @@ interface AdminOpsRequestBody {
   targetType?: string;
   targetId?: string | null;
   metadata?: Record<string, unknown>;
+}
+
+const VALID_ROLES = new Set<PlatformRole>(['SUPERADMIN', 'SUPPORT_READONLY', 'BILLING_OPS', 'NONE']);
+const VALID_TIERS = new Set<WorkspacePlanTier>(['FREE', 'PRO', 'DESPACHO', 'ENTERPRISE']);
+const VALID_ALERT_STATUSES = new Set<PlatformAlertStatus>(['open', 'acknowledged', 'resolved']);
+
+const ACTION_ALLOWED_ROLES: Record<AdminOpsAction, ReadonlySet<PlatformRole>> = {
+  DELETE_COMPANY: new Set<PlatformRole>(['SUPERADMIN']),
+  PUBLISH_BROADCAST: new Set<PlatformRole>(['SUPERADMIN']),
+  CLEAR_BROADCAST: new Set<PlatformRole>(['SUPERADMIN']),
+  SET_USER_ROLE: new Set<PlatformRole>(['SUPERADMIN']),
+  SET_USER_STATUS: new Set<PlatformRole>(['SUPERADMIN', 'BILLING_OPS']),
+  UPSERT_WORKSPACE_QUOTA: new Set<PlatformRole>(['SUPERADMIN', 'BILLING_OPS']),
+  RECORD_AUDIT: new Set<PlatformRole>(['SUPERADMIN', 'SUPPORT_READONLY', 'BILLING_OPS']),
+  RESOLVE_PLATFORM_ALERT: new Set<PlatformRole>(['SUPERADMIN', 'SUPPORT_READONLY', 'BILLING_OPS'])
+};
+
+function resolvePlatformRole(rawRole?: unknown, isSuperAdminFlag?: unknown, email?: string): PlatformRole {
+  if ((email || '').trim().toLowerCase() === 'hlopezb@gmail.com') return 'SUPERADMIN';
+  const upper = String(rawRole || '').trim().toUpperCase() as PlatformRole;
+  if (upper === 'SUPERADMIN' || upper === 'SUPPORT_READONLY' || upper === 'BILLING_OPS') return upper;
+  if (Boolean(isSuperAdminFlag)) return 'SUPERADMIN';
+  return 'NONE';
 }
 
 Deno.serve(async (req: Request) => {
@@ -82,24 +121,36 @@ Deno.serve(async (req: Request) => {
     const user = authData.user;
     const actorEmail = (user.email || '').toLowerCase();
 
-    let isSuperAdmin = actorEmail === 'hlopezb@gmail.com';
-    if (!isSuperAdmin) {
+    let callerRole: PlatformRole = actorEmail === 'hlopezb@gmail.com' ? 'SUPERADMIN' : 'NONE';
+    if (callerRole !== 'SUPERADMIN') {
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('is_superadmin')
+        .select('platform_role, is_superadmin')
         .eq('id', user.id)
         .maybeSingle();
-      isSuperAdmin = Boolean(profile?.is_superadmin);
+      callerRole = resolvePlatformRole(profile?.platform_role, profile?.is_superadmin, actorEmail);
     }
 
-    if (!isSuperAdmin) {
-      return jsonResponse({ ok: false, error: 'Acceso denegado: requiere privilegios de SuperAdmin' }, 403, headers);
+    if (callerRole === 'NONE') {
+      return jsonResponse({ ok: false, error: 'Acceso denegado: requiere rol administrativo de plataforma' }, 403, headers);
     }
 
     const body = (await req.json()) as AdminOpsRequestBody;
     const action = body.action;
     if (!action) {
       return jsonResponse({ ok: false, error: 'action es requerido' }, 400, headers);
+    }
+
+    const allowedRoles = ACTION_ALLOWED_ROLES[action];
+    if (!allowedRoles) {
+      return jsonResponse({ ok: false, error: `Acción '${action}' no reconocida` }, 400, headers);
+    }
+    if (!allowedRoles.has(callerRole)) {
+      return jsonResponse(
+        { ok: false, error: `Tu rol (${callerRole}) no tiene permiso para ejecutar ${action}` },
+        403,
+        headers
+      );
     }
 
     const writeAudit = async (entry: {
@@ -115,7 +166,7 @@ Deno.serve(async (req: Request) => {
         action: entry.auditAction,
         target_type: entry.targetType,
         target_id: entry.targetId ?? null,
-        metadata: entry.metadata ?? {},
+        metadata: { actorRole: callerRole, ...(entry.metadata ?? {}) },
         created_at: new Date().toISOString()
       });
     };
@@ -127,14 +178,13 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ ok: false, error: 'userId y status (ACTIVO | SUSPENDIDO) son requeridos' }, 400, headers);
       }
       if (targetUserId === user.id && nextStatus === 'SUSPENDIDO') {
-        return jsonResponse({ ok: false, error: 'No puedes suspender tu propia cuenta SuperAdmin' }, 400, headers);
+        return jsonResponse({ ok: false, error: 'No puedes suspender tu propia cuenta administrativa' }, 400, headers);
       }
 
       const { error: updErr } = await supabase
         .from('user_profiles')
         .update({ status: nextStatus })
         .eq('id', targetUserId);
-
       if (updErr) {
         return jsonResponse({ ok: false, error: updErr.message }, 500, headers);
       }
@@ -147,6 +197,42 @@ Deno.serve(async (req: Request) => {
       });
 
       return jsonResponse({ ok: true, userId: targetUserId, status: nextStatus }, 200, headers);
+    }
+
+    if (action === 'SET_USER_ROLE') {
+      const targetUserId = (body.userId || '').trim();
+      const nextRole = body.platformRole;
+      if (!targetUserId || !nextRole || !VALID_ROLES.has(nextRole)) {
+        return jsonResponse(
+          { ok: false, error: 'userId y platformRole (SUPERADMIN|SUPPORT_READONLY|BILLING_OPS|NONE) son requeridos' },
+          400,
+          headers
+        );
+      }
+      if (targetUserId === user.id && nextRole !== 'SUPERADMIN') {
+        return jsonResponse({ ok: false, error: 'No puedes revocar tu propio rol SUPERADMIN' }, 400, headers);
+      }
+
+      const { error: roleErr } = await supabase
+        .from('user_profiles')
+        .update({
+          platform_role: nextRole,
+          is_superadmin: nextRole === 'SUPERADMIN'
+        })
+        .eq('id', targetUserId);
+
+      if (roleErr) {
+        return jsonResponse({ ok: false, error: roleErr.message }, 500, headers);
+      }
+
+      await writeAudit({
+        auditAction: 'SET_USER_ROLE',
+        targetType: 'user',
+        targetId: targetUserId,
+        metadata: { platformRole: nextRole }
+      });
+
+      return jsonResponse({ ok: true, userId: targetUserId, platformRole: nextRole }, 200, headers);
     }
 
     if (action === 'DELETE_COMPANY') {
@@ -164,7 +250,6 @@ Deno.serve(async (req: Request) => {
       const { data: deleted, error: rpcErr } = await supabase.rpc('delete_company_cascade', {
         company_id_param: companyId
       });
-
       if (rpcErr) {
         return jsonResponse({ ok: false, error: rpcErr.message }, 500, headers);
       }
@@ -173,10 +258,7 @@ Deno.serve(async (req: Request) => {
         auditAction: 'DELETE_COMPANY',
         targetType: 'company',
         targetId: companyId,
-        metadata: {
-          companyName: comp?.name ?? null,
-          companyRfc: comp?.rfc ?? null
-        }
+        metadata: { companyName: comp?.name ?? null, companyRfc: comp?.rfc ?? null }
       });
 
       return jsonResponse({ ok: true, deleted: Boolean(deleted ?? true), companyId }, 200, headers);
@@ -265,6 +347,145 @@ Deno.serve(async (req: Request) => {
       });
 
       return jsonResponse({ ok: true }, 200, headers);
+    }
+
+    if (action === 'UPSERT_WORKSPACE_QUOTA') {
+      const workspaceId = (body.workspaceId || '').trim();
+      const planTier = body.planTier;
+      const maxCompanies = Number(body.maxCompanies);
+      const maxCfdisPerMonth = Number(body.maxCfdisPerMonth);
+      const maxStorageMb = Number(body.maxStorageMb);
+
+      if (
+        !workspaceId ||
+        !planTier ||
+        !VALID_TIERS.has(planTier) ||
+        !Number.isFinite(maxCompanies) ||
+        maxCompanies < 0 ||
+        !Number.isFinite(maxCfdisPerMonth) ||
+        maxCfdisPerMonth < 0 ||
+        !Number.isFinite(maxStorageMb) ||
+        maxStorageMb < 0
+      ) {
+        return jsonResponse(
+          { ok: false, error: 'workspaceId, planTier y límites numéricos válidos son requeridos' },
+          400,
+          headers
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const { data: upserted, error: qErr } = await supabase
+        .from('workspace_quotas')
+        .upsert(
+          {
+            workspace_id: workspaceId,
+            user_id: body.userId ?? null,
+            plan_tier: planTier,
+            max_companies: Math.trunc(maxCompanies),
+            max_cfdis_per_month: Math.trunc(maxCfdisPerMonth),
+            max_storage_mb: Math.trunc(maxStorageMb),
+            notes: body.notes ?? null,
+            updated_at: nowIso,
+            updated_by: user.email || user.id
+          },
+          { onConflict: 'workspace_id' }
+        )
+        .select('*')
+        .single();
+
+      if (qErr || !upserted) {
+        return jsonResponse({ ok: false, error: qErr?.message || 'Error al guardar cuota del workspace' }, 500, headers);
+      }
+
+      await writeAudit({
+        auditAction: 'UPSERT_WORKSPACE_QUOTA',
+        targetType: 'workspace',
+        targetId: workspaceId,
+        metadata: {
+          planTier,
+          maxCompanies: Math.trunc(maxCompanies),
+          maxCfdisPerMonth: Math.trunc(maxCfdisPerMonth),
+          maxStorageMb: Math.trunc(maxStorageMb)
+        }
+      });
+
+      return jsonResponse(
+        {
+          ok: true,
+          quota: {
+            workspaceId: upserted.workspace_id,
+            userId: upserted.user_id,
+            planTier: upserted.plan_tier,
+            maxCompanies: upserted.max_companies,
+            maxCfdisPerMonth: upserted.max_cfdis_per_month,
+            maxStorageMb: upserted.max_storage_mb,
+            notes: upserted.notes,
+            updatedAt: upserted.updated_at,
+            updatedBy: upserted.updated_by
+          }
+        },
+        200,
+        headers
+      );
+    }
+
+    if (action === 'RESOLVE_PLATFORM_ALERT') {
+      const alertId = (body.alertId || '').trim();
+      const nextAlertStatus = (body.alertStatus || body.status) as PlatformAlertStatus | undefined;
+      if (!alertId || !nextAlertStatus || !VALID_ALERT_STATUSES.has(nextAlertStatus)) {
+        return jsonResponse(
+          { ok: false, error: 'alertId y status (open|acknowledged|resolved) son requeridos' },
+          400,
+          headers
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const { data: updatedAlert, error: alertErr } = await supabase
+        .from('platform_alerts')
+        .update({
+          status: nextAlertStatus,
+          resolved_at: nextAlertStatus === 'resolved' ? nowIso : null,
+          resolved_by: nextAlertStatus === 'resolved' ? (user.email || user.id) : null
+        })
+        .eq('id', alertId)
+        .select('*')
+        .single();
+
+      if (alertErr || !updatedAlert) {
+        return jsonResponse({ ok: false, error: alertErr?.message || 'Alerta no encontrada' }, 500, headers);
+      }
+
+      await writeAudit({
+        auditAction: 'RESOLVE_PLATFORM_ALERT',
+        targetType: 'platform_alert',
+        targetId: alertId,
+        metadata: { status: nextAlertStatus, code: updatedAlert.code }
+      });
+
+      return jsonResponse(
+        {
+          ok: true,
+          alert: {
+            id: updatedAlert.id,
+            code: updatedAlert.code,
+            severity: updatedAlert.severity,
+            category: updatedAlert.category,
+            title: updatedAlert.title,
+            message: updatedAlert.message,
+            targetType: updatedAlert.target_type,
+            targetId: updatedAlert.target_id,
+            status: updatedAlert.status,
+            metadata: updatedAlert.metadata || {},
+            detectedAt: updatedAlert.detected_at,
+            resolvedAt: updatedAlert.resolved_at,
+            resolvedBy: updatedAlert.resolved_by
+          }
+        },
+        200,
+        headers
+      );
     }
 
     if (action === 'RECORD_AUDIT') {

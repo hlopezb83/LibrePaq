@@ -5,7 +5,14 @@ import { toast as sonnerToast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { setApiAuthUser } from '../lib/api/api-helpers';
 import { captureAdAttributionOnLanding, trackAnalyticsEvent } from '../lib/analytics';
-import { getSuperAdminEmails, isSuperAdminEmail } from '../shared/superadmin';
+import { endSupportSession } from '../lib/support-impersonation';
+import {
+  getSuperAdminEmails,
+  hasPlatformAdminAccess,
+  isSuperAdminEmail,
+  normalizePlatformRole
+} from '../shared/superadmin';
+import type { PlatformRole } from '../shared/admin-types';
 
 export const SUPERADMIN_EMAILS = getSuperAdminEmails();
 export const GUEST_DEMO_KEY = 'librepaq_guest_demo_active';
@@ -34,21 +41,40 @@ export function checkIsSuperAdmin(user: User | null): boolean {
   return user.app_metadata?.role === 'superadmin';
 }
 
-async function checkIfUserSuspended(sessionUser: User): Promise<boolean> {
-  if (!supabase || !isSupabaseConfigured || typeof supabase.from !== 'function') return false;
-  if (sessionUser.user_metadata?.is_guest || checkIsSuperAdmin(sessionUser)) return false;
+interface UserAccessCheck {
+  suspended: boolean;
+  platformRole: PlatformRole;
+}
+
+async function fetchUserAccessCheck(sessionUser: User): Promise<UserAccessCheck> {
+  const fallbackRole = normalizePlatformRole(
+    String(sessionUser.app_metadata?.platform_role || ''),
+    sessionUser.app_metadata?.role === 'superadmin',
+    sessionUser.email
+  );
+  if (sessionUser.user_metadata?.is_guest) return { suspended: false, platformRole: 'NONE' };
+  if (!supabase || !isSupabaseConfigured || typeof supabase.from !== 'function') {
+    return { suspended: false, platformRole: fallbackRole };
+  }
 
   try {
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('status')
+      .select('status, platform_role, is_superadmin')
       .eq('id', sessionUser.id)
       .maybeSingle();
 
-    if (error || !data) return false;
-    return String((data as { status?: unknown }).status ?? '').toUpperCase() === 'SUSPENDIDO';
+    if (error || !data) return { suspended: false, platformRole: fallbackRole };
+    const row = data as { status?: unknown; platform_role?: unknown; is_superadmin?: unknown };
+    const role = normalizePlatformRole(
+      row.platform_role ? String(row.platform_role) : null,
+      Boolean(row.is_superadmin) || sessionUser.app_metadata?.role === 'superadmin',
+      sessionUser.email
+    );
+    const suspended = role !== 'SUPERADMIN' && String(row.status ?? '').toUpperCase() === 'SUSPENDIDO';
+    return { suspended, platformRole: role };
   } catch {
-    return false;
+    return { suspended: false, platformRole: fallbackRole };
   }
 }
 
@@ -71,6 +97,8 @@ interface AuthContextType {
   loading: boolean;
   isConfigured: boolean;
   isSuperAdmin: boolean;
+  platformRole: PlatformRole;
+  hasAdminAccess: boolean;
   isGuest: boolean;
   isSuspended: boolean;
   suspendedMessage: string | null;
@@ -93,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [platformRole, setPlatformRole] = useState<PlatformRole>('NONE');
   const [isSuspended, setIsSuspended] = useState(false);
   const [suspendedMessage, setSuspendedMessage] = useState<string | null>(null);
 
@@ -100,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (client: NonNullable<typeof supabase>) => {
       setIsSuspended(true);
       setSuspendedMessage(SUSPENDED_ACCOUNT_MESSAGE);
+      setPlatformRole('NONE');
       setSession(null);
       setUser(null);
       setApiAuthUser(null);
@@ -123,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(GUEST_DEMO_USER);
         setApiAuthUser(GUEST_DEMO_USER);
       }
+      setPlatformRole('NONE');
       setLoading(false);
       return;
     }
@@ -133,17 +164,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .getSession()
       .then(async ({ data: { session } }) => {
         if (session?.user) {
-          if (await checkIfUserSuspended(session.user)) {
+          const access = await fetchUserAccessCheck(session.user);
+          if (access.suspended) {
             await enforceSuspension(client);
             return;
           }
           setIsSuspended(false);
           setSuspendedMessage(null);
+          setPlatformRole(access.platformRole);
           localStorage.removeItem(GUEST_DEMO_KEY);
           setSession(session);
           setUser(session.user);
           setApiAuthUser(session.user, session.access_token);
         } else if (isGuestActive) {
+          setPlatformRole('NONE');
           setUser(GUEST_DEMO_USER);
           setApiAuthUser(GUEST_DEMO_USER);
         }
@@ -151,6 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .catch((err) => {
         console.error('[AuthContext] Error al recuperar sesión inicial:', err);
         if (isGuestActive) {
+          setPlatformRole('NONE');
           setUser(GUEST_DEMO_USER);
           setApiAuthUser(GUEST_DEMO_USER);
         }
@@ -167,19 +202,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session.user);
         setApiAuthUser(session.user, session.access_token);
+        setPlatformRole(
+          normalizePlatformRole(null, session.user.app_metadata?.role === 'superadmin', session.user.email)
+        );
 
-        if (!checkIsSuperAdmin(session.user) && !session.user.user_metadata?.is_guest) {
+        if (!session.user.user_metadata?.is_guest) {
           const activeUser = session.user;
           setTimeout(() => {
-            void checkIfUserSuspended(activeUser).then((suspended) => {
-              if (suspended) void enforceSuspension(client);
+            void fetchUserAccessCheck(activeUser).then((access) => {
+              if (access.suspended) {
+                void enforceSuspension(client);
+                return;
+              }
+              setPlatformRole(access.platformRole);
             });
           }, 0);
         }
       } else if (localStorage.getItem(GUEST_DEMO_KEY) === 'true') {
+        setPlatformRole('NONE');
         setUser(GUEST_DEMO_USER);
         setApiAuthUser(GUEST_DEMO_USER);
       } else if (event === 'SIGNED_OUT') {
+        endSupportSession();
+        setPlatformRole('NONE');
         setSession(null);
         setUser(null);
         setApiAuthUser(null);
@@ -245,6 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsSuspended(false);
     setSuspendedMessage(null);
     localStorage.removeItem(GUEST_DEMO_KEY);
+    endSupportSession();
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);
@@ -277,16 +323,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   }, []);
 
-  const isSuperAdmin = useMemo(() => checkIsSuperAdmin(user), [user]);
+  const isSuperAdmin = useMemo(() => checkIsSuperAdmin(user) || platformRole === 'SUPERADMIN', [user, platformRole]);
+  const hasAdminAccess = useMemo(() => isSuperAdmin || hasPlatformAdminAccess(platformRole), [isSuperAdmin, platformRole]);
   const isGuest = useMemo(() => Boolean(user?.user_metadata?.is_guest), [user]);
 
   const value = useMemo(
     () => ({
       user, session, loading, isConfigured: isSupabaseConfigured,
-      isSuperAdmin, isGuest, isSuspended, suspendedMessage,
+      isSuperAdmin, platformRole, hasAdminAccess, isGuest, isSuspended, suspendedMessage,
       startGuestDemo, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, resetPassword
     }),
-    [user, session, loading, isSuperAdmin, isGuest, isSuspended, suspendedMessage, startGuestDemo, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, resetPassword]
+    [user, session, loading, isSuperAdmin, platformRole, hasAdminAccess, isGuest, isSuspended, suspendedMessage, startGuestDemo, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, resetPassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

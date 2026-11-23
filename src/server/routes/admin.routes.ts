@@ -17,6 +17,17 @@ import {
   saveBroadcastRepo,
   setAdminUserStatusRepo
 } from '../repositories/admin-ops.repo';
+import {
+  getAdminAuditLogsPaginatedRepo,
+  getAdminCompaniesPaginatedRepo,
+  getAdminPlatformAlertsRepo,
+  getAdminUsersPaginatedRepo,
+  getWorkspaceQuotaRepo,
+  runAdminHealthScanRepo,
+  setAdminUserRoleRepo,
+  updateAdminPlatformAlertStatusRepo,
+  upsertWorkspaceQuotaRepo
+} from '../repositories/admin-enterprise.repo';
 
 export const adminRoutes = new Hono();
 
@@ -41,6 +52,57 @@ const auditLogSchema = z.object({
   targetId: z.string().trim().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).optional()
 });
+
+const emptyToUndef = (v: unknown) => (v === '' || v === undefined ? undefined : v);
+const optEnum = <T extends string>(vals: [T, ...T[]]) => z.preprocess(emptyToUndef, z.enum(vals).optional());
+const optInt = (max: number) => z.preprocess(emptyToUndef, z.coerce.number().int().min(1).max(max).optional());
+const optStr = (max = 120) => z.preprocess(emptyToUndef, z.string().trim().max(max).optional());
+
+const companiesPageQuerySchema = z.object({
+  page: optInt(100000),
+  pageSize: optInt(100),
+  search: optStr(120),
+  ownerType: optEnum(['ALL', 'user', 'superadmin', 'demo']),
+  fielFilter: optEnum(['ALL', 'WITH_FIEL', 'WITHOUT_FIEL'])
+});
+
+const usersPageQuerySchema = z.object({
+  page: optInt(100000),
+  pageSize: optInt(100),
+  search: optStr(120),
+  status: optEnum(['ALL', 'ACTIVO', 'SUSPENDIDO']),
+  role: optEnum(['ALL', 'SUPERADMIN', 'SUPPORT_READONLY', 'BILLING_OPS', 'NONE'])
+});
+
+const auditLogsPageQuerySchema = z.object({
+  page: optInt(100000),
+  pageSize: optInt(100),
+  search: optStr(120),
+  action: optStr(120),
+  targetType: optStr(80)
+});
+
+const userRoleSchema = z.object({
+  platformRole: z.enum(['SUPERADMIN', 'SUPPORT_READONLY', 'BILLING_OPS', 'NONE'])
+});
+
+const workspaceQuotaSchema = z.object({
+  userId: z.string().trim().min(1).nullable().optional(),
+  planTier: z.enum(['FREE', 'PRO', 'DESPACHO', 'ENTERPRISE']),
+  maxCompanies: z.coerce.number().int().min(1).max(10000),
+  maxCfdisPerMonth: z.coerce.number().int().min(1).max(10_000_000),
+  maxStorageMb: z.coerce.number().int().min(10).max(10_000_000),
+  notes: z.string().trim().max(500).nullable().optional()
+});
+
+const alertQuerySchema = z.object({ status: optEnum(['ALL', 'open', 'acknowledged', 'resolved']) });
+const alertStatusSchema = z.object({ status: z.enum(['open', 'acknowledged', 'resolved']) });
+
+function parseQuery<T>(c: Context, schema: z.ZodType<T>): { data: T } | { error: string } {
+  const parsed = schema.safeParse(c.req.query());
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message || 'Parámetros de consulta inválidos.' };
+  return { data: parsed.data };
+}
 
 function getActorContext(c: Context): { actorEmail: string; actorUserId: string | null } {
   const email = (c.req.header('X-User-Email') || c.req.header('x-user-email') || '').trim().toLowerCase();
@@ -139,4 +201,63 @@ adminRoutes.post('/admin/audit-logs', async (c) => {
     metadata: parsed.data.metadata
   });
   return c.json(entry, 201);
+});
+
+adminRoutes.get('/admin/companies/paginated', (c) => {
+  const parsed = parseQuery(c, companiesPageQuerySchema);
+  return 'error' in parsed ? c.json({ error: parsed.error }, 400) : c.json(getAdminCompaniesPaginatedRepo(parsed.data));
+});
+
+adminRoutes.get('/admin/users/paginated', (c) => {
+  const parsed = parseQuery(c, usersPageQuerySchema);
+  return 'error' in parsed ? c.json({ error: parsed.error }, 400) : c.json(getAdminUsersPaginatedRepo(parsed.data));
+});
+
+adminRoutes.get('/admin/audit-logs/paginated', (c) => {
+  const parsed = parseQuery(c, auditLogsPageQuerySchema);
+  return 'error' in parsed ? c.json({ error: parsed.error }, 400) : c.json(getAdminAuditLogsPaginatedRepo(parsed.data));
+});
+
+adminRoutes.patch('/admin/users/:id/role', async (c) => {
+  const parsed = await parseJsonBody(c, userRoleSchema);
+  if ('error' in parsed) return c.json({ error: parsed.error }, 400);
+  const { actorEmail, actorUserId } = getActorContext(c);
+  try {
+    return c.json(setAdminUserRoleRepo(c.req.param('id'), parsed.data.platformRole, actorEmail, actorUserId));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error actualizando rol de usuario.';
+    const status = message.includes('SuperAdmin') ? 403 : message.includes('no encontrado') ? 404 : 400;
+    return c.json({ error: message }, status);
+  }
+});
+
+adminRoutes.get('/admin/workspaces/:workspaceId/quota', (c) => c.json(getWorkspaceQuotaRepo(c.req.param('workspaceId'))));
+
+adminRoutes.put('/admin/workspaces/:workspaceId/quota', async (c) => {
+  const parsed = await parseJsonBody(c, workspaceQuotaSchema);
+  if ('error' in parsed) return c.json({ error: parsed.error }, 400);
+  const { actorEmail, actorUserId } = getActorContext(c);
+  return c.json(upsertWorkspaceQuotaRepo(c.req.param('workspaceId'), parsed.data, actorEmail, actorUserId));
+});
+
+adminRoutes.get('/admin/alerts', (c) => {
+  const parsed = parseQuery(c, alertQuerySchema);
+  return 'error' in parsed ? c.json({ error: parsed.error }, 400) : c.json(getAdminPlatformAlertsRepo(parsed.data.status));
+});
+
+adminRoutes.post('/admin/alerts/scan', (c) => {
+  const { actorEmail, actorUserId } = getActorContext(c);
+  return c.json(runAdminHealthScanRepo(actorEmail, actorUserId));
+});
+
+adminRoutes.patch('/admin/alerts/:id/status', async (c) => {
+  const parsed = await parseJsonBody(c, alertStatusSchema);
+  if ('error' in parsed) return c.json({ error: parsed.error }, 400);
+  const { actorEmail, actorUserId } = getActorContext(c);
+  try {
+    return c.json(updateAdminPlatformAlertStatusRepo(c.req.param('id'), parsed.data.status, actorEmail, actorUserId));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error actualizando alerta.';
+    return c.json({ error: message }, message.includes('no encontrada') ? 404 : 400);
+  }
 });

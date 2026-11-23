@@ -14,6 +14,10 @@ export interface AdminPlatformMetrics {
   lastSyncIso: string;
 }
 
+export type PlatformRole = 'SUPERADMIN' | 'SUPPORT_READONLY' | 'BILLING_OPS' | 'NONE';
+
+export type WorkspacePlanTier = 'FREE' | 'PRO' | 'DESPACHO' | 'ENTERPRISE';
+
 export interface AdminUserSummary {
   id: string;
   email: string;
@@ -26,6 +30,7 @@ export interface AdminUserSummary {
   utmCampaign?: string;
   utmTerm?: string;
   isSuperAdmin: boolean;
+  platformRole?: PlatformRole;
   createdAt: string;
   lastSignInAt?: string;
   companiesCount: number;
@@ -129,4 +134,85 @@ export interface AdminAuditLogEntry {
 export interface AdminUserStatusPayload {
   status: 'ACTIVO' | 'SUSPENDIDO';
   reason?: string;
+}
+
+export interface WorkspaceQuota {
+  workspaceId: string;
+  userId?: string | null;
+  planTier: WorkspacePlanTier;
+  maxCompanies: number;
+  maxCfdisPerMonth: number;
+  maxStorageMb: number;
+  notes?: string | null;
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+
+export interface WorkspaceQuotaPayload {
+  userId?: string | null;
+  planTier: WorkspacePlanTier;
+  maxCompanies: number;
+  maxCfdisPerMonth: number;
+  maxStorageMb: number;
+  notes?: string | null;
+}
+
+export interface AdminPaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface AdminCompaniesPageQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  ownerType?: 'ALL' | 'user' | 'superadmin' | 'demo';
+  fielFilter?: 'ALL' | 'WITH_FIEL' | 'WITHOUT_FIEL';
+}
+
+export interface AdminUsersPageQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: 'ALL' | 'ACTIVO' | 'SUSPENDIDO';
+  role?: 'ALL' | PlatformRole;
+}
+
+export interface AdminAuditLogsPageQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  action?: string;
+  targetType?: string;
+}
+
+export type PlatformAlertSeverity = 'info' | 'warning' | 'critical';
+export type PlatformAlertCategory = 'fiel_expiry' | 'sat_error_spike' | 'quota_limit' | 'system';
+export type PlatformAlertStatus = 'open' | 'acknowledged' | 'resolved';
+
+export interface AdminPlatformAlert {
+  id: string;
+  code: string;
+  severity: PlatformAlertSeverity;
+  category: PlatformAlertCategory;
+  title: string;
+  message: string;
+  targetType: string;
+  targetId: string | null;
+  status: PlatformAlertStatus;
+  metadata: Record<string, unknown>;
+  detectedAt: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+}
+
+export interface SupportImpersonationSession {
+  companyId: string;
+  companyName: string;
+  companyRfc: string;
+  ownerEmail?: string;
+  startedAt: string;
 }

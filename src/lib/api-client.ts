@@ -6,6 +6,7 @@ import { fiscalAndBankApi } from './api/fiscal-and-bank.api';
 import { adminApi } from './api/admin.api';
 import { isSupabaseConfigured } from './supabase';
 import { supabaseCloudApi } from './supabase/supabase-client-facade';
+import { isReadOnlyBlockedMethod, isReadOnlySupportMode } from './support-impersonation';
 
 export { handleResponse, buildPeriodQuery, getAuthHeaders, setApiAuthUser };
 
@@ -81,9 +82,26 @@ export const localApiClient = {
   ...adminApi
 };
 
-export const apiClient = shouldUseSupabase
+const rawApiClient = shouldUseSupabase
   ? {
       ...localApiClient,
       ...supabaseCloudApi
     }
   : localApiClient;
+
+export const apiClient: typeof rawApiClient = new Proxy(rawApiClient, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver);
+    if (typeof prop === 'string' && typeof value === 'function') {
+      return (...args: unknown[]) => {
+        if (isReadOnlySupportMode() && isReadOnlyBlockedMethod(prop)) {
+          throw new Error(
+            'Modo Soporte (solo lectura): las escrituras están bloqueadas para proteger los datos del cliente.'
+          );
+        }
+        return (value as (...fnArgs: unknown[]) => unknown).apply(target, args);
+      };
+    }
+    return value;
+  }
+});

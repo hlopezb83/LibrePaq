@@ -1,21 +1,27 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
+import type {
+  AdminAuditLogsPageQuery,
+  AdminCompaniesPageQuery,
+  AdminUsersPageQuery,
+  PlatformAlertStatus,
+  PlatformRole
+} from '../../shared/admin-types';
 
 export type SuperAdminTab = 'metrics' | 'users' | 'companies' | 'ads' | 'sat' | 'broadcast' | 'audit';
 
 export function useSuperAdminManager() {
-  const { user, isSuperAdmin, loading: authLoading } = useAuth();
+  const { user, isSuperAdmin, platformRole, hasAdminAccess, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
   const routerState = useRouterState();
   const navigate = useNavigate();
 
-  const searchParams = new URLSearchParams(
-    (routerState?.location?.search || {}) as Record<string, string>
-  );
+  const searchParams = new URLSearchParams((routerState?.location?.search || {}) as Record<string, string>);
   const searchTab = searchParams.get('tab');
   const searchQuery = searchParams.get('q') || '';
 
@@ -29,10 +35,38 @@ export function useSuperAdminManager() {
       ? searchTab
       : 'metrics';
 
+  const [companiesQuery, setCompaniesQuery] = useState<AdminCompaniesPageQuery>(() => ({
+    page: 1,
+    pageSize: 20,
+    search: searchQuery,
+    ownerType: 'user',
+    fielFilter: 'ALL'
+  }));
+  const [usersQuery, setUsersQuery] = useState<AdminUsersPageQuery>({
+    page: 1,
+    pageSize: 20,
+    search: '',
+    status: 'ALL',
+    role: 'ALL'
+  });
+  const [auditQuery, setAuditQuery] = useState<AdminAuditLogsPageQuery>({
+    page: 1,
+    pageSize: 25,
+    search: '',
+    action: '',
+    targetType: ''
+  });
+  const [alertsStatusFilter, setAlertsStatusFilter] = useState<'ALL' | PlatformAlertStatus>('open');
+
   const setActiveTab = (tab: SuperAdminTab, q?: string) => {
     const nextSearch: Record<string, string> = {};
     if (tab !== 'metrics') nextSearch.tab = tab;
-    if (q) nextSearch.q = q;
+    if (q) {
+      nextSearch.q = q;
+      if (tab === 'companies') {
+        setCompaniesQuery((prev) => ({ ...prev, page: 1, search: q }));
+      }
+    }
     void navigate({
       to: '/admin',
       search: Object.keys(nextSearch).length > 0 ? nextSearch : undefined
@@ -42,126 +76,150 @@ export function useSuperAdminManager() {
   const metricsQuery = useQuery({
     queryKey: ['admin-metrics'],
     queryFn: () => apiClient.getAdminMetrics(),
-    enabled: Boolean(isSuperAdmin)
+    enabled: Boolean(hasAdminAccess)
   });
 
-  const usersQuery = useQuery({
+  const usersQueryAll = useQuery({
     queryKey: ['admin-users'],
     queryFn: () => apiClient.getAdminUsers(),
-    enabled: Boolean(isSuperAdmin)
+    enabled: Boolean(hasAdminAccess && (activeTab === 'metrics' || activeTab === 'ads' || activeTab === 'users'))
   });
 
-  const companiesQuery = useQuery({
+  const companiesQueryAll = useQuery({
     queryKey: ['admin-companies'],
     queryFn: () => apiClient.getAdminCompanies(),
-    enabled: Boolean(isSuperAdmin)
+    enabled: Boolean(hasAdminAccess && (activeTab === 'metrics' || activeTab === 'ads' || activeTab === 'companies'))
+  });
+
+  const companiesPageQuery = useQuery({
+    queryKey: ['admin-companies-paginated', companiesQuery],
+    queryFn: () => apiClient.getAdminCompaniesPaginated(companiesQuery),
+    enabled: Boolean(hasAdminAccess && activeTab === 'companies')
+  });
+
+  const usersPageQuery = useQuery({
+    queryKey: ['admin-users-paginated', usersQuery],
+    queryFn: () => apiClient.getAdminUsersPaginated(usersQuery),
+    enabled: Boolean(hasAdminAccess && activeTab === 'users')
+  });
+
+  const auditPageQuery = useQuery({
+    queryKey: ['admin-audit-logs-paginated', auditQuery],
+    queryFn: () => apiClient.getAdminAuditLogsPaginated(auditQuery),
+    enabled: Boolean(hasAdminAccess && activeTab === 'audit')
   });
 
   const satHealthQuery = useQuery({
     queryKey: ['admin-sat-health'],
     queryFn: () => apiClient.getAdminSatHealth(),
-    enabled: Boolean(isSuperAdmin && (activeTab === 'sat' || activeTab === 'metrics'))
+    enabled: Boolean(hasAdminAccess && (activeTab === 'sat' || activeTab === 'metrics'))
   });
 
-  const auditLogsQuery = useQuery({
-    queryKey: ['admin-audit-logs'],
-    queryFn: () => apiClient.getAdminAuditLogs(100),
-    enabled: Boolean(isSuperAdmin && activeTab === 'audit')
+  const alertsQuery = useQuery({
+    queryKey: ['admin-alerts', alertsStatusFilter],
+    queryFn: () => apiClient.getAdminPlatformAlerts(alertsStatusFilter),
+    enabled: Boolean(hasAdminAccess && (activeTab === 'sat' || activeTab === 'metrics'))
   });
+
+  const invalidateAuditAndUsers = () => {
+    void queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin-users-paginated'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] });
+  };
 
   const updateUserStatusMutation = useMutation({
-    mutationFn: ({
-      userId,
-      status,
-      reason
-    }: {
-      userId: string;
-      status: 'ACTIVO' | 'SUSPENDIDO';
-      reason?: string;
-    }) => apiClient.setAdminUserStatus(userId, { status, reason }),
+    mutationFn: (v: { userId: string; status: 'ACTIVO' | 'SUSPENDIDO'; reason?: string }) =>
+      apiClient.setAdminUserStatus(v.userId, { status: v.status, reason: v.reason }),
     onSuccess: (res) => {
-      void queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] });
+      invalidateAuditAndUsers();
       toast.success(
         res.status === 'SUSPENDIDO' ? 'Usuario suspendido' : 'Usuario reactivado',
-        res.status === 'SUSPENDIDO'
-          ? 'El acceso a la plataforma ha sido bloqueado para esta cuenta.'
-          : 'La cuenta puede iniciar sesión nuevamente.'
+        res.status === 'SUSPENDIDO' ? 'Acceso bloqueado para esta cuenta.' : 'La cuenta puede iniciar sesión nuevamente.'
       );
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Error al actualizar el estado del usuario.';
-      toast.error('No se pudo actualizar el usuario', msg);
-    }
+    onError: (err: unknown) => toast.error('No se pudo actualizar el usuario', err instanceof Error ? err.message : 'Error inesperado.')
+  });
+
+  const updateUserRoleMutation = useMutation({
+    mutationFn: (v: { userId: string; platformRole: PlatformRole }) => apiClient.setAdminUserRole(v.userId, v.platformRole),
+    onSuccess: (res) => {
+      invalidateAuditAndUsers();
+      toast.success('Rol de plataforma actualizado', `Nuevo rol asignado: ${res.platformRole}`);
+    },
+    onError: (err: unknown) => toast.error('No se pudo actualizar el rol', err instanceof Error ? err.message : 'Error inesperado.')
   });
 
   const deleteCompanyMutation = useMutation({
     mutationFn: (companyId: string) => apiClient.deleteAdminCompany(companyId),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ['admin-companies'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-companies-paginated'] });
       void queryClient.invalidateQueries({ queryKey: ['admin-metrics'] });
-      void queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] });
+      invalidateAuditAndUsers();
       void queryClient.removeQueries({ queryKey: ['admin-company-detail', res.companyId] });
       toast.success('Empresa eliminada', 'La empresa fiscal y sus registros han sido depurados.');
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Error al depurar la empresa.';
-      toast.error('No se pudo eliminar la empresa', msg);
-    }
+    onError: (err: unknown) => toast.error('No se pudo eliminar la empresa', err instanceof Error ? err.message : 'Error inesperado.')
+  });
+
+  const scanAlertsMutation = useMutation({
+    mutationFn: () => apiClient.runAdminHealthScan(),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-alerts'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-sat-health'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] });
+      toast.success('Escaneo de salud completado', `${res.alertsCreated} alertas nuevas · ${res.openAlertsCount} abiertas.`);
+    },
+    onError: (err: unknown) => toast.error('Error al ejecutar escaneo', err instanceof Error ? err.message : 'Error inesperado.')
+  });
+
+  const updateAlertStatusMutation = useMutation({
+    mutationFn: (v: { alertId: string; status: PlatformAlertStatus }) => apiClient.updateAdminPlatformAlertStatus(v.alertId, v.status),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-alerts'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] });
+    },
+    onError: (err: unknown) => toast.error('Error al actualizar alerta', err instanceof Error ? err.message : 'Error inesperado.')
   });
 
   const hasError =
     metricsQuery.isError ||
-    usersQuery.isError ||
-    companiesQuery.isError ||
-    ((activeTab === 'sat' || activeTab === 'metrics') && satHealthQuery.isError) ||
-    (activeTab === 'audit' && auditLogsQuery.isError);
+    (activeTab === 'users' && usersPageQuery.isError) ||
+    (activeTab === 'companies' && companiesPageQuery.isError) ||
+    ((activeTab === 'sat' || activeTab === 'metrics') && (satHealthQuery.isError || alertsQuery.isError)) ||
+    (activeTab === 'audit' && auditPageQuery.isError);
 
   const isRefreshing =
     metricsQuery.isFetching ||
-    usersQuery.isFetching ||
-    companiesQuery.isFetching ||
+    usersPageQuery.isFetching ||
+    companiesPageQuery.isFetching ||
     satHealthQuery.isFetching ||
-    auditLogsQuery.isFetching;
+    alertsQuery.isFetching ||
+    auditPageQuery.isFetching;
 
   const refetchAll = async () => {
-    const tasks: Array<Promise<unknown>> = [
-      metricsQuery.refetch(),
-      usersQuery.refetch(),
-      companiesQuery.refetch()
-    ];
-    if (activeTab === 'sat' || activeTab === 'metrics') tasks.push(satHealthQuery.refetch());
-    if (activeTab === 'audit') tasks.push(auditLogsQuery.refetch());
+    const tasks: Array<Promise<unknown>> = [metricsQuery.refetch()];
+    if (activeTab === 'users') tasks.push(usersPageQuery.refetch());
+    if (activeTab === 'companies') tasks.push(companiesPageQuery.refetch());
+    if (activeTab === 'ads' || activeTab === 'metrics') {
+      tasks.push(usersQueryAll.refetch(), companiesQueryAll.refetch());
+    }
+    if (activeTab === 'sat' || activeTab === 'metrics') tasks.push(satHealthQuery.refetch(), alertsQuery.refetch());
+    if (activeTab === 'audit') tasks.push(auditPageQuery.refetch());
     await Promise.all(tasks);
   };
 
   return {
-    user,
-    isSuperAdmin,
-    authLoading,
-    searchQuery,
-    activeTab,
-    setActiveTab,
-    metrics: metricsQuery.data,
-    loadingMetrics: metricsQuery.isLoading,
-    metricsError: metricsQuery.isError,
-    users: usersQuery.data ?? [],
-    loadingUsers: usersQuery.isLoading,
-    companies: companiesQuery.data ?? [],
-    loadingCompanies: companiesQuery.isLoading,
-    satHealth: satHealthQuery.data,
-    loadingSatHealth: satHealthQuery.isLoading,
-    satHealthError: satHealthQuery.isError,
-    refetchSatHealth: satHealthQuery.refetch,
-    auditLogs: auditLogsQuery.data ?? [],
-    loadingAuditLogs: auditLogsQuery.isLoading,
-    auditLogsError: auditLogsQuery.isError,
-    refetchAuditLogs: auditLogsQuery.refetch,
-    hasError,
-    isRefreshing,
-    refetchAll,
-    updateUserStatusMutation,
-    deleteCompanyMutation
+    user, isSuperAdmin, platformRole, hasAdminAccess, authLoading, searchQuery, activeTab, setActiveTab,
+    metrics: metricsQuery.data, loadingMetrics: metricsQuery.isLoading, metricsError: metricsQuery.isError,
+    users: usersQueryAll.data ?? [], companies: companiesQueryAll.data ?? [],
+    companiesQuery, setCompaniesQuery, companiesPage: companiesPageQuery.data, loadingCompaniesPage: companiesPageQuery.isLoading, fetchingCompaniesPage: companiesPageQuery.isFetching,
+    usersQuery, setUsersQuery, usersPage: usersPageQuery.data, loadingUsersPage: usersPageQuery.isLoading, fetchingUsersPage: usersPageQuery.isFetching,
+    auditQuery, setAuditQuery, auditPage: auditPageQuery.data, loadingAuditPage: auditPageQuery.isLoading, fetchingAuditPage: auditPageQuery.isFetching, auditLogsError: auditPageQuery.isError, refetchAuditLogs: auditPageQuery.refetch,
+    satHealth: satHealthQuery.data, loadingSatHealth: satHealthQuery.isLoading, satHealthError: satHealthQuery.isError, refetchSatHealth: satHealthQuery.refetch,
+    alerts: alertsQuery.data ?? [], loadingAlerts: alertsQuery.isLoading, alertsStatusFilter, setAlertsStatusFilter,
+    scanAlertsMutation, updateAlertStatusMutation,
+    hasError, isRefreshing, refetchAll, updateUserStatusMutation, updateUserRoleMutation, deleteCompanyMutation
   };
 }

@@ -227,14 +227,81 @@ export const CREATE_TABLES_DDL = `
   CREATE TABLE IF NOT EXISTS admin_user_overrides (
     user_id TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'ACTIVO',
+    platform_role TEXT,
     updated_at TEXT NOT NULL,
     updated_by TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS workspace_quotas (
+    workspace_id TEXT PRIMARY KEY,
+    user_id TEXT,
+    plan_tier TEXT NOT NULL DEFAULT 'FREE',
+    max_companies INTEGER NOT NULL DEFAULT 3,
+    max_cfdis_per_month INTEGER NOT NULL DEFAULT 500,
+    max_storage_mb INTEGER NOT NULL DEFAULT 250,
+    notes TEXT,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS platform_alerts (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    detected_at TEXT NOT NULL,
+    resolved_at TEXT,
+    resolved_by TEXT
+  );
+
   CREATE INDEX IF NOT EXISTS idx_platform_broadcasts_active ON platform_broadcasts(active, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_platform_alerts_status_detected ON platform_alerts(status, detected_at DESC);
 `;
 
-export function ensureBaseTables(database: { exec: (sql: string) => void }): void {
+export interface SqliteDdlTarget {
+  exec: (sql: string) => void;
+  query?: (sql: string) => { all: () => unknown[] };
+}
+
+function ensureOptionalColumnMigrations(database: SqliteDdlTarget): void {
+  if (!database.query) return;
+
+  const overrideCols = database.query('PRAGMA table_info(admin_user_overrides)').all() as Array<{ name: string }>;
+  if (overrideCols.length > 0 && !overrideCols.some((c) => c.name === 'platform_role')) {
+    database.exec('ALTER TABLE admin_user_overrides ADD COLUMN platform_role TEXT;');
+  }
+
+  const profileTables = database
+    .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_profiles'")
+    .all() as Array<{ name: string }>;
+  if (profileTables.length === 0) return;
+
+  const profileCols = database.query('PRAGMA table_info(user_profiles)').all() as Array<{ name: string }>;
+  if (!profileCols.some((c) => c.name === 'platform_role')) {
+    database.exec("ALTER TABLE user_profiles ADD COLUMN platform_role TEXT NOT NULL DEFAULT 'NONE';");
+  }
+
+  const hasSuperFlag = profileCols.some((c) => c.name === 'is_superadmin');
+  const hasEmail = profileCols.some((c) => c.name === 'email');
+  if (hasSuperFlag && hasEmail) {
+    database.exec(
+      "UPDATE user_profiles SET platform_role = 'SUPERADMIN' WHERE is_superadmin = 1 OR lower(email) = 'hlopezb@gmail.com';"
+    );
+  } else if (hasSuperFlag) {
+    database.exec("UPDATE user_profiles SET platform_role = 'SUPERADMIN' WHERE is_superadmin = 1;");
+  } else if (hasEmail) {
+    database.exec("UPDATE user_profiles SET platform_role = 'SUPERADMIN' WHERE lower(email) = 'hlopezb@gmail.com';");
+  }
+}
+
+export function ensureBaseTables(database: SqliteDdlTarget): void {
   database.exec(CREATE_TABLES_DDL);
+  ensureOptionalColumnMigrations(database);
 }

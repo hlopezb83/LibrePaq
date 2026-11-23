@@ -1,3 +1,5 @@
+import type { PlatformRole } from './admin-types';
+
 export const DEFAULT_SUPERADMIN_EMAILS = ['hlopezb@gmail.com'] as const;
 
 /**
@@ -26,4 +28,37 @@ export function getSuperAdminEmails(): string[] {
 export function isSuperAdminEmail(email?: string | null): boolean {
   if (!email) return false;
   return getSuperAdminEmails().includes(email.trim().toLowerCase());
+}
+
+export function normalizePlatformRole(
+  rawRole?: string | null,
+  isSuperAdminFlag?: boolean | null,
+  email?: string | null
+): PlatformRole {
+  if (isSuperAdminEmail(email)) return 'SUPERADMIN';
+  const upper = String(rawRole || '').trim().toUpperCase();
+  if (upper === 'SUPERADMIN' || upper === 'SUPPORT_READONLY' || upper === 'BILLING_OPS' || upper === 'NONE') {
+    return upper;
+  }
+  return isSuperAdminFlag ? 'SUPERADMIN' : 'NONE';
+}
+
+export function hasPlatformAdminAccess(role?: PlatformRole | null): boolean {
+  return role === 'SUPERADMIN' || role === 'SUPPORT_READONLY' || role === 'BILLING_OPS';
+}
+
+export function canManagePlatformRoles(role?: PlatformRole | null): boolean {
+  return role === 'SUPERADMIN';
+}
+
+export function canManageBillingAndQuotas(role?: PlatformRole | null): boolean {
+  return role === 'SUPERADMIN' || role === 'BILLING_OPS';
+}
+
+export function canDeletePlatformTenants(role?: PlatformRole | null): boolean {
+  return role === 'SUPERADMIN';
+}
+
+export function canPublishPlatformBroadcast(role?: PlatformRole | null): boolean {
+  return role === 'SUPERADMIN';
 }

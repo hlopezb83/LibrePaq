@@ -11,7 +11,8 @@ import {
 import { LibrePaqLogo, LibrePaqIcon } from '../LibrePaqLogo';
 import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 import type { User } from '@supabase/supabase-js';
-import { checkIsSuperAdmin } from '../../context/AuthContext';
+import { useAuth, checkIsSuperAdmin } from '../../context/AuthContext';
+import { useSupportSession } from '../../lib/support-impersonation';
 
 interface AppShellSidebarProps {
   sidebarCollapsed: boolean;
@@ -38,7 +39,9 @@ export function AppShellSidebar({
   onEmptyModuleClick,
   user
 }: AppShellSidebarProps) {
-  const isOwner = checkIsSuperAdmin(user ?? null);
+  const { hasAdminAccess } = useAuth();
+  const supportSession = useSupportSession();
+  const isOwner = (hasAdminAccess || checkIsSuperAdmin(user ?? null)) && !supportSession;
 
   return (
     <aside

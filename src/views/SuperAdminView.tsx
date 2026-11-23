@@ -11,10 +11,18 @@ import {
   Megaphone,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Target,
   Users
 } from 'lucide-react';
 import { handleTablistKeyDown } from '../hooks/useTablistKeyboard';
+import {
+  canDeletePlatformTenants,
+  canManageBillingAndQuotas,
+  canManagePlatformRoles,
+  canPublishPlatformBroadcast
+} from '../shared/superadmin';
+import type { PlatformRole } from '../shared/admin-types';
 import { SuperAdminMetricsCards } from './admin/SuperAdminMetricsCards';
 import { SuperAdminUsersTab } from './admin/SuperAdminUsersTab';
 import { SuperAdminCompaniesTab } from './admin/SuperAdminCompaniesTab';
@@ -24,37 +32,16 @@ import { SuperAdminBroadcastTab } from './admin/SuperAdminBroadcastTab';
 import { SuperAdminAuditTab } from './admin/SuperAdminAuditTab';
 import { useSuperAdminManager, type SuperAdminTab } from './admin/useSuperAdminManager';
 
-export function SuperAdminView() {
-  const {
-    user,
-    isSuperAdmin,
-    authLoading,
-    searchQuery,
-    activeTab,
-    setActiveTab,
-    metrics,
-    loadingMetrics,
-    metricsError,
-    users,
-    loadingUsers,
-    companies,
-    loadingCompanies,
-    satHealth,
-    loadingSatHealth,
-    satHealthError,
-    refetchSatHealth,
-    auditLogs,
-    loadingAuditLogs,
-    auditLogsError,
-    refetchAuditLogs,
-    hasError,
-    isRefreshing,
-    refetchAll,
-    updateUserStatusMutation,
-    deleteCompanyMutation
-  } = useSuperAdminManager();
+function getRoleBadgeMeta(role: PlatformRole): { label: string; className: string } {
+  if (role === 'SUPERADMIN') return { label: 'Dueño de Plataforma', className: 'bg-amber-100 text-amber-900 border-amber-300' };
+  if (role === 'BILLING_OPS') return { label: 'Operaciones y Cuotas', className: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
+  return { label: 'Soporte Solo Lectura', className: 'bg-blue-100 text-blue-900 border-blue-300' };
+}
 
-  if (authLoading) {
+export function SuperAdminView() {
+  const m = useSuperAdminManager();
+
+  if (m.authLoading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center gap-3">
         <Loader2 className="w-7 h-7 animate-spin text-blue-600" aria-hidden="true" />
@@ -63,47 +50,42 @@ export function SuperAdminView() {
     );
   }
 
-  // Pantalla de Protección / Control de Acceso RBAC
-  if (!isSuperAdmin) {
+  if (!m.hasAdminAccess) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
         <div className="w-16 h-16 rounded-2xl bg-red-100 border border-red-200 text-red-600 flex items-center justify-center mb-4 shadow-sm">
           <ShieldAlert className="w-8 h-8" aria-hidden="true" />
         </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-1">
-          Acceso Restringido — Solo SuperAdmin
-        </h1>
+        <h1 className="text-xl font-bold text-slate-900 mb-1">Acceso Restringido — Consola de Plataforma</h1>
         <p className="text-xs text-slate-600 max-w-md mb-5 leading-relaxed">
-          Esta vista es de uso exclusivo para el propietario de la plataforma LibrePaq Pro.
-          Tu cuenta actual ({user?.email || 'Visitante'}) no cuenta con privilegios administrativos.
+          Esta vista es de uso exclusivo para el equipo autorizado de LibrePaq Pro. Tu cuenta actual ({m.user?.email || 'Visitante'}) no cuenta con un rol administrativo.
         </p>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition"
-        >
+        <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition">
           Volver al Tablero Contable
         </Link>
       </div>
     );
   }
 
-  const nonDemoCompaniesCount = companies.filter((c) => c.ownerType !== 'demo').length;
-  const adminTabs: Array<{
-    id: SuperAdminTab;
-    label: string;
-    icon: ComponentType<{ className?: string }>;
-  }> = [
+  const usersCount = m.usersPage?.total ?? m.metrics?.totalUsers ?? m.users.length;
+  const companiesCount = m.companiesPage?.total ?? m.metrics?.totalCompanies ?? m.companies.filter((c) => c.ownerType !== 'demo').length;
+  const openAlertsCount = m.alerts.filter((a) => a.status === 'open').length;
+  const roleBadge = getRoleBadgeMeta(m.platformRole);
+
+  const adminTabs: Array<{ id: SuperAdminTab; label: string; icon: ComponentType<{ className?: string }> }> = [
     { id: 'metrics', label: 'Métricas SaaS', icon: LayoutDashboard },
-    { id: 'users', label: `Usuarios (${users.length})`, icon: Users },
-    { id: 'companies', label: `Empresas (${nonDemoCompaniesCount})`, icon: Building2 },
+    { id: 'users', label: `Usuarios (${usersCount})`, icon: Users },
+    { id: 'companies', label: `Empresas (${companiesCount})`, icon: Building2 },
     { id: 'ads', label: 'Google Ads', icon: Target },
-    { id: 'sat', label: 'Salud SAT', icon: Activity },
+    { id: 'sat', label: openAlertsCount > 0 ? `Salud SAT (${openAlertsCount})` : 'Salud SAT', icon: Activity },
     { id: 'broadcast', label: 'Comunicados', icon: Megaphone },
     { id: 'audit', label: 'Auditoría', icon: ClipboardList }
   ];
 
-  const mutatingUserId = updateUserStatusMutation.isPending
-    ? (updateUserStatusMutation.variables?.userId ?? null)
+  const mutatingUserId = m.updateUserStatusMutation.isPending
+    ? (m.updateUserStatusMutation.variables?.userId ?? null)
+    : m.updateUserRoleMutation.isPending
+    ? (m.updateUserRoleMutation.variables?.userId ?? null)
     : null;
 
   return (
@@ -112,44 +94,38 @@ export function SuperAdminView() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3.5 min-w-0">
             <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-300 flex items-center justify-center shrink-0 shadow-2xs">
-              <Crown className="w-6 h-6 text-amber-600" aria-hidden="true" />
+              {m.platformRole === 'SUPERADMIN' ? <Crown className="w-6 h-6 text-amber-600" aria-hidden="true" /> : <ShieldCheck className="w-6 h-6 text-blue-600" aria-hidden="true" />}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base sm:text-lg font-bold text-slate-900">
-                  Panel de SuperAdmin LibrePaq Pro
-                </h1>
-                <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                  <Crown className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
-                  Dueño de Plataforma
+                <h1 className="text-base sm:text-lg font-bold text-slate-900">Panel de SuperAdmin LibrePaq Pro</h1>
+                <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${roleBadge.className}`}>
+                  {m.platformRole === 'SUPERADMIN' && <Crown className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />}
+                  {roleBadge.label}
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
-                Sesión activa: <span className="font-semibold text-slate-800">{user?.email || 'SuperAdmin'}</span> · Control global multi-tenant
+                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span> · Rol RBAC: <span className="font-mono font-semibold">{m.platformRole}</span>
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            disabled={isRefreshing}
-            aria-busy={isRefreshing}
-            onClick={() => void refetchAll()}
+            disabled={m.isRefreshing}
+            aria-busy={m.isRefreshing}
+            onClick={() => void m.refetchAll()}
             className="inline-flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-bold text-slate-700 transition cursor-pointer shrink-0"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span>{isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${m.isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            <span>{m.isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
           </button>
         </div>
 
-        <div
-          role="tablist"
-          aria-label="Secciones de administración de plataforma"
-          className="flex items-center gap-1 erp-tab-scroller max-w-full py-0.5 border-t border-slate-100 pt-3"
-        >
+        <div role="tablist" aria-label="Secciones de administración de plataforma" className="flex items-center gap-1 erp-tab-scroller max-w-full py-0.5 border-t border-slate-100 pt-3">
           {adminTabs.map((tab) => {
             const Icon = tab.icon;
-            const isSelected = activeTab === tab.id;
+            const isSelected = m.activeTab === tab.id;
             return (
               <button
                 key={tab.id}
@@ -159,12 +135,10 @@ export function SuperAdminView() {
                 aria-selected={isSelected}
                 aria-controls={`admin-panel-${tab.id}`}
                 tabIndex={isSelected ? 0 : -1}
-                onClick={() => setActiveTab(tab.id)}
-                onKeyDown={(e) => handleTablistKeyDown(e, adminTabs, activeTab, setActiveTab, 'admin-tab-')}
+                onClick={() => m.setActiveTab(tab.id)}
+                onKeyDown={(e) => handleTablistKeyDown(e, adminTabs, m.activeTab, m.setActiveTab, 'admin-tab-')}
                 className={`snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  isSelected
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  isSelected ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -175,83 +149,104 @@ export function SuperAdminView() {
         </div>
       </header>
 
-      {hasError && (
-        <div
-          role="alert"
-          className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-900 flex flex-wrap items-center justify-between gap-3 text-xs"
-        >
+      {m.hasError && (
+        <div role="alert" className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-900 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 font-semibold">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
             <span>Ocurrió un error al consultar algunos datos administrativos. Verifica la conexión e intenta de nuevo.</span>
           </div>
-          <button
-            type="button"
-            onClick={() => void refetchAll()}
-            className="px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-800 text-white font-bold cursor-pointer shrink-0"
-          >
+          <button type="button" onClick={() => void m.refetchAll()} className="px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-800 text-white font-bold cursor-pointer shrink-0">
             Reintentar
           </button>
         </div>
       )}
 
-      <div role="tabpanel" id={`admin-panel-${activeTab}`} aria-labelledby={`admin-tab-${activeTab}`}>
-        {activeTab === 'metrics' && (
+      <div role="tabpanel" id={`admin-panel-${m.activeTab}`} aria-labelledby={`admin-tab-${m.activeTab}`}>
+        {m.activeTab === 'metrics' && (
           <SuperAdminMetricsCards
-            metrics={metrics}
-            usersCount={users.length}
-            companiesCount={metrics?.totalCompanies ?? nonDemoCompaniesCount}
-            isLoading={loadingMetrics}
-            onRefresh={() => void refetchAll()}
-            isRefreshing={isRefreshing}
-            isError={metricsError}
-            onNavigateTab={setActiveTab}
+            metrics={m.metrics}
+            usersCount={usersCount}
+            companiesCount={companiesCount}
+            isLoading={m.loadingMetrics}
+            onRefresh={() => void m.refetchAll()}
+            isRefreshing={m.isRefreshing}
+            isError={m.metricsError}
+            onNavigateTab={m.setActiveTab}
           />
         )}
 
-        {activeTab === 'users' && (
+        {m.activeTab === 'users' && (
           <SuperAdminUsersTab
-            users={users}
-            isLoading={loadingUsers}
-            onViewUserCompanies={(q) => setActiveTab('companies', q)}
-            onToggleUserStatus={(userId, nextStatus) =>
-              updateUserStatusMutation.mutate({ userId, status: nextStatus })
-            }
+            users={m.usersPage?.items ?? m.users}
+            total={m.usersPage?.total ?? m.users.length}
+            page={m.usersPage?.page ?? m.usersQuery.page ?? 1}
+            pageSize={m.usersPage?.pageSize ?? m.usersQuery.pageSize ?? 20}
+            totalPages={m.usersPage?.totalPages ?? 1}
+            query={m.usersQuery}
+            onQueryChange={m.setUsersQuery}
+            isLoading={m.loadingUsersPage}
+            isFetching={m.fetchingUsersPage}
+            onViewUserCompanies={(q) => m.setActiveTab('companies', q)}
+            onToggleUserStatus={canManageBillingAndQuotas(m.platformRole) ? (userId, status) => m.updateUserStatusMutation.mutate({ userId, status }) : undefined}
+            onChangeUserRole={canManagePlatformRoles(m.platformRole) ? (userId, platformRole) => m.updateUserRoleMutation.mutate({ userId, platformRole }) : undefined}
             mutatingUserId={mutatingUserId}
           />
         )}
 
-        {activeTab === 'companies' && (
+        {m.activeTab === 'companies' && (
           <SuperAdminCompaniesTab
-            companies={companies}
-            users={users}
-            isLoading={loadingCompanies}
-            initialQuery={searchQuery}
-            onDeleteCompany={async (companyId) => {
-              await deleteCompanyMutation.mutateAsync(companyId);
-            }}
-            isDeletingCompany={deleteCompanyMutation.isPending}
+            companies={m.companiesPage?.items ?? m.companies}
+            total={m.companiesPage?.total ?? m.companies.length}
+            page={m.companiesPage?.page ?? m.companiesQuery.page ?? 1}
+            pageSize={m.companiesPage?.pageSize ?? m.companiesQuery.pageSize ?? 20}
+            totalPages={m.companiesPage?.totalPages ?? 1}
+            query={m.companiesQuery}
+            onQueryChange={m.setCompaniesQuery}
+            users={m.users}
+            isLoading={m.loadingCompaniesPage}
+            isFetching={m.fetchingCompaniesPage}
+            platformRole={m.platformRole}
+            onDeleteCompany={canDeletePlatformTenants(m.platformRole) ? async (id) => { await m.deleteCompanyMutation.mutateAsync(id); } : undefined}
+            isDeletingCompany={m.deleteCompanyMutation.isPending}
           />
         )}
 
-        {activeTab === 'ads' && <SuperAdminAdsTab users={users} companies={companies} />}
+        {m.activeTab === 'ads' && <SuperAdminAdsTab users={m.users} companies={m.companies} />}
 
-        {activeTab === 'sat' && (
+        {m.activeTab === 'sat' && (
           <SuperAdminSatHealthTab
-            satHealth={satHealth}
-            isLoading={loadingSatHealth}
-            isError={satHealthError}
-            onRetry={() => void refetchSatHealth()}
+            satHealth={m.satHealth}
+            isLoading={m.loadingSatHealth}
+            isError={m.satHealthError}
+            onRetry={() => void m.refetchSatHealth()}
+            alerts={m.alerts}
+            alertsStatusFilter={m.alertsStatusFilter}
+            onAlertsStatusFilterChange={m.setAlertsStatusFilter}
+            loadingAlerts={m.loadingAlerts}
+            scanningAlerts={m.scanAlertsMutation.isPending}
+            mutatingAlertId={m.updateAlertStatusMutation.isPending ? (m.updateAlertStatusMutation.variables?.alertId ?? null) : null}
+            onScanAlerts={() => m.scanAlertsMutation.mutate()}
+            onUpdateAlertStatus={(alertId, status) => m.updateAlertStatusMutation.mutate({ alertId, status })}
           />
         )}
 
-        {activeTab === 'broadcast' && <SuperAdminBroadcastTab />}
+        {m.activeTab === 'broadcast' && (
+          <SuperAdminBroadcastTab canManage={canPublishPlatformBroadcast(m.platformRole)} />
+        )}
 
-        {activeTab === 'audit' && (
+        {m.activeTab === 'audit' && (
           <SuperAdminAuditTab
-            logs={auditLogs}
-            isLoading={loadingAuditLogs}
-            isError={auditLogsError}
-            onRetry={() => void refetchAuditLogs()}
+            logs={m.auditPage?.items ?? []}
+            total={m.auditPage?.total ?? 0}
+            page={m.auditPage?.page ?? m.auditQuery.page ?? 1}
+            pageSize={m.auditPage?.pageSize ?? m.auditQuery.pageSize ?? 25}
+            totalPages={m.auditPage?.totalPages ?? 1}
+            query={m.auditQuery}
+            onQueryChange={m.setAuditQuery}
+            isLoading={m.loadingAuditPage}
+            isFetching={m.fetchingAuditPage}
+            isError={m.auditLogsError}
+            onRetry={() => void m.refetchAuditLogs()}
           />
         )}
       </div>

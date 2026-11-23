@@ -8,13 +8,26 @@ import {
   ShieldAlert,
   XCircle
 } from 'lucide-react';
-import type { AdminSatHealthResponse } from '../../shared/admin-types';
+import type {
+  AdminPlatformAlert,
+  AdminSatHealthResponse,
+  PlatformAlertStatus
+} from '../../shared/admin-types';
+import { SuperAdminAlertsPanel } from './SuperAdminAlertsPanel';
 
 export interface SuperAdminSatHealthTabProps {
   satHealth?: AdminSatHealthResponse;
   isLoading: boolean;
   isError?: boolean;
   onRetry?: () => void;
+  alerts?: AdminPlatformAlert[];
+  alertsStatusFilter?: 'ALL' | PlatformAlertStatus;
+  onAlertsStatusFilterChange?: (next: 'ALL' | PlatformAlertStatus) => void;
+  loadingAlerts?: boolean;
+  scanningAlerts?: boolean;
+  mutatingAlertId?: string | null;
+  onScanAlerts?: () => void;
+  onUpdateAlertStatus?: (alertId: string, status: PlatformAlertStatus) => void;
 }
 
 const SAT_CODE_HINTS: Record<string, string> = {
@@ -64,7 +77,15 @@ export function SuperAdminSatHealthTab({
   satHealth,
   isLoading,
   isError = false,
-  onRetry
+  onRetry,
+  alerts = [],
+  alertsStatusFilter = 'open',
+  onAlertsStatusFilterChange,
+  loadingAlerts = false,
+  scanningAlerts = false,
+  mutatingAlertId = null,
+  onScanAlerts,
+  onUpdateAlertStatus
 }: SuperAdminSatHealthTabProps) {
   const formatCount = (value?: number) =>
     isLoading && value == null ? '...' : value != null ? value.toLocaleString('es-MX') : '—';
@@ -78,6 +99,18 @@ export function SuperAdminSatHealthTab({
 
   return (
     <div className="space-y-4">
+      {onAlertsStatusFilterChange && onScanAlerts && onUpdateAlertStatus && (
+        <SuperAdminAlertsPanel
+          alerts={alerts}
+          statusFilter={alertsStatusFilter}
+          onStatusFilterChange={onAlertsStatusFilterChange}
+          isLoading={loadingAlerts}
+          isScanning={scanningAlerts}
+          isMutatingId={mutatingAlertId}
+          onScan={onScanAlerts}
+          onUpdateStatus={onUpdateAlertStatus}
+        />
+      )}
       <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>

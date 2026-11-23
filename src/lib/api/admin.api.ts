@@ -1,19 +1,37 @@
 import { handleResponse, getAuthHeaders, fetchWithTimeout } from './api-helpers';
 import type {
   AdminAuditLogEntry,
+  AdminAuditLogsPageQuery,
   AdminBroadcastMessage,
+  AdminCompaniesPageQuery,
   AdminCompanyDetail,
   AdminCompanySummary,
+  AdminPaginatedResponse,
+  AdminPlatformAlert,
   AdminPlatformMetrics,
   AdminSatHealthResponse,
+  AdminUsersPageQuery,
   AdminUserStatusPayload,
-  AdminUserSummary
+  AdminUserSummary,
+  PlatformAlertStatus,
+  PlatformRole,
+  WorkspaceQuota,
+  WorkspaceQuotaPayload
 } from '../../shared/admin-types';
 
 const BROADCAST_STORAGE_KEY = 'librepaq_global_broadcast';
 
 function jsonHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json', ...getAuthHeaders() };
+}
+
+function toQueryString(params: Record<string, string | number | undefined>): string {
+  const sp = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== undefined && val !== '') sp.set(key, String(val));
+  }
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
 }
 
 export const adminApi = {
@@ -27,9 +45,37 @@ export const adminApi = {
     return handleResponse<AdminCompanySummary[]>(res);
   },
 
+  async getAdminCompaniesPaginated(
+    query?: AdminCompaniesPageQuery
+  ): Promise<AdminPaginatedResponse<AdminCompanySummary>> {
+    const qs = toQueryString({
+      page: query?.page,
+      pageSize: query?.pageSize,
+      search: query?.search,
+      ownerType: query?.ownerType,
+      fielFilter: query?.fielFilter
+    });
+    const res = await fetchWithTimeout(`/api/admin/companies/paginated${qs}`, { headers: getAuthHeaders() });
+    return handleResponse<AdminPaginatedResponse<AdminCompanySummary>>(res);
+  },
+
   async getAdminUsers(): Promise<AdminUserSummary[]> {
     const res = await fetchWithTimeout('/api/admin/users', { headers: getAuthHeaders() });
     return handleResponse<AdminUserSummary[]>(res);
+  },
+
+  async getAdminUsersPaginated(
+    query?: AdminUsersPageQuery
+  ): Promise<AdminPaginatedResponse<AdminUserSummary>> {
+    const qs = toQueryString({
+      page: query?.page,
+      pageSize: query?.pageSize,
+      search: query?.search,
+      status: query?.status,
+      role: query?.role
+    });
+    const res = await fetchWithTimeout(`/api/admin/users/paginated${qs}`, { headers: getAuthHeaders() });
+    return handleResponse<AdminPaginatedResponse<AdminUserSummary>>(res);
   },
 
   async getActiveBroadcast(): Promise<AdminBroadcastMessage | null> {
@@ -90,6 +136,18 @@ export const adminApi = {
     return handleResponse<{ userId: string; status: 'ACTIVO' | 'SUSPENDIDO' }>(res);
   },
 
+  async setAdminUserRole(
+    userId: string,
+    platformRole: PlatformRole
+  ): Promise<{ userId: string; platformRole: PlatformRole }> {
+    const res = await fetchWithTimeout(`/api/admin/users/${encodeURIComponent(userId)}/role`, {
+      method: 'PATCH',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ platformRole })
+    });
+    return handleResponse<{ userId: string; platformRole: PlatformRole }>(res);
+  },
+
   async deleteAdminCompany(companyId: string): Promise<{ deleted: boolean; companyId: string }> {
     const res = await fetchWithTimeout(`/api/admin/companies/${encodeURIComponent(companyId)}`, {
       method: 'DELETE',
@@ -105,6 +163,20 @@ export const adminApi = {
     return handleResponse<AdminAuditLogEntry[]>(res);
   },
 
+  async getAdminAuditLogsPaginated(
+    query?: AdminAuditLogsPageQuery
+  ): Promise<AdminPaginatedResponse<AdminAuditLogEntry>> {
+    const qs = toQueryString({
+      page: query?.page,
+      pageSize: query?.pageSize,
+      search: query?.search,
+      action: query?.action,
+      targetType: query?.targetType
+    });
+    const res = await fetchWithTimeout(`/api/admin/audit-logs/paginated${qs}`, { headers: getAuthHeaders() });
+    return handleResponse<AdminPaginatedResponse<AdminAuditLogEntry>>(res);
+  },
+
   async recordAdminAuditLog(payload: {
     action: string;
     targetType: string;
@@ -117,6 +189,49 @@ export const adminApi = {
       body: JSON.stringify(payload)
     });
     await handleResponse<{ ok?: boolean }>(res);
+  },
+
+  async getWorkspaceQuota(workspaceId: string): Promise<WorkspaceQuota> {
+    const res = await fetchWithTimeout(`/api/admin/workspaces/${encodeURIComponent(workspaceId)}/quota`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse<WorkspaceQuota>(res);
+  },
+
+  async upsertWorkspaceQuota(workspaceId: string, payload: WorkspaceQuotaPayload): Promise<WorkspaceQuota> {
+    const res = await fetchWithTimeout(`/api/admin/workspaces/${encodeURIComponent(workspaceId)}/quota`, {
+      method: 'PUT',
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return handleResponse<WorkspaceQuota>(res);
+  },
+
+  async getAdminPlatformAlerts(status: 'ALL' | PlatformAlertStatus = 'ALL'): Promise<AdminPlatformAlert[]> {
+    const res = await fetchWithTimeout(`/api/admin/alerts?status=${encodeURIComponent(status)}`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse<AdminPlatformAlert[]>(res);
+  },
+
+  async runAdminHealthScan(): Promise<{ scannedAtIso: string; alertsCreated: number; openAlertsCount: number }> {
+    const res = await fetchWithTimeout('/api/admin/health-scan', {
+      method: 'POST',
+      headers: jsonHeaders()
+    });
+    return handleResponse<{ scannedAtIso: string; alertsCreated: number; openAlertsCount: number }>(res);
+  },
+
+  async updateAdminPlatformAlertStatus(
+    alertId: string,
+    status: PlatformAlertStatus
+  ): Promise<AdminPlatformAlert> {
+    const res = await fetchWithTimeout(`/api/admin/alerts/${encodeURIComponent(alertId)}`, {
+      method: 'PATCH',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ status })
+    });
+    return handleResponse<AdminPlatformAlert>(res);
   },
 
   getBroadcastMessage(): AdminBroadcastMessage | null {

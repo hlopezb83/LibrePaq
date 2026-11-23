@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCompany } from '../context/CompanyContext';
 import { MESES_SAT } from '../shared/sat-constants';
 import { useToast } from '../context/ToastContext';
@@ -7,6 +8,8 @@ import type { Company } from '../shared/types';
 import { getCompanyTheme } from './company-switcher/companyThemes';
 import { useAuth, checkIsSuperAdmin } from '../context/AuthContext';
 import { useUIModal } from '../context/UIModalContext';
+import { apiClient } from '../lib/api-client';
+import { endSupportSession, useSupportSession } from '../lib/support-impersonation';
 import { AppShellSidebar } from './shell/AppShellSidebar';
 import { AppShellTopHeader } from './shell/AppShellTopHeader';
 import { AppShellFooter } from './shell/AppShellFooter';
@@ -18,6 +21,7 @@ import { useAppShellDocumentTitle } from './shell/useAppShellDocumentTitle';
 import { useAppShellData } from './shell/useAppShellData';
 import { WhatsAppSupportButton } from './WhatsAppSupportButton';
 import { BroadcastBanner } from './shell/BroadcastBanner';
+import { SupportModeBanner } from './shell/SupportModeBanner';
 import { ExecutiveTopHeader } from './shell/ExecutiveTopHeader';
 import { WorkspaceEmptyView } from './workspace/WorkspaceEmptyView';
 import { SandboxDemoBanner } from './workspace/SandboxDemoBanner';
@@ -26,27 +30,21 @@ import { GuestDemoBanner } from './shell/GuestDemoBanner';
 import { AppErrorBoundary } from './AppErrorBoundary';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const {
-    workspace,
-    renameWorkspace,
-    companies,
-    activeCompany,
-    activeCompanyId,
-    setActiveCompanyId,
-    updatePeriod,
-    isLoading: companiesLoading
-  } = useCompany();
+  const { workspace, renameWorkspace, companies, activeCompany, activeCompanyId, setActiveCompanyId, updatePeriod, isLoading: companiesLoading, isReadOnlySupportMode } = useCompany();
   const activeYear = activeCompany?.currentYear;
   const activePeriod = activeCompany?.currentPeriod;
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const wizardDialogRef = useRef<HTMLDialogElement>(null), switcherDialogRef = useRef<HTMLDialogElement>(null);
   const cmdDialogRef = useRef<HTMLDialogElement>(null), cmdInputRef = useRef<HTMLInputElement>(null);
   const shortcutsDialogRef = useRef<HTMLDialogElement>(null), authDialogRef = useRef<HTMLDialogElement>(null);
 
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, hasAdminAccess, signOut } = useAuth();
+  const supportSession = useSupportSession();
   const toast = useToast();
+  const [isExitingSupport, setIsExitingSupport] = useState(false);
 
   const [hasOpenedCmd, setHasOpenedCmd] = useState(false);
   const [hasOpenedWizard, setHasOpenedWizard] = useState(false);
@@ -95,20 +93,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const openCompanySwitcherModal = useCallback(() => openModalWithRef(switcherDialogRef, hasOpenedSwitcher, setHasOpenedSwitcher, () => switcherDialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()), [openModalWithRef, hasOpenedSwitcher]);
   const openShortcutsModal = useCallback(() => openModalWithRef(shortcutsDialogRef, hasOpenedShortcuts, setHasOpenedShortcuts, () => shortcutsDialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()), [openModalWithRef, hasOpenedShortcuts]);
-  const openNewCompanyModal = useCallback(
-    () =>
-      openModalWithRef(wizardDialogRef, hasOpenedWizard, setHasOpenedWizard, () =>
-        wizardDialogRef.current?.querySelector<HTMLInputElement>('#wizard-comp-name')?.focus()
-      ),
-    [openModalWithRef, hasOpenedWizard]
-  );
-  const openAuthModal = useCallback(
-    () =>
-      openModalWithRef(authDialogRef, hasOpenedAuth, setHasOpenedAuth, () =>
-        authDialogRef.current?.querySelector<HTMLInputElement>('#auth-fullname, #auth-email')?.focus()
-      ),
-    [openModalWithRef, hasOpenedAuth]
-  );
+  const openNewCompanyModal = useCallback(() => openModalWithRef(wizardDialogRef, hasOpenedWizard, setHasOpenedWizard, () => wizardDialogRef.current?.querySelector<HTMLInputElement>('#wizard-comp-name')?.focus()), [openModalWithRef, hasOpenedWizard]);
+  const openAuthModal = useCallback(() => openModalWithRef(authDialogRef, hasOpenedAuth, setHasOpenedAuth, () => authDialogRef.current?.querySelector<HTMLInputElement>('#auth-fullname, #auth-email')?.focus()), [openModalWithRef, hasOpenedAuth]);
   const openCommandPaletteModal = useCallback(() => {
     setCmdQuery('');
     openModalWithRef(cmdDialogRef, hasOpenedCmd, setHasOpenedCmd, () => cmdInputRef.current?.focus());
@@ -125,31 +111,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [hasOpenedWizard, closeModal]);
   useEffect(() => { try { localStorage.setItem('librepaq_sidebar_collapsed', String(sidebarCollapsed)); } catch {} }, [sidebarCollapsed]);
 
-  const isPublicPage =
-    currentPath === '/landing' ||
-    currentPath === '/privacy' ||
-    currentPath === '/terms' ||
-    currentPath === '/reset-password' ||
-    (!user && currentPath === '/');
-
-  const {
-    accounts,
-    polizas,
-    periodLock,
-    togglePeriodLockMutation
-  } = useAppShellData({
-    activeCompanyId,
-    activeYear,
-    activePeriod,
-    isPublicPage,
-    hasOpenedCmd,
-    toast
+  const isPublicPage = ['/landing', '/privacy', '/terms', '/reset-password'].includes(currentPath) || (!user && currentPath === '/');
+  const { accounts, polizas, periodLock, togglePeriodLockMutation } = useAppShellData({
+    activeCompanyId, activeYear, activePeriod, isPublicPage, hasOpenedCmd, toast
   });
 
 
-  const isOwner = checkIsSuperAdmin(user);
+  const hasPlatformRole = hasAdminAccess || checkIsSuperAdmin(user);
+  const isOwner = hasPlatformRole && !isReadOnlySupportMode;
   const navItems = isOwner ? SUPERADMIN_NAV_ITEMS : APP_SHELL_NAV_ITEMS;
-  const isWorkspaceEmpty = Boolean(user && !isOwner && !companiesLoading && companies.length === 0);
+  const isWorkspaceEmpty = Boolean(user && !hasPlatformRole && !companiesLoading && companies.length === 0);
+
+  const handleExitSupportMode = useCallback(async () => {
+    if (!supportSession || isExitingSupport) return;
+    setIsExitingSupport(true);
+    try {
+      await apiClient.recordAdminAuditLog({
+        action: 'END_SUPPORT_IMPERSONATION',
+        targetType: 'company',
+        targetId: supportSession.companyId,
+        metadata: { rfc: supportSession.companyRfc, name: supportSession.companyName }
+      });
+    } catch { /* best-effort audit */ } finally {
+      endSupportSession();
+      void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] });
+      setIsExitingSupport(false);
+      void navigate({ to: '/admin', search: { tab: 'companies' } });
+    }
+  }, [supportSession, isExitingSupport, queryClient, navigate]);
 
   useEffect(() => {
     if (!authLoading && user && isOwner && currentPath === '/') {
@@ -256,6 +245,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           />
         )}
 
+        {isReadOnlySupportMode && supportSession && (
+          <SupportModeBanner session={supportSession} onExit={() => void handleExitSupportMode()} isExiting={isExitingSupport} />
+        )}
         <BroadcastBanner />
 
         <main

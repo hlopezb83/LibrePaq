@@ -6,6 +6,7 @@ import {
   trackWorkspaceSignupConversion
 } from '../lib/analytics';
 import { useAuth, checkIsSuperAdmin } from './AuthContext';
+import { useSupportSession } from '../lib/support-impersonation';
 import type { Company } from '../shared/types';
 
 export interface UserWorkspace {
@@ -24,14 +25,17 @@ interface CompanyContextValue {
   updatePeriod: (year: number, period: number) => void;
   isUpdatingPeriod: boolean;
   isLoading: boolean;
+  isReadOnlySupportMode: boolean;
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const { user, loading: authLoading } = useAuth();
-  const isOwner = checkIsSuperAdmin(user);
+  const { user, loading: authLoading, hasAdminAccess } = useAuth();
+  const supportSession = useSupportSession();
+  const isReadOnlySupportMode = Boolean(supportSession && (hasAdminAccess || checkIsSuperAdmin(user)));
+  const isOwner = (hasAdminAccess || checkIsSuperAdmin(user)) && !isReadOnlySupportMode;
   const userScope = user?.id || 'demo';
   const storageKey = `librepaq_company_id_${userScope}`;
   const wsStorageKey = `librepaq_workspace_name_${userScope}`;
@@ -110,6 +114,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const renameWorkspace = useCallback(
     async (nextName: string) => {
+      if (isReadOnlySupportMode) return;
       const clean = nextName.trim();
       if (!clean || !user) return;
       setWorkspaceNameOverride(clean);
@@ -125,14 +130,42 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         workspaceName: clean
       });
     },
-    [user, wsStorageKey]
+    [isReadOnlySupportMode, user, wsStorageKey]
   );
+
+  const { data: supportDetail, isLoading: supportLoading } = useQuery({
+    queryKey: ['support-company-detail', supportSession?.companyId],
+    queryFn: () => apiClient.getAdminCompanyDetail(supportSession!.companyId),
+    enabled: Boolean(isReadOnlySupportMode && supportSession?.companyId)
+  });
 
   const { data: companies = [], isLoading, isError } = useQuery({
     queryKey: ['companies', userScope],
     queryFn: apiClient.getCompanies,
-    enabled: Boolean(user) && !authLoading && !isOwner
+    enabled: Boolean(user) && !authLoading && !hasAdminAccess && !checkIsSuperAdmin(user)
   });
+
+  const supportCompany: Company | null = useMemo(() => {
+    if (!isReadOnlySupportMode || !supportSession) return null;
+    const d = supportDetail?.company;
+    return {
+      id: supportSession.companyId,
+      name: d?.name || supportSession.companyName,
+      rfc: d?.rfc || supportSession.companyRfc,
+      regimenFiscal: d?.regimenFiscal || '601 - General de Ley Personas Morales',
+      codigoPostal: d?.codigoPostal || '64000',
+      maskFormat: 'XXX-XX-XXX',
+      currentYear: d?.currentYear ?? new Date().getFullYear(),
+      currentPeriod: d?.currentPeriod ?? 1,
+      createdAt: d?.createdAt || supportSession.startedAt,
+      userId: d?.userId ?? null
+    };
+  }, [isReadOnlySupportMode, supportSession, supportDetail]);
+
+  const effectiveCompanies = useMemo(
+    () => (supportCompany ? [supportCompany] : companies),
+    [supportCompany, companies]
+  );
 
   useEffect(() => {
     if (isLoading || isError) return;
@@ -174,8 +207,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     [queryClient, userScope, storageKey]
   );
 
-  const activeCompany =
-    companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null;
+  const activeCompany = supportCompany ?? companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null;
 
   const resolvedActiveCompanyId = activeCompany?.id ?? '';
 
@@ -198,33 +230,36 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const updatePeriod = useCallback(
     (year: number, period: number) => {
-      if (!resolvedActiveCompanyId) return;
+      if (isReadOnlySupportMode || !resolvedActiveCompanyId) return;
       mutatePeriod({ year, period });
     },
-    [resolvedActiveCompanyId, mutatePeriod]
+    [isReadOnlySupportMode, resolvedActiveCompanyId, mutatePeriod]
   );
 
   const contextValue = useMemo<CompanyContextValue>(
     () => ({
       workspace,
       renameWorkspace,
-      companies,
+      companies: effectiveCompanies,
       activeCompany,
       activeCompanyId: resolvedActiveCompanyId,
       setActiveCompanyId,
       updatePeriod,
       isUpdatingPeriod,
-      isLoading
+      isLoading: isReadOnlySupportMode ? supportLoading : isLoading,
+      isReadOnlySupportMode
     }),
     [
       workspace,
       renameWorkspace,
-      companies,
+      effectiveCompanies,
       activeCompany,
       resolvedActiveCompanyId,
       setActiveCompanyId,
       updatePeriod,
       isUpdatingPeriod,
+      isReadOnlySupportMode,
+      supportLoading,
       isLoading
     ]
   );

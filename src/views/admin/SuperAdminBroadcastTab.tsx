@@ -33,7 +33,7 @@ function formatExpirationLabel(iso: string): string {
     : date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export function SuperAdminBroadcastTab() {
+export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boolean }) {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -165,7 +165,7 @@ export function SuperAdminBroadcastTab() {
                 <p className="text-xs mt-0.5 text-slate-800">{currentBroadcast.message}</p>
               </div>
             </div>
-            {!confirmClear && (
+            {canManage && !confirmClear && (
               <button
                 type="button"
                 disabled={isPending}
@@ -206,7 +206,8 @@ export function SuperAdminBroadcastTab() {
         </div>
       )}
 
-      <form onSubmit={handleSaveBroadcast} className="space-y-3.5 pt-2 border-t border-slate-200">
+      {canManage ? (
+        <form onSubmit={handleSaveBroadcast} className="space-y-3.5 pt-2 border-t border-slate-200">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
           <div className="md:col-span-2">
             <label htmlFor="broadcast-title" className="block text-xs font-bold text-slate-700 mb-1">Título del Comunicado</label>
@@ -257,6 +258,11 @@ export function SuperAdminBroadcastTab() {
           </button>
         </div>
       </form>
+      ) : (
+        <p className="text-xs text-slate-600 pt-2 border-t border-slate-200">
+          Solo el rol <span className="font-mono font-semibold">SUPERADMIN</span> puede publicar o retirar comunicados globales.
+        </p>
+      )}
     </div>
   );
 }
