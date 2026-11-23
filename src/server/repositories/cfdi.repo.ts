@@ -25,7 +25,7 @@ export function getCfdiDocuments(companyId: string, opts?: { includeXml?: boolea
        c.emisor_rfc, c.emisor_nombre, c.receptor_rfc, c.receptor_nombre, c.concepto_principal,
        c.clave_prod_serv, c.moneda, c.tipo_cambio, c.subtotal, c.descuento, c.iva_trasladado,
        c.isr_retenido, c.iva_retenido, c.total, c.metodo_pago, c.forma_pago, c.uso_cfdi,
-       c.uuid_relacionado, c.status_sat, c.poliza_id, '' as xml_raw`;
+       c.uuid_relacionado, c.status_sat, c.poliza_id, c.tax_breakdown, c.related_docs, '' as xml_raw`;
 
   const rows = db
     .query(`
@@ -69,8 +69,9 @@ const insertCfdiStmt = {
           emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre,
           concepto_principal, clave_prod_serv, moneda, tipo_cambio,
           subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total,
-          metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, xml_raw
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'VIGENTE', NULL, ?)
+          metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id,
+          tax_breakdown, related_docs, xml_raw
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'VIGENTE', NULL, ?, ?, ?)
       `);
     }
     return (_insertCfdiStmt as any).run(...args);
@@ -122,6 +123,8 @@ export function insertParsedCfdiRecord(
     parsed.formaPago,
     parsed.usoCfdi,
     parsed.uuidRelacionado || null,
+    parsed.taxBreakdown ? JSON.stringify(parsed.taxBreakdown) : null,
+    parsed.relatedDocs ? JSON.stringify(parsed.relatedDocs) : null,
     parsed.xmlRaw
   );
 

@@ -15,6 +15,11 @@ import { bankRoutes } from './routes/bank.routes';
 import { satRoutes } from './routes/sat.routes';
 import { fiscalRoutes } from './routes/fiscal.routes';
 import { adminRoutes } from './routes/admin.routes';
+import { workspaceMembersRoutes } from './routes/workspace-members.routes';
+import { accountingRulesRoutes } from './routes/accounting-rules.routes';
+import { bankN1Routes } from './routes/bank-n1.routes';
+import { annualTaxRoutes } from './routes/annual-tax.routes';
+import { inventoryRoutes } from './routes/inventory.routes';
 
 // NASA Power of 10 - Regla 6: Inicialización de esquema e integridad referencial
 initDatabase();
@@ -32,7 +37,7 @@ const ENTITY_TABLE_PREFIXES: Array<[RegExp, string]> = [
 // Aislamiento Multi-Tenant en rutas de dominio: verifica propiedad cuando el recurso pertenece a un tenant privado
 api.use('*', async (c, next) => {
   const path = c.req.path;
-  if (path.startsWith('/api/companies') || path.startsWith('/api/admin')) {
+  if (path.startsWith('/api/companies') || path.startsWith('/api/admin') || path.startsWith('/api/workspaces')) {
     return next();
   }
 
@@ -84,3 +89,8 @@ api.route('/', bankRoutes);
 api.route('/', satRoutes);
 api.route('/', fiscalRoutes);
 api.route('/', adminRoutes);
+api.route('/', workspaceMembersRoutes);
+api.route('/', accountingRulesRoutes);
+api.route('/', bankN1Routes);
+api.route('/', annualTaxRoutes);
+api.route('/', inventoryRoutes);

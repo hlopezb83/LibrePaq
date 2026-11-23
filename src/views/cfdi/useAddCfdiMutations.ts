@@ -4,8 +4,14 @@ import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
 import { chunkArray } from '../../shared/array-utils';
+import type { SatBatchVerifyResult } from '../../shared/types';
+
+type SatBatchApiClient = typeof apiClient & {
+  verifyCfdisSatBatch?: (companyId: string, cfdiIds: string[]) => Promise<SatBatchVerifyResult>;
+};
 
 export interface UseAddCfdiMutationsParams {
+  activeCompanyId: string;
   isPeriodLocked: boolean;
   currentYear: number;
   currentPeriod: number;
@@ -18,6 +24,7 @@ export interface UseAddCfdiMutationsParams {
 }
 
 export function useAddCfdiMutations({
+  activeCompanyId,
   isPeriodLocked,
   currentYear,
   currentPeriod,
@@ -185,6 +192,46 @@ export function useAddCfdiMutations({
     }
   });
 
+  const [satBatchAlert, setSatBatchAlert] = useState<{
+    cancelledWithPolizaCount: number;
+    checkedCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setSatBatchAlert(null);
+  }, [activeCompanyId]);
+
+  const verifySatBatchMutation = useMutation({
+    mutationFn: (cfdiIds: string[]) => {
+      const client = apiClient as SatBatchApiClient;
+      if (typeof client.verifyCfdisSatBatch !== 'function') {
+        throw new Error('El servicio de validación SAT en lote aún no está disponible.');
+      }
+      return client.verifyCfdisSatBatch(activeCompanyId, cfdiIds);
+    },
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['cfdis', activeCompanyId] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', activeCompanyId] });
+      if (res.cancelledWithPolizaCount > 0) {
+        setSatBatchAlert({
+          cancelledWithPolizaCount: res.cancelledWithPolizaCount,
+          checkedCount: res.checkedCount
+        });
+        toast.error(
+          `Alerta SAT: ${res.cancelledWithPolizaCount} de ${res.checkedCount} CFDI(s) cancelados ante el SAT aún tienen póliza contable.`
+        );
+      } else {
+        setSatBatchAlert(null);
+        toast.success(
+          `Validación SAT en lote completada: ${res.checkedCount} comprobantes verificados (${res.updatedCount} actualizados).`
+        );
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    }
+  });
+
   return {
     uploadXmlMutation,
     autoPolizaMutation,
@@ -192,6 +239,9 @@ export function useAddCfdiMutations({
     batchContabilizarMutation,
     batchDeleteMutation,
     verifySatMutation,
+    verifySatBatchMutation,
+    satBatchAlert,
+    dismissSatBatchAlert: () => setSatBatchAlert(null),
     batchProgress
   };
 }

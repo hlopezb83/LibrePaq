@@ -8,12 +8,13 @@ import {
   getCfdiXml,
   getCompanyById,
   insertParsedCfdiRecord,
+  verifyCfdisSatBatchRepo,
   verifyCfdiStatusViaSatSoap
 } from '../db';
 import { fromCents, toCents } from '../../shared/accounting-engine';
 import { buildCfdi40Xml, parseCfdiXmlString, type ParsedCfdiPayload } from '../../shared/cfdi-xml';
 import { getDefaultDateForPeriod } from '../../shared/date-utils';
-import { errorStatus } from './route-helpers';
+import { assertRouteCompanyAccess, errorStatus } from './route-helpers';
 
 export const cfdiRoutes = new Hono();
 
@@ -208,6 +209,24 @@ cfdiRoutes.post('/cfdis/:id/verify-sat', async (c) => {
   try {
     const cfdiId = c.req.param('id');
     const res = await verifyCfdiStatusViaSatSoap(cfdiId);
+    return c.json(res);
+  } catch (err) {
+    const { message, status } = errorStatus(err);
+    return c.json({ error: message }, status);
+  }
+});
+
+cfdiRoutes.post('/companies/:companyId/cfdis/verify-sat-batch', async (c) => {
+  try {
+    const companyId = c.req.param('companyId');
+    const denied = assertRouteCompanyAccess(c, companyId);
+    if (denied) return denied;
+    const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+    const body = (await c.req.json().catch(() => ({}))) as { cfdiIds?: unknown };
+    const cfdiIds = Array.isArray(body.cfdiIds)
+      ? body.cfdiIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+    const res = await verifyCfdisSatBatchRepo(companyId, cfdiIds, userId);
     return c.json(res);
   } catch (err) {
     const { message, status } = errorStatus(err);

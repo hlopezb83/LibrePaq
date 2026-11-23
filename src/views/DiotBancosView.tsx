@@ -6,6 +6,9 @@ import { DiotDeclaracionTab } from './fiscal-bancos/DiotDeclaracionTab';
 import { PadronProveedoresTab } from './fiscal-bancos/PadronProveedoresTab';
 import { ActivosFijosTab } from './fiscal-bancos/ActivosFijosTab';
 import { PapelDia17Tab } from './fiscal-bancos/PapelDia17Tab';
+import { CxcCxpTab } from './fiscal-bancos/CxcCxpTab';
+import { NominaImssTab } from './fiscal-bancos/NominaImssTab';
+import { InventarioCostoTab } from './fiscal-bancos/InventarioCostoTab';
 import { useDiotBancosManager } from './fiscal-bancos/useDiotBancosManager';
 
 export function DiotBancosView() {
@@ -173,6 +176,41 @@ export function DiotBancosView() {
             isPeriodLocked={isPeriodLocked}
             onFeedback={handleFeedback}
             onOpenDeliverable={(tab) => openDeliverables(tab)}
+          />
+        </div>
+      )}
+
+      {/* PESTAÑA 6: CXC / CXP (PPD) */}
+      {activeTab === 'CXC_CXP' && (
+        <div role="tabpanel" id="fb-panel-CXC_CXP" aria-labelledby="fb-tab-CXC_CXP">
+          <CxcCxpTab activeCompanyId={activeCompanyId} />
+        </div>
+      )}
+
+      {/* PESTAÑA 7: AMARRE NÓMINA 1.2, SUA IMSS E ISN ESTATAL */}
+      {activeTab === 'NOMINA_IMSS' && (
+        <div role="tabpanel" id="fb-panel-NOMINA_IMSS" aria-labelledby="fb-tab-NOMINA_IMSS">
+          <NominaImssTab
+            activeCompanyId={activeCompanyId}
+            currentYear={currentYear ?? 2026}
+            currentPeriod={currentPeriod ?? 10}
+            isPeriodLocked={isPeriodLocked}
+            accounts={accounts}
+            onFeedback={handleFeedback}
+          />
+        </div>
+      )}
+
+      {/* PESTAÑA 8: INVENTARIO PERIÓDICO Y COSTO DE VENTAS */}
+      {activeTab === 'INVENTARIO_COSTO' && (
+        <div role="tabpanel" id="fb-panel-INVENTARIO_COSTO" aria-labelledby="fb-tab-INVENTARIO_COSTO">
+          <InventarioCostoTab
+            companyId={activeCompanyId}
+            year={currentYear ?? 2026}
+            period={currentPeriod ?? 10}
+            accounts={accounts}
+            isPeriodLocked={isPeriodLocked}
+            onFeedback={handleFeedback}
           />
         </div>
       )}

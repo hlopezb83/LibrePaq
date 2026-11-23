@@ -7,6 +7,7 @@ import { supabaseDiot } from './supabase-diot';
 import { supabaseBank } from './supabase-bank';
 import { supabaseFiscalAndAssets } from './supabase-fiscal-assets';
 import { supabaseFiscalWorkpaper } from './supabase-fiscal-workpaper';
+import { supabaseCxcSat } from './supabase-cxc-sat';
 import { supabaseFielAndSoap } from './supabase-fiel-soap';
 import { supabaseAdminApi } from './supabase-admin';
 import { supabaseAdminEnterpriseApi } from './supabase-admin-enterprise';
@@ -24,6 +25,7 @@ export const supabaseCloudApi = {
   ...supabaseBank,
   ...supabaseFiscalAndAssets,
   ...supabaseFiscalWorkpaper,
+  ...supabaseCxcSat,
   ...supabaseFielAndSoap,
   ...supabaseAdminApi,
   ...supabaseAdminEnterpriseApi,

@@ -1,73 +1,7 @@
-import { SAFETY_BOUNDS } from './sat-constants';
-import { decodeXmlEntities } from './xml-utils';
+import type { CfdiRelatedDoc, CfdiTaxBreakdown } from './types';
+import { findNode, findNodes, getAttr, round2, type XmlNode } from './cfdi-xml-nodes';
 
-export type XmlNode = Record<string, unknown>;
-const MAX_XML_TREE_DEPTH = 24;
-const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
-export function getAttr(node: unknown, attrName: string): string {
-  if (!node || typeof node !== 'object') return '';
-  const rec = node as XmlNode;
-  const attrKey = `@_${attrName}`;
-  if (!Object.hasOwn(rec, attrKey)) return '';
-  const val = rec[attrKey];
-  return typeof val === 'string' || typeof val === 'number'
-    ? decodeXmlEntities(String(val).trim())
-    : '';
-}
-
-export function findNode(node: unknown, targetTag: string, depth = 0): XmlNode | null {
-  if (!node || typeof node !== 'object' || depth > MAX_XML_TREE_DEPTH) return null;
-  const rec = node as XmlNode;
-  if (!UNSAFE_KEYS.has(targetTag) && Object.hasOwn(rec, targetTag) && rec[targetTag]) {
-    const val = rec[targetTag];
-    return Array.isArray(val) ? ((val[0] as XmlNode) ?? null) : (val as XmlNode);
-  }
-  for (const k of Object.keys(rec)) {
-    if (UNSAFE_KEYS.has(k) || k.startsWith('@_')) continue;
-    const child = rec[k];
-    if (Array.isArray(child)) {
-      for (const item of child) {
-        const found = findNode(item, targetTag, depth + 1);
-        if (found) return found;
-      }
-    } else if (child && typeof child === 'object') {
-      const found = findNode(child, targetTag, depth + 1);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-export function findNodes(node: unknown, targetTag: string): XmlNode[] {
-  const results: XmlNode[] = [];
-  function recurse(curr: unknown, depth: number) {
-    if (!curr || typeof curr !== 'object' || depth > MAX_XML_TREE_DEPTH) return;
-    if (results.length >= SAFETY_BOUNDS.MAX_XML_TAGS) return;
-    const rec = curr as XmlNode;
-    for (const k of Object.keys(rec)) {
-      if (UNSAFE_KEYS.has(k)) continue;
-      const v = rec[k];
-      if (k === targetTag) {
-        if (Array.isArray(v)) {
-          for (const item of v) {
-            if (item && typeof item === 'object') results.push(item as XmlNode);
-          }
-        } else if (v && typeof v === 'object') {
-          results.push(v as XmlNode);
-        }
-      } else if (!k.startsWith('@_') && v && typeof v === 'object') {
-        if (Array.isArray(v)) {
-          for (const item of v) recurse(item, depth + 1);
-        } else {
-          recurse(v, depth + 1);
-        }
-      }
-    }
-  }
-  recurse(node, 0);
-  return results;
-}
+export { findNode, findNodes, getAttr, type XmlNode };
 
 export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | null) {
   const pagoTotales = findNode(doc, 'Totales');
@@ -125,17 +59,67 @@ export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | nu
     .filter(Boolean);
   const uuidRelacionado = uuidsRelacionados[0] || fallbackUuidRel;
 
+  const relatedDocs: CfdiRelatedDoc[] = [];
+  let exentoDrFallback = 0;
+  for (const dr of allDoctosRel) {
+    const idDocumento = getAttr(dr, 'IdDocumento').toUpperCase();
+    if (!idDocumento) continue;
+    const numParcialidad = Number.parseInt(getAttr(dr, 'NumParcialidad') || '1', 10) || 1;
+    const impSaldoAnt = round2(parseFloat(getAttr(dr, 'ImpSaldoAnt') || '0') || 0);
+    const impPagado = round2(parseFloat(getAttr(dr, 'ImpPagado') || '0') || 0);
+    const impSaldoInsoluto = round2(parseFloat(getAttr(dr, 'ImpSaldoInsoluto') || '0') || 0);
+    const monedaDr = getAttr(dr, 'MonedaDR').toUpperCase() || undefined;
+    const rawEq = getAttr(dr, 'EquivalenciaDR') || getAttr(dr, 'TipoCambioDR');
+    const parsedEq = rawEq ? parseFloat(rawEq) : NaN;
+    const equivalenciaDr = Number.isFinite(parsedEq) && parsedEq > 0 ? parsedEq : undefined;
+    const objetoImpDr = getAttr(dr, 'ObjetoImpDR');
+    if (objetoImpDr === '01' || objetoImpDr === '03') {
+      exentoDrFallback += impPagado;
+    }
+    relatedDocs.push({
+      idDocumento,
+      numParcialidad,
+      impSaldoAnt,
+      impPagado,
+      impSaldoInsoluto,
+      ...(monedaDr ? { monedaDr } : {}),
+      ...(equivalenciaDr !== undefined ? { equivalenciaDr } : {})
+    });
+  }
+
+  const taxBreakdown: CfdiTaxBreakdown = hasExplicitBases
+    ? {
+        base16: round2(base16),
+        iva16: round2(imp16),
+        base8: round2(base8),
+        iva8: round2(imp8),
+        base0: round2(base0),
+        baseExento: round2(baseExento),
+        ieps: 0
+      }
+    : {
+        base16: ivaTrasladado > 0 ? round2(subtotal) : 0,
+        iva16: ivaTrasladado > 0 ? round2(ivaTrasladado) : 0,
+        base8: 0,
+        iva8: 0,
+        base0: ivaTrasladado === 0 && exentoDrFallback === 0 ? round2(subtotal) : 0,
+        baseExento: round2(exentoDrFallback),
+        ieps: 0
+      };
+
   return {
-    subtotal: Number(subtotal.toFixed(2)),
-    ivaTrasladado: Number(ivaTrasladado.toFixed(2)),
-    isrRetenido: Number(isrRetenido.toFixed(2)),
-    ivaRetenido: Number(ivaRetenido.toFixed(2)),
-    total: Number(montoTotalPagos.toFixed(2)),
+    subtotal: round2(subtotal),
+    ivaTrasladado: round2(ivaTrasladado),
+    isrRetenido: round2(isrRetenido),
+    ivaRetenido: round2(ivaRetenido),
+    total: round2(montoTotalPagos),
     formaPago: getAttr(firstPago, 'FormaDePagoP') || '03',
     moneda,
     tipoCambio,
     uuidRelacionado,
-    uuidsRelacionados
+    uuidsRelacionados,
+    relatedDocs,
+    taxBreakdown
   };
 }
 
@@ -168,8 +152,8 @@ export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number) {
 }
 
 export function parseStandardImpuestos(doc: XmlNode) {
-  const comprobanteNode = findNode(doc, 'Comprobante');
-  const directImpuestosRaw = comprobanteNode?.['Impuestos'];
+  const comprobanteNode = findNode(doc, 'Comprobante') ?? doc;
+  const directImpuestosRaw = comprobanteNode['Impuestos'];
   const globalImpuestosAttrs: XmlNode | null = Array.isArray(directImpuestosRaw)
     ? ((directImpuestosRaw[directImpuestosRaw.length - 1] as XmlNode) ?? null)
     : directImpuestosRaw && typeof directImpuestosRaw === 'object'
@@ -222,4 +206,102 @@ export function parseStandardImpuestos(doc: XmlNode) {
   }
 
   return { ivaTrasladado, isrRetenido, ivaRetenido };
+}
+
+export function extractCfdiTaxBreakdown(
+  doc: XmlNode,
+  subtotalFallback: number,
+  ivaFallback: number
+): CfdiTaxBreakdown {
+  const comprobanteNode = findNode(doc, 'Comprobante') ?? doc;
+  const directImpuestosRaw = comprobanteNode['Impuestos'];
+  const globalImpuestos: XmlNode | null = Array.isArray(directImpuestosRaw)
+    ? ((directImpuestosRaw[directImpuestosRaw.length - 1] as XmlNode) ?? null)
+    : directImpuestosRaw && typeof directImpuestosRaw === 'object'
+      ? (directImpuestosRaw as XmlNode)
+      : null;
+
+  const conceptosNode = comprobanteNode['Conceptos'] ?? doc['Conceptos'];
+  const conceptos = conceptosNode ? findNodes(conceptosNode, 'Concepto') : [];
+  const rootTraslados = globalImpuestos ? findNodes(globalImpuestos, 'Traslado') : [];
+  const conceptTraslados =
+    rootTraslados.length > 0
+      ? []
+      : (conceptosNode ? findNodes(conceptosNode, 'Impuestos') : []).flatMap((ci) =>
+          findNodes(ci, 'Traslado')
+        );
+  const traslados = rootTraslados.length > 0 ? rootTraslados : conceptTraslados;
+
+  let base16 = 0;
+  let iva16 = 0;
+  let base8 = 0;
+  let iva8 = 0;
+  let base0 = 0;
+  let baseExento = 0;
+  let ieps = 0;
+
+  for (const t of traslados) {
+    const imp = getAttr(t, 'Impuesto');
+    const factor = getAttr(t, 'TipoFactor');
+    const tasa = parseFloat(getAttr(t, 'TasaOCuota') || '0') || 0;
+    const base = parseFloat(getAttr(t, 'Base') || '0') || 0;
+    const importe = parseFloat(getAttr(t, 'Importe') || '0') || 0;
+    if (imp === '003') {
+      ieps += importe;
+    } else if (imp === '002' || !imp) {
+      if (factor === 'Exento') {
+        baseExento += base;
+      } else if (Math.abs(tasa - 0.16) < 0.005) {
+        iva16 += importe;
+        base16 += base > 0 ? base : importe / 0.16;
+      } else if (Math.abs(tasa - 0.08) < 0.005) {
+        iva8 += importe;
+        base8 += base > 0 ? base : importe / 0.08;
+      } else if (factor === 'Tasa' && tasa === 0) {
+        base0 += base;
+      } else if (importe > 0) {
+        iva16 += importe;
+        base16 += base > 0 ? base : importe / 0.16;
+      }
+    }
+  }
+
+  let firstObjetoImp: string | undefined;
+  for (const c of conceptos) {
+    const obj = getAttr(c, 'ObjetoImp');
+    if (!firstObjetoImp && obj) firstObjetoImp = obj;
+    if ((obj === '01' || obj === '03') && findNodes(c, 'Traslado').length === 0) {
+      const imp = parseFloat(getAttr(c, 'Importe') || '0') || 0;
+      const desc = parseFloat(getAttr(c, 'Descuento') || '0') || 0;
+      baseExento += Math.max(0, imp - desc);
+    }
+  }
+
+  if (base16 === 0 && iva16 === 0 && base8 === 0 && iva8 === 0 && base0 === 0 && baseExento === 0) {
+    const netSub = Math.max(0, subtotalFallback);
+    if (ivaFallback > 0) {
+      const ratio = netSub > 0 ? ivaFallback / netSub : 0.16;
+      if (Math.abs(ratio - 0.08) < 0.015) {
+        base8 = netSub;
+        iva8 = ivaFallback;
+      } else {
+        base16 = netSub;
+        iva16 = ivaFallback;
+      }
+    } else if (netSub > 0) {
+      if (firstObjetoImp === '01' || firstObjetoImp === '03') baseExento = netSub;
+      else base0 = netSub;
+    }
+  }
+
+  return {
+    base16: round2(base16),
+    iva16: round2(iva16),
+    base8: round2(base8),
+    iva8: round2(iva8),
+    base0: round2(base0),
+    baseExento: round2(baseExento),
+    ieps: round2(ieps),
+    ...(firstObjetoImp ? { objetoImp: firstObjetoImp } : {})
+  };
 }

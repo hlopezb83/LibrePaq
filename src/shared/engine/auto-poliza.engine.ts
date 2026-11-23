@@ -13,7 +13,9 @@ import {
 } from './auto-poliza-rules';
 import {
   resolveFiscalAccount,
-  inferExpenseAccountForCfdi
+  inferExpenseAccountForCfdi,
+  resolveMatchingAccountingRule,
+  resolveNonDeductibleAccount
 } from './auto-poliza-account-resolver';
 import type {
   AutoPolizaMovementDraft,
@@ -22,7 +24,12 @@ import type {
 } from './auto-poliza-types';
 
 export type { AutoPolizaMovementDraft, AutoPolizaOverrides, AutoPolizaPlan };
-export { resolveFiscalAccount, inferExpenseAccountForCfdi };
+export {
+  resolveFiscalAccount,
+  inferExpenseAccountForCfdi,
+  resolveMatchingAccountingRule,
+  resolveNonDeductibleAccount
+};
 
 
 /**
@@ -56,21 +63,27 @@ export function buildAutoPolizaPlan(
     'No existen cuentas en el catálogo para generar la póliza.'
   );
 
-  const effectiveOverrides: AutoPolizaOverrides | undefined = overrides?.thirdParty
-    ? {
-        ...overrides,
-        operationAccountCode:
-          overrides.operationAccountCode ??
-          overrides.expenseOrIncomeAccountId ??
-          overrides.thirdParty.cuentaOperacionCode,
-        counterAccountCode:
-          overrides.counterAccountCode ??
-          overrides.bankOrCounterpartyAccountId ??
-          (cfdi.metodoPago === 'PPD'
-            ? overrides.thirdParty.cuentaContrapartidaCode
-            : undefined)
-      }
-    : overrides;
+  const matchedRule = resolveMatchingAccountingRule(cfdi, overrides?.rules);
+  const manualOp =
+    (overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId)?.trim() || undefined;
+  const manualCounter =
+    (overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId)?.trim() || undefined;
+
+  const effectiveOverrides: AutoPolizaOverrides | undefined =
+    overrides || matchedRule
+      ? {
+          ...overrides,
+          operationAccountCode:
+            manualOp ?? matchedRule?.operationAccountCode ?? overrides?.thirdParty?.cuentaOperacionCode,
+          counterAccountCode:
+            manualCounter ??
+            matchedRule?.counterAccountCode ??
+            (cfdi.metodoPago === 'PPD'
+              ? overrides?.thirdParty?.cuentaContrapartidaCode
+              : undefined),
+          deductiblePct: overrides?.deductiblePct ?? matchedRule?.deductiblePct
+        }
+      : undefined;
 
   const built =
     cfdi.tipoComprobante === 'P'
@@ -85,14 +98,14 @@ export function buildAutoPolizaPlan(
   const totalAbonoCents = sumCents(built.movements.map((m) => m.abono));
 
   // Ajuste de redondeo fiscal (1..5 centavos MXN o equivalente cambiario de $0.02 divisa extranjera)
-  // Se aplica preferentemente sobre la partida de resultados (4xx/5xx/6xx/7xx) para no alterar Bancos/Clientes
+  // Se aplica preferentemente sobre la partida de resultados (4xx/5xx/6xx/7xx/8xx) para no alterar Bancos/Clientes
   const diffCents = totalCargoCents - totalAbonoCents;
   const isForeign =
     Boolean(cfdi.moneda && cfdi.moneda.toUpperCase() !== 'MXN') && (cfdi.tipoCambio || 1) > 1;
   const maxRoundingCents = isForeign ? Math.max(5, Math.ceil((cfdi.tipoCambio || 1) * 2)) : 5;
   if (diffCents !== 0 && Math.abs(diffCents) <= maxRoundingCents && built.movements.length > 0) {
     const resultLine =
-      built.movements.find((m) => /^[4567]/.test(m.accountCode)) ?? built.movements[0];
+      built.movements.find((m) => /^[45678]/.test(m.accountCode)) ?? built.movements[0];
     if (resultLine) {
       if (resultLine.cargo > 0 && toCents(resultLine.cargo) > diffCents) {
         resultLine.cargo = fromCents(toCents(resultLine.cargo) - diffCents);
@@ -111,6 +124,7 @@ export function buildAutoPolizaPlan(
     movements: built.movements,
     totalCargo: fromCents(finalCargoCents),
     totalAbono: fromCents(finalAbonoCents),
-    isBalanced: finalCargoCents > 0 && finalCargoCents === finalAbonoCents
+    isBalanced: finalCargoCents > 0 && finalCargoCents === finalAbonoCents,
+    matchedRule
   };
 }

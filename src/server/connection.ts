@@ -6,6 +6,8 @@ import type {
   AccountNature,
   AccountType,
   CfdiDocument,
+  CfdiRelatedDoc,
+  CfdiTaxBreakdown,
   Company,
   Efos69BStatus,
   FixedAssetCategory,
@@ -110,6 +112,8 @@ export interface CfdiDbRow {
   status_sat: 'VIGENTE' | 'CANCELADO';
   poliza_id: string | null;
   poliza_folio?: string | null;
+  tax_breakdown?: string | null;
+  related_docs?: string | null;
   xml_raw: string;
 }
 
@@ -214,6 +218,17 @@ export function mapAccountRow(r: AccountDbRow): Account {
   };
 }
 
+function parseJsonField<T>(raw: unknown): T | null {
+  if (raw == null) return null;
+  if (typeof raw === 'object') return raw as T;
+  if (typeof raw !== 'string' || raw.trim().length === 0) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function mapCfdiRow(r: CfdiDbRow): CfdiDocument {
   return {
     id: r.id,
@@ -245,6 +260,8 @@ export function mapCfdiRow(r: CfdiDbRow): CfdiDocument {
     statusSat: r.status_sat,
     polizaId: r.poliza_id,
     polizaFolio: r.poliza_folio || null,
+    taxBreakdown: parseJsonField<CfdiTaxBreakdown>(r.tax_breakdown),
+    relatedDocs: parseJsonField<CfdiRelatedDoc[]>(r.related_docs),
     xmlRaw: r.xml_raw
   };
 }

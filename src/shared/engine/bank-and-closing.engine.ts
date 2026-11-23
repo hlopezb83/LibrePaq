@@ -13,6 +13,8 @@ import {
   validateDoubleEntryMovements
 } from './invariants-and-math';
 
+export { findManyToOneBankMatches } from './bank-n1-matcher';
+
 export interface BankMatchPair {
   statementLineId: string;
   movementId: string;

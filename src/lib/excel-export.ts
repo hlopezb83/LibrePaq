@@ -1,6 +1,15 @@
 import writeXlsx, { type SheetData } from 'write-excel-file/browser';
 import { sanitizeSpreadsheetText } from '../shared/date-utils';
 import type { Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../shared/types';
+import type { ExtendedFinancialStatementsResponse } from '../shared/types/extended-statements.types';
+import {
+  buildCashFlowSheetData,
+  buildComparativeSheetData,
+  buildEquityChangesSheetData,
+  exportExtendedStatementsXlsx
+} from './excel-extended-sheets';
+
+export { exportExtendedStatementsXlsx };
 
 interface AccountLedgerEntry {
   fecha: string;
@@ -125,7 +134,9 @@ export async function exportDeliverablesXlsx({
   company,
   year,
   period,
-  formatVerticalPct
+  formatVerticalPct,
+  extendedStatements,
+  mesNombre
 }: {
   reportsData: FinancialStatementsResponse | null | undefined;
   fiscalData: FiscalWorkpaperResponse | null | undefined;
@@ -133,6 +144,8 @@ export async function exportDeliverablesXlsx({
   year: number;
   period: number;
   formatVerticalPct: (amount: number, base: number) => string;
+  extendedStatements?: ExtendedFinancialStatementsResponse | null;
+  mesNombre?: string;
 }): Promise<void> {
   if (!reportsData) return;
 
@@ -318,10 +331,19 @@ export async function exportDeliverablesXlsx({
 
   const safeFileRfc = company.rfc.replace(/[^a-zA-Z0-9]/g, '');
   const fileName = `Dossier_Ejecutivo_${safeFileRfc}_${year}_P${String(period).padStart(2, '0')}.xlsx`;
-  await writeXlsx([
+  const mesLabel = mesNombre || `Periodo ${String(period).padStart(2, '0')}`;
+  const sheets = [
     { sheet: 'Balanza', data: balanzaSheet },
     { sheet: 'Estado de Resultados', data: erSheet },
     { sheet: 'Balance General', data: bgSheet },
     { sheet: 'Papel Dia 17', data: dia17Sheet }
-  ]).toFile(fileName);
+  ];
+  if (extendedStatements) {
+    sheets.push(
+      { sheet: 'Flujos NIF B-2', data: buildCashFlowSheetData(extendedStatements, mesLabel) },
+      { sheet: 'Cambios Capital NIF B-4', data: buildEquityChangesSheetData(extendedStatements, mesLabel) },
+      { sheet: 'Comparativo Anual', data: buildComparativeSheetData(extendedStatements, mesLabel) }
+    );
+  }
+  await writeXlsx(sheets).toFile(fileName);
 }

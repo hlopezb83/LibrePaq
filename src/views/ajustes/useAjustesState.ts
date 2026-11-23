@@ -7,7 +7,7 @@ import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import { useAjustesBackups } from './useAjustesBackups';
 import { useAjustesEfirma } from './useAjustesEfirma';
 
-export type AjustesTab = 'directorio' | 'empresa' | 'efirma' | 'fiscal' | 'respaldos' | 'atajos';
+export type AjustesTab = 'directorio' | 'empresa' | 'efirma' | 'fiscal' | 'respaldos' | 'atajos' | 'equipo';
 
 export function useAjustesState() {
   const {
@@ -27,7 +27,8 @@ export function useAjustesState() {
         tabParam === 'empresa' ||
         tabParam === 'fiscal' ||
         tabParam === 'respaldos' ||
-        tabParam === 'atajos'
+        tabParam === 'atajos' ||
+        tabParam === 'equipo'
       ) {
         return tabParam;
       }

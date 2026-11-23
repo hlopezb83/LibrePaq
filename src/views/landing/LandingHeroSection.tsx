@@ -166,7 +166,7 @@ export function LandingHeroSection({ onOpenAuth, onOpenDemo }: LandingHeroSectio
             <div
               role="tablist"
               aria-label="Vistas previas interactivas del sistema"
-              className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-lg text-[11px] sm:text-xs font-medium overflow-x-auto max-w-full"
+              className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-lg text-[11px] sm:text-xs font-medium erp-tab-scroller max-w-full"
             >
               {PREVIEW_TABS.map((tab) => (
                 <button

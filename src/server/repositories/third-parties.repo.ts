@@ -8,6 +8,13 @@ import type { Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
 import { getCompanyById } from './companies.repo';
 
+export function getThirdPartiesByCompany(companyId: string): ThirdPartyRecord[] {
+  const rows = db
+    .query('SELECT * FROM third_parties WHERE company_id = ? ORDER BY rol DESC, nombre ASC')
+    .all(companyId) as ThirdPartyDbRow[];
+  return rows.map(mapThirdPartyRow);
+}
+
 export function getThirdPartyByRfc(companyId: string, rfc: string): ThirdPartyRecord | null {
   const row = db
     .query('SELECT * FROM third_parties WHERE company_id = ? AND rfc = ?')

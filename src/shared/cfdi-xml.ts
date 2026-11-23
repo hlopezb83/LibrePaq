@@ -1,8 +1,9 @@
 import { XMLParser } from 'fast-xml-parser';
 import { SAFETY_BOUNDS } from './sat-constants';
 import { getTodayLocalIso } from './date-utils';
-import type { CfdiTipo } from './types';
+import type { CfdiRelatedDoc, CfdiTaxBreakdown, CfdiTipo } from './types';
 import {
+  extractCfdiTaxBreakdown,
   findNode,
   findNodes,
   getAttr,
@@ -41,6 +42,8 @@ export interface ParsedCfdiPayload {
   uuidRelacionado?: string | null;
   uuidsRelacionados?: string[];
   otrosPagosNomina?: number;
+  taxBreakdown?: CfdiTaxBreakdown | null;
+  relatedDocs?: CfdiRelatedDoc[] | null;
   xmlRaw: string;
 }
 
@@ -113,6 +116,8 @@ export function parseCfdiXmlString(
   const cfdiRel = findNode(comprobante, 'CfdiRelacionado');
   let uuidRelacionado: string | null = cfdiRel ? getAttr(cfdiRel, 'UUID').toUpperCase() || null : null;
   let uuidsRelacionados: string[] | undefined;
+  let taxBreakdown: CfdiTaxBreakdown | null = null;
+  let relatedDocs: CfdiRelatedDoc[] | null = null;
 
   if (tipoComprobante === 'P') {
     const pago = parsePago20Complement(comprobante, uuidRelacionado);
@@ -126,6 +131,8 @@ export function parseCfdiXmlString(
     tipoCambio = pago.tipoCambio;
     uuidRelacionado = pago.uuidRelacionado;
     uuidsRelacionados = pago.uuidsRelacionados;
+    taxBreakdown = pago.taxBreakdown;
+    relatedDocs = pago.relatedDocs;
     rawMetodo = 'PUE';
   } else if (tipoComprobante === 'N') {
     const nom = parseNomina12Complement(comprobante, subtotal);
@@ -147,6 +154,7 @@ export function parseCfdiXmlString(
     ivaTrasladado = imp.ivaTrasladado;
     isrRetenido = imp.isrRetenido;
     ivaRetenido = imp.ivaRetenido;
+    taxBreakdown = extractCfdiTaxBreakdown(comprobante, subtotal - descuento, ivaTrasladado);
   }
 
   const firstConcepto = conceptos[0] ?? null;
@@ -189,6 +197,8 @@ export function parseCfdiXmlString(
     uuidRelacionado,
     uuidsRelacionados,
     otrosPagosNomina,
+    taxBreakdown,
+    relatedDocs,
     xmlRaw
   };
 }

@@ -110,6 +110,185 @@ export async function handleStoreFiel(
   );
 }
 
+interface SatRequestRecordDto {
+  id: string;
+  companyId: string;
+  idSolicitudSat: string;
+  tipoSolicitud: 'RECIBIDOS' | 'EMITIDOS';
+  fechaInicial: string;
+  fechaFinal: string;
+  estadoSolicitud: 'ACEPTADA';
+  codigoEstadoSat: string;
+  mensajeSat: string;
+  idPaqueteSat: string;
+  cfdisDescargados: number;
+  modoEjecucion: 'SAT_LIVE' | 'SANDBOX_CRYPTO';
+  soapRequestXml: string;
+  soapResponseXml: string;
+  createdAt: string;
+}
+
+interface SingleSolicitaResult {
+  ok: true;
+  requestRecord: SatRequestRecordDto;
+}
+
+interface SingleSolicitaError {
+  ok: false;
+  status: number;
+  error: string;
+  tipoSolicitud: 'RECIBIDOS' | 'EMITIDOS';
+}
+
+async function executeSingleSatSolicitaDescarga(params: {
+  supabase: SupabaseClient;
+  companyId: string;
+  companyRfc: string;
+  tipoSat: 'RECIBIDOS' | 'EMITIDOS';
+  fechaInicial: string;
+  fechaFinal: string;
+  modoEjecucion: 'SAT_LIVE' | 'SANDBOX_CRYPTO';
+  cerBase64: string;
+  privateKeyPem: string;
+  authHeader: string | null;
+}): Promise<SingleSolicitaResult | SingleSolicitaError> {
+  const {
+    supabase,
+    companyId,
+    companyRfc,
+    tipoSat,
+    fechaInicial,
+    fechaFinal,
+    modoEjecucion,
+    cerBase64,
+    privateKeyPem,
+    authHeader
+  } = params;
+
+  let idSolicitudSat = crypto.randomUUID().toUpperCase();
+  let liveStatus = '5000';
+  let mensajeSat = `SAT 5000: Solicitud (${tipoSat}) transmitida al Web Service oficial. Folio asignado: ${idSolicitudSat.slice(0, 8)}. El SAT está empaquetando los comprobantes.`;
+
+  if (privateKeyPem && cerBase64 && authHeader && modoEjecucion === 'SAT_LIVE') {
+    try {
+      const soapActionHeader =
+        tipoSat === 'EMITIDOS'
+          ? 'http://DescargaMasivaTerceros.sat.gob.mx/ISolicitaDescargaService/SolicitaDescargaEmitidos'
+          : 'http://DescargaMasivaTerceros.sat.gob.mx/ISolicitaDescargaService/SolicitaDescargaRecibidos';
+
+      const { soapXml: solXml } = buildSatSolicitaDescargaSoapXml({
+        rfcSolicitante: companyRfc,
+        tipoSolicitud: tipoSat,
+        fechaInicial,
+        fechaFinal,
+        certificateBase64: cerBase64,
+        privateKeyPem
+      });
+
+      const solRes = await fetch(
+        'https://cfdidescargamasivasolicitud.clouda.sat.gob.mx/SolicitaDescargaService.svc',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml;charset=UTF-8',
+            SOAPAction: soapActionHeader,
+            Authorization: authHeader
+          },
+          body: solXml,
+          signal: AbortSignal.timeout(10000)
+        }
+      );
+
+      if (solRes.ok) {
+        const solText = await solRes.text();
+        const idSolMatch = solText.match(/IdSolicitud="([a-zA-Z0-9-]+)"/i);
+        const codMatch = solText.match(/CodEstatus="(\d+)"/i);
+        const msgMatch = solText.match(/Mensaje="([^"]+)"/i);
+        if (codMatch?.[1]) liveStatus = codMatch[1];
+        const satMsg = msgMatch?.[1] || '';
+
+        if (idSolMatch?.[1] && liveStatus === '5000') {
+          idSolicitudSat = idSolMatch[1].toUpperCase();
+          mensajeSat = `SAT 5000: Solicitud (${tipoSat}) aceptada por los servidores del SAT. Folio oficial: ${idSolicitudSat.slice(0, 8)}. El SAT está preparando el paquete.`;
+        } else {
+          const errDetail = satMsg || `Código ${liveStatus}`;
+          return {
+            ok: false,
+            status: 400,
+            tipoSolicitud: tipoSat,
+            error: `El SAT no aceptó la solicitud ${tipoSat} (${errDetail}). Verifica que el periodo no exceda el día de hoy.`
+          };
+        }
+      } else {
+        const errBody = await solRes.text().catch(() => '');
+        return {
+          ok: false,
+          status: 502,
+          tipoSolicitud: tipoSat,
+          error: `El Web Service del SAT devolvió HTTP ${solRes.status} al solicitar descarga (${tipoSat}).${errBody ? ` ${errBody.slice(0, 180)}` : ''}`
+        };
+      }
+    } catch (soapErr) {
+      console.warn('[SAT SOAP Sync Error]', tipoSat, soapErr);
+      const errDetail = soapErr instanceof Error ? soapErr.message : 'Error al comunicar con SAT';
+      return {
+        ok: false,
+        status: 502,
+        tipoSolicitud: tipoSat,
+        error: `Error de conexión con clouda.sat.gob.mx (${tipoSat}): ${errDetail}`
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+  const requestRecord: SatRequestRecordDto = {
+    id: `satreq_${crypto.randomUUID().slice(0, 8)}`,
+    companyId,
+    idSolicitudSat,
+    tipoSolicitud: tipoSat,
+    fechaInicial,
+    fechaFinal,
+    estadoSolicitud: 'ACEPTADA',
+    codigoEstadoSat: liveStatus,
+    mensajeSat,
+    idPaqueteSat: `${idSolicitudSat}_01`,
+    cfdisDescargados: 0,
+    modoEjecucion,
+    soapRequestXml: `<SolicitaDescarga xmlns="http://DescargaMasivaTerceros.sat.gob.mx" RfcSolicitante="${escapeXmlAttr(companyRfc)}" TipoSolicitud="${escapeXmlAttr(tipoSat)}"/>`,
+    soapResponseXml: `<SolicitaDescargaResult CodEstatus="${escapeXmlAttr(liveStatus)}" EstadoSolicitud="1" IdSolicitud="${escapeXmlAttr(idSolicitudSat)}"/>`,
+    createdAt: now
+  };
+
+  const { error: insertErr } = await supabase.from('sat_download_requests').insert({
+    id: requestRecord.id,
+    company_id: requestRecord.companyId,
+    id_solicitud_sat: requestRecord.idSolicitudSat,
+    tipo_solicitud: requestRecord.tipoSolicitud,
+    fecha_inicial: requestRecord.fechaInicial,
+    fecha_final: requestRecord.fechaFinal,
+    estado_solicitud: requestRecord.estadoSolicitud,
+    codigo_estado_sat: requestRecord.codigoEstadoSat,
+    mensaje_sat: requestRecord.mensajeSat,
+    id_paquete_sat: requestRecord.idPaqueteSat,
+    cfdis_descargados: 0,
+    modo_ejecucion: requestRecord.modoEjecucion,
+    soap_request_xml: requestRecord.soapRequestXml,
+    soap_response_xml: requestRecord.soapResponseXml,
+    created_at: requestRecord.createdAt
+  });
+
+  if (insertErr) {
+    return {
+      ok: false,
+      status: 500,
+      tipoSolicitud: tipoSat,
+      error: `Error guardando solicitud ${tipoSat} en base de datos: ${insertErr.message}`
+    };
+  }
+
+  return { ok: true, requestRecord };
+}
+
 export async function handleSolicitaDescarga(
   supabase: SupabaseClient,
   payload: SatRequestPayload,
@@ -140,118 +319,73 @@ export async function handleSolicitaDescarga(
   if (fechaFinal > todayIso) fechaFinal = todayIso;
   if (fechaInicial > fechaFinal) fechaInicial = fechaFinal;
 
-  let idSolicitudSat = crypto.randomUUID().toUpperCase();
-  let liveStatus = '5000';
-  let mensajeSat = `SAT 5000: Solicitud transmitida al Web Service oficial. Folio asignado: ${idSolicitudSat.slice(0, 8)}. El SAT está empaquetando los comprobantes.`;
-
+  let authHeader: string | null = null;
   if (creds.privateKeyPem && creds.cerBase64 && modoEjecucion === 'SAT_LIVE') {
     try {
       const rawToken = await getSatAuthToken(creds.cerBase64, creds.privateKeyPem);
-      const authHeader = rawToken.startsWith('WRAP') ? rawToken : `WRAP access_token="${rawToken}"`;
-      const tipoSat = tipoSolicitud === 'EMITIDOS' ? 'EMITIDOS' : 'RECIBIDOS';
-      const soapActionHeader =
-        tipoSat === 'EMITIDOS'
-          ? 'http://DescargaMasivaTerceros.sat.gob.mx/ISolicitaDescargaService/SolicitaDescargaEmitidos'
-          : 'http://DescargaMasivaTerceros.sat.gob.mx/ISolicitaDescargaService/SolicitaDescargaRecibidos';
-
-      const { soapXml: solXml } = buildSatSolicitaDescargaSoapXml({
-        rfcSolicitante: companyRfc,
-        tipoSolicitud: tipoSat,
-        fechaInicial,
-        fechaFinal,
-        certificateBase64: creds.cerBase64,
-        privateKeyPem: creds.privateKeyPem
-      });
-
-      const solRes = await fetch(
-        'https://cfdidescargamasivasolicitud.clouda.sat.gob.mx/SolicitaDescargaService.svc',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/xml;charset=UTF-8',
-            SOAPAction: soapActionHeader,
-            Authorization: authHeader
-          },
-          body: solXml,
-          signal: AbortSignal.timeout(10000)
-        }
-      );
-
-      if (solRes.ok) {
-        const solText = await solRes.text();
-        const idSolMatch = solText.match(/IdSolicitud="([a-zA-Z0-9-]+)"/i);
-        const codMatch = solText.match(/CodEstatus="(\d+)"/i);
-        const msgMatch = solText.match(/Mensaje="([^"]+)"/i);
-        if (codMatch?.[1]) liveStatus = codMatch[1];
-        const satMsg = msgMatch?.[1] || '';
-
-        if (idSolMatch?.[1] && liveStatus === '5000') {
-          idSolicitudSat = idSolMatch[1].toUpperCase();
-          mensajeSat = `SAT 5000: Solicitud aceptada por los servidores del SAT. Folio oficial: ${idSolicitudSat.slice(0, 8)}. El SAT está preparando el paquete.`;
-        } else {
-          const errDetail = satMsg || `Código ${liveStatus}`;
-          return jsonResponse(
-            { ok: false, error: `El SAT no aceptó la solicitud (${errDetail}). Verifica que el periodo no exceda el día de hoy.` },
-            400,
-            headers
-          );
-        }
-      } else {
-        const errBody = await solRes.text().catch(() => '');
-        return jsonResponse(
-          {
-            ok: false,
-            error: `El Web Service del SAT devolvió HTTP ${solRes.status} al solicitar descarga.${errBody ? ` ${errBody.slice(0, 180)}` : ''}`
-          },
-          502,
-          headers
-        );
-      }
-    } catch (soapErr) {
-      console.warn('[SAT SOAP Sync Error]', soapErr);
-      const errDetail = soapErr instanceof Error ? soapErr.message : 'Error al comunicar con SAT';
+      authHeader = rawToken.startsWith('WRAP') ? rawToken : `WRAP access_token="${rawToken}"`;
+    } catch (authErr) {
+      console.warn('[SAT SOAP Auth Error]', authErr);
+      const errDetail = authErr instanceof Error ? authErr.message : 'Error al autenticar con SAT';
       return jsonResponse({ ok: false, error: `Error de conexión con clouda.sat.gob.mx: ${errDetail}` }, 502, headers);
     }
   }
 
-  const now = new Date().toISOString();
-  const requestRecord = {
-    id: `satreq_${crypto.randomUUID().slice(0, 8)}`,
-    companyId,
-    idSolicitudSat,
-    tipoSolicitud,
-    fechaInicial,
-    fechaFinal,
-    estadoSolicitud: 'ACEPTADA',
-    codigoEstadoSat: liveStatus,
-    mensajeSat,
-    idPaqueteSat: `${idSolicitudSat}_01`,
-    cfdisDescargados: 0,
-    modoEjecucion,
-    soapRequestXml: `<SolicitaDescarga xmlns="http://DescargaMasivaTerceros.sat.gob.mx" RfcSolicitante="${escapeXmlAttr(companyRfc)}" TipoSolicitud="${escapeXmlAttr(tipoSolicitud)}"/>`,
-    soapResponseXml: `<SolicitaDescargaResult CodEstatus="${escapeXmlAttr(liveStatus)}" EstadoSolicitud="1" IdSolicitud="${escapeXmlAttr(idSolicitudSat)}"/>`,
-    createdAt: now
-  };
+  const tiposToRequest: Array<'RECIBIDOS' | 'EMITIDOS'> =
+    tipoSolicitud === 'AMBOS'
+      ? ['RECIBIDOS', 'EMITIDOS']
+      : [tipoSolicitud === 'EMITIDOS' ? 'EMITIDOS' : 'RECIBIDOS'];
 
-  await supabase.from('sat_download_requests').insert({
-    id: requestRecord.id,
-    company_id: requestRecord.companyId,
-    id_solicitud_sat: requestRecord.idSolicitudSat,
-    tipo_solicitud: requestRecord.tipoSolicitud,
-    fecha_inicial: requestRecord.fechaInicial,
-    fecha_final: requestRecord.fechaFinal,
-    estado_solicitud: requestRecord.estadoSolicitud,
-    codigo_estado_sat: requestRecord.codigoEstadoSat,
-    mensaje_sat: requestRecord.mensajeSat,
-    id_paquete_sat: requestRecord.idPaqueteSat,
-    cfdis_descargados: 0,
-    modo_ejecucion: requestRecord.modoEjecucion,
-    soap_request_xml: requestRecord.soapRequestXml,
-    soap_response_xml: requestRecord.soapResponseXml,
-    created_at: requestRecord.createdAt
-  });
+  const requestRecords: SatRequestRecordDto[] = [];
+  const requestErrors: SingleSolicitaError[] = [];
 
-  return jsonResponse({ ok: true, requestRecord, hasPrivateKey: Boolean(creds.privateKeyPem) }, 200, headers);
+  for (const tipoSat of tiposToRequest) {
+    const outcome = await executeSingleSatSolicitaDescarga({
+      supabase,
+      companyId,
+      companyRfc,
+      tipoSat,
+      fechaInicial,
+      fechaFinal,
+      modoEjecucion,
+      cerBase64: creds.cerBase64,
+      privateKeyPem: creds.privateKeyPem,
+      authHeader
+    });
+    if (outcome.ok) {
+      requestRecords.push(outcome.requestRecord);
+    } else {
+      requestErrors.push(outcome);
+    }
+  }
+
+  if (requestRecords.length === 0) {
+    const firstErr = requestErrors[0];
+    return jsonResponse(
+      { ok: false, error: firstErr?.error || 'No se pudo registrar la solicitud ante el SAT' },
+      firstErr?.status || 502,
+      headers
+    );
+  }
+
+  return jsonResponse(
+    {
+      ok: true,
+      requestRecord: requestRecords[0],
+      requestRecords,
+      ...(requestErrors.length > 0
+        ? {
+            partialErrors: requestErrors.map((e) => ({
+              tipoSolicitud: e.tipoSolicitud,
+              error: e.error
+            }))
+          }
+        : {}),
+      hasPrivateKey: Boolean(creds.privateKeyPem)
+    },
+    200,
+    headers
+  );
 }
 
 interface IngestPackageResult {
@@ -259,7 +393,12 @@ interface IngestPackageResult {
   skippedDuplicates: number;
   totalParsed: number;
   hadInsertErrors: boolean;
+  truncatedAtLimit: boolean;
 }
+
+const MAX_XML_FILES_PER_PACKAGE = 2500;
+const MAX_SINGLE_FILE_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED_BYTES = 80 * 1024 * 1024;
 
 async function ingestSatPackage(params: {
   supabase: SupabaseClient;
@@ -292,35 +431,37 @@ async function ingestSatPackage(params: {
     }
   );
   if (!descRes.ok) {
-    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true };
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true, truncatedAtLimit: false };
   }
 
   const descText = await descRes.text();
   const paqMatch = descText.match(/<Paquete>([^<]+)<\/Paquete>/i);
   if (!paqMatch?.[1]) {
-    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true };
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true, truncatedAtLimit: false };
   }
 
   const zipBuf = Buffer.from(paqMatch[1], 'base64');
-  let entryCount = 0;
+  let xmlEntryCount = 0;
   let totalUncompressedBytes = 0;
-  const MAX_ZIP_ENTRIES = 500;
-  const MAX_TOTAL_UNCOMPRESSED_BYTES = 80 * 1024 * 1024;
+  let truncatedAtLimit = false;
   const unzipped = fflate.unzipSync(new Uint8Array(zipBuf), {
     filter(file) {
-      entryCount += 1;
+      if (!file.name.toLowerCase().endsWith('.xml')) return false;
+      xmlEntryCount += 1;
+      if (xmlEntryCount > MAX_XML_FILES_PER_PACKAGE) {
+        truncatedAtLimit = true;
+        return false;
+      }
+      if (file.originalSize > MAX_SINGLE_FILE_UNCOMPRESSED_BYTES) return false;
+      if (totalUncompressedBytes + file.originalSize > MAX_TOTAL_UNCOMPRESSED_BYTES) {
+        truncatedAtLimit = true;
+        return false;
+      }
       totalUncompressedBytes += file.originalSize;
-      return (
-        entryCount <= MAX_ZIP_ENTRIES &&
-        file.originalSize <= 50 * 1024 * 1024 &&
-        totalUncompressedBytes <= MAX_TOTAL_UNCOMPRESSED_BYTES
-      );
+      return true;
     }
   });
   const fileNames = Object.keys(unzipped);
-  if (fileNames.length > MAX_ZIP_ENTRIES) {
-    throw new Error('El paquete SAT excede el límite máximo de 500 archivos');
-  }
 
   const parsedList: Array<{ parsed: NonNullable<ReturnType<typeof parseCfdiQuick>>; xmlRaw: string }> = [];
   for (const fName of fileNames) {
@@ -330,7 +471,7 @@ async function ingestSatPackage(params: {
     if (parsed?.uuid) parsedList.push({ parsed, xmlRaw });
   }
   if (parsedList.length === 0) {
-    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: false };
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: false, truncatedAtLimit };
   }
 
   const uuids = Array.from(new Set(parsedList.map((p) => p.parsed.uuid)));
@@ -402,7 +543,8 @@ async function ingestSatPackage(params: {
     insertedCount: totalIngested,
     skippedDuplicates,
     totalParsed: parsedList.length,
-    hadInsertErrors
+    hadInsertErrors,
+    truncatedAtLimit
   };
 }
 
@@ -423,7 +565,7 @@ export async function handleVerificaDescarga(
 
   const { data: reqs } = await supabase
     .from('sat_download_requests')
-    .select('id, id_solicitud_sat')
+    .select('id, id_solicitud_sat, cfdis_descargados')
     .eq('company_id', payload.companyId)
     .in('estado_solicitud', ['ACEPTADA', 'EN_PROCESO'])
     .order('created_at', { ascending: false })
@@ -471,6 +613,8 @@ export async function handleVerificaDescarga(
       let nuevoEstado: 'ACEPTADA' | 'EN_PROCESO' | 'TERMINADA' | 'ERROR' = 'EN_PROCESO';
       let nuevoMensaje = `SAT Estado ${estadoSol}: Solicitud en proceso. El SAT está preparando los paquetes.`;
       let totalIngested = 0;
+      let truncatedAtLimitAny = false;
+      let hadAnyPackageError = false;
 
       if (estadoSol === '3') {
         if (numCfdis === 0) {
@@ -481,7 +625,6 @@ export async function handleVerificaDescarga(
           if (idsPaquetes.length === 0) idsPaquetes.push(`${reqItem.id_solicitud_sat}_01`);
 
           let skippedDuplicatesTotal = 0;
-          let hadAnyPackageError = false;
           for (const idPaq of idsPaquetes) {
             try {
               const pkgRes = await ingestSatPackage({
@@ -496,18 +639,29 @@ export async function handleVerificaDescarga(
               totalIngested += pkgRes.insertedCount;
               skippedDuplicatesTotal += pkgRes.skippedDuplicates;
               if (pkgRes.hadInsertErrors) hadAnyPackageError = true;
+              if (pkgRes.truncatedAtLimit) truncatedAtLimitAny = true;
             } catch (paqErr) {
               hadAnyPackageError = true;
               console.warn('[Error descargando paquete SAT]', idPaq, paqErr);
             }
           }
 
-          if (totalIngested > 0) {
+          if (hadAnyPackageError) {
+            nuevoEstado = 'EN_PROCESO';
+            nuevoMensaje =
+              totalIngested > 0
+                ? `SAT 5000: Se integraron parcialmente ${totalIngested} comprobantes a la Bóveda ADD, pero ocurrió un error en parte de los paquetes o bloques. Vuelve a verificar para reintentar el resto.`
+                : `SAT 5000: ${numCfdis} comprobantes listos en servidores del SAT, pero ocurrió un error al descargar o integrar los paquetes. Vuelve a verificar para reintentar el resto.`;
+          } else if (totalIngested > 0) {
             nuevoEstado = 'TERMINADA';
-            nuevoMensaje = `SAT 5000: ${totalIngested} comprobantes descargados e integrados exitosamente a la Bóveda ADD.`;
-          } else if (!hadAnyPackageError && skippedDuplicatesTotal > 0) {
+            nuevoMensaje = truncatedAtLimitAny
+              ? `SAT 5000: ${totalIngested} comprobantes descargados e integrados a la Bóveda ADD (tope de ${MAX_XML_FILES_PER_PACKAGE} XML por paquete alcanzado; existen archivos adicionales).`
+              : `SAT 5000: ${totalIngested} comprobantes descargados e integrados exitosamente a la Bóveda ADD.`;
+          } else if (skippedDuplicatesTotal > 0) {
             nuevoEstado = 'TERMINADA';
-            nuevoMensaje = `SAT 5000: Paquete procesado; los ${skippedDuplicatesTotal} comprobantes ya existían en la Bóveda ADD.`;
+            nuevoMensaje = truncatedAtLimitAny
+              ? `SAT 5000: Paquete procesado hasta el límite de ${MAX_XML_FILES_PER_PACKAGE} XML; los ${skippedDuplicatesTotal} comprobantes revisados ya existían en la Bóveda ADD.`
+              : `SAT 5000: Paquete procesado; los ${skippedDuplicatesTotal} comprobantes ya existían en la Bóveda ADD.`;
           } else {
             nuevoEstado = 'EN_PROCESO';
             nuevoMensaje = `SAT 5000: ${numCfdis} comprobantes listos en servidores del SAT. Reintentando descarga e integración a Bóveda ADD...`;
@@ -520,9 +674,10 @@ export async function handleVerificaDescarga(
           : `SAT: Solicitud no encontrada o rechazada en servidores del SAT (Código ${codEstatus || estadoSol}).`;
       }
 
+      const accumulatedCfdis = (Number(reqItem.cfdis_descargados) || 0) + totalIngested;
       await supabase
         .from('sat_download_requests')
-        .update({ estado_solicitud: nuevoEstado, mensaje_sat: nuevoMensaje, cfdis_descargados: totalIngested })
+        .update({ estado_solicitud: nuevoEstado, mensaje_sat: nuevoMensaje, cfdis_descargados: accumulatedCfdis })
         .eq('id', reqItem.id);
 
       results.push({
@@ -530,7 +685,10 @@ export async function handleVerificaDescarga(
         idSolicitudSat: reqItem.id_solicitud_sat,
         estadoSolicitud: nuevoEstado,
         estadoSat: estadoSol,
-        numeroCfdis: totalIngested
+        numeroCfdis: totalIngested,
+        totalAcumuladoCfdis: accumulatedCfdis,
+        truncatedAtLimit: truncatedAtLimitAny,
+        hadPartialErrors: hadAnyPackageError
       });
     } catch (itemErr) {
       console.warn('[Verifica item error]', itemErr);

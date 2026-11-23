@@ -6,6 +6,7 @@ import {
   generateMonthlyDepreciationPoliza,
   generateTaxProvisionPoliza,
   getCompanyById,
+  getCxcCxpAgingRepo,
   getFiscalWorkpaperReport,
   getFixedAssetsResponse,
   getPeriodLock,
@@ -16,7 +17,7 @@ import {
   upsertThirdPartyRecord
 } from '../db';
 import { resolveYearAndPeriod } from '../validators';
-import { errorStatus } from './route-helpers';
+import { assertRouteCompanyAccess, errorStatus } from './route-helpers';
 import type { Efos69BStatus, FixedAssetCategory } from '../../shared/types';
 
 export const fiscalRoutes = new Hono();
@@ -282,6 +283,21 @@ fiscalRoutes.post('/fiscal-workpaper/exchange-poliza', async (c) => {
       company.currentPeriod
     );
     return c.json(poliza, 201);
+  } catch (err) {
+    const { message, status } = errorStatus(err);
+    return c.json({ error: message }, status);
+  }
+});
+
+// CxC / CxP Aging PPD
+fiscalRoutes.get('/companies/:companyId/cxc-cxp', (c) => {
+  try {
+    const companyId = c.req.param('companyId');
+    const denied = assertRouteCompanyAccess(c, companyId);
+    if (denied) return denied;
+    const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+    const asOfIso = c.req.query('asOf') || undefined;
+    return c.json(getCxcCxpAgingRepo(companyId, asOfIso, userId));
   } catch (err) {
     const { message, status } = errorStatus(err);
     return c.json({ error: message }, status);

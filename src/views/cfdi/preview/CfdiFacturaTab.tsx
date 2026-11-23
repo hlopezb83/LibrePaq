@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   AlertCircle,
   Calendar,
@@ -9,8 +10,24 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../../lib/formatters';
 import type { RfcModulo11Result } from '../../../shared/accounting-engine';
+import { parseCfdiPreview } from '../../../shared/cfdi-preview-parser';
 import { checkRfc69BStatus } from '../../../shared/sat-69b';
 import type { CfdiDocument } from '../../../shared/types';
+
+function formatTaxLabel(impuesto: string): string {
+  if (impuesto === '001') return 'ISR';
+  if (impuesto === '002') return 'IVA';
+  if (impuesto === '003') return 'IEPS';
+  return impuesto;
+}
+
+function formatObjetoImpLabel(objetoImp: string): string {
+  if (objetoImp === '01') return '01 (No objeto)';
+  if (objetoImp === '02') return '02 (Sí objeto de impuesto)';
+  if (objetoImp === '03') return '03 (Sí objeto y no obligado)';
+  if (objetoImp === '04') return '04 (Sí objeto y no causa)';
+  return objetoImp;
+}
 
 interface CfdiFacturaTabProps {
   cfdi: CfdiDocument;
@@ -27,6 +44,11 @@ export function CfdiFacturaTab({
 }: CfdiFacturaTabProps) {
   const counterpartyRfc = cfdi.direction === 'EMITIDO' ? cfdi.receptorRfc : cfdi.emisorRfc;
   const efosCheck = checkRfc69BStatus(counterpartyRfc);
+  const preview = useMemo(() => parseCfdiPreview(cfdi), [cfdi]);
+  const selloDisplay =
+    preview.timbre.selloCfd ||
+    preview.comprobante.sello ||
+    `${cfdi.uuid.replace(/-/g, '')}a89c7d4e5f2b1c098e7d...`;
 
   return (
     <div className="border border-slate-300 rounded-2xl p-6 sm:p-8 bg-white shadow-2xs space-y-6 text-slate-900 print:border-none print:p-0">
@@ -178,22 +200,37 @@ export function CfdiFacturaTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            <tr>
-              <td className="py-3 px-3 font-mono text-blue-800 font-semibold">
-                {cfdi.claveProdServ}
-              </td>
-              <td className="py-3 px-3">
-                <div className="font-medium text-slate-900">{cfdi.conceptoPrincipal}</div>
-                <div className="text-[11px] text-slate-500">Unidad de Servicio (E48) • ObjetoImp: 02 (Sí objeto de impuesto)</div>
-              </td>
-              <td className="py-3 px-3 text-right font-mono text-slate-800">1.00</td>
-              <td className="py-3 px-3 text-right font-mono text-slate-800">
-                {formatCurrency(cfdi.subtotal)}
-              </td>
-              <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                {formatCurrency(cfdi.subtotal)}
-              </td>
-            </tr>
+            {preview.conceptos.map((concepto, idx) => (
+              <tr key={`${concepto.claveProdServ}-${concepto.noIdentificacion || idx}`}>
+                <td className="py-3 px-3 font-mono text-blue-800 font-semibold align-top">
+                  <div>{concepto.claveProdServ}</div>
+                  {concepto.noIdentificacion && (
+                    <div className="text-[10px] text-slate-500 font-normal">
+                      SKU: {concepto.noIdentificacion}
+                    </div>
+                  )}
+                </td>
+                <td className="py-3 px-3 align-top">
+                  <div className="font-medium text-slate-900">{concepto.descripcion}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {concepto.unidad || 'Unidad'} ({concepto.claveUnidad}) • ObjetoImp:{' '}
+                    {formatObjetoImpLabel(concepto.objetoImp)}
+                    {concepto.descuento > 0 && ` • Desc: ${formatCurrency(concepto.descuento)}`}
+                  </div>
+                </td>
+                <td className="py-3 px-3 text-right font-mono text-slate-800 align-top">
+                  {Number.isInteger(concepto.cantidad)
+                    ? concepto.cantidad.toFixed(2)
+                    : String(concepto.cantidad)}
+                </td>
+                <td className="py-3 px-3 text-right font-mono text-slate-800 align-top">
+                  {formatCurrency(concepto.valorUnitario)}
+                </td>
+                <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 align-top">
+                  {formatCurrency(concepto.importe)}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -206,46 +243,76 @@ export function CfdiFacturaTab({
             <span>Condiciones Comerciales y Fiscales</span>
           </div>
           <p className="text-[11px] text-slate-600 leading-relaxed">
-            Este documento es una representación impresa de un CFDI versión 4.0 validado ante los servicios del SAT.
+            Este documento es una representación impresa de un CFDI versión {preview.comprobante.version} validado ante los servicios del SAT.
             Efectos fiscales al pago conforme a las disposiciones fiscales vigentes.
           </p>
           <div className="pt-2 flex items-center gap-2 flex-wrap text-[11px] font-mono">
-            <span className="text-slate-500">Régimen Fiscal Emisor: 601 General de Ley</span>
+            <span className="text-slate-600">
+              Régimen Fiscal Emisor: {preview.emisor.regimenFiscal}
+            </span>
             <span className="text-slate-300">•</span>
-            <span className="text-slate-500">Lugar de Expedición: CP 64000</span>
+            <span className="text-slate-600">
+              Lugar de Expedición: CP {preview.comprobante.lugarExpedicion}
+            </span>
+            {preview.comprobante.noCertificado && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className="text-slate-600">
+                  CSD: {preview.comprobante.noCertificado}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs font-mono">
           <div className="flex justify-between text-slate-700">
             <span className="font-sans">Subtotal Gravado:</span>
-            <span className="font-semibold text-slate-900">{formatCurrency(cfdi.subtotal)}</span>
+            <span className="font-semibold text-slate-900">
+              {formatCurrency(preview.comprobante.subtotal)}
+            </span>
           </div>
-          {cfdi.descuento > 0 && (
+          {preview.comprobante.descuento > 0 && (
             <div className="flex justify-between text-emerald-800">
               <span className="font-sans">(-) Descuento:</span>
-              <span>-{formatCurrency(cfdi.descuento)}</span>
+              <span>-{formatCurrency(preview.comprobante.descuento)}</span>
             </div>
           )}
-          <div className="flex justify-between text-slate-700">
-            <span className="font-sans">(+) IVA Trasladado (16%):</span>
-            <span className="font-semibold text-slate-900">{formatCurrency(cfdi.ivaTrasladado)}</span>
-          </div>
-          {cfdi.isrRetenido > 0 && (
-            <div className="flex justify-between text-red-700">
-              <span className="font-sans">(-) Retención ISR:</span>
-              <span>-{formatCurrency(cfdi.isrRetenido)}</span>
+          {preview.impuestos.traslados.length > 0 ? (
+            preview.impuestos.traslados.map((t, idx) => {
+              const pct = t.tasaOCuota
+                ? ` (${Number((Number.parseFloat(t.tasaOCuota) * 100).toFixed(2))}%)`
+                : '';
+              return (
+                <div key={`tras-${t.impuesto}-${idx}`} className="flex justify-between text-slate-700">
+                  <span className="font-sans">
+                    (+) {formatTaxLabel(t.impuesto)} Trasladado{pct}:
+                  </span>
+                  <span className="font-semibold text-slate-900">
+                    {formatCurrency(t.importe)}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex justify-between text-slate-700">
+              <span className="font-sans">(+) Impuestos Trasladados:</span>
+              <span className="font-semibold text-slate-900">
+                {formatCurrency(preview.impuestos.totalImpuestosTrasladados)}
+              </span>
             </div>
           )}
-          {cfdi.ivaRetenido > 0 && (
-            <div className="flex justify-between text-red-700">
-              <span className="font-sans">(-) Retención IVA:</span>
-              <span>-{formatCurrency(cfdi.ivaRetenido)}</span>
+          {preview.impuestos.retenciones.map((r, idx) => (
+            <div key={`ret-${r.impuesto}-${idx}`} className="flex justify-between text-red-700">
+              <span className="font-sans">(-) Retención {formatTaxLabel(r.impuesto)}:</span>
+              <span>-{formatCurrency(r.importe)}</span>
             </div>
-          )}
+          ))}
           <div className="pt-2 border-t border-slate-300 flex justify-between text-base font-bold text-blue-950 font-sans">
             <span>TOTAL FACTURA:</span>
-            <span className="font-mono text-blue-900">{formatCurrency(cfdi.total)}</span>
+            <span className="font-mono text-blue-900">
+              {formatCurrency(preview.comprobante.total)}
+            </span>
           </div>
         </div>
       </div>
@@ -256,14 +323,16 @@ export function CfdiFacturaTab({
           <QrCode className="w-12 h-12 text-slate-700" aria-hidden="true" />
         </div>
         <div className="space-y-1 min-w-0 flex-1">
-          <div className="truncate">
-            <strong>Sello Digital del Emisor:</strong> {cfdi.uuid.replace(/-/g, '')}a89c7d4e5f2b1c098e7d...
+          <div className="truncate" title={selloDisplay}>
+            <strong>Sello Digital del Emisor:</strong> {selloDisplay}
           </div>
           <div className="truncate">
-            <strong>Cadena Original del Timbre SAT:</strong> ||1.1|{cfdi.uuid}|{cfdi.fecha}T12:00:00|SAT970701NN3||
+            <strong>Cadena Original del Timbre SAT:</strong> ||{preview.timbre.version}|
+            {preview.timbre.uuid}|{preview.timbre.fechaTimbrado}|{preview.timbre.rfcProvCertif}||
           </div>
           <div className="text-slate-600">
-            Certificado SAT: 00001000000504465028 • RFC Proveedor Autorizado (PAC): SAT970701NN3
+            Certificado SAT: {preview.timbre.noCertificadoSat} • RFC Proveedor Autorizado (PAC):{' '}
+            {preview.timbre.rfcProvCertif}
           </div>
         </div>
       </div>

@@ -35,13 +35,20 @@ export function LandingPageView() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-600 selection:text-white">
+      <a
+        href="#main-content"
+        className="visually-hidden focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-xl focus:bg-blue-700 focus:text-white focus:text-xs focus:font-bold focus:shadow-lg"
+      >
+        Saltar al contenido principal
+      </a>
+
       {/* Diálogo de Autenticación Supabase / Google OAuth */}
       <AuthModal dialogRef={authDialogRef} initialMode={authMode} />
 
       {/* 1. Header / Barra de Navegación Sticky */}
       <LandingNavbar user={user} onOpenAuth={openSignupAuth} onOpenSignIn={openSigninAuth} />
 
-      <main>
+      <main id="main-content" tabIndex={-1} className="outline-none">
         {/* 2. Hero Section Principal con Maqueta Interactiva */}
         <LandingHeroSection onOpenAuth={openSignupAuth} onOpenDemo={handleOpenDemo} />
 

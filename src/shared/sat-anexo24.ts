@@ -1,4 +1,4 @@
-import type { AccountWithBalance, Company, Poliza } from './types';
+import type { AccountWithBalance, Company, Poliza, PolizaMovement } from './types';
 import { escapeXmlAttr } from './cfdi-xml';
 import { getTodayLocalIso } from './date-utils';
 
@@ -34,6 +34,100 @@ function truncXml(value: string | null | undefined, maxChars: number): string {
 }
 
 const UUID_V4_LIKE_REGEX = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
+const RFC_EXTRACT_REGEX = /[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}/i;
+
+const BANK_CODE_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+  [/bbva|bancomer/i, '012'],
+  [/banamex|citibanamex/i, '002'],
+  [/santander/i, '014'],
+  [/banorte|ixe/i, '072'],
+  [/hsbc/i, '021'],
+  [/scotiabank/i, '044'],
+  [/inbursa/i, '036'],
+  [/banregio/i, '058'],
+  [/banbajio|baj[ií]o/i, '030']
+];
+
+function inferBankCode(accountName: string | null | undefined): string {
+  const name = accountName || '';
+  for (const [pattern, code] of BANK_CODE_PATTERNS) {
+    if (pattern.test(name)) return code;
+  }
+  return '999';
+}
+
+function resolveMovementCounterpart(
+  companyRfc: string,
+  poliza: Poliza,
+  mov: PolizaMovement,
+  options?: SatAnexo24Options
+) {
+  const rawUuid = (mov.cfdiUuid || poliza.cfdiUuid || '').trim();
+  const upperUuid = rawUuid.toUpperCase();
+  const cfdiInfo = upperUuid ? options?.cfdiLookup?.get(upperUuid) : undefined;
+  const extractedRfc =
+    mov.concepto?.match(RFC_EXTRACT_REGEX)?.[0] ||
+    poliza.concepto?.match(RFC_EXTRACT_REGEX)?.[0];
+  const rawRfc = (
+    cfdiInfo?.rfcContraparte ||
+    mov.rfcContraparte ||
+    options?.counterpartRfc ||
+    extractedRfc ||
+    'XAXX010101000'
+  ).toUpperCase();
+  const thirdPartyRfc =
+    rawRfc === companyRfc.toUpperCase() ? 'XAXX010101000' : truncXml(rawRfc, 13);
+
+  const monedaRaw = (cfdiInfo?.moneda || mov.cfdiMoneda || 'MXN').toUpperCase();
+  const tcVal = cfdiInfo?.tipoCambio || mov.cfdiTipoCambio || 1;
+  const fxAttrs =
+    monedaRaw !== 'MXN' && monedaRaw !== 'XXX'
+      ? ` Moneda="${truncXml(monedaRaw, 3)}" TipCamb="${tcVal.toFixed(4)}"`
+      : '';
+
+  return { rawUuid, upperUuid, cfdiInfo, thirdPartyRfc, monedaRaw, tcVal, fxAttrs };
+}
+
+function inferOtherPaymentMethodCode(hint: string): string {
+  if (/\b(?:EFEC|EFECTIVO)\b/i.test(hint)) return '01';
+  if (/\bTDC\b|tarjeta.*cr[eé]dito/i.test(hint)) return '04';
+  if (/\b(?:TDD|TARJETA)\b/i.test(hint)) return '28';
+  if (/\bDEP\b|dep[oó]sito/i.test(hint)) return '03';
+  return '99';
+}
+
+function buildBankPaymentNode(
+  fecha: string,
+  poliza: Poliza,
+  mov: PolizaMovement,
+  thirdPartyRfc: string,
+  fxAttrs: string
+): string {
+  const isBankAccount = (mov.accountCode || '').trim().startsWith('102');
+  const ref = (mov.referencia || '').trim();
+  const rawAmount = mov.cargo > 0 ? mov.cargo : mov.abono;
+  if (!isBankAccount || (!ref && rawAmount <= 0)) return '';
+
+  const safeFecha = truncXml(fecha, 10);
+  const benef = truncXml(mov.concepto || poliza.concepto || mov.accountName || 'Contraparte', 300);
+  const monto = (Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : 0).toFixed(2);
+  const ctaOri = truncXml(mov.accountCode, 50);
+  const bancoOri = inferBankCode(mov.accountName);
+  const hint = `${ref} ${mov.concepto || ''} ${poliza.concepto || ''}`;
+
+  if (/\b(?:CHQ|CHEQUE)\b|^CH-?\d+/i.test(hint)) {
+    const numCheque = truncXml(ref || 'S/N', 20);
+    return `\n    <PLZ:Cheque Num="${numCheque}" BanEmisNal="${bancoOri}" CtaOri="${ctaOri}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
+  }
+
+  if (/\b(?:SPEI|TRANSF(?:ERENCIA)?|TRF|TEF)\b/i.test(hint)) {
+    const ctaDest = truncXml(ref || '0000000000', 50);
+    return `\n    <PLZ:Transferencia CtaOri="${ctaOri}" BancoOriNal="${bancoOri}" CtaDest="${ctaDest}" BancoDestNal="${bancoOri}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
+  }
+
+  const metPago = inferOtherPaymentMethodCode(hint);
+  return `\n    <PLZ:OtrMetodoPago MetPagoPol="${metPago}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
+}
 
 /**
  * Generador Oficial de Archivos XML de Contabilidad Electrónica SAT (Anexo 24 v1.3).
@@ -115,24 +209,18 @@ ${ctasXml}
             const debe = fmtVal(m.cargo || 0);
             const haber = fmtVal(m.abono || 0);
 
-            let compNode = '';
-            const rawUuid = (m.cfdiUuid || p.cfdiUuid || '').trim();
-            if (rawUuid) {
-              const upperUuid = rawUuid.toUpperCase();
-              const cfdiInfo = options?.cfdiLookup?.get(upperUuid);
-              const rfcRegex = /[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}/i;
-              const extractedRfc =
-                m.concepto?.match(rfcRegex)?.[0] || p.concepto?.match(rfcRegex)?.[0];
-              const rawRfc = (
-                cfdiInfo?.rfcContraparte ||
-                m.rfcContraparte ||
-                options?.counterpartRfc ||
-                extractedRfc ||
-                'XAXX010101000'
-              ).toUpperCase();
-              const thirdPartyRfc =
-                rawRfc === company.rfc.toUpperCase() ? 'XAXX010101000' : truncXml(rawRfc, 13);
+            const {
+              rawUuid,
+              upperUuid,
+              cfdiInfo,
+              thirdPartyRfc,
+              monedaRaw,
+              tcVal,
+              fxAttrs
+            } = resolveMovementCounterpart(company.rfc, p, m, options);
 
+            let compNode = '';
+            if (rawUuid) {
               const montoReal =
                 cfdiInfo?.total && cfdiInfo.total > 0
                   ? cfdiInfo.total
@@ -143,13 +231,6 @@ ${ctasXml}
                       : m.abono;
               const monto = montoReal.toFixed(2);
 
-              const monedaRaw = (cfdiInfo?.moneda || m.cfdiMoneda || 'MXN').toUpperCase();
-              const tcVal = cfdiInfo?.tipoCambio || m.cfdiTipoCambio || 1;
-              const fxAttrs =
-                monedaRaw !== 'MXN' && monedaRaw !== 'XXX'
-                  ? ` Moneda="${truncXml(monedaRaw, 3)}" TipCamb="${tcVal.toFixed(4)}"`
-                  : '';
-
               if (UUID_V4_LIKE_REGEX.test(upperUuid)) {
                 compNode = `\n    <PLZ:CompNal UUID_CFDI="${truncXml(upperUuid, 36)}" RFC="${thirdPartyRfc}" MontoTotal="${monto}"${fxAttrs}/>`;
               } else {
@@ -159,7 +240,9 @@ ${ctasXml}
               }
             }
 
-            return `  <PLZ:Transaccion NumCta="${numCta}" DesCta="${desCta}" Concepto="${movConcepto}" Debe="${debe}" Haber="${haber}">${compNode}\n  </PLZ:Transaccion>`;
+            const paymentNode = buildBankPaymentNode(fecha, p, m, thirdPartyRfc, fxAttrs);
+
+            return `  <PLZ:Transaccion NumCta="${numCta}" DesCta="${desCta}" Concepto="${movConcepto}" Debe="${debe}" Haber="${haber}">${compNode}${paymentNode}\n  </PLZ:Transaccion>`;
           })
           .join('\n');
 

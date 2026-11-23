@@ -118,8 +118,8 @@ export function restoreCompanyBackupBundle(
           emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre,
           concepto_principal, clave_prod_serv, moneda, tipo_cambio,
           subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total,
-          metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, xml_raw
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs, xml_raw
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const c of bundle.cfdis) {
         insertCfdi.run(
@@ -151,6 +151,8 @@ export function restoreCompanyBackupBundle(
           c.uuidRelacionado || null,
           c.statusSat || 'VIGENTE',
           c.polizaId || null,
+          c.taxBreakdown ? JSON.stringify(c.taxBreakdown) : null,
+          c.relatedDocs ? JSON.stringify(c.relatedDocs) : null,
           c.xmlRaw || ''
         );
       }

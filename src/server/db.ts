@@ -116,7 +116,9 @@ export {
   generateMonthlyDepreciationPoliza,
   getTaxParameters,
   saveTaxParameters,
-  getFiscalWorkpaperReport
+  getFiscalWorkpaperReport,
+  getCxcCxpAgingRepo,
+  verifyCfdisSatBatchRepo
 } from './repositories/fiscal.repo';
 
 export {

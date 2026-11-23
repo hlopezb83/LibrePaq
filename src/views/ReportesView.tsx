@@ -7,6 +7,8 @@ import { EstadoResultadosTab } from './reportes/EstadoResultadosTab';
 import { BalanceGeneralTab } from './reportes/BalanceGeneralTab';
 import { Anexo24Tab } from './reportes/Anexo24Tab';
 import { DossierEntregablesTab } from './reportes/DossierEntregablesTab';
+import { FlujosCapitalTab } from './reportes/FlujosCapitalTab';
+import { DeclaracionAnualTab } from './reportes/DeclaracionAnualTab';
 import { useReportesManager } from './reportes/useReportesManager';
 
 export function ReportesView() {
@@ -135,7 +137,28 @@ export function ReportesView() {
         </div>
       )}
 
-      {/* PESTAÑA 4: EXPORTADOR XML CONTABILIDAD ELECTRÓNICA SAT ANEXO 24 */}
+      {/* PESTAÑA 4: FLUJOS DE EFECTIVO NIF B-2 & CAMBIOS EN EL CAPITAL NIF B-4 */}
+      {activeTab === 'FLUJOS_CAPITAL' && (
+        <div role="tabpanel" id="report-panel-FLUJOS_CAPITAL" aria-labelledby="report-tab-FLUJOS_CAPITAL">
+          <FlujosCapitalTab
+            company={data.company}
+            ejercicio={data.ejercicio}
+            periodo={data.periodo}
+            mesNombre={mesNombre}
+            trialBalance={data.trialBalance}
+            onSelectAccount={openLedger}
+          />
+        </div>
+      )}
+
+      {/* PESTAÑA 5: DECLARACIÓN ANUAL, INFLACIÓN INPC, CUCA, CUFIN & PTU */}
+      {activeTab === 'ANUAL' && (
+        <div role="tabpanel" id="report-panel-ANUAL" aria-labelledby="report-tab-ANUAL">
+          <DeclaracionAnualTab companyId={data.company.id} ejercicio={data.ejercicio} />
+        </div>
+      )}
+
+      {/* PESTAÑA 6: EXPORTADOR XML CONTABILIDAD ELECTRÓNICA SAT ANEXO 24 */}
       {activeTab === 'ANEXO24' && (
         <div role="tabpanel" id="report-panel-ANEXO24" aria-labelledby="report-tab-ANEXO24">
           <Anexo24Tab

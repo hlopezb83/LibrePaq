@@ -1,18 +1,18 @@
 import type {
-  AccountWithBalance,
   CfdiDocument,
   Company,
   FiscalWorkpaperResponse,
   TaxParametersRecord
 } from '../types';
 import { SAFETY_BOUNDS } from '../sat-constants';
-import { fromCents, sumCents, toCents } from './invariants-and-math';
+import { fromCents, toCents } from './invariants-and-math';
 import { calculateArt106PfIsr } from './art106-tax.engine';
 
 export {
   buildDepreciationPolizaPlan,
   computeFixedAssetWithDepreciation
 } from './fixed-assets.engine';
+export { computeFiscalWorkpaperFromTrialBalance } from './fiscal-trial-balance.engine';
 
 /**
  * Determina la tasa mensual progresiva de ISR RESICO Personas Físicas (Art. 113-E LISR).
@@ -54,6 +54,9 @@ export function computeFiscalWorkpaper(params: {
   isrRetenidoFavorPeriodo: number;
   ivaRetenidoFavorPeriodo?: number;
   usdCfdis: readonly UsdMonetaryItemInput[];
+  cashBasisSummary?: FiscalWorkpaperResponse['cashBasisSummary'];
+  resicoThresholdAlert?: FiscalWorkpaperResponse['resicoThresholdAlert'];
+  ivaBreakdown?: FiscalWorkpaperResponse['ivaBreakdown'];
 }): FiscalWorkpaperResponse {
   const {
     company,
@@ -143,7 +146,11 @@ export function computeFiscalWorkpaper(params: {
   const ivaRetenidoCents = toCents(ivaRetenidoPorPagar);
   const ivaRetenidoFavorCents = toCents(ivaRetenidoFavorPeriodo ?? 0);
   const saldoFavorAnteriorCents = toCents(parameters.saldoFavorIvaAnterior);
-  const actosGravados16Cents = Math.round(ivaCobradoCents / 0.16);
+  const actosGravados16Cents =
+    params.ivaBreakdown &&
+    (params.ivaBreakdown.base16 > 0 || params.ivaBreakdown.base8 > 0 || params.ivaBreakdown.base0 > 0)
+      ? toCents(params.ivaBreakdown.base16)
+      : Math.round(ivaCobradoCents / 0.16);
 
   const rawIvaDiffCents =
     ivaCobradoCents - ivaPagadoCents - ivaRetenidoFavorCents - saldoFavorAnteriorCents;
@@ -247,95 +254,9 @@ export function computeFiscalWorkpaper(params: {
       retencionesIsrPorEnterar: fromCents(retIsrEnterarCents),
       retencionesIvaPorEnterar: fromCents(ivaRetenidoCents),
       totalEstimadoDia17: fromCents(totalDia17Cents)
-    }
+    },
+    ...(params.cashBasisSummary ? { cashBasisSummary: params.cashBasisSummary } : {}),
+    ...(params.resicoThresholdAlert ? { resicoThresholdAlert: params.resicoThresholdAlert } : {}),
+    ...(params.ivaBreakdown ? { ivaBreakdown: params.ivaBreakdown } : {})
   };
-}
-
-/**
- * Extrae saldos fiscales desde una balanza de comprobación y CFDIs usando reglas unificadas
- * (excluye cuentas 801, grupo SAT 611 ISR y 601-01-006 depreciación contable) para alimentar
- * computeFiscalWorkpaper con paridad exacta entre SQLite local y Supabase Cloud.
- */
-export function computeFiscalWorkpaperFromTrialBalance(params: {
-  company: Company;
-  ejercicio: number;
-  periodo: number;
-  parameters: TaxParametersRecord;
-  trialBalance: readonly AccountWithBalance[];
-  cfdis: readonly CfdiDocument[];
-}): FiscalWorkpaperResponse {
-  const { company, ejercicio, periodo, parameters, trialBalance, cfdis } = params;
-
-  const ingresosAccounts = trialBalance.filter((a) => a.isAffectable && a.type === 'INGRESOS');
-  const egresosAccounts = trialBalance.filter(
-    (a) =>
-      a.isAffectable &&
-      (a.type === 'COSTOS' || a.type === 'GASTOS') &&
-      !a.code.startsWith('801') &&
-      !a.satGroupCode?.startsWith('801') &&
-      !a.satGroupCode?.startsWith('611') &&
-      a.code !== '601-01-006'
-  );
-
-  const ingresosPeriodo = fromCents(
-    sumCents(ingresosAccounts.map((a) => a.periodCredits - a.periodCharges))
-  );
-  const ingresosAcumuladosEjercicio = fromCents(
-    sumCents(ingresosAccounts.map((a) => a.finalBalance))
-  );
-  const deduccionesAutorizadasPeriodo = fromCents(
-    sumCents(egresosAccounts.map((a) => a.periodCharges - a.periodCredits))
-  );
-  const deduccionesAcumuladasEjercicio = fromCents(
-    sumCents(egresosAccounts.map((a) => a.finalBalance))
-  );
-
-  const accIvaCobrado = trialBalance.find(
-    (a) => a.code === '208-01-001' || a.satGroupCode === '208.01'
-  );
-  const accIvaPagado = trialBalance.find(
-    (a) => a.code === '118-01-001' || a.satGroupCode === '118.01'
-  );
-  const accRetIsr = trialBalance.find(
-    (a) => a.code === '216-01-001' || a.satGroupCode === '216.01'
-  );
-  const accRetIva = trialBalance.find(
-    (a) => a.code === '216-01-002' || a.satGroupCode === '216.02'
-  );
-  const accIsrFavor = trialBalance.find(
-    (a) => a.code === '113-02-001' || a.satGroupCode === '113.02'
-  );
-  const accIvaFavor = trialBalance.find((a) => a.code === '113-01-002');
-
-  const settledPpdUuids = new Set(
-    cfdis
-      .filter((c) => c.tipoComprobante === 'P' && c.statusSat !== 'CANCELADO' && c.uuidRelacionado)
-      .map((c) => String(c.uuidRelacionado).toUpperCase())
-  );
-
-  const usdCfdis = cfdis.filter(
-    (c) =>
-      c.moneda?.toUpperCase() === 'USD' &&
-      c.statusSat !== 'CANCELADO' &&
-      c.metodoPago === 'PPD' &&
-      !settledPpdUuids.has((c.uuid || '').toUpperCase())
-  );
-
-  return computeFiscalWorkpaper({
-    company,
-    ejercicio,
-    periodo,
-    parameters,
-    ingresosPeriodo,
-    ingresosAcumuladosEjercicio,
-    deduccionesAutorizadasPeriodo,
-    deduccionesAcumuladasEjercicio,
-    ivaTrasladadoCobrado: accIvaCobrado?.periodCredits ?? 0,
-    ivaAcreditablePagado: accIvaPagado?.periodCharges ?? 0,
-    isrRetenidoPorPagar: accRetIsr?.periodCredits ?? 0,
-    ivaRetenidoPorPagar: accRetIva?.periodCredits ?? 0,
-    isrRetenidoFavorPeriodo: accIsrFavor?.periodCharges ?? 0,
-    ivaRetenidoFavorPeriodo: accIvaFavor?.periodCharges ?? 0,
-    usdCfdis
-  });
 }

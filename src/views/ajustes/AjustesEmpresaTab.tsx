@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { REGIMENES_FISCALES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
+import { AccountingRulesCard } from './AccountingRulesCard';
 import { AjustesEmpresaComplianceCards } from './AjustesEmpresaComplianceCards';
 
 export interface AjustesEmpresaTabProps {
@@ -256,6 +257,9 @@ export function AjustesEmpresaTab({
           togglePeriodLockMutation={togglePeriodLockMutation}
         />
       </div>
+
+      {/* Reglas Contables Aprendidas por RFC / ClaveProdServ y No Deducibles (801) */}
+      <AccountingRulesCard companyId={activeCompany.id} />
     </section>
   );
 }

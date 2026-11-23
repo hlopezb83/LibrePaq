@@ -7,8 +7,10 @@ import {
 } from '../lib/analytics';
 import { useAuth, checkIsSuperAdmin } from './AuthContext';
 import { useSupportSession } from '../lib/support-impersonation';
+import { workspaceRbacClient } from '../lib/workspace-rbac-client';
 import { getCurrentFiscalPeriod } from '../shared/date-utils';
 import type { Company } from '../shared/types';
+import type { DespachoRole } from '../shared/types/despacho-rbac.types';
 
 export interface UserWorkspace {
   id: string;
@@ -27,6 +29,8 @@ interface CompanyContextValue {
   isUpdatingPeriod: boolean;
   isLoading: boolean;
   isReadOnlySupportMode: boolean;
+  isReadOnlyClient: boolean;
+  effectiveCompanyRole: DespachoRole | 'OWNER' | null;
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
@@ -35,12 +39,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { user, loading: authLoading, hasAdminAccess } = useAuth();
   const supportSession = useSupportSession();
-  const isReadOnlySupportMode = Boolean(supportSession && (hasAdminAccess || checkIsSuperAdmin(user)));
-  const isOwner = (hasAdminAccess || checkIsSuperAdmin(user)) && !isReadOnlySupportMode;
+  const isSupportImpersonation = Boolean(supportSession && (hasAdminAccess || checkIsSuperAdmin(user)));
+  const isOwner = (hasAdminAccess || checkIsSuperAdmin(user)) && !isSupportImpersonation;
   const userScope = user?.id || 'demo';
   const storageKey = `librepaq_company_id_${userScope}`;
   const wsStorageKey = `librepaq_workspace_name_${userScope}`;
   const provisionedUserRef = useRef<string | null>(null);
+  const acceptedInvitesUserRef = useRef<string | null>(null);
 
   const [workspaceNameOverride, setWorkspaceNameOverride] = useState<string | null>(null);
 
@@ -90,7 +95,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   // Aprovisionar automáticamente el Workspace + atribución de Google Ads al primer ingreso real
   useEffect(() => {
-    if (!user || isOwner || isReadOnlySupportMode || hasAdminAccess || checkIsSuperAdmin(user)) return;
+    if (!user || isOwner || isSupportImpersonation || hasAdminAccess || checkIsSuperAdmin(user)) return;
     if (user.user_metadata?.workspace_id) return;
     if (provisionedUserRef.current === user.id) return;
 
@@ -111,11 +116,25 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     });
 
     trackWorkspaceSignupConversion(provider, attribution);
-  }, [user, isOwner, isReadOnlySupportMode, hasAdminAccess, defaultWorkspaceName]);
+  }, [user, isOwner, isSupportImpersonation, hasAdminAccess, defaultWorkspaceName]);
+
+  useEffect(() => {
+    if (!user || isOwner || isSupportImpersonation || hasAdminAccess || checkIsSuperAdmin(user)) return;
+    if (user.user_metadata?.is_guest || acceptedInvitesUserRef.current === user.id) return;
+    acceptedInvitesUserRef.current = user.id;
+    void workspaceRbacClient
+      .acceptPendingInvites()
+      .then((res) => {
+        if (res.acceptedCount > 0) {
+          void queryClient.invalidateQueries({ queryKey: ['companies', userScope] });
+        }
+      })
+      .catch(() => {});
+  }, [user, isOwner, isSupportImpersonation, hasAdminAccess, queryClient, userScope]);
 
   const renameWorkspace = useCallback(
     async (nextName: string) => {
-      if (isReadOnlySupportMode) return;
+      if (isSupportImpersonation) return;
       const clean = nextName.trim();
       if (!clean || !user) return;
       setWorkspaceNameOverride(clean);
@@ -131,13 +150,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         workspaceName: clean
       });
     },
-    [isReadOnlySupportMode, user, wsStorageKey]
+    [isSupportImpersonation, user, wsStorageKey]
   );
 
   const { data: supportDetail, isLoading: supportLoading } = useQuery({
     queryKey: ['support-company-detail', supportSession?.companyId],
     queryFn: () => apiClient.getAdminCompanyDetail(supportSession!.companyId),
-    enabled: Boolean(isReadOnlySupportMode && supportSession?.companyId)
+    enabled: Boolean(isSupportImpersonation && supportSession?.companyId)
   });
 
   const { data: companies = [], isLoading, isError } = useQuery({
@@ -147,7 +166,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   });
 
   const supportCompany: Company | null = useMemo(() => {
-    if (!isReadOnlySupportMode || !supportSession) return null;
+    if (!isSupportImpersonation || !supportSession) return null;
     const d = supportDetail?.company;
     return {
       id: supportSession.companyId,
@@ -161,7 +180,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       createdAt: d?.createdAt || supportSession.startedAt,
       userId: d?.userId ?? null
     };
-  }, [isReadOnlySupportMode, supportSession, supportDetail]);
+  }, [isSupportImpersonation, supportSession, supportDetail]);
 
   const effectiveCompanies = useMemo(
     () => (supportCompany ? [supportCompany] : companies),
@@ -212,6 +231,29 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const resolvedActiveCompanyId = activeCompany?.id ?? '';
 
+  const { data: effectiveRoleInfo } = useQuery({
+    queryKey: ['effective-company-role', resolvedActiveCompanyId, user?.id],
+    queryFn: () => workspaceRbacClient.getEffectiveCompanyRole(resolvedActiveCompanyId),
+    enabled: Boolean(
+      user &&
+        resolvedActiveCompanyId &&
+        !isSupportImpersonation &&
+        !hasAdminAccess &&
+        !checkIsSuperAdmin(user) &&
+        !user.user_metadata?.is_guest
+    ),
+    staleTime: 60_000,
+    retry: false
+  });
+
+  const isReadOnlyClient = Boolean(
+    effectiveRoleInfo?.isReadOnlyClient || effectiveRoleInfo?.role === 'CLIENTE_LECTURA'
+  );
+  const effectiveCompanyRole: DespachoRole | 'OWNER' | null = isSupportImpersonation
+    ? 'CLIENTE_LECTURA'
+    : effectiveRoleInfo?.role ?? (activeCompany ? 'OWNER' : null);
+  const isReadOnlySupportMode = isSupportImpersonation || isReadOnlyClient;
+
   const periodMutation = useMutation({
     mutationFn: ({ year, period }: { year: number; period: number }) =>
       apiClient.updateCompanyPeriod(resolvedActiveCompanyId, year, period),
@@ -247,8 +289,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       setActiveCompanyId,
       updatePeriod,
       isUpdatingPeriod,
-      isLoading: isReadOnlySupportMode ? supportLoading : isLoading,
-      isReadOnlySupportMode
+      isLoading: isSupportImpersonation ? supportLoading : isLoading,
+      isReadOnlySupportMode,
+      isReadOnlyClient,
+      effectiveCompanyRole
     }),
     [
       workspace,
@@ -259,7 +303,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       setActiveCompanyId,
       updatePeriod,
       isUpdatingPeriod,
+      isSupportImpersonation,
       isReadOnlySupportMode,
+      isReadOnlyClient,
+      effectiveCompanyRole,
       supportLoading,
       isLoading
     ]

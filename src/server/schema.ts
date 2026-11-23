@@ -74,6 +74,12 @@ export function initDatabase(): void {
   if (!hasUuidRel) {
     db.exec('ALTER TABLE cfdi_documents ADD COLUMN uuid_relacionado TEXT;');
   }
+  if (!cfdiCols.some((col) => col.name === 'tax_breakdown')) {
+    db.exec('ALTER TABLE cfdi_documents ADD COLUMN tax_breakdown TEXT;');
+  }
+  if (!cfdiCols.some((col) => col.name === 'related_docs')) {
+    db.exec('ALTER TABLE cfdi_documents ADD COLUMN related_docs TEXT;');
+  }
 
   const compCols = db.query('PRAGMA table_info(companies)').all() as Array<{ name: string }>;
   const hasUserId = compCols.some((col) => col.name === 'user_id');

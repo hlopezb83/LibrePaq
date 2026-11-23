@@ -1,6 +1,7 @@
 import type {
   BankReconciliationResponse,
   CfdiDocument,
+  CxcCxpAgingResponse,
   DiotReportResponse,
   Efos69BStatus,
   FielCredentialStatus,
@@ -9,6 +10,7 @@ import type {
   FixedAssetsResponse,
   PeriodLock,
   Poliza,
+  SatBatchVerifyResult,
   SatDownloadRequestRecord,
   TaxParametersRecord,
   ThirdPartyRecord
@@ -276,5 +278,20 @@ export const fiscalAndBankApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId })
-    }).then((r) => handleResponse<Poliza>(r))
+    }).then((r) => handleResponse<Poliza>(r)),
+
+  getCxcCxpAging: (companyId: string) =>
+    fetchWithTimeout(`/api/companies/${encodeURIComponent(companyId)}/cxc-cxp`).then((r) =>
+      handleResponse<CxcCxpAgingResponse>(r)
+    ),
+
+  verifyCfdisSatBatch: (companyId: string, cfdiIds: string[]) =>
+    fetchWithTimeout(
+      `/api/companies/${encodeURIComponent(companyId)}/cfdis/verify-sat-batch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cfdiIds })
+      }
+    ).then((r) => handleResponse<SatBatchVerifyResult>(r))
 };

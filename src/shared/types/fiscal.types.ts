@@ -12,6 +12,10 @@ export interface DiotSupplierRow {
   tipoTercero: '04' | '05';
   tipoOperacion: '03' | '06' | '85';
   actosPagados16: number;
+  actosPagados8?: number;
+  actosPagados0?: number;
+  actosExentos?: number;
+  iepsPagado?: number;
   ivaAcreditable16: number;
   ivaRetenido: number;
   isrRetenido: number;
@@ -261,7 +265,37 @@ export interface FiscalWorkpaperResponse {
     retencionesIvaPorEnterar: number;
     totalEstimadoDia17: number;
   };
+  cashBasisSummary?: {
+    isCashBasisRegime: boolean;
+    baseContableDevengada: number;
+    ingresosCobradosFlujo: number;
+    deduccionesPagadasFlujo: number;
+    retencionResico125: number;
+    pueIngresos: number;
+    repIngresos: number;
+    creditNotesRestados: number;
+  };
+  resicoThresholdAlert?: {
+    applies: boolean;
+    thresholdMxn: number;
+    accumulatedRevenueMxn: number;
+    utilizationPct: number;
+    status: 'OK' | 'WARNING_80' | 'CRITICAL_95' | 'EXCEEDED';
+    label: string;
+  };
+  ivaBreakdown?: {
+    base16: number;
+    base8: number;
+    base0: number;
+    baseExento: number;
+    iepsAcreditable: number;
+    prorationFactor: number;
+    ivaAcreditableSinProrrateo: number;
+    ivaAcreditableProrrateado: number;
+  };
 }
+
+export * from './cxc-sat.types';
 
 export interface CompanyBackupBundle {
   version: '2.0';

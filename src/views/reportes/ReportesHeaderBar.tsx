@@ -8,7 +8,14 @@ import {
 import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
 import type { Company } from '../../shared/types';
 
-export type ReportTabId = 'BALANZA' | 'RESULTADOS' | 'BALANCE' | 'ANEXO24' | 'ENTREGABLES';
+export type ReportTabId =
+  | 'BALANZA'
+  | 'RESULTADOS'
+  | 'BALANCE'
+  | 'FLUJOS_CAPITAL'
+  | 'ANUAL'
+  | 'ANEXO24'
+  | 'ENTREGABLES';
 
 interface ReportesHeaderBarProps {
   company: Company;
@@ -25,6 +32,8 @@ const TABS: { id: ReportTabId; label: string }[] = [
   { id: 'BALANZA', label: 'Balanza de Comprobación' },
   { id: 'RESULTADOS', label: 'Estado de Resultados (%)' },
   { id: 'BALANCE', label: 'Balance General (%)' },
+  { id: 'FLUJOS_CAPITAL', label: 'Flujos y Capital (NIF)' },
+  { id: 'ANUAL', label: 'Declaración Anual' },
   { id: 'ANEXO24', label: 'XML SAT Anexo 24' },
   { id: 'ENTREGABLES', label: 'Dossier de Cierre' }
 ];

@@ -24,7 +24,7 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
 
             <div className="flex items-center gap-3">
               <div className="sm:text-right">
-                <p className="text-[11px] uppercase font-mono text-slate-500">Estado de Partida Doble</p>
+                <p className="text-[11px] uppercase font-mono text-slate-600">Estado de Partida Doble</p>
                 <p className="text-xs sm:text-sm font-bold font-mono text-emerald-700 flex items-center gap-1 sm:justify-end">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
                   <span>CUADRADA ($0.00 DIFERENCIA)</span>
@@ -33,7 +33,12 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
+          <div
+            tabIndex={0}
+            role="region"
+            aria-label="Ejemplo de póliza contable cuadrada"
+            className="overflow-x-auto rounded-xl border border-slate-200 shadow-xs"
+          >
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 text-slate-600 font-mono uppercase text-[10px] border-b border-slate-200">
                 <tr>
@@ -157,35 +162,45 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 overflow-x-auto text-xs font-mono shadow-xs">
-            <div className="min-w-[500px]">
-              <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-slate-600 grid grid-cols-5 text-[10px] uppercase font-semibold">
-                <div>Código SAT</div>
-                <div className="col-span-2">Nombre Cuenta</div>
-                <div className="text-right">Saldo Inicial</div>
-                <div className="text-right">Saldo Final</div>
-              </div>
-              <div className="p-2 space-y-1 divide-y divide-slate-100 text-slate-800">
-                <div className="grid grid-cols-5 py-1.5 px-2 font-bold text-slate-900">
-                  <span className="text-blue-600">100.00</span>
-                  <span className="col-span-2">ACTIVO</span>
-                  <span className="text-right">$8,450,120.00</span>
-                  <span className="text-right text-emerald-700 font-bold">$9,120,400.00</span>
-                </div>
-                <div className="grid grid-cols-5 py-1.5 px-2 pl-6">
-                  <span className="text-blue-600">102.01</span>
-                  <span className="col-span-2 text-slate-900 font-medium">Bancos Nacionales</span>
-                  <span className="text-right">$2,100,500.00</span>
-                  <span className="text-right text-slate-900 font-semibold">$2,450,800.00</span>
-                </div>
-                <div className="grid grid-cols-5 py-1.5 px-2 pl-10 text-slate-600">
-                  <span className="text-slate-500">102.01.001</span>
-                  <span className="col-span-2 font-sans text-slate-700">BBVA Bancomer Operativa</span>
-                  <span className="text-right">$1,450,000.00</span>
-                  <span className="text-right text-slate-900 font-medium">$1,680,300.00</span>
-                </div>
-              </div>
-            </div>
+          <div
+            tabIndex={0}
+            role="region"
+            aria-label="Vista previa de balanza de comprobación SAT Anexo 24"
+            className="rounded-xl border border-slate-200 overflow-x-auto text-xs font-mono shadow-xs"
+          >
+            <table className="w-full min-w-[500px] text-xs text-left">
+              <caption className="sr-only">
+                Balanza de Comprobación SAT Anexo 24 con código agrupador, saldo inicial y saldo final
+              </caption>
+              <thead className="bg-slate-50 text-slate-700 font-mono uppercase text-[10px] border-b border-slate-200">
+                <tr>
+                  <th scope="col" className="py-2 px-3">Código SAT</th>
+                  <th scope="col" className="py-2 px-3">Nombre Cuenta</th>
+                  <th scope="col" className="py-2 px-3 text-right">Saldo Inicial</th>
+                  <th scope="col" className="py-2 px-3 text-right">Saldo Final</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-800">
+                <tr className="font-bold text-slate-900 bg-slate-50/40">
+                  <td className="py-2 px-3 text-blue-700">100.00</td>
+                  <td className="py-2 px-3">ACTIVO</td>
+                  <td className="py-2 px-3 text-right tabular-nums">$8,450,120.00</td>
+                  <td className="py-2 px-3 text-right text-emerald-700 tabular-nums">$9,120,400.00</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 pl-6 text-blue-700">102.01</td>
+                  <td className="py-2 px-3 text-slate-900 font-medium">Bancos Nacionales</td>
+                  <td className="py-2 px-3 text-right tabular-nums">$2,100,500.00</td>
+                  <td className="py-2 px-3 text-right text-slate-900 font-semibold tabular-nums">$2,450,800.00</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 pl-9 text-slate-600">102.01.001</td>
+                  <td className="py-2 px-3 font-sans text-slate-700">BBVA Bancomer Operativa</td>
+                  <td className="py-2 px-3 text-right tabular-nums">$1,450,000.00</td>
+                  <td className="py-2 px-3 text-right text-slate-900 font-medium tabular-nums">$1,680,300.00</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -206,19 +221,19 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[10px] text-slate-500 uppercase">Ingresos Nominales Acumulados</p>
-              <p className="text-lg font-bold text-slate-900 mt-1">$4,850,200.00</p>
-              <p className="text-[10px] text-blue-600 mt-1 font-semibold">Coeficiente Utilidad: 0.1845</p>
+              <p className="text-[10px] text-slate-600 uppercase font-semibold">Ingresos Nominales Acumulados</p>
+              <p className="text-lg font-bold text-slate-900 mt-1 tabular-nums">$4,850,200.00</p>
+              <p className="text-[10px] text-blue-700 mt-1 font-semibold">Coeficiente Utilidad: 0.1845</p>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[10px] text-slate-500 uppercase">ISR a Enterar (Día 17)</p>
-              <p className="text-lg font-bold text-amber-700 mt-1">$42,380.00</p>
-              <p className="text-[10px] text-slate-500 mt-1">Menos pagos previos: $226,100.00</p>
+              <p className="text-[10px] text-slate-600 uppercase font-semibold">ISR a Enterar (Día 17)</p>
+              <p className="text-lg font-bold text-amber-800 mt-1 tabular-nums">$42,380.00</p>
+              <p className="text-[10px] text-slate-600 mt-1">Menos pagos previos: $226,100.00</p>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[10px] text-slate-500 uppercase">IVA a Pagar / Saldo a Favor</p>
-              <p className="text-lg font-bold text-emerald-700 mt-1">$18,450.00</p>
-              <p className="text-[10px] text-emerald-600 mt-1 font-semibold">Causado $96k - Acreditable $77.5k</p>
+              <p className="text-[10px] text-slate-600 uppercase font-semibold">IVA a Pagar / Saldo a Favor</p>
+              <p className="text-lg font-bold text-emerald-700 mt-1 tabular-nums">$18,450.00</p>
+              <p className="text-[10px] text-emerald-700 mt-1 font-semibold">Causado $96k - Acreditable $77.5k</p>
             </div>
           </div>
         </div>

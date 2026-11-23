@@ -14,6 +14,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
   // LibrePaq Pro: $0 MXN por tiempo limitado (Promoción de Lanzamiento)
   const costLibrePaq = 0;
   const annualSavings = Math.max(0, costContpaqi - costLibrePaq);
+  const monthlySavings = Math.round(annualSavings / 12);
   const savingsPercent = 100;
 
   return (
@@ -36,7 +37,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
           <div className="lg:col-span-7 space-y-6 sm:space-y-8">
             {/* Presets rápidos para despachos en México */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
                 Escenarios Típicos de Despachos en México:
               </span>
               <div
@@ -96,7 +97,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                 onChange={(e) => setNumRfcs(Number(e.target.value))}
                 className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2"
               />
-              <div className="flex justify-between text-[11px] text-slate-500 mt-1 font-mono">
+              <div className="flex justify-between text-[11px] text-slate-600 mt-1 font-mono">
                 <span>1 Empresa</span>
                 <span>30 Empresas</span>
                 <span>60+ Empresas</span>
@@ -127,7 +128,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                 onChange={(e) => setNumUsers(Number(e.target.value))}
                 className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 focus-visible:outline-2 focus-visible:outline-emerald-600 focus-visible:outline-offset-2"
               />
-              <div className="flex justify-between text-[11px] text-slate-500 mt-1 font-mono">
+              <div className="flex justify-between text-[11px] text-slate-600 mt-1 font-mono">
                 <span>1 Contador</span>
                 <span>6 Contadores</span>
                 <span>12+ Contadores</span>
@@ -138,7 +139,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t border-slate-200">
               <div className="p-4 rounded-xl bg-white border border-slate-200">
                 <p className="text-xs text-slate-600">Gasto Estimado CONTPAQi®:</p>
-                <p className="text-xl font-bold font-mono tabular-nums text-rose-600 mt-1">
+                <p className="text-xl font-bold font-mono tabular-nums text-rose-700 mt-1">
                   ${costContpaqi.toLocaleString('es-MX')} MXN/año
                 </p>
                 <p className="text-[11px] text-slate-600 mt-0.5">Renovación anual + cobro por PC extra + soporte técnico</p>
@@ -158,17 +159,23 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
           <div className="lg:col-span-5 bg-gradient-to-br from-[#0B254E] via-[#0E336B] to-[#081C3C] text-white rounded-2xl p-6 sm:p-8 text-center relative overflow-hidden shadow-xl">
             <div className="absolute top-0 right-0 -mr-10 -mt-10 w-44 h-44 bg-cyan-500/10 blur-2xl rounded-full pointer-events-none" />
 
-            <span className="inline-block px-3.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              ¡AHORRO DEL {savingsPercent}%!
-            </span>
+            <div aria-live="polite" aria-atomic="true">
+              <span className="inline-block px-3.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                ¡AHORRO DEL {savingsPercent}%!
+              </span>
 
-            <p className="mt-4 text-xs font-medium uppercase tracking-wider text-slate-300">
-              Ahorro Neto Anual para Tu Firma
-            </p>
+              <p className="mt-4 text-xs font-medium uppercase tracking-wider text-slate-300">
+                Ahorro Neto Anual para Tu Firma
+              </p>
 
-            <p className="mt-2 text-3xl sm:text-4xl font-extrabold font-mono tabular-nums text-emerald-400 tracking-tight">
-              ${annualSavings.toLocaleString('es-MX')} <span className="text-lg font-sans font-medium text-emerald-300">MXN</span>
-            </p>
+              <p className="mt-2 text-3xl sm:text-4xl font-extrabold font-mono tabular-nums text-emerald-400 tracking-tight">
+                ${annualSavings.toLocaleString('es-MX')} <span className="text-lg font-sans font-medium text-emerald-300">MXN</span>
+              </p>
+
+              <p className="mt-1.5 text-xs font-mono font-semibold text-cyan-200 tabular-nums">
+                Equivalente a ${monthlySavings.toLocaleString('es-MX')} MXN/mes retenidos
+              </p>
+            </div>
 
             <p className="mt-3 text-xs text-slate-300 leading-relaxed text-pretty">
               Capital directo que tu despacho retiene en lugar de pagar renovaciones y pólizas de soporte.
@@ -177,7 +184,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
             <button
               type="button"
               onClick={onOpenAuth}
-              className="mt-6 w-full py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer"
+              className="mt-6 w-full py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
             >
               <span>Empezar a Ahorrar Hoy</span>
               <ArrowRight className="w-4 h-4" aria-hidden="true" />

@@ -1,18 +1,23 @@
 import { db } from '../connection';
 import {
   assertAccountingInvariant,
+  computeCxcCxpAging,
   computeFiscalWorkpaperFromTrialBalance,
   fromCents,
   toCents
 } from '../../shared/accounting-engine';
 import { computeDiotReportData } from '../../shared/engine/diot.engine';
+import { querySatCfdiStatusSoap } from '../sat-soap';
 import type {
+  CxcCxpAgingResponse,
   DiotReportResponse,
   FiscalWorkpaperResponse,
+  SatBatchVerifyResult,
   TaxParametersRecord
 } from '../../shared/types';
 import { getCompanyById } from './companies.repo';
-import { getCfdiDocuments } from './cfdi.repo';
+import { getCfdiById, getCfdiDocuments } from './cfdi.repo';
+import { getThirdPartiesByCompany } from './third-parties.repo';
 import { computeTrialBalance } from './trial-balance.repo';
 
 export {
@@ -32,6 +37,7 @@ export function getDiotReport(
 
   const cfdis = getCfdiDocuments(company.id);
   const trialBalance = computeTrialBalance(company.id, ejercicio, periodo);
+  const thirdParties = getThirdPartiesByCompany(company.id);
 
   const polizasPeriodo = (
     db
@@ -45,7 +51,8 @@ export function getDiotReport(
     periodo,
     cfdis,
     polizaIdsInPeriod: new Set(polizasPeriodo.map((p) => p.id)),
-    trialBalance
+    trialBalance,
+    thirdParties
   });
 }
 
@@ -135,4 +142,93 @@ export function getFiscalWorkpaperReport(
     trialBalance,
     cfdis
   });
+}
+
+export function getCxcCxpAgingRepo(
+  companyId: string,
+  asOfIso?: string,
+  userId?: string | null
+): CxcCxpAgingResponse {
+  const company = getCompanyById(companyId, userId);
+  assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
+  const cfdis = getCfdiDocuments(company.id);
+  return computeCxcCxpAging({ companyId: company.id, cfdis, asOfIso });
+}
+
+export async function verifyCfdisSatBatchRepo(
+  companyId: string,
+  cfdiIds: string[],
+  userId?: string | null
+): Promise<SatBatchVerifyResult> {
+  const company = getCompanyById(companyId, userId);
+  assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
+
+  const uniqueIds = Array.from(
+    new Set(cfdiIds.map((id) => String(id || '').trim()).filter(Boolean))
+  ).slice(0, 50);
+
+  if (uniqueIds.length === 0) {
+    return { checkedCount: 0, updatedCount: 0, cancelledWithPolizaCount: 0, items: [] };
+  }
+
+  const targets = uniqueIds
+    .map((id) => getCfdiById(id))
+    .filter((c): c is NonNullable<typeof c> => c !== null && c.companyId === company.id);
+
+  const items: SatBatchVerifyResult['items'] = [];
+  let updatedCount = 0;
+  const updateStmt = db.prepare(
+    'UPDATE cfdi_documents SET status_sat = ? WHERE id = ? AND company_id = ?'
+  );
+  const efosStmt = db.query('SELECT situacion FROM sat_efos_69b WHERE rfc = ?');
+
+  for (let i = 0; i < targets.length; i += 5) {
+    const chunk = targets.slice(i, i + 5);
+    const chunkResults = await Promise.all(
+      chunk.map(async (cfdi) => {
+        const res = await querySatCfdiStatusSoap({
+          rfcEmisor: cfdi.emisorRfc,
+          rfcReceptor: cfdi.receptorRfc,
+          total: cfdi.total,
+          uuid: cfdi.uuid,
+          currentStatus: cfdi.statusSat
+        });
+
+        let validacionEfos: string = res.validacionEfos;
+        if (validacionEfos === '200_LIMPIO') {
+          const efosRow = efosStmt.get(cfdi.emisorRfc.trim().toUpperCase()) as {
+            situacion?: string;
+          } | null;
+          const sit = String(efosRow?.situacion || '').toUpperCase();
+          if (sit.includes('PRESUNTO') || sit.includes('DEFINITIV')) {
+            validacionEfos = '100_PRESUNTO_O_DEFINITIVO_69B';
+          }
+        }
+
+        if (res.modoConsulta !== 'OFFLINE_UNVERIFIED') {
+          updateStmt.run(res.estadoSat, cfdi.id, company.id);
+          updatedCount += 1;
+        }
+
+        const hadPoliza = Boolean(cfdi.polizaId);
+        const statusSat = res.estadoSat;
+        return {
+          cfdiId: cfdi.id,
+          uuid: cfdi.uuid,
+          statusSat,
+          hadPoliza,
+          cancelledWithPoliza: statusSat === 'CANCELADO' && hadPoliza,
+          validacionEfos
+        };
+      })
+    );
+    items.push(...chunkResults);
+  }
+
+  return {
+    checkedCount: items.length,
+    updatedCount,
+    cancelledWithPolizaCount: items.filter((item) => item.cancelledWithPoliza).length,
+    items
+  };
 }

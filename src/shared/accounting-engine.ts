@@ -49,3 +49,11 @@ export {
   type RfcModulo11Step,
   type RfcModulo11Result
 } from './engine/rfc-validator';
+
+export {
+  computeCashBasisFiscalSummary,
+  type CashBasisFiscalParams,
+  type CashBasisFiscalResult
+} from './engine/cash-basis-fiscal.engine';
+
+export { computeCxcCxpAging } from './engine/cxc-cxp.engine';

@@ -1,4 +1,17 @@
+import type { Context } from 'hono';
 import { AccountingInvariantError } from '../../shared/accounting-engine';
+import { companyExistsById, getCompanyById } from '../db';
+
+export function assertRouteCompanyAccess(c: Context, companyId: string) {
+  const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+  if (companyExistsById(companyId) && !getCompanyById(companyId, userId)) {
+    return c.json({ error: 'No tienes autorización sobre esta empresa' }, 403);
+  }
+  if (!getCompanyById(companyId, userId)) {
+    return c.json({ error: 'Empresa no encontrada' }, 404);
+  }
+  return null;
+}
 
 export function errorStatus(err: unknown, defaultStatus: 400 | 409 = 400): {
   message: string;

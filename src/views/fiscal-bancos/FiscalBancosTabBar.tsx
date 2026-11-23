@@ -6,7 +6,10 @@ export type FiscalBancosTabId =
   | 'DIOT'
   | 'PADRON_RFC'
   | 'ACTIVOS_FIJOS'
-  | 'PAPEL_DIA_17';
+  | 'PAPEL_DIA_17'
+  | 'CXC_CXP'
+  | 'NOMINA_IMSS'
+  | 'INVENTARIO_COSTO';
 
 export interface FiscalBancosTabBarProps {
   activeTab: FiscalBancosTabId;
@@ -22,7 +25,10 @@ export function FiscalBancosTabBar({
     { id: 'DIOT' as const, label: 'DIOT (.txt)' },
     { id: 'PADRON_RFC' as const, label: 'Padrón 69-B' },
     { id: 'ACTIVOS_FIJOS' as const, label: 'Activos Fijos (INPC)' },
-    { id: 'PAPEL_DIA_17' as const, label: 'Cédula Día 17' }
+    { id: 'PAPEL_DIA_17' as const, label: 'Cédula Día 17' },
+    { id: 'CXC_CXP' as const, label: 'CxC / CxP (PPD)' },
+    { id: 'NOMINA_IMSS' as const, label: 'Nómina / IMSS / ISN' },
+    { id: 'INVENTARIO_COSTO' as const, label: 'Inventario / Costo' }
   ];
 
   return (

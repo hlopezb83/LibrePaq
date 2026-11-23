@@ -1,5 +1,7 @@
-import { AlertCircle, Check, Copy, Download, FileCode2, RefreshCw } from 'lucide-react';
+import { strToU8, zipSync } from 'fflate';
+import { AlertCircle, Check, Copy, Download, FileArchive, FileCode2, RefreshCw } from 'lucide-react';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import { downloadBlobFile } from '../../lib/formatters';
 import type { SatXmlType } from '../../shared/sat-anexo24';
 
 interface Anexo24TabProps {
@@ -29,6 +31,20 @@ export function Anexo24Tab({
   const handleCopy = () => {
     if (!satXmlData?.xml) return;
     void copy(satXmlData.xml, 'xml');
+  };
+
+  const handleDownloadZip = () => {
+    if (!satXmlData?.xml || !satXmlData.filename) return;
+    const xmlFilename = satXmlData.filename;
+    const zipFilename = /\.xml$/i.test(xmlFilename)
+      ? xmlFilename.replace(/\.xml$/i, '.zip')
+      : `${xmlFilename}.zip`;
+    const zipped = zipSync({ [xmlFilename]: strToU8(satXmlData.xml) }, { level: 6 });
+    const zipBuffer = zipped.buffer.slice(
+      zipped.byteOffset,
+      zipped.byteOffset + zipped.byteLength
+    ) as ArrayBuffer;
+    downloadBlobFile(zipFilename, zipBuffer, 'application/zip');
   };
 
   return (
@@ -109,9 +125,18 @@ export function Anexo24Tab({
           </span>
           <button
             type="button"
-            onClick={onDownloadXml}
+            onClick={handleDownloadZip}
             disabled={!satXmlData}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer shadow-2xs disabled:opacity-50 transition"
+          >
+            <FileArchive className="w-4 h-4" aria-hidden="true" />
+            Descargar .ZIP SAT Oficial
+          </button>
+          <button
+            type="button"
+            onClick={onDownloadXml}
+            disabled={!satXmlData}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300 cursor-pointer shadow-2xs disabled:opacity-50 transition"
           >
             <Download className="w-4 h-4" aria-hidden="true" />
             Descargar {satXmlData?.filename || 'XML'}

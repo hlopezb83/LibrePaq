@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 const FAQ_ITEMS = [
@@ -34,6 +34,18 @@ const FAQ_ITEMS = [
 
 export function LandingFaqSection() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const panelRefs = useRef<Array<HTMLDivElement | null>>([]);
+
+  useEffect(() => {
+    const cleanups: Array<() => void> = [];
+    panelRefs.current.forEach((el, idx) => {
+      if (!el) return;
+      const onBeforeMatch = () => setOpenFaq(idx);
+      el.addEventListener('beforematch', onBeforeMatch);
+      cleanups.push(() => el.removeEventListener('beforematch', onBeforeMatch));
+    });
+    return () => cleanups.forEach((fn) => fn());
+  }, []);
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -52,39 +64,46 @@ export function LandingFaqSection() {
         </div>
 
         <div className="space-y-4">
-          {FAQ_ITEMS.map((item, idx) => (
-            <div
-              key={idx}
-              className="rounded-xl border border-slate-200 bg-white overflow-hidden transition-all shadow-xs"
-            >
-              <button
-                id={`faq-btn-${idx}`}
-                type="button"
-                aria-expanded={openFaq === idx}
-                aria-controls={`faq-panel-${idx}`}
-                onClick={() => toggleFaq(idx)}
-                className="w-full py-4 px-6 text-left flex items-center justify-between gap-4 font-semibold text-slate-900 hover:text-blue-600 transition cursor-pointer"
+          {FAQ_ITEMS.map((item, idx) => {
+            const isOpen = openFaq === idx;
+            return (
+              <div
+                key={idx}
+                className="rounded-xl border border-slate-200 bg-white overflow-hidden transition-all shadow-xs"
               >
-                <span className="text-base text-balance">{item.q}</span>
-                <ChevronDown
-                  aria-hidden="true"
-                  className={`w-5 h-5 text-slate-500 shrink-0 transition-transform ${
-                    openFaq === idx ? 'rotate-180 text-blue-600' : ''
-                  }`}
-                />
-              </button>
-              {openFaq === idx && (
+                <h3>
+                  <button
+                    id={`faq-btn-${idx}`}
+                    type="button"
+                    aria-expanded={isOpen}
+                    aria-controls={`faq-panel-${idx}`}
+                    onClick={() => toggleFaq(idx)}
+                    className="w-full py-4 px-6 text-left flex items-center justify-between gap-4 font-semibold text-slate-900 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:-outline-offset-2 transition cursor-pointer"
+                  >
+                    <span className="text-base text-balance">{item.q}</span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`w-5 h-5 text-slate-600 shrink-0 transition-transform ${
+                        isOpen ? 'rotate-180 text-blue-700' : ''
+                      }`}
+                    />
+                  </button>
+                </h3>
                 <div
+                  ref={(el) => {
+                    panelRefs.current[idx] = el;
+                  }}
                   id={`faq-panel-${idx}`}
                   role="region"
                   aria-labelledby={`faq-btn-${idx}`}
-                  className="px-6 pb-5 pt-1 text-sm text-slate-600 leading-relaxed border-t border-slate-100 text-pretty"
+                  hidden={!isOpen ? ('until-found' as unknown as boolean) : false}
+                  className="px-6 pb-5 pt-2 text-sm text-slate-700 leading-relaxed border-t border-slate-100 text-pretty"
                 >
                   {item.a}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

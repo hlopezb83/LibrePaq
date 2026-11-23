@@ -4,6 +4,8 @@ import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { formatCurrency } from '../../lib/formatters';
 import { checkRfc69BStatus } from '../../shared/sat-69b';
 import type { Account, CfdiDocument } from '../../shared/types';
+import { CfdiRuleLearningBar } from './CfdiRuleLearningBar';
+import { useCfdiContabilizarRules } from './useCfdiContabilizarRules';
 
 export interface CfdiPreviewMovement {
   code: string;
@@ -41,8 +43,27 @@ export function CfdiContabilizarModal({
   onConfirm
 }: CfdiContabilizarModalProps) {
   useDialogLightDismiss(dialogRef, onClose);
-  const totalCargos = previewMovements.reduce((acc, m) => acc + (m.cargo || 0), 0);
-  const totalAbonos = previewMovements.reduce((acc, m) => acc + (m.abono || 0), 0);
+  const {
+    matchedRule,
+    deductiblePct,
+    setDeductiblePct,
+    rememberRule,
+    setRememberRule,
+    isSavingRule,
+    effectivePreviewMovements,
+    saveLearnedRuleIfEnabled
+  } = useCfdiContabilizarRules({
+    selectedCfdi,
+    affectableAccounts,
+    operationAccountCode,
+    setOperationAccountCode,
+    counterAccountCode,
+    setCounterAccountCode,
+    fallbackPreviewMovements: previewMovements
+  });
+
+  const totalCargos = effectivePreviewMovements.reduce((acc, m) => acc + (m.cargo || 0), 0);
+  const totalAbonos = effectivePreviewMovements.reduce((acc, m) => acc + (m.abono || 0), 0);
   const diffCents = Math.abs(Math.round(totalCargos * 100) - Math.round(totalAbonos * 100));
   const isBalanced = diffCents === 0;
   const counterpartyRfc = selectedCfdi
@@ -62,9 +83,11 @@ export function CfdiContabilizarModal({
     >
       {selectedCfdi && (
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            if (!isPending && isBalanced) onConfirm();
+            if (isPending || isSavingRule || !isBalanced) return;
+            await saveLearnedRuleIfEnabled();
+            onConfirm();
           }}
           className="p-4 sm:p-5 max-h-[92dvh] overflow-y-auto overscroll-contain space-y-3.5"
         >
@@ -213,6 +236,16 @@ export function CfdiContabilizarModal({
             </div>
           </div>
 
+          <CfdiRuleLearningBar
+            direction={selectedCfdi.direction}
+            counterpartyRfc={counterpartyRfc}
+            matchedRule={matchedRule}
+            deductiblePct={deductiblePct}
+            setDeductiblePct={setDeductiblePct}
+            rememberRule={rememberRule}
+            setRememberRule={setRememberRule}
+          />
+
           {/* Tabla de Previsualización en Vivo de la Póliza Contable (Partida Doble) */}
           <div className="border border-slate-300 rounded-xl overflow-hidden overflow-x-auto scrollable-panel">
             <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between text-xs">
@@ -244,7 +277,7 @@ export function CfdiContabilizarModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {previewMovements.map((line, i) => (
+                {effectivePreviewMovements.map((line, i) => (
                   <tr key={i} className="hover:bg-blue-50/30">
                     <td className="py-2 px-3 font-mono font-bold text-blue-800">{line.code}</td>
                     <td className="py-2 px-3 font-medium text-slate-800">{line.name}</td>
@@ -295,12 +328,12 @@ export function CfdiContabilizarModal({
             </button>
             <button
               type="submit"
-              disabled={isPending || !isBalanced}
+              disabled={isPending || isSavingRule || !isBalanced}
               title={!isBalanced ? 'El asiento proyectado está descuadrado' : undefined}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
             >
               <Sparkles className="w-4 h-4" aria-hidden="true" />
-              {isPending ? 'Generando Póliza...' : 'Confirmar y Generar Póliza'}
+              {isPending || isSavingRule ? 'Generando Póliza...' : 'Confirmar y Generar Póliza'}
             </button>
           </div>
         </form>

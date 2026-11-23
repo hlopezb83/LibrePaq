@@ -3,6 +3,7 @@ import { extractNominaOtrosPagos } from '../cfdi-xml';
 import { fromCents, toCents } from './invariants-and-math';
 import type { AutoPolizaMovementDraft, AutoPolizaOverrides } from './auto-poliza-types';
 import { inferExpenseAccountForCfdi, resolveFiscalAccount } from './auto-poliza-account-resolver';
+import { appendRecibidoDeductibleMovements } from './auto-poliza-deductible';
 
 export function makeDraft(
   acc: Account,
@@ -185,14 +186,18 @@ export function buildCreditNoteEgresoMovements(
       const accIvaRet = resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR');
       movements.push(makeDraft(accIvaRet, ref, ivaRetCents, 0, `Reverso Retención IVA Nota Crédito ${ref}`));
     }
-    movements.push(
-      makeDraft(accGasto, ref, 0, subtotalNetoCents, `Bonificación s/gasto: ${cfdi.conceptoPrincipal}`)
-    );
-    if (ivaCents > 0) {
-      movements.push(
-        makeDraft(accIva, ref, 0, ivaCents, `Disminución IVA acreditable Nota de Crédito ${ref}`)
-      );
-    }
+    appendRecibidoDeductibleMovements({
+      movements,
+      accounts,
+      accGasto,
+      accIva,
+      ref,
+      conceptoPrincipal: cfdi.conceptoPrincipal,
+      subtotalCents: subtotalNetoCents,
+      ivaCents,
+      deductiblePct: overrides?.deductiblePct,
+      isCreditNoteReversal: true
+    });
     return {
       polizaType: overrides?.polizaType ?? 'DIARIO',
       polizaConcept: `Nota de Crédito Recibida ${ref} - ${cfdi.emisorNombre}`,
@@ -268,10 +273,17 @@ export function buildStandardIngresoMovements(
       ? resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO')
       : resolveFiscalAccount(accounts, 'IVA_PENDIENTE_PAGO');
 
-    movements.push(makeDraft(accGasto, ref, effectiveSubtotalCents, 0, cfdi.conceptoPrincipal));
-    if (ivaCents > 0) {
-      movements.push(makeDraft(accIva, ref, ivaCents, 0, `IVA Acreditable 16% ${ref}`));
-    }
+    appendRecibidoDeductibleMovements({
+      movements,
+      accounts,
+      accGasto,
+      accIva,
+      ref,
+      conceptoPrincipal: cfdi.conceptoPrincipal,
+      subtotalCents: effectiveSubtotalCents,
+      ivaCents,
+      deductiblePct: overrides?.deductiblePct
+    });
     if (isrRetCents > 0) {
       const accIsrRet = resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
       movements.push(makeDraft(accIsrRet, ref, 0, isrRetCents, `Retención ISR ${ref} (${cfdi.emisorRfc})`));

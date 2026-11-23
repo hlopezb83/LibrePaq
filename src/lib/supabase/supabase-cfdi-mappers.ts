@@ -1,7 +1,18 @@
 import { supabase } from '../supabase';
 import { chunkArray } from '../../shared/array-utils';
 import type { parseCfdiXmlString } from '../../shared/cfdi-xml';
-import type { CfdiDocument } from '../../shared/types';
+import type { CfdiDocument, CfdiRelatedDoc, CfdiTaxBreakdown } from '../../shared/types';
+
+function parseJsonField<T>(raw: unknown): T | null {
+  if (raw == null) return null;
+  if (typeof raw === 'object') return raw as T;
+  if (typeof raw !== 'string' || raw.trim().length === 0) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
 type ParsedCfdiXml = ReturnType<typeof parseCfdiXmlString>;
 
@@ -87,6 +98,8 @@ export function mapSupabaseCfdi(
     statusSat: (row.status_sat as 'VIGENTE' | 'CANCELADO') || 'VIGENTE',
     polizaId: row.poliza_id ? String(row.poliza_id) : null,
     polizaFolio,
+    taxBreakdown: parseJsonField<CfdiTaxBreakdown>(row.tax_breakdown),
+    relatedDocs: parseJsonField<CfdiRelatedDoc[]>(row.related_docs),
     xmlRaw: row.xml_raw ? String(row.xml_raw) : ''
   };
 }
@@ -126,6 +139,8 @@ export function buildParsedCfdiInsertRow(
     uso_cfdi: parsed.usoCfdi || 'G03',
     uuid_relacionado: parsed.uuidRelacionado || null,
     status_sat: 'VIGENTE',
+    tax_breakdown: parsed.taxBreakdown ?? null,
+    related_docs: parsed.relatedDocs ?? null,
     xml_raw: xmlRaw
   };
 }

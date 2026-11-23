@@ -57,6 +57,8 @@ export const CREATE_TABLES_DDL = `
     uuid_relacionado TEXT,
     status_sat TEXT NOT NULL DEFAULT 'VIGENTE',
     poliza_id TEXT,
+    tax_breakdown TEXT,
+    related_docs TEXT,
     xml_raw TEXT NOT NULL,
     UNIQUE(company_id, uuid)
   );
@@ -190,6 +192,14 @@ export const CREATE_TABLES_DDL = `
     saldo_favor_iva_anterior REAL NOT NULL DEFAULT 0,
     tipo_cambio_dof_cierre REAL NOT NULL DEFAULT 19.865,
     PRIMARY KEY (company_id, ejercicio)
+  );
+
+  CREATE TABLE IF NOT EXISTS sat_efos_69b (
+    rfc TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL DEFAULT '',
+    situacion TEXT NOT NULL DEFAULT 'PRESUNTO',
+    fecha_publicacion TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_poliza_movements_poliza_id ON poliza_movements(poliza_id);

@@ -7,7 +7,15 @@ import { downloadBlobFile, downloadCsvFile } from '../../lib/formatters';
 import type { SatXmlType } from '../../shared/sat-anexo24';
 import type { ReportTabId } from './ReportesHeaderBar';
 
-const VALID_REPORT_TABS: readonly ReportTabId[] = ['BALANZA', 'RESULTADOS', 'BALANCE', 'ANEXO24', 'ENTREGABLES'];
+const VALID_REPORT_TABS: readonly ReportTabId[] = [
+  'BALANZA',
+  'RESULTADOS',
+  'BALANCE',
+  'FLUJOS_CAPITAL',
+  'ANUAL',
+  'ANEXO24',
+  'ENTREGABLES'
+];
 
 function getInitialReportTab(): ReportTabId {
   if (typeof window !== 'undefined' && window.location.search) {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Trash2 } from 'lucide-react';
+import { ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 
 export interface CfdiBatchActionBarProps {
   selectedCfdiIds: Set<string>;
@@ -7,6 +7,8 @@ export interface CfdiBatchActionBarProps {
   isBatchContabilizarPending: boolean;
   batchProgress?: { current: number; total: number } | null;
   onBatchContabilizarSelected: () => void;
+  isVerifySatBatchPending?: boolean;
+  onVerifySatBatchSelected?: () => void;
   isBatchDeletePending: boolean;
   onBatchDeleteSelected: () => void;
   isPeriodLocked: boolean;
@@ -18,6 +20,8 @@ export function CfdiBatchActionBar({
   isBatchContabilizarPending,
   batchProgress,
   onBatchContabilizarSelected,
+  isVerifySatBatchPending = false,
+  onVerifySatBatchSelected,
   isBatchDeletePending,
   onBatchDeleteSelected,
   isPeriodLocked
@@ -58,6 +62,19 @@ export function CfdiBatchActionBar({
               : 'Contabilizando...'
             : 'Contabilizar Seleccionados'}
         </button>
+
+        {onVerifySatBatchSelected && (
+          <button
+            type="button"
+            disabled={isVerifySatBatchPending || isBatchContabilizarPending || isBatchDeletePending}
+            onClick={onVerifySatBatchSelected}
+            title="Consultar estatus vigente o cancelado ante el SAT y lista 69-B para los CFDIs seleccionados"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
+          >
+            <ShieldCheck className={`w-3.5 h-3.5 ${isVerifySatBatchPending ? 'animate-pulse' : ''}`} aria-hidden="true" />
+            {isVerifySatBatchPending ? 'Validando SAT...' : 'Validar SAT en Lote'}
+          </button>
+        )}
 
         <button
           type="button"

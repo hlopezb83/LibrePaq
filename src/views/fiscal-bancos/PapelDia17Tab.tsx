@@ -5,6 +5,7 @@ import {
   PapelDia17IvaCard,
   PapelDia17UsdCard
 } from './PapelDia17Cards';
+import { ResicoCashBasisBanner } from './ResicoCashBasisBanner';
 import { usePapelDia17 } from './usePapelDia17';
 
 export interface PapelDia17TabProps {
@@ -303,6 +304,9 @@ export function PapelDia17Tab({
           </span>
         </div>
       </div>
+
+      {/* Flujo RESICO, Semáforo de Topes y Prorrateo IVA */}
+      <ResicoCashBasisBanner workpaper={workpaper} />
 
       {/* 3 Cédulas Fiscales lado a lado: ISR Provisional, IVA Definitivo y Fluctuación USD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">

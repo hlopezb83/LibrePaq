@@ -71,6 +71,9 @@ export function AddCfdiView() {
     batchContabilizarMutation,
     batchDeleteMutation,
     verifySatMutation,
+    verifySatBatchMutation,
+    satBatchAlert,
+    dismissSatBatchAlert,
     handleFileUpload,
     handleDrop,
     openContabilizarModal,
@@ -180,10 +183,43 @@ export function AddCfdiView() {
         isBatchContabilizarPending={batchContabilizarMutation.isPending}
         batchProgress={batchProgress}
         onBatchContabilizarSelected={() => batchContabilizarMutation.mutate(Array.from(selectedCfdiIds))}
+        isVerifySatBatchPending={verifySatBatchMutation.isPending}
+        onVerifySatBatchSelected={() => verifySatBatchMutation.mutate(Array.from(selectedCfdiIds))}
         isBatchDeletePending={batchDeleteMutation.isPending}
         onBatchDeleteSelected={() => batchDeleteMutation.mutate(Array.from(selectedCfdiIds))}
         isPeriodLocked={isPeriodLocked}
       />
+
+      {satBatchAlert && satBatchAlert.cancelledWithPolizaCount > 0 && (
+        <div
+          role="alert"
+          className="bg-red-50 border border-red-300 rounded-2xl p-4 flex items-start justify-between gap-3 text-red-950 text-xs shadow-2xs"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="space-y-0.5">
+              <span className="font-bold text-sm block text-red-950">
+                Alerta SAT: {satBatchAlert.cancelledWithPolizaCount}{' '}
+                {satBatchAlert.cancelledWithPolizaCount === 1
+                  ? 'factura cancelada aún tiene póliza contable registrada'
+                  : 'facturas canceladas aún tienen póliza contable registrada'}
+              </span>
+              <p className="text-red-800 leading-relaxed">
+                De {satBatchAlert.checkedCount} comprobantes validados ante el SAT,{' '}
+                <strong>{satBatchAlert.cancelledWithPolizaCount}</strong> están cancelados y mantienen póliza contable activa. Revísalos y revierte las pólizas afectadas.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={dismissSatBatchAlert}
+            aria-label="Ocultar alerta de facturas canceladas con póliza"
+            className="px-2.5 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-900 font-semibold cursor-pointer shrink-0 transition"
+          >
+            Ocultar
+          </button>
+        </div>
+      )}
 
       <CfdiFilterBar
         periodScope={periodScope}

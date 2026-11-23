@@ -82,6 +82,27 @@ export interface Poliza {
 
 export type CfdiTipo = 'I' | 'E' | 'P' | 'N' | 'T';
 
+export interface CfdiTaxBreakdown {
+  base16: number;
+  iva16: number;
+  base8: number;
+  iva8: number;
+  base0: number;
+  baseExento: number;
+  ieps: number;
+  objetoImp?: string;
+}
+
+export interface CfdiRelatedDoc {
+  idDocumento: string;
+  numParcialidad: number;
+  impSaldoAnt: number;
+  impPagado: number;
+  impSaldoInsoluto: number;
+  monedaDr?: string;
+  equivalenciaDr?: number;
+}
+
 export interface CfdiDocument {
   id: string;
   companyId: string;
@@ -113,6 +134,8 @@ export interface CfdiDocument {
   polizaId: string | null;
   polizaFolio?: string | null;
   xmlRaw: string;
+  taxBreakdown?: CfdiTaxBreakdown | null;
+  relatedDocs?: CfdiRelatedDoc[] | null;
 }
 
 export interface DashboardSummary {

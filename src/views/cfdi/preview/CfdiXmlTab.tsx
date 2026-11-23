@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { Check, Code2, Copy } from 'lucide-react';
+import { parseCfdiPreview } from '../../../shared/cfdi-preview-parser';
 import type { CfdiDocument } from '../../../shared/types';
 
 interface CfdiXmlTabProps {
@@ -8,18 +10,17 @@ interface CfdiXmlTabProps {
 }
 
 export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProps) {
-  const totalRet = (cfdi.isrRetenido || 0) + (cfdi.ivaRetenido || 0);
+  const preview = useMemo(() => parseCfdiPreview(cfdi), [cfdi]);
+  const totalRet = preview.impuestos.totalImpuestosRetenidos;
   const retencionesSnippet =
     totalRet > 0
-      ? `\n    <cfdi:Retenciones>\n${
-          cfdi.isrRetenido > 0 ? `      <cfdi:Retencion Impuesto="001" Importe="${cfdi.isrRetenido}" />\n` : ''
-        }${
-          cfdi.ivaRetenido > 0 ? `      <cfdi:Retencion Impuesto="002" Importe="${cfdi.ivaRetenido}" />\n` : ''
-        }    </cfdi:Retenciones>`
+      ? `\n    <cfdi:Retenciones>\n${preview.impuestos.retenciones
+          .map((r) => `      <cfdi:Retencion Impuesto="${r.impuesto}" Importe="${r.importe}" />\n`)
+          .join('')}    </cfdi:Retenciones>`
       : '';
   const xmlPayload =
     cfdi.xmlRaw ||
-    `<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Version="4.0" Serie="${cfdi.serie}" Folio="${cfdi.folio}" Fecha="${cfdi.fecha}" Total="${cfdi.total}" SubTotal="${cfdi.subtotal}" Moneda="${cfdi.moneda}">\n  <cfdi:Emisor Rfc="${cfdi.emisorRfc}" Nombre="${cfdi.emisorNombre}" RegimenFiscal="601"/>\n  <cfdi:Receptor Rfc="${cfdi.receptorRfc}" Nombre="${cfdi.receptorNombre}" UsoCFDI="${cfdi.usoCfdi}"/>\n  <cfdi:Impuestos TotalImpuestosTrasladados="${cfdi.ivaTrasladado}"${
+    `<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Version="${preview.comprobante.version}" Serie="${preview.comprobante.serie}" Folio="${preview.comprobante.folio}" Fecha="${preview.comprobante.fecha}" Total="${preview.comprobante.total}" SubTotal="${preview.comprobante.subtotal}" Moneda="${preview.comprobante.moneda}">\n  <cfdi:Emisor Rfc="${preview.emisor.rfc}" Nombre="${preview.emisor.nombre}" RegimenFiscal="${preview.emisor.regimenFiscal}"/>\n  <cfdi:Receptor Rfc="${preview.receptor.rfc}" Nombre="${preview.receptor.nombre}" UsoCFDI="${preview.receptor.usoCfdi}"/>\n  <cfdi:Impuestos TotalImpuestosTrasladados="${preview.impuestos.totalImpuestosTrasladados}"${
       totalRet > 0 ? ` TotalImpuestosRetenidos="${totalRet}"` : ''
     }>${retencionesSnippet}\n  </cfdi:Impuestos>\n</cfdi:Comprobante>`;
 
@@ -28,7 +29,9 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
       <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-slate-300">
           <Code2 className="w-4 h-4 text-cyan-400" aria-hidden="true" />
-          <span className="font-bold text-white font-sans text-sm">Estructura Jerárquica del XML CFDI 4.0</span>
+          <span className="font-bold text-white font-sans text-sm">
+            Estructura Jerárquica del XML CFDI {preview.comprobante.version}
+          </span>
         </div>
         <button
           type="button"
@@ -46,13 +49,19 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
           <span className="text-cyan-400 font-bold">&lt;cfdi:Comprobante</span>
           <div className="pl-4 space-y-0.5 text-slate-300">
             <div>
-              Version=<span className="text-emerald-300">"4.0"</span> Serie=<span className="text-emerald-300">"{cfdi.serie}"</span> Folio=<span className="text-emerald-300">"{cfdi.folio}"</span> Fecha=<span className="text-emerald-300">"{cfdi.fecha}T10:00:00"</span>
+              Version=<span className="text-emerald-300">"{preview.comprobante.version}"</span> Serie=<span className="text-emerald-300">"{preview.comprobante.serie}"</span> Folio=<span className="text-emerald-300">"{preview.comprobante.folio}"</span> Fecha=<span className="text-emerald-300">"{preview.comprobante.fecha}"</span>
             </div>
             <div>
-              FormaPago=<span className="text-emerald-300">"{cfdi.formaPago}"</span> MetodoPago=<span className="text-emerald-300">"{cfdi.metodoPago}"</span> Moneda=<span className="text-emerald-300">"{cfdi.moneda}"</span> TipoCambio=<span className="text-emerald-300">"{cfdi.tipoCambio}"</span>
+              FormaPago=<span className="text-emerald-300">"{preview.comprobante.formaPago}"</span> MetodoPago=<span className="text-emerald-300">"{preview.comprobante.metodoPago}"</span> Moneda=<span className="text-emerald-300">"{preview.comprobante.moneda}"</span> TipoCambio=<span className="text-emerald-300">"{preview.comprobante.tipoCambio}"</span>
             </div>
             <div>
-              SubTotal=<span className="text-amber-300">"{cfdi.subtotal}"</span> Total=<span className="text-amber-300">"{cfdi.total}"</span> TipoDeComprobante=<span className="text-emerald-300">"{cfdi.tipoComprobante}"</span> Exportacion=<span className="text-emerald-300">"01"</span>
+              SubTotal=<span className="text-amber-300">"{preview.comprobante.subtotal}"</span>
+              {preview.comprobante.descuento > 0 && (
+                <> Descuento=<span className="text-amber-300">"{preview.comprobante.descuento}"</span></>
+              )} Total=<span className="text-amber-300">"{preview.comprobante.total}"</span> TipoDeComprobante=<span className="text-emerald-300">"{preview.comprobante.tipoDeComprobante}"</span> Exportacion=<span className="text-emerald-300">"{preview.comprobante.exportacion}"</span> LugarExpedicion=<span className="text-emerald-300">"{preview.comprobante.lugarExpedicion}"</span>
+              {preview.comprobante.noCertificado && (
+                <> NoCertificado=<span className="text-emerald-300">"{preview.comprobante.noCertificado}"</span></>
+              )}
             </div>
           </div>
           <span className="text-cyan-400 font-bold">&gt;</span>
@@ -61,7 +70,7 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-blue-400 font-bold">&lt;cfdi:Emisor</span>
           <span className="text-slate-300">
-            {' '}Rfc=<span className="text-amber-300">"{cfdi.emisorRfc}"</span> Nombre=<span className="text-emerald-300">"{cfdi.emisorNombre}"</span> RegimenFiscal=<span className="text-emerald-300">"601"</span>
+            {' '}Rfc=<span className="text-amber-300">"{preview.emisor.rfc}"</span> Nombre=<span className="text-emerald-300">"{preview.emisor.nombre}"</span> RegimenFiscal=<span className="text-emerald-300">"{preview.emisor.regimenFiscal}"</span>
           </span>
           <span className="text-blue-400 font-bold"> /&gt;</span>
         </div>
@@ -69,44 +78,61 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-blue-400 font-bold">&lt;cfdi:Receptor</span>
           <span className="text-slate-300">
-            {' '}Rfc=<span className="text-amber-300">"{cfdi.receptorRfc}"</span> Nombre=<span className="text-emerald-300">"{cfdi.receptorNombre}"</span> DomicilioFiscalReceptor=<span className="text-emerald-300">"64000"</span> RegimenFiscalReceptor=<span className="text-emerald-300">"601"</span> UsoCFDI=<span className="text-emerald-300">"{cfdi.usoCfdi}"</span>
+            {' '}Rfc=<span className="text-amber-300">"{preview.receptor.rfc}"</span> Nombre=<span className="text-emerald-300">"{preview.receptor.nombre}"</span> DomicilioFiscalReceptor=<span className="text-emerald-300">"{preview.receptor.domicilioFiscalReceptor}"</span> RegimenFiscalReceptor=<span className="text-emerald-300">"{preview.receptor.regimenFiscalReceptor}"</span> UsoCFDI=<span className="text-emerald-300">"{preview.receptor.usoCfdi}"</span>
           </span>
           <span className="text-blue-400 font-bold"> /&gt;</span>
         </div>
 
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-purple-400 font-bold">&lt;cfdi:Conceptos&gt;</span>
-          <div className="pl-4 text-slate-300">
-            <span className="text-purple-400 font-bold">&lt;cfdi:Concepto</span> ClaveProdServ=<span className="text-emerald-300">"{cfdi.claveProdServ}"</span> Cantidad=<span className="text-amber-300">"1.00"</span> ClaveUnidad=<span className="text-emerald-300">"E48"</span> Descripcion=<span className="text-emerald-300">"{cfdi.conceptoPrincipal}"</span> ValorUnitario=<span className="text-amber-300">"{cfdi.subtotal}"</span> Importe=<span className="text-amber-300">"{cfdi.subtotal}"</span> ObjetoImp=<span className="text-emerald-300">"02"</span> <span className="text-purple-400 font-bold">/&gt;</span>
+          <div className="pl-4 space-y-1 text-slate-300">
+            {preview.conceptos.map((c, idx) => (
+              <div key={`${c.claveProdServ}-${c.noIdentificacion || idx}`}>
+                <span className="text-purple-400 font-bold">&lt;cfdi:Concepto</span> ClaveProdServ=<span className="text-emerald-300">"{c.claveProdServ}"</span>
+                {c.noIdentificacion && (
+                  <> NoIdentificacion=<span className="text-emerald-300">"{c.noIdentificacion}"</span></>
+                )} Cantidad=<span className="text-amber-300">"{c.cantidad}"</span> ClaveUnidad=<span className="text-emerald-300">"{c.claveUnidad}"</span>
+                {c.unidad && (
+                  <> Unidad=<span className="text-emerald-300">"{c.unidad}"</span></>
+                )} Descripcion=<span className="text-emerald-300">"{c.descripcion}"</span> ValorUnitario=<span className="text-amber-300">"{c.valorUnitario}"</span> Importe=<span className="text-amber-300">"{c.importe}"</span>
+                {c.descuento > 0 && (
+                  <> Descuento=<span className="text-amber-300">"{c.descuento}"</span></>
+                )} ObjetoImp=<span className="text-emerald-300">"{c.objetoImp}"</span> <span className="text-purple-400 font-bold">/&gt;</span>
+              </div>
+            ))}
           </div>
           <span className="text-purple-400 font-bold">&lt;/cfdi:Conceptos&gt;</span>
         </div>
 
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
-          <span className="text-yellow-400 font-bold">&lt;cfdi:Impuestos</span> TotalImpuestosTrasladados=<span className="text-amber-300">"{cfdi.ivaTrasladado}"</span>
+          <span className="text-yellow-400 font-bold">&lt;cfdi:Impuestos</span> TotalImpuestosTrasladados=<span className="text-amber-300">"{preview.impuestos.totalImpuestosTrasladados}"</span>
           {totalRet > 0 && (
             <> TotalImpuestosRetenidos=<span className="text-amber-300">"{totalRet}"</span></>
           )}
           <span className="text-yellow-400 font-bold">&gt;</span>
           <div className="pl-4 text-slate-300 space-y-1">
-            <span className="text-yellow-400 font-bold">&lt;cfdi:Traslados&gt;</span>
-            <div className="pl-4">
-              <span className="text-yellow-400 font-bold">&lt;cfdi:Traslado</span> Base=<span className="text-amber-300">"{cfdi.subtotal}"</span> Impuesto=<span className="text-emerald-300">"002"</span> TipoFactor=<span className="text-emerald-300">"Tasa"</span> TasaOCuota=<span className="text-emerald-300">"0.160000"</span> Importe=<span className="text-amber-300">"{cfdi.ivaTrasladado}"</span> <span className="text-yellow-400 font-bold">/&gt;</span>
-            </div>
-            <span className="text-yellow-400 font-bold">&lt;/cfdi:Traslados&gt;</span>
-            {totalRet > 0 && (
+            {preview.impuestos.traslados.length > 0 && (
+              <div>
+                <span className="text-yellow-400 font-bold">&lt;cfdi:Traslados&gt;</span>
+                {preview.impuestos.traslados.map((t, idx) => (
+                  <div key={`xml-tras-${t.impuesto}-${idx}`} className="pl-4">
+                    <span className="text-yellow-400 font-bold">&lt;cfdi:Traslado</span> Base=<span className="text-amber-300">"{t.base}"</span> Impuesto=<span className="text-emerald-300">"{t.impuesto}"</span> TipoFactor=<span className="text-emerald-300">"{t.tipoFactor}"</span>
+                    {t.tasaOCuota && (
+                      <> TasaOCuota=<span className="text-emerald-300">"{t.tasaOCuota}"</span></>
+                    )} Importe=<span className="text-amber-300">"{t.importe}"</span> <span className="text-yellow-400 font-bold">/&gt;</span>
+                  </div>
+                ))}
+                <span className="text-yellow-400 font-bold">&lt;/cfdi:Traslados&gt;</span>
+              </div>
+            )}
+            {preview.impuestos.retenciones.length > 0 && (
               <div>
                 <span className="text-rose-400 font-bold">&lt;cfdi:Retenciones&gt;</span>
-                {cfdi.isrRetenido > 0 && (
-                  <div className="pl-4">
-                    <span className="text-rose-400 font-bold">&lt;cfdi:Retencion</span> Impuesto=<span className="text-emerald-300">"001"</span> (ISR) Importe=<span className="text-amber-300">"{cfdi.isrRetenido}"</span> <span className="text-rose-400 font-bold">/&gt;</span>
+                {preview.impuestos.retenciones.map((r, idx) => (
+                  <div key={`xml-ret-${r.impuesto}-${idx}`} className="pl-4">
+                    <span className="text-rose-400 font-bold">&lt;cfdi:Retencion</span> Impuesto=<span className="text-emerald-300">"{r.impuesto}"</span> Importe=<span className="text-amber-300">"{r.importe}"</span> <span className="text-rose-400 font-bold">/&gt;</span>
                   </div>
-                )}
-                {cfdi.ivaRetenido > 0 && (
-                  <div className="pl-4">
-                    <span className="text-rose-400 font-bold">&lt;cfdi:Retencion</span> Impuesto=<span className="text-emerald-300">"002"</span> (IVA) Importe=<span className="text-amber-300">"{cfdi.ivaRetenido}"</span> <span className="text-rose-400 font-bold">/&gt;</span>
-                  </div>
-                )}
+                ))}
                 <span className="text-rose-400 font-bold">&lt;/cfdi:Retenciones&gt;</span>
               </div>
             )}
@@ -117,8 +143,15 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-emerald-400 font-bold">&lt;tfd:TimbreFiscalDigital</span>
           <div className="pl-4 space-y-0.5 text-slate-300">
-            <div>Version=<span className="text-emerald-300">"1.1"</span> UUID=<span className="text-cyan-300 font-bold">"{cfdi.uuid}"</span> FechaTimbrado=<span className="text-emerald-300">"{cfdi.fecha}T12:00:00"</span></div>
-            <div>RfcProvCertif=<span className="text-emerald-300">"SAT970701NN3"</span> NoCertificadoSAT=<span className="text-emerald-300">"00001000000504465028"</span></div>
+            <div>
+              Version=<span className="text-emerald-300">"{preview.timbre.version}"</span> UUID=<span className="text-cyan-300 font-bold">"{preview.timbre.uuid}"</span> FechaTimbrado=<span className="text-emerald-300">"{preview.timbre.fechaTimbrado}"</span>
+            </div>
+            <div>
+              RfcProvCertif=<span className="text-emerald-300">"{preview.timbre.rfcProvCertif}"</span> NoCertificadoSAT=<span className="text-emerald-300">"{preview.timbre.noCertificadoSat}"</span>
+              {preview.timbre.selloCfd && (
+                <> SelloCFD=<span className="text-emerald-300">"{preview.timbre.selloCfd.slice(0, 40)}{preview.timbre.selloCfd.length > 40 ? '...' : ''}"</span></>
+              )}
+            </div>
           </div>
           <span className="text-emerald-400 font-bold">/&gt;</span>
         </div>

@@ -6,7 +6,7 @@ export function LandingComparisonSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-bold uppercase tracking-wider mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" aria-hidden="true" />
             <span>Comparativa Frente a Frente</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 text-balance">
@@ -18,7 +18,12 @@ export function LandingComparisonSection() {
           </p>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Tabla comparativa entre CONTPAQi y LibrePaq Pro"
+          className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
           <table className="w-full min-w-[600px] text-sm text-left">
             <caption className="sr-only">
               Comparativa de características técnicas, operativas y fiscales entre CONTPAQi tradicional y LibrePaq Pro en la nube
@@ -42,7 +47,7 @@ export function LandingComparisonSection() {
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-700">
               <tr className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6 font-semibold text-slate-900">Costo de Licencia Anual</td>
+                <th scope="row" className="py-4 px-6 font-semibold text-slate-900">Costo de Licencia Anual</th>
                 <td className="py-4 px-6 text-rose-800">
                   <div className="flex items-start gap-2">
                     <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -58,7 +63,7 @@ export function LandingComparisonSection() {
               </tr>
 
               <tr className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6 font-semibold text-slate-900">Acceso desde Oficina, Casa o Mac</td>
+                <th scope="row" className="py-4 px-6 font-semibold text-slate-900">Acceso desde Oficina, Casa o Mac</th>
                 <td className="py-4 px-6 text-slate-600">
                   <div className="flex items-start gap-2">
                     <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -74,7 +79,7 @@ export function LandingComparisonSection() {
               </tr>
 
               <tr className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6 font-semibold text-slate-900">Trabajo en Equipo y Respaldos</td>
+                <th scope="row" className="py-4 px-6 font-semibold text-slate-900">Trabajo en Equipo y Respaldos</th>
                 <td className="py-4 px-6 text-slate-600">
                   <div className="flex items-start gap-2">
                     <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -90,7 +95,7 @@ export function LandingComparisonSection() {
               </tr>
 
               <tr className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6 font-semibold text-slate-900">Cuadre de Pólizas y Balanza SAT</td>
+                <th scope="row" className="py-4 px-6 font-semibold text-slate-900">Cuadre de Pólizas y Balanza SAT</th>
                 <td className="py-4 px-6 text-slate-600">
                   <div className="flex items-start gap-2">
                     <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -106,7 +111,7 @@ export function LandingComparisonSection() {
               </tr>
 
               <tr className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6 font-semibold text-slate-900">Bóveda CFDI 4.0 vs. ADD</td>
+                <th scope="row" className="py-4 px-6 font-semibold text-slate-900">Bóveda CFDI 4.0 vs. ADD</th>
                 <td className="py-4 px-6 text-slate-600">
                   <div className="flex items-start gap-2">
                     <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -122,7 +127,7 @@ export function LandingComparisonSection() {
               </tr>
 
               <tr className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6 font-semibold text-slate-900">Libertad sobre Tu Información</td>
+                <th scope="row" className="py-4 px-6 font-semibold text-slate-900">Libertad sobre Tu Información</th>
                 <td className="py-4 px-6 text-slate-600">
                   <div className="flex items-start gap-2">
                     <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
@@ -138,7 +143,7 @@ export function LandingComparisonSection() {
               </tr>
 
               <tr className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6 font-semibold text-slate-900">Velocidad de Captura con Teclado</td>
+                <th scope="row" className="py-4 px-6 font-semibold text-slate-900">Velocidad de Captura con Teclado</th>
                 <td className="py-4 px-6 text-slate-600">
                   <div className="flex items-start gap-2">
                     <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />

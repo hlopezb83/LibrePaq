@@ -26,6 +26,7 @@ export type AccountingQueryScope =
   | 'third-parties'
   | 'fixed-assets'
   | 'fiscal-workpaper'
+  | 'cxc-cxp'
   | 'sat-xml';
 
 const DEFAULT_ACCOUNTING_SCOPES: ReadonlyArray<AccountingQueryScope> = [
@@ -41,6 +42,7 @@ const DEFAULT_ACCOUNTING_SCOPES: ReadonlyArray<AccountingQueryScope> = [
   'third-parties',
   'fixed-assets',
   'fiscal-workpaper',
+  'cxc-cxp',
   'sat-xml'
 ];
 

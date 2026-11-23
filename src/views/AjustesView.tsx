@@ -5,12 +5,14 @@ import {
   HardDrive,
   KeyRound,
   Keyboard,
+  ShieldCheck,
   Sliders,
   Users
 } from 'lucide-react';
 import { AjustesDirectorioTab } from './ajustes/AjustesDirectorioTab';
 import { AjustesEmpresaTab } from './ajustes/AjustesEmpresaTab';
 import { AjustesEfirmaTab } from './ajustes/AjustesEfirmaTab';
+import { AjustesEquipoTab } from './ajustes/AjustesEquipoTab';
 import { AjustesFiscalTab } from './ajustes/AjustesFiscalTab';
 import { AjustesRespaldosTab } from './ajustes/AjustesRespaldosTab';
 import { AjustesAtajosTab } from './ajustes/AjustesAtajosTab';
@@ -26,7 +28,8 @@ const AJUSTES_TABS: Array<{
   { id: 'efirma', label: '3. e.Firma / SAT', icon: KeyRound },
   { id: 'fiscal', label: '4. Cédula Día 17', icon: Coins },
   { id: 'respaldos', label: '5. Respaldos', icon: HardDrive },
-  { id: 'atajos', label: '6. Atajos F1', icon: Keyboard }
+  { id: 'atajos', label: '6. Atajos F1', icon: Keyboard },
+  { id: 'equipo', label: '7. Equipo RBAC', icon: ShieldCheck }
 ];
 
 export function AjustesView() {
@@ -294,6 +297,14 @@ export function AjustesView() {
       )}
 
         {activeTab === 'atajos' && <AjustesAtajosTab />}
+
+        {activeTab === 'equipo' && (
+          <AjustesEquipoTab
+            activeCompany={activeCompany}
+            companies={companies}
+            toast={toast}
+          />
+        )}
       </div>
     </div>
   );

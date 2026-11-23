@@ -20,7 +20,7 @@ export const supabaseCfdi = {
     try {
       const projection = opts?.includeXml
         ? '*'
-        : 'id, company_id, uuid, fecha, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id';
+        : 'id, company_id, uuid, fecha, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
 
       const data = await fetchAllRows(async (from, to) => {
         return getRequiredSupabase()
@@ -119,6 +119,8 @@ export const supabaseCfdi = {
         uso_cfdi: parsed?.usoCfdi || 'G03',
         uuid_relacionado: parsed?.uuidRelacionado || payload.uuidRelacionado || null,
         status_sat: 'VIGENTE',
+        tax_breakdown: parsed?.taxBreakdown ?? null,
+        related_docs: parsed?.relatedDocs ?? null,
         xml_raw: xmlString
       })
       .select()

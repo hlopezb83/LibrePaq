@@ -126,8 +126,12 @@ export function useAddCfdiManager() {
     batchContabilizarMutation,
     batchDeleteMutation,
     verifySatMutation,
+    verifySatBatchMutation,
+    satBatchAlert,
+    dismissSatBatchAlert,
     batchProgress
   } = useAddCfdiMutations({
+    activeCompanyId,
     isPeriodLocked,
     currentYear,
     currentPeriod,
@@ -320,6 +324,7 @@ export function useAddCfdiManager() {
     verifyingCfdiId: verifySatMutation.isPending ? verifySatMutation.variables ?? null : null,
     uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
     batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
+    verifySatBatchMutation, satBatchAlert, dismissSatBatchAlert,
     processXmlFiles, handleFileUpload, handleDrop,
     openContabilizarModal, openXmlViewer, handleCopyUuid, handleDownloadSelectedXml,
     previewMovements, filteredCfdis, filteredTotals,

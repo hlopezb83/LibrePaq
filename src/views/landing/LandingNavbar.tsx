@@ -117,13 +117,13 @@ export function LandingNavbar({ user, onOpenAuth, onOpenSignIn }: LandingNavbarP
       {/* Cinta compacta de secciones en móvil / tablet */}
       <nav
         aria-label="Secciones de la página"
-        className="lg:hidden border-t border-slate-100 bg-slate-50/80 px-3 py-1.5 overflow-x-auto flex items-center gap-3 text-[11px] font-semibold text-slate-700"
+        className="lg:hidden border-t border-slate-100 bg-slate-50/80 px-3 py-1 erp-tab-scroller flex items-center gap-2 text-[11px] font-semibold text-slate-700"
       >
-        <a href="#comparativa" className="hover:text-blue-700 whitespace-nowrap py-0.5">vs. CONTPAQi®</a>
-        <a href="#caracteristicas" className="hover:text-blue-700 whitespace-nowrap py-0.5">Módulos</a>
-        <a href="#calculadora" className="hover:text-blue-700 whitespace-nowrap py-0.5">Calculadora</a>
-        <a href="#precios" className="hover:text-blue-700 whitespace-nowrap py-0.5">Planes ($0)</a>
-        <a href="#faq" className="hover:text-blue-700 whitespace-nowrap py-0.5">FAQ</a>
+        <a href="#comparativa" className="snap-start hover:text-blue-700 whitespace-nowrap py-1.5 px-1.5 rounded-lg">vs. CONTPAQi®</a>
+        <a href="#caracteristicas" className="snap-start hover:text-blue-700 whitespace-nowrap py-1.5 px-1.5 rounded-lg">Módulos</a>
+        <a href="#calculadora" className="snap-start hover:text-blue-700 whitespace-nowrap py-1.5 px-1.5 rounded-lg">Calculadora</a>
+        <a href="#precios" className="snap-start hover:text-blue-700 whitespace-nowrap py-1.5 px-1.5 rounded-lg">Planes ($0)</a>
+        <a href="#faq" className="snap-start hover:text-blue-700 whitespace-nowrap py-1.5 px-1.5 rounded-lg">FAQ</a>
       </nav>
     </header>
   );
