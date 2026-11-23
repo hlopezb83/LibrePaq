@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { REGIMENES_FISCALES_SAT } from '../../shared/sat-constants';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
+import { getCurrentFiscalPeriod } from '../../shared/date-utils';
 import type { CfdiCompanyCandidate } from '../../shared/cfdi-company-extractor';
 import { trackFirstCompanyCreatedConversion } from '../../lib/analytics';
 import { useToast } from '../../context/ToastContext';
@@ -24,8 +25,7 @@ export function useCompanyOnboardingWizard({
   const { user } = useAuth();
   const userScope = user?.id ?? 'demo';
 
-  const defaultYear = new Date().getFullYear();
-  const defaultPeriod = new Date().getMonth() + 1;
+  const { year: defaultYear, period: defaultPeriod } = getCurrentFiscalPeriod();
 
   const [step, setStep] = useState<number>(1);
   const [personType, setPersonType] = useState<'MORAL' | 'FISICA'>('MORAL');

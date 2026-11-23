@@ -7,6 +7,7 @@ import {
 } from '../lib/analytics';
 import { useAuth, checkIsSuperAdmin } from './AuthContext';
 import { useSupportSession } from '../lib/support-impersonation';
+import { getCurrentFiscalPeriod } from '../shared/date-utils';
 import type { Company } from '../shared/types';
 
 export interface UserWorkspace {
@@ -155,7 +156,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       regimenFiscal: d?.regimenFiscal || '601 - General de Ley Personas Morales',
       codigoPostal: d?.codigoPostal || '64000',
       maskFormat: 'XXX-XX-XXX',
-      currentYear: d?.currentYear ?? new Date().getFullYear(),
+      currentYear: d?.currentYear ?? getCurrentFiscalPeriod().year,
       currentPeriod: d?.currentPeriod ?? 1,
       createdAt: d?.createdAt || supportSession.startedAt,
       userId: d?.userId ?? null
