@@ -39,10 +39,11 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
       ...a,
       id: `acc_${a.code}`,
       companyId: demoCompany.id,
-      initialBalanceComputed: a.initialBalance,
+      initialBalance: 0,
+      initialBalanceComputed: 0,
       periodCharges: 0,
       periodCredits: 0,
-      finalBalance: a.initialBalance
+      finalBalance: 0
     }));
   }
 
@@ -289,7 +290,7 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
 
       const plan = buildAutoPolizaPlan(cfdiNominaSubsidio, catalog);
       expect(plan.isBalanced).toBe(true);
-      const sueldosLine = plan.movements.find((m) => m.accountCode === '601-01-004');
+      const sueldosLine = plan.movements.find((m) => m.accountCode === '601-01-001');
       const subsidioLine = plan.movements.find((m) => m.accountCode === '113-02-001');
       expect(sueldosLine?.cargo).toBe(10000);
       expect(subsidioLine?.cargo).toBe(500);
@@ -302,7 +303,7 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
         {
           id: 'stmt_1',
           companyId: demoCompany.id,
-          bankAccountId: 'acc_102-01-001',
+          accountId: 'acc_102-01-001',
           ejercicio: 2026,
           periodo: 10,
           fecha: '2026-10-05',
@@ -316,7 +317,7 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
         {
           id: 'stmt_2',
           companyId: demoCompany.id,
-          bankAccountId: 'acc_102-01-001',
+          accountId: 'acc_102-01-001',
           ejercicio: 2026,
           periodo: 10,
           fecha: '2026-10-05',
@@ -334,8 +335,7 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
         {
           movementId: 'mov_book_1',
           polizaId: 'pol_1',
-          polizaTipo: 'EGRESO' as const,
-          polizaFolio: 1,
+          polizaFolio: 'EGRESO-1',
           fecha: '2026-10-05',
           referencia: 'SPEI-1',
           concepto: 'Comisión bancaria',
