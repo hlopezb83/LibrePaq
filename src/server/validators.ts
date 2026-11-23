@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { assertAccountingInvariant } from '../shared/accounting-engine';
+import { getTodayLocalIso } from '../shared/date-utils';
 import type {
   AccountNature,
   AccountType,
@@ -65,7 +66,7 @@ export const PolizaMovementSchema = z.object({
 export const PolizaPayloadSchema = z.object({
   companyId: z.string().trim().default('comp_tnn_01'),
   tipo: z.enum(['INGRESO', 'EGRESO', 'DIARIO']).default('DIARIO'),
-  fecha: z.string().default(() => new Date().toISOString().slice(0, 10)),
+  fecha: z.string().default(() => getTodayLocalIso()),
   concepto: z.string().trim().min(1),
   cfdiUuid: z.string().trim().nullable().optional(),
   origin: z.enum(['MANUAL', 'ADD_AUTO']).default('MANUAL'),

@@ -1,4 +1,5 @@
 import { generateMonthlyCfdiBatchXmls } from '../../shared/sat-monthly-batch';
+import { getTodayLocalIso } from '../../shared/date-utils';
 import type { CfdiDocument, SatDownloadRequestRecord } from '../../shared/types';
 import { supabase } from '../supabase';
 import { supabaseCfdi } from './supabase-cfdi';
@@ -67,8 +68,8 @@ export const supabaseSoapDownload = {
       companyRfc === 'CEJ2106158A0' ||
       payload.companyId.includes('demo');
 
-    // Clamping de fechaFinal en horario oficial CDMX (UTC-6) para evitar error 301 del SAT por fechas futuras
-    const todayIso = new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
+    // Clamping de fechaFinal en horario oficial CDMX (America/Mexico_City) para evitar error 301 del SAT por fechas futuras
+    const todayIso = getTodayLocalIso();
     const safeFechaFinal = payload.fechaFinal > todayIso ? todayIso : payload.fechaFinal;
     const safeFechaInicial = payload.fechaInicial > safeFechaFinal ? safeFechaFinal : payload.fechaInicial;
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertCircle, CloudDownload, X } from 'lucide-react';
 import type { SatDownloadRequestRecord } from '../../../shared/types';
+import { getCurrentFiscalPeriod, getTodayLocalIso } from '../../../shared/date-utils';
 import { SatDatePresetBar } from './SatDatePresetBar';
 import { SatCelebrationSuccessCard } from './SatCelebrationSuccessCard';
 import { SatRequestsHistoryCard } from './SatRequestsHistoryCard';
@@ -44,14 +45,14 @@ export function SatSoapDownloadCard({
   isDemoCompany,
   onVerifyPending,
   isVerifyingPending,
-  currentYear = new Date().getFullYear(),
-  currentPeriod = new Date().getMonth() + 1,
+  currentYear = getCurrentFiscalPeriod().year,
+  currentPeriod = getCurrentFiscalPeriod().period,
   pendingCfdisCount,
   onBatchAutoPoliza,
   isBatchAutoPolizaPending
 }: SatSoapDownloadCardProps) {
   const [dismissedErrorId, setDismissedErrorId] = useState<string | null>(null);
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayStr = useMemo(() => getTodayLocalIso(), []);
   const isDateRangeInvalid = Boolean(fechaInicial && fechaFinal && fechaInicial > fechaFinal);
   const completedRequests = satRequests.filter((r) => r.estadoSolicitud === 'TERMINADA');
   const periodCompletedRequests = completedRequests.filter((r) => r.fechaInicial === fechaInicial && r.fechaFinal === fechaFinal);

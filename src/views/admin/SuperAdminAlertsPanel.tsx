@@ -5,6 +5,7 @@ import type {
   PlatformAlertSeverity,
   PlatformAlertStatus
 } from '../../shared/admin-types';
+import { formatAdminDateTime } from './adminFormatters';
 
 export interface SuperAdminAlertsPanelProps {
   alerts: AdminPlatformAlert[];
@@ -55,11 +56,7 @@ const CATEGORY_LABELS: Record<PlatformAlertCategory, string> = {
 };
 
 function formatDateTimeEsMx(iso?: string | null): string {
-  if (!iso) return '—';
-  const parsed = new Date(iso);
-  return Number.isNaN(parsed.getTime())
-    ? iso
-    : parsed.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+  return formatAdminDateTime(iso);
 }
 
 export function SuperAdminAlertsPanel({

@@ -11,7 +11,7 @@ import { computeFiscalWorkpaperFromTrialBalance } from '../src/shared/engine/fis
 import { computeFinancialStatementsData } from '../src/shared/engine/financial-reports.engine';
 import { parseCfdiXmlString } from '../src/shared/cfdi-xml';
 import { buildSatConsultaCfdiSoapXml } from '../src/shared/sat-cfdi-status';
-import { calculateDia17Deadline, parseCalendarDate } from '../src/shared/date-utils';
+import { calculateDia17Deadline, getCurrentFiscalPeriod, getTodayLocalIso, parseCalendarDate } from '../src/shared/date-utils';
 import { toCents } from '../src/shared/engine/invariants-and-math';
 import type { AccountWithBalance, Company } from '../src/shared/types';
 
@@ -237,5 +237,12 @@ describe('Bug Audit Remediation — Wave 1–3 Regression Suite', () => {
     expect(jan1.year).toBe(2026);
     expect(jan1.month).toBe(1);
     expect(jan1.day).toBe(1);
+  });
+
+  test('8. Resolves getTodayLocalIso and getCurrentFiscalPeriod in America/Mexico_City across UTC midnight', () => {
+    // 2026-12-01T02:30:00Z = 2026-11-30 20:30 en CDMX (UTC-6)
+    const utcNextDay = new Date('2026-12-01T02:30:00.000Z');
+    expect(getTodayLocalIso(utcNextDay)).toBe('2026-11-30');
+    expect(getCurrentFiscalPeriod(utcNextDay)).toEqual({ year: 2026, period: 11 });
   });
 });

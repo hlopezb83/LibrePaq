@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../../lib/api-client';
 import { useToast } from '../../../context/ToastContext';
+import { getTodayLocalIso } from '../../../shared/date-utils';
 import { fileToBase64 } from './satSoapHelpers';
 
 export interface UseSatSoapFielManagerParams {
@@ -50,7 +51,7 @@ export function useSatSoapFielManager({
   } | null>(null);
 
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayLocalIso();
     setFechaInicial(defaultStartDate);
     setFechaFinal(defaultEndDate > today ? today : defaultEndDate);
   }, [defaultStartDate, defaultEndDate]);

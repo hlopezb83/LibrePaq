@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { MESES_SAT } from '../../shared/sat-constants';
-import { calculateDia17Deadline } from '../../shared/date-utils';
+import { calculateDia17Deadline, MEXICO_TIMEZONE } from '../../shared/date-utils';
 import type { Company } from '../../shared/types';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
@@ -80,6 +80,7 @@ export function useExecutiveDeliverables({
   }, [configKey, firmName, auditorName, auditorCedula, legalRepName, legalRepTitle, issuanceCity]);
   const [issuanceDate, setIssuanceDate] = useState(() =>
     new Date().toLocaleDateString('es-MX', {
+      timeZone: MEXICO_TIMEZONE,
       year: 'numeric',
       month: 'long',
       day: 'numeric'

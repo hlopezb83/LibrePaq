@@ -74,22 +74,52 @@ export function resolvePolizaYearPeriod(
   };
 }
 
-/**
- * Retorna la fecha calendario local actual en formato YYYY-MM-DD (sin salto a día siguiente tras las 18:00 CST).
- */
-export function getTodayLocalIso(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+export const MEXICO_TIMEZONE = 'America/Mexico_City';
+
+const MEXICO_PARTS_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: MEXICO_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+});
+
+function getMexicoDateParts(date: Date = new Date()): {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+} {
+  const parts = MEXICO_PARTS_FORMATTER.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute')
+  };
 }
 
-export function getCurrentFiscalPeriod(): { year: number; period: number } {
-  const now = new Date();
+/**
+ * Retorna la fecha calendario actual en horario oficial de México (America/Mexico_City) en formato YYYY-MM-DD.
+ */
+export function getTodayLocalIso(now: Date = new Date()): string {
+  const { year, month, day } = getMexicoDateParts(now);
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Retorna el ejercicio y periodo fiscal actual en horario oficial de México (America/Mexico_City).
+ */
+export function getCurrentFiscalPeriod(now: Date = new Date()): { year: number; period: number } {
+  const { year, month } = getMexicoDateParts(now);
   return {
-    year: now.getFullYear(),
-    period: now.getMonth() + 1
+    year: Number.parseInt(year, 10),
+    period: Number.parseInt(month, 10)
   };
 }
 

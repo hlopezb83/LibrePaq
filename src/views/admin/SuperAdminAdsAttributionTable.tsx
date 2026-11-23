@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Download, Megaphone, TrendingUp } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { downloadCsvFile } from '../../lib/formatters';
+import { getTodayLocalIso } from '../../shared/date-utils';
 import type { AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
 import { AdminErrorBanner } from './AdminErrorBanner';
 import { AdminTableEmptyState } from './AdminTableEmptyState';
@@ -122,7 +123,7 @@ export function SuperAdminAdsAttributionTable({
   const handleExportOfflineCsv = () => {
     if (gclidLeads.length === 0) return;
     downloadCsvFile(
-      `librepaq-conversiones-offline-${new Date().toISOString().slice(0, 10)}.csv`,
+      `librepaq-conversiones-offline-${getTodayLocalIso()}.csv`,
       ['gclid', 'email', 'createdAt'],
       gclidLeads.map((u) => [u.gclid?.trim() || '', u.email, u.createdAt])
     );

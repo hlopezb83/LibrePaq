@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Calendar, CalendarDays, CalendarRange, Sparkles } from 'lucide-react';
 import { getFirstDateForPeriod, getLastDateForPeriod } from '../../../lib/formatters';
+import { getTodayLocalIso } from '../../../shared/date-utils';
 import { MESES_SAT } from '../../../shared/sat-constants';
 
 export interface SatDatePresetBarProps {
@@ -21,7 +22,7 @@ export function SatDatePresetBar({
   const presets = useMemo(() => {
     const safeYear = currentYear >= 2000 && currentYear <= 2100 ? currentYear : 2026;
     const safePeriod = currentPeriod >= 1 && currentPeriod <= 12 ? currentPeriod : 8;
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getTodayLocalIso();
     const clampToToday = (dateStr: string) => (dateStr > todayStr ? todayStr : dateStr);
 
     // 1. Mes Actual (con límite a la fecha de hoy para evitar error 301 del SAT)

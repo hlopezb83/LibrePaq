@@ -1,4 +1,5 @@
 import type { PlatformRole } from '../../shared/admin-types';
+import { MEXICO_TIMEZONE } from '../../shared/date-utils';
 
 export const ADMIN_ROLE_OPTIONS: Array<{ value: PlatformRole; label: string }> = [
   { value: 'NONE', label: 'Sin privilegios' },
@@ -12,6 +13,7 @@ export function formatAdminDate(value?: string | null, fallback = 'Sin registro'
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return fallback;
   return date.toLocaleDateString('es-MX', {
+    timeZone: MEXICO_TIMEZONE,
     day: '2-digit',
     month: 'short',
     year: 'numeric'
@@ -23,6 +25,7 @@ export function formatAdminDateTime(iso?: string | null, withSeconds = false): s
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleString('es-MX', {
+    timeZone: MEXICO_TIMEZONE,
     dateStyle: withSeconds ? 'short' : 'medium',
     timeStyle: withSeconds ? 'medium' : 'short'
   });
@@ -33,6 +36,7 @@ export function formatAdminTime(iso?: string | null): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('es-MX', {
+    timeZone: MEXICO_TIMEZONE,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'

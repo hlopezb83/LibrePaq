@@ -130,8 +130,13 @@ export async function handleSolicitaDescarga(
     return jsonResponse({ ok: false, error: 'companyRfc es requerido para la solicitud al SAT' }, 400, headers);
   }
 
-  // Clamping de fechaFinal en horario oficial CDMX (UTC-6) para prevenir error 301 del SAT
-  const todayIso = new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
+  // Clamping de fechaFinal en horario oficial CDMX (America/Mexico_City) para prevenir error 301 del SAT
+  const todayIso = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
   if (fechaFinal > todayIso) fechaFinal = todayIso;
   if (fechaInicial > fechaFinal) fechaInicial = fechaFinal;
 

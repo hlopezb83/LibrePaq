@@ -1,7 +1,7 @@
 import { supabase, getRequiredSupabase } from '../supabase';
 import { parseCfdiXmlString } from '../../shared/cfdi-xml';
 import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
-import { parseCalendarDate } from '../../shared/date-utils';
+import { parseCalendarDate, getTodayLocalIso } from '../../shared/date-utils';
 import type { CfdiDocument, Poliza } from '../../shared/types';
 import { mapSupabasePoliza, assertSupabasePeriodOpen } from './supabase-polizas';
 import { fetchCompanyAccountsFromDb } from './supabase-mappers';
@@ -95,7 +95,7 @@ export const supabaseCfdi = {
         id,
         company_id: payload.companyId,
         uuid: parsed?.uuid || crypto.randomUUID().toUpperCase(),
-        fecha: parsed?.fecha || payload.fecha || new Date().toISOString().split('T')[0],
+        fecha: parsed?.fecha || payload.fecha || getTodayLocalIso(),
         tipo_comprobante: parsed?.tipoComprobante || payload.tipoComprobante || 'I',
         direction,
         serie: parsed?.serie || '',
