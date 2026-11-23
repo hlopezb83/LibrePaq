@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
 import {
   addBankStatementLinesTransaction,
@@ -7,11 +7,16 @@ import {
   getAccounts,
   getBankReconciliation,
   getDiotReport,
+  initDatabase,
   restoreCompanyBackupBundle
 } from '../db';
 import type { Account, CfdiDocument } from '../../shared/types';
 
 describe('Ronda 3 Auditoría — SAT Fiscal, Workflows y Aislamiento', () => {
+  beforeAll(() => {
+    initDatabase();
+  });
+
   it('separa retención de ISR y retención de IVA en pólizas de ingreso con partida doble cuadrada', () => {
     const mockAccounts: Account[] = [
       { id: 'acc_105', companyId: 'comp_test', parentCode: null, currency: 'MXN', satGroupCode: '105.01', code: '105-01-001', name: 'Clientes', type: 'ACTIVO', nature: 'DEUDORA', level: 3, isAffectable: true, initialBalance: 0 },

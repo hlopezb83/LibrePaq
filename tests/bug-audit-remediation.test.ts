@@ -1,4 +1,5 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { initDatabase } from '../src/server/schema';
 import {
   createCompanyRecord,
   deleteCompanyRecord,
@@ -16,6 +17,10 @@ import type { AccountWithBalance, Company } from '../src/shared/types';
 
 describe('Bug Audit Remediation — Wave 1–3 Regression Suite', () => {
   const createdCompanyIds: string[] = [];
+
+  beforeAll(() => {
+    initDatabase();
+  });
 
   afterAll(() => {
     for (const id of createdCompanyIds) {

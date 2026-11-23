@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
+import { initDatabase } from '../schema';
 import { createPolizaTransaction } from '../repositories/polizas.repo';
 import { getCompanyById } from '../repositories/companies.repo';
 import { getAccounts } from '../repositories/accounts.repo';
 
 describe('Pedimento Aduanal Import Accounting', () => {
+  beforeAll(() => {
+    initDatabase();
+  });
+
   it('creates balanced journal entry for customs pedimento', () => {
     const comp = getCompanyById('comp_tnn_01');
     expect(comp).not.toBeNull();

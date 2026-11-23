@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { db } from '../connection';
 import {
   createCompanyRecord,
@@ -6,6 +6,7 @@ import {
   deletePolizaTransaction,
   getAccounts,
   getDiotReport,
+  initDatabase,
   insertParsedCfdiRecord
 } from '../db';
 import { buildTaxProvisionMovements } from '../../shared/engine/tax-provision.engine';
@@ -13,6 +14,10 @@ import { buildSatAnexo24Xml } from '../../shared/sat-anexo24';
 import type { Account, FiscalWorkpaperResponse } from '../../shared/types';
 
 describe('Ronda 4 Auditoría — SAT Fiscal, DIOT y Consistencia Contable', () => {
+  beforeAll(() => {
+    initDatabase();
+  });
+
   it('[FISCAL-R4-14 / FISCAL-R4-05] DIOT Formato A-29 ubica IVA retenido en columna 19 y convierte divisas extranjeras con tipoCambio', () => {
     const comp = createCompanyRecord({
       name: 'Empresa DIOT R4 Test',
