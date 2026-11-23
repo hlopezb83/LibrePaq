@@ -5,10 +5,11 @@ import {
   sumCents,
   toCents
 } from '../../shared/accounting-engine';
+import { parseCalendarDate } from '../../shared/date-utils';
+import { findBankReconciliationMatches } from '../../shared/engine/bank-and-closing.engine';
 import type { BankReconciliationResponse } from '../../shared/types';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
-import { supabasePolizasAndCfdi } from './supabase-polizas-cfdi';
-import { assertSupabasePeriodOpen } from './supabase-polizas';
+import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 
 export const supabaseBank = {
   async getBankReconciliation(
@@ -56,7 +57,7 @@ export const supabaseBank = {
       statementLines.map((l) => l.matchedMovementId).filter(Boolean) as string[]
     );
 
-    const polizas = await supabasePolizasAndCfdi.getPolizas(companyId, currentYear, currentPeriod);
+    const polizas = await supabasePolizas.getPolizas(companyId, currentYear, currentPeriod);
     const bookMovements: BankReconciliationResponse['bookMovements'] = [];
 
     for (const p of polizas) {
@@ -111,7 +112,10 @@ export const supabaseBank = {
   }): Promise<BankReconciliationResponse> {
     if (!supabase) throw new Error('Supabase no disponible');
     const periodPairs = new Set<string>(
-      payload.lines.map((l) => `${new Date(l.fecha).getFullYear() || 2026}:${new Date(l.fecha).getMonth() + 1 || 10}`)
+      payload.lines.map((l) => {
+        const { year, month } = parseCalendarDate(l.fecha);
+        return `${year}:${month}`;
+      })
     );
     for (const pair of periodPairs) {
       const [yStr, pStr] = pair.split(':');
@@ -133,18 +137,21 @@ export const supabaseBank = {
 
     const toInsert = payload.lines
       .filter((l) => !existingSet.has(`${l.fecha}|${l.referencia}|${l.descripcion}|${Number(l.cargoBanco || 0).toFixed(2)}|${Number(l.abonoBanco || 0).toFixed(2)}`))
-      .map((l, idx) => ({
-        id: `bank_${Date.now()}_${idx}`,
-        company_id: payload.companyId,
-        account_id: payload.accountId,
-        fecha: l.fecha,
-        ejercicio: new Date(l.fecha).getFullYear() || 2026,
-        periodo: new Date(l.fecha).getMonth() + 1 || 10,
-        referencia: l.referencia,
-        descripcion: l.descripcion,
-        cargo_banco: l.cargoBanco,
-        abono_banco: l.abonoBanco
-      }));
+      .map((l, idx) => {
+        const { year, month } = parseCalendarDate(l.fecha);
+        return {
+          id: `bank_${Date.now()}_${idx}`,
+          company_id: payload.companyId,
+          account_id: payload.accountId,
+          fecha: l.fecha,
+          ejercicio: year,
+          periodo: month,
+          referencia: l.referencia,
+          descripcion: l.descripcion,
+          cargo_banco: l.cargoBanco,
+          abono_banco: l.abonoBanco
+        };
+      });
 
     if (toInsert.length > 0) {
       await supabase.from('bank_statement_lines').insert(toInsert);
@@ -165,31 +172,16 @@ export const supabaseBank = {
     const current = await this.getBankReconciliation(companyId, accountId, effY, effP);
     if (!supabase) return { matchedCount: 0, reconciliation: current };
 
-    const unmatchedBank = current.statementLines.filter((s) => !s.matchedMovementId);
-    const unmatchedBooks = [...current.bookMovements.filter((b) => !b.isMatched)];
-
-    let matchedCount = 0;
-    for (const bLine of unmatchedBank) {
-      const matchIdx = unmatchedBooks.findIndex(
-        (bm) =>
-          toCents(bm.cargoContable) === toCents(bLine.abonoBanco) &&
-          toCents(bm.abonoContable) === toCents(bLine.cargoBanco)
-      );
-      if (matchIdx !== -1) {
-        const matchedBook = unmatchedBooks[matchIdx];
-        if (matchedBook) {
-          await supabase
-            .from('bank_statement_lines')
-            .update({ matched_movement_id: matchedBook.movementId })
-            .eq('id', bLine.id);
-          unmatchedBooks.splice(matchIdx, 1);
-          matchedCount += 1;
-        }
-      }
+    const pairs = findBankReconciliationMatches(current.statementLines, current.bookMovements);
+    for (const pair of pairs) {
+      await supabase
+        .from('bank_statement_lines')
+        .update({ matched_movement_id: pair.movementId })
+        .eq('id', pair.statementLineId);
     }
 
     const updated = await this.getBankReconciliation(companyId, accountId, effY, effP);
-    return { matchedCount, reconciliation: updated };
+    return { matchedCount: pairs.length, reconciliation: updated };
   },
 
   async unmatchBankLine(
@@ -319,7 +311,7 @@ export const supabaseBank = {
             : [])
         ];
 
-    const poliza = await supabasePolizasAndCfdi.createPoliza({
+    const poliza = await supabasePolizas.createPoliza({
       companyId,
       tipo,
       fecha: String(bLine.fecha),

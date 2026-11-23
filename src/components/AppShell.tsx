@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCompany } from '../context/CompanyContext';
-import { apiClient } from '../lib/api-client';
 import { MESES_SAT } from '../shared/sat-catalog';
 import { useToast } from '../context/ToastContext';
 import type { Company } from '../shared/types';
@@ -17,6 +15,7 @@ import { APP_SHELL_NAV_ITEMS, SUPERADMIN_NAV_ITEMS } from './shell/appShellNavIt
 import { useAppShellKeyboard } from './shell/useAppShellKeyboard';
 import { AppShellModals } from './shell/AppShellModals';
 import { useAppShellDocumentTitle } from './shell/useAppShellDocumentTitle';
+import { useAppShellData } from './shell/useAppShellData';
 import { WhatsAppSupportButton } from './WhatsAppSupportButton';
 import { BroadcastBanner } from './shell/BroadcastBanner';
 import { ExecutiveTopHeader } from './shell/ExecutiveTopHeader';
@@ -47,7 +46,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const shortcutsDialogRef = useRef<HTMLDialogElement>(null), authDialogRef = useRef<HTMLDialogElement>(null);
 
   const { user, loading: authLoading, signOut } = useAuth();
-  const queryClient = useQueryClient();
   const toast = useToast();
 
   const [hasOpenedCmd, setHasOpenedCmd] = useState(false);
@@ -115,43 +113,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     currentPath === '/terms' ||
     (!user && currentPath === '/');
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['accounts', activeCompanyId, activeYear, activePeriod],
-    queryFn: () => apiClient.getAccounts(activeCompanyId, activeYear, activePeriod),
-    enabled: Boolean(activeCompanyId && !isPublicPage)
-  });
-
-  const { data: polizas = [] } = useQuery({
-    queryKey: ['polizas', activeCompanyId, activeYear, activePeriod],
-    queryFn: () => apiClient.getPolizas(activeCompanyId, activeYear, activePeriod),
-    enabled: Boolean(activeCompanyId && !isPublicPage && hasOpenedCmd)
-  });
-
-  const { data: periodLock } = useQuery({
-    queryKey: ['period-lock', activeCompanyId, activeYear, activePeriod],
-    queryFn: () => apiClient.getPeriodLock(activeCompanyId, activeYear ?? 2026, activePeriod ?? 10),
-    enabled: Boolean(activeCompanyId && activeYear && activePeriod && !isPublicPage)
-  });
-
-  const togglePeriodLockMutation = useMutation({
-    mutationFn: (nextLocked: boolean) =>
-      apiClient.setPeriodLock({
-        companyId: activeCompanyId,
-        ejercicio: activeYear ?? 2026,
-        periodo: activePeriod ?? 10,
-        isLocked: nextLocked
-      }),
-    onSuccess: (_, nextLocked) => {
-      queryClient.invalidateQueries({
-        queryKey: ['period-lock', activeCompanyId, activeYear, activePeriod]
-      });
-      const label = `P${String(activePeriod ?? 1).padStart(2, '0')}`;
-      if (nextLocked) {
-        toast.warning(`Periodo ${label} bloqueado contra cambios fiscales`);
-      } else {
-        toast.success(`Periodo ${label} reabierto para captura contable`);
-      }
-    }
+  const {
+    accounts,
+    polizas,
+    periodLock,
+    togglePeriodLockMutation
+  } = useAppShellData({
+    activeCompanyId,
+    activeYear,
+    activePeriod,
+    isPublicPage,
+    hasOpenedCmd,
+    toast
   });
 
 

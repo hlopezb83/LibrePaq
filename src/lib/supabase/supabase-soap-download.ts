@@ -2,46 +2,12 @@ import { generateMonthlyCfdiBatchXmls } from '../../shared/sat-monthly-batch';
 import type { CfdiDocument, SatDownloadRequestRecord } from '../../shared/types';
 import { supabase } from '../supabase';
 import { supabaseCfdi } from './supabase-cfdi';
-
-const STORAGE_SOAP_KEY = 'librepaq_soap_requests_';
-
-export interface DbSatDownloadRequest {
-  id: string;
-  company_id: string;
-  id_solicitud_sat: string;
-  tipo_solicitud: 'EMITIDOS' | 'RECIBIDOS';
-  fecha_inicial: string;
-  fecha_final: string;
-  estado_solicitud: 'ACEPTADA' | 'EN_PROCESO' | 'ERROR' | 'TERMINADA';
-  codigo_estado_sat: string;
-  mensaje_sat: string;
-  id_paquete_sat: string | null;
-  cfdis_descargados: number;
-  modo_ejecucion: 'SAT_LIVE' | 'SANDBOX_CRYPTO';
-  soap_request_xml: string;
-  soap_response_xml: string;
-  created_at: string;
-}
-
-export function mapDbSatRequest(r: DbSatDownloadRequest): SatDownloadRequestRecord {
-  return {
-    id: r.id,
-    companyId: r.company_id,
-    idSolicitudSat: r.id_solicitud_sat,
-    tipoSolicitud: r.tipo_solicitud,
-    fechaInicial: r.fecha_inicial,
-    fechaFinal: r.fecha_final,
-    estadoSolicitud: r.estado_solicitud,
-    codigoEstadoSat: r.codigo_estado_sat,
-    mensajeSat: r.mensaje_sat,
-    idPaqueteSat: r.id_paquete_sat,
-    cfdisDescargados: r.cfdis_descargados,
-    modoEjecucion: r.modo_ejecucion,
-    soapRequestXml: r.soap_request_xml,
-    soapResponseXml: r.soap_response_xml,
-    createdAt: r.created_at
-  };
-}
+import {
+  mapDbSatRequest,
+  readSoapRequestsFromStorage,
+  saveSoapRequestToStorage,
+  type DbSatDownloadRequest
+} from './supabase-soap-mappers';
 
 export const supabaseSoapDownload = {
   async getSatDownloadRequests(companyId: string): Promise<SatDownloadRequestRecord[]> {
@@ -61,17 +27,7 @@ export const supabaseSoapDownload = {
       }
     }
 
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem(`${STORAGE_SOAP_KEY}${companyId}`);
-      if (stored) {
-        try {
-          return JSON.parse(stored) as SatDownloadRequestRecord[];
-        } catch {
-          // Fallback
-        }
-      }
-    }
-    return [];
+    return readSoapRequestsFromStorage(companyId);
   },
 
   async executeSatSoapDownload(payload: {
@@ -212,8 +168,7 @@ export const supabaseSoapDownload = {
 
     if (!supabase && typeof window !== 'undefined' && window.localStorage) {
       const existing = await supabaseSoapDownload.getSatDownloadRequests(payload.companyId);
-      const updated = [requestRecord, ...existing].slice(0, 30);
-      window.localStorage.setItem(`${STORAGE_SOAP_KEY}${payload.companyId}`, JSON.stringify(updated));
+      saveSoapRequestToStorage(payload.companyId, requestRecord, existing);
     }
 
     return { requestRecord, downloadedCfdis: batchRes.uploaded };

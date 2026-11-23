@@ -16,7 +16,8 @@ import type {
   TaxParametersRecord
 } from '../../shared/types';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
-import { supabasePolizasAndCfdi } from './supabase-polizas-cfdi';
+import { supabaseCfdi } from './supabase-cfdi';
+import { supabasePolizas } from './supabase-polizas';
 import { supabaseFiscalAndAssets } from './supabase-fiscal-assets';
 
 export const supabaseFiscalWorkpaper = {
@@ -140,7 +141,7 @@ export const supabaseFiscalWorkpaper = {
       (a) => a.code === '113-01-001' || a.satGroupCode === '113.01'
     );
 
-    const cfdis = await supabasePolizasAndCfdi.getCfdis(company.id);
+    const cfdis = await supabaseCfdi.getCfdis(company.id);
     const usdCfdis = cfdis.filter(
       (c) =>
         c.moneda?.toUpperCase() === 'USD' &&
@@ -183,7 +184,7 @@ export const supabaseFiscalWorkpaper = {
     const movements = buildTaxProvisionMovements(wp, accounts, periodo, ejercicio);
     const fecha = getDefaultDateForPeriod(ejercicio, periodo);
 
-    return supabasePolizasAndCfdi.createPoliza({
+    return supabasePolizas.createPoliza({
       companyId,
       tipo: 'DIARIO',
       fecha,
@@ -209,7 +210,7 @@ export const supabaseFiscalWorkpaper = {
     const plan = buildExchangeFluctuationMovements(wp, accounts);
     const fecha = getDefaultDateForPeriod(ejercicio, periodo);
 
-    return supabasePolizasAndCfdi.createPoliza({
+    return supabasePolizas.createPoliza({
       companyId,
       tipo: 'DIARIO',
       fecha,
@@ -231,7 +232,7 @@ export const supabaseFiscalWorkpaper = {
     const periodo = period || company.currentPeriod || 10;
 
     // Verificar si ya existe una póliza de depreciación para este periodo
-    const existing = await supabasePolizasAndCfdi.getPolizas(companyId, ejercicio, periodo);
+    const existing = await supabasePolizas.getPolizas(companyId, ejercicio, periodo);
     const hasDep = existing.some(
       (p) =>
         p.concepto.toLowerCase().includes('depreciación') ||
@@ -249,7 +250,7 @@ export const supabaseFiscalWorkpaper = {
     const plan = buildDepreciationPolizaPlan(faResponse.assets, accounts, periodLabel);
     const fecha = getDefaultDateForPeriod(ejercicio, periodo);
 
-    return supabasePolizasAndCfdi.createPoliza({
+    return supabasePolizas.createPoliza({
       companyId,
       tipo: plan.polizaType,
       fecha,

@@ -1,9 +1,8 @@
 import { supabase } from '../supabase';
-import { BASE_COMPANY_ACCOUNTS } from '../../shared/catalogs/base-accounts.seed';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import { mapSupabaseCompany, mapSupabaseAccount } from './supabase-mappers';
 import { assertSupabasePeriodOpen } from './supabase-polizas';
-import { supabaseFielAndSoap } from './supabase-fiel-soap';
+import { seedCompanyDefaultsInSupabase } from './supabase-company-seeder';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
 
 export { mapSupabaseCompany, mapSupabaseAccount };
@@ -80,105 +79,21 @@ export const supabaseCompaniesAndAccounts = {
 
     if (error) throw new Error(`Error al registrar empresa en la nube: ${error.message}`);
 
-    const bankName = payload.initialBankName
-      ? `${payload.initialBankName} Cta ${payload.initialBankAccount || 'Principal'}`
-      : null;
-
-    // Sembrar catálogo estándar SAT Anexo 24 en Supabase
-    const accountsToInsert = BASE_COMPANY_ACCOUNTS.map((base) => ({
-      id: `${companyId}_${base.code}`,
-      company_id: companyId,
-      code: base.code,
-      name: base.code === '102-01-001' && bankName ? bankName : base.name,
-      parent_code: base.parentCode ?? null,
-      type: base.type,
-      nature: base.nature,
-      level: base.level,
-      is_affectable: base.isAffectable,
-      sat_group_code: base.satGroupCode,
-      currency: base.currency,
-      initial_balance: 0.0
-    }));
-
-    for (let i = 0; i < accountsToInsert.length; i += 100) {
-      const chunk = accountsToInsert.slice(i, i + 100);
-      const { error: seedErr } = await supabase.from('accounts').insert(chunk);
-      if (seedErr) {
-        console.warn('[Supabase] Advertencia al sembrar lote de cuentas:', seedErr.message);
-      }
-    }
-
-    // Póliza de Apertura en Supabase si se configuró saldo inicial en bancos
-    const bankBalance = Number(payload.initialBankBalance || 0);
-    if (payload.createOpeningEntry && bankBalance > 0) {
-      const polizaId = `pol_${companyId}_apertura`;
-      const fecha = `${currentYear}-${String(Math.min(12, currentPeriod)).padStart(2, '0')}-01`;
-      const now = new Date().toISOString();
-
-      await supabase.from('polizas').insert({
-        id: polizaId,
-        company_id: companyId,
-        tipo: 'DIARIO',
-        folio: 1,
-        fecha,
-        ejercicio: currentYear,
-        periodo: currentPeriod,
-        concepto: `Asiento de Apertura - Saldo Inicial en Bancos (${payload.initialBankName || 'Bancos'}) y Capital Social`,
-        cfdi_uuid: null,
-        origin: 'MANUAL',
-        created_at: now
-      });
-
-      await supabase.from('poliza_movements').insert([
-        {
-          id: `mov_${polizaId}_1`,
-          poliza_id: polizaId,
-          account_id: `${companyId}_102-01-001`,
-          account_code: '102-01-001',
-          account_name: bankName || 'Bancos Nacionales Moneda Nacional',
-          referencia: 'APERTURA',
-          concepto: `Apertura cuenta bancaria ${payload.initialBankName || 'Bancos'}`,
-          cargo: bankBalance,
-          abono: 0
-        },
-        {
-          id: `mov_${polizaId}_2`,
-          poliza_id: polizaId,
-          account_id: `${companyId}_301-01-001`,
-          account_code: '301-01-001',
-          account_name: 'Capital Fijo',
-          referencia: 'APERTURA',
-          concepto: 'Aportación de Capital Social Inicial',
-          cargo: 0,
-          abono: bankBalance
-        }
-      ]);
-    }
-
-    // Persistir credenciales e.firma en Cloud si fueron capturadas en Onboarding
-    if (payload.fielCerBase64 && payload.fielKeyBase64) {
-      try {
-        if (payload.fielPassword) {
-          await supabaseFielAndSoap.saveFielCredentials({
-            companyId,
-            cerBase64: payload.fielCerBase64,
-            keyBase64: payload.fielKeyBase64,
-            passphrase: payload.fielPassword
-          });
-        } else {
-          await supabase.from('fiel_credentials').insert({
-            company_id: companyId,
-            cer_base64: payload.fielCerBase64,
-            key_base64: payload.fielKeyBase64,
-            rfc_titular: cleanRfc,
-            nombre_titular: payload.name.trim(),
-            updated_at: new Date().toISOString()
-          });
-        }
-      } catch (fielErr) {
-        console.warn('[Supabase] Advertencia al persistir FIEL en onboarding:', fielErr);
-      }
-    }
+    await seedCompanyDefaultsInSupabase(supabase, {
+      companyId,
+      cleanRfc,
+      name: payload.name,
+      currentYear,
+      currentPeriod,
+      catalogPreset: payload.catalogPreset,
+      initialBankName: payload.initialBankName,
+      initialBankAccount: payload.initialBankAccount,
+      initialBankBalance: payload.initialBankBalance,
+      createOpeningEntry: payload.createOpeningEntry,
+      fielCerBase64: payload.fielCerBase64,
+      fielKeyBase64: payload.fielKeyBase64,
+      fielPassword: payload.fielPassword
+    });
 
     return mapSupabaseCompany(data);
   },

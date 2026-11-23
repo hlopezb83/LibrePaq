@@ -1,11 +1,5 @@
 import { supabase } from '../supabase';
-import {
-  assertAccountingInvariant,
-  fromCents,
-  resolveFiscalAccount,
-  toCents,
-  validateDoubleEntryMovements
-} from '../../shared/accounting-engine';
+import { buildYearCloseMovements } from '../../shared/accounting-engine';
 import { querySatCfdiStatusSoap } from '../../shared/sat-cfdi-status';
 import type { SatCfdiStatusCheckResult } from '../../shared/types';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
@@ -39,83 +33,11 @@ export const supabaseClosingAndVerification = {
     }
 
     const reports = await supabaseReportsAndDashboard.getReports(companyId, ejercicio, 13);
-    const tb13 = reports.trialBalance;
-
-    const resultAccounts = tb13.filter(
-      (a) =>
-        a.isAffectable &&
-        (a.type === 'INGRESOS' || a.type === 'COSTOS' || a.type === 'GASTOS') &&
-        Math.abs(toCents(a.finalBalance)) >= 1
+    const { movements, utilidadTraspasada } = buildYearCloseMovements(
+      reports.trialBalance,
+      ejercicio,
+      'finalBalance'
     );
-
-    assertAccountingInvariant(
-      resultAccounts.length > 0,
-      'ALREADY_CLOSED_YEAR',
-      'Las cuentas de resultados (Ingresos, Costos y Gastos) ya están saldadas en $0.00.'
-    );
-
-    const capitalResultAcc = resolveFiscalAccount(tb13, 'RESULTADO_DEL_EJERCICIO');
-
-    const movements: Array<{
-      accountId: string;
-      accountCode: string;
-      accountName: string;
-      referencia: string;
-      concepto: string;
-      cargo: number;
-      abono: number;
-    }> = [];
-
-    let sumCargosCents = 0;
-    let sumAbonosCents = 0;
-
-    for (const acc of resultAccounts) {
-      const balCents = toCents(acc.finalBalance);
-      if (acc.nature === 'ACREEDORA') {
-        const cargoCents = balCents > 0 ? balCents : 0;
-        const abonoCents = balCents < 0 ? Math.abs(balCents) : 0;
-        movements.push({
-          accountId: acc.id,
-          accountCode: acc.code,
-          accountName: acc.name,
-          referencia: 'CIERRE-13',
-          concepto: `Cancelación anual de cuenta de ingresos ${acc.code}`,
-          cargo: fromCents(cargoCents),
-          abono: fromCents(abonoCents)
-        });
-        sumCargosCents += cargoCents;
-        sumAbonosCents += abonoCents;
-      } else {
-        const abonoCents = balCents > 0 ? balCents : 0;
-        const cargoCents = balCents < 0 ? Math.abs(balCents) : 0;
-        movements.push({
-          accountId: acc.id,
-          accountCode: acc.code,
-          accountName: acc.name,
-          referencia: 'CIERRE-13',
-          concepto: `Cancelación anual de cuenta de egresos ${acc.code}`,
-          cargo: fromCents(cargoCents),
-          abono: fromCents(abonoCents)
-        });
-        sumCargosCents += cargoCents;
-        sumAbonosCents += abonoCents;
-      }
-    }
-
-    const netDiffCents = sumCargosCents - sumAbonosCents;
-    if (netDiffCents !== 0) {
-      movements.push({
-        accountId: capitalResultAcc.id,
-        accountCode: capitalResultAcc.code,
-        accountName: capitalResultAcc.name,
-        referencia: 'CIERRE-13',
-        concepto: `Traspaso a Resultado del Ejercicio ${ejercicio}`,
-        cargo: netDiffCents < 0 ? fromCents(Math.abs(netDiffCents)) : 0,
-        abono: netDiffCents > 0 ? fromCents(netDiffCents) : 0
-      });
-    }
-
-    validateDoubleEntryMovements(movements);
 
     // Crear la póliza oficial de cierre en mes 13
     const createdPol = await supabasePolizas.createPoliza({
@@ -136,7 +58,7 @@ export const supabaseClosingAndVerification = {
     return {
       closed: true,
       polizaId: createdPol.id,
-      utilidadTraspasada: fromCents(netDiffCents)
+      utilidadTraspasada
     };
   },
 

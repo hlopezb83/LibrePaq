@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   ShieldAlert,
   Users,
@@ -9,61 +7,28 @@ import {
   LayoutDashboard,
   Crown
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { apiClient } from '../lib/api-client';
 import { SuperAdminMetricsCards } from './admin/SuperAdminMetricsCards';
 import { SuperAdminUsersTab } from './admin/SuperAdminUsersTab';
 import { SuperAdminCompaniesTab } from './admin/SuperAdminCompaniesTab';
 import { SuperAdminAdsTab } from './admin/SuperAdminAdsTab';
 import { SuperAdminBroadcastTab } from './admin/SuperAdminBroadcastTab';
+import { useSuperAdminManager } from './admin/useSuperAdminManager';
 
 export function SuperAdminView() {
-  const { user, isSuperAdmin, loading: authLoading } = useAuth();
-  const routerState = useRouterState();
-  const navigate = useNavigate();
-
-  const searchParams = new URLSearchParams((routerState?.location?.search || {}) as Record<string, string>);
-  const searchTab = searchParams.get('tab');
-  const searchQuery = searchParams.get('q') || '';
-
-  const activeTab: 'metrics' | 'users' | 'companies' | 'ads' | 'broadcast' =
-    searchTab === 'users' ||
-    searchTab === 'companies' ||
-    searchTab === 'ads' ||
-    searchTab === 'broadcast'
-      ? searchTab
-      : 'metrics';
-
-  const setActiveTab = (
-    tab: 'metrics' | 'users' | 'companies' | 'ads' | 'broadcast',
-    q?: string
-  ) => {
-    const nextSearch: Record<string, string> = {};
-    if (tab !== 'metrics') nextSearch.tab = tab;
-    if (q) nextSearch.q = q;
-    void navigate({
-      to: '/admin',
-      search: Object.keys(nextSearch).length > 0 ? nextSearch : undefined
-    });
-  };
-
-  const { data: metrics, isLoading: loadingMetrics } = useQuery({
-    queryKey: ['admin-metrics'],
-    queryFn: () => apiClient.getAdminMetrics(),
-    enabled: Boolean(isSuperAdmin)
-  });
-
-  const { data: users = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ['admin-users'],
-    queryFn: () => apiClient.getAdminUsers(),
-    enabled: Boolean(isSuperAdmin)
-  });
-
-  const { data: companies = [], isLoading: loadingCompanies } = useQuery({
-    queryKey: ['admin-companies'],
-    queryFn: () => apiClient.getAdminCompanies(),
-    enabled: Boolean(isSuperAdmin)
-  });
+  const {
+    user,
+    isSuperAdmin,
+    authLoading,
+    searchQuery,
+    activeTab,
+    setActiveTab,
+    metrics,
+    loadingMetrics,
+    users,
+    loadingUsers,
+    companies,
+    loadingCompanies
+  } = useSuperAdminManager();
 
   // Pantalla de Protección / Control de Acceso RBAC
   if (!authLoading && !isSuperAdmin) {

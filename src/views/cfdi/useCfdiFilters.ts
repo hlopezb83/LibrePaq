@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { CfdiDocument } from '../../shared/types';
-import { computeCfdiTotals, filterCfdis } from './filterCfdis';
+import { computeCfdiTotals, filterCfdis, isCfdiPendingForPoliza } from './filterCfdis';
 
 /**
  * Estado y selectores memoizados para filtrado de comprobantes CFDI en la Bóveda ADD.
@@ -24,7 +24,10 @@ export function useCfdiFilters(cfdis: CfdiDocument[], currentPeriodPrefix: strin
     return cfdis;
   }, [cfdis, periodScope, currentPeriodPrefix]);
 
-  const pendingCfdis = useMemo(() => scopedCfdis.filter((c) => !c.polizaId), [scopedCfdis]);
+  const pendingCfdis = useMemo(
+    () => scopedCfdis.filter(isCfdiPendingForPoliza),
+    [scopedCfdis]
+  );
   const emitidosCount = useMemo(
     () => scopedCfdis.filter((c) => c.direction === 'EMITIDO').length,
     [scopedCfdis]

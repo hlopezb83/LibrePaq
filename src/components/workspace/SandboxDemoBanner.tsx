@@ -1,9 +1,6 @@
-import { useState } from 'react';
 import { FlaskConical, Plus, Trash2 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { useToast } from '../../context/ToastContext';
 import type { Company } from '../../shared/types';
+import { useSandboxDemoActions } from './useWorkspaceActions';
 
 interface SandboxDemoBannerProps {
   company: Company;
@@ -16,24 +13,7 @@ export function SandboxDemoBanner({
   onOpenNewCompanyWizard,
   onDemoDeleted
 }: SandboxDemoBannerProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
-  const queryClient = useQueryClient();
-  const toast = useToast();
-
-  const handleDeleteDemo = async () => {
-    setIsDeleting(true);
-    try {
-      await apiClient.deleteCompany(company.id);
-      await queryClient.invalidateQueries({ queryKey: ['companies'] });
-      invalidateAccountingQueries(queryClient);
-      onDemoDeleted();
-      toast.success('Empresa Ejemplo eliminada de tu Despacho');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar la empresa ejemplo');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  const { isDeleting, handleDeleteDemo } = useSandboxDemoActions(company.id, onDemoDeleted);
 
   return (
     <div className="mb-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 border border-amber-300/90 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs no-print">

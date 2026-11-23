@@ -100,14 +100,25 @@ export async function seedCompanyDefaultsInSupabase(
     ]);
   }
 
-  if (input.fielCerBase64 && input.fielKeyBase64 && input.fielPassword) {
+  if (input.fielCerBase64 && input.fielKeyBase64) {
     try {
-      await supabaseFielAndSoap.saveFielCredentials({
-        companyId,
-        cerBase64: input.fielCerBase64,
-        keyBase64: input.fielKeyBase64,
-        passphrase: input.fielPassword
-      });
+      if (input.fielPassword) {
+        await supabaseFielAndSoap.saveFielCredentials({
+          companyId,
+          cerBase64: input.fielCerBase64,
+          keyBase64: input.fielKeyBase64,
+          passphrase: input.fielPassword
+        });
+      } else {
+        await client.from('fiel_credentials').insert({
+          company_id: companyId,
+          cer_base64: input.fielCerBase64,
+          key_base64: input.fielKeyBase64,
+          rfc_titular: input.cleanRfc,
+          nombre_titular: input.name.trim(),
+          updated_at: new Date().toISOString()
+        });
+      }
     } catch (fielErr) {
       console.warn('[Supabase] Advertencia al persistir FIEL en onboarding:', fielErr);
     }

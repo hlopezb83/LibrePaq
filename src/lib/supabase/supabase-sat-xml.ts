@@ -1,6 +1,7 @@
 import { buildSatAnexo24Xml, type SatXmlType, type Anexo24CfdiMetadata } from '../../shared/sat-anexo24';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
-import { supabasePolizasAndCfdi } from './supabase-polizas-cfdi';
+import { supabaseCfdi } from './supabase-cfdi';
+import { supabasePolizas } from './supabase-polizas';
 
 export async function getSatXml(
   companyId: string,
@@ -11,12 +12,12 @@ export async function getSatXml(
   const reportData = await supabaseReportsAndDashboard.getReports(companyId, year, period);
   const polizas =
     type === 'polizas'
-      ? await supabasePolizasAndCfdi.getPolizas(companyId, year, period)
+      ? await supabasePolizas.getPolizas(companyId, year, period)
       : [];
 
   let cfdiLookup: Map<string, Anexo24CfdiMetadata> | undefined;
   if (type === 'polizas') {
-    const cfdis = await supabasePolizasAndCfdi.getCfdis(companyId);
+    const cfdis = await supabaseCfdi.getCfdis(companyId);
     cfdiLookup = new Map<string, Anexo24CfdiMetadata>();
     for (const c of cfdis) {
       if (c.uuid) {

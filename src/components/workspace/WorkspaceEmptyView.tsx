@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef } from 'react';
 import {
   Briefcase,
   Building2,
@@ -10,12 +10,9 @@ import {
   Sparkles,
   Upload
 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { provisionSandboxDemoCompany } from '../../lib/sandbox-demo-seeder';
-import type { Company, CompanyBackupBundle } from '../../shared/types';
+import type { Company } from '../../shared/types';
 import type { UserWorkspace } from '../../context/CompanyContext';
-import { useToast } from '../../context/ToastContext';
+import { useWorkspaceEmptyActions } from './useWorkspaceActions';
 
 interface WorkspaceEmptyViewProps {
   workspace: UserWorkspace | null;
@@ -30,67 +27,23 @@ export function WorkspaceEmptyView({
   onOpenNewCompanyWizard,
   onCompanyRestored
 }: WorkspaceEmptyViewProps) {
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(workspace?.name || '');
-  const [isSavingName, setIsSavingName] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [isProvisioningDemo, setIsProvisioningDemo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const queryClient = useQueryClient();
-  const toast = useToast();
-
-  const handleSaveName = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!draftName.trim()) return;
-    setIsSavingName(true);
-    try {
-      await onRenameWorkspace(draftName.trim());
-      setIsEditingName(false);
-      toast.success('Nombre de tu Despacho Contable actualizado');
-    } finally {
-      setIsSavingName(false);
-    }
-  };
-
-  const handleProvisionDemo = async () => {
-    setIsProvisioningDemo(true);
-    try {
-      const created = await provisionSandboxDemoCompany();
-      await queryClient.invalidateQueries({ queryKey: ['companies'] });
-      invalidateAccountingQueries(queryClient);
-      onCompanyRestored(created.id, created);
-      toast.success('¡Empresa Ejemplo cargada con 3 CFDIs y pólizas automáticas listas!');
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'No se pudo cargar la Empresa Ejemplo'
-      );
-    } finally {
-      setIsProvisioningDemo(false);
-    }
-  };
-
-  const handleRestoreFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-
-    setIsRestoring(true);
-    try {
-      const raw = await file.text();
-      const parsed = JSON.parse(raw) as CompanyBackupBundle;
-      const res = await apiClient.restoreCompanyBackup(parsed);
-      await queryClient.invalidateQueries({ queryKey: ['companies'] });
-      invalidateAccountingQueries(queryClient);
-      onCompanyRestored(res.id, res);
-      toast.success(`Empresa ${res.name} restaurada en tu Despacho`);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'El archivo seleccionado no es un respaldo válido'
-      );
-    } finally {
-      setIsRestoring(false);
-    }
-  };
+  const {
+    isEditingName,
+    setIsEditingName,
+    draftName,
+    setDraftName,
+    isSavingName,
+    isRestoring,
+    isProvisioningDemo,
+    handleSaveName,
+    handleProvisionDemo,
+    handleRestoreFile
+  } = useWorkspaceEmptyActions({
+    workspace,
+    onRenameWorkspace,
+    onCompanyRestored
+  });
 
   return (
     <div className="max-w-5xl mx-auto py-2 sm:py-5 lg:py-8 space-y-4 sm:space-y-6">

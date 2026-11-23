@@ -4,12 +4,16 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
-import { SAFETY_BOUNDS } from '../../shared/sat-catalog';
 import type { CfdiDocument } from '../../shared/types';
+import {
+  downloadCfdiXmlFile,
+  extractXmlStringsFromFiles,
+  resolveDefaultAccountsForCfdi
+} from './cfdiXmlUploadHelpers';
 import { exportCfdisCsv } from './exportCfdisCsv';
-import { computeCfdiTotals, filterCfdis } from './filterCfdis';
 import { buildSimulatedCfdiXml, type SimulatedCfdiPayload } from './simulateCfdiXml';
 import { useAddCfdiMutations } from './useAddCfdiMutations';
+import { useCfdiFilters } from './useCfdiFilters';
 
 export function useAddCfdiManager() {
   const { activeCompany, activeCompanyId } = useCompany();
@@ -21,10 +25,6 @@ export function useAddCfdiManager() {
   const simModalRef = useRef<HTMLDialogElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [tab, setTab] = useState<'ALL' | 'EMITIDO' | 'RECIBIDO' | 'PENDING'>('ALL');
-  const [tipoFilter, setTipoFilter] = useState<'ALL' | 'I' | 'P' | 'N' | 'RET'>('ALL');
-  const [metodoFilter, setMetodoFilter] = useState<'ALL' | 'PUE' | 'PPD'>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCfdi, setSelectedCfdi] = useState<CfdiDocument | null>(null);
   const [operationAccountCode, setOperationAccountCode] = useState<string>('');
   const [counterAccountCode, setCounterAccountCode] = useState<string>('');
@@ -63,7 +63,6 @@ export function useAddCfdiManager() {
   const currentYear = activeCompany?.currentYear ?? 2026;
   const currentPeriod = activeCompany?.currentPeriod ?? 10;
   const currentPeriodPrefix = `${currentYear}-${String(currentPeriod).padStart(2, '0')}`;
-  const [periodScope, setPeriodScope] = useState<'CURRENT' | 'ALL'>('CURRENT');
 
   const { data: periodLock } = useQuery({
     queryKey: ['period-lock', activeCompanyId, currentYear, currentPeriod],
@@ -91,31 +90,31 @@ export function useAddCfdiManager() {
     enabled: Boolean(activeCompanyId)
   });
 
-  const countInCurrentPeriod = useMemo(
-    () => cfdis.filter((c) => c.fecha.startsWith(currentPeriodPrefix)).length,
-    [cfdis, currentPeriodPrefix]
-  );
-
-  const scopedCfdis = useMemo(() => {
-    if (periodScope === 'CURRENT') {
-      return cfdis.filter((c) => c.fecha.startsWith(currentPeriodPrefix));
+  const {
+    pendingCfdis,
+    filters: {
+      tab,
+      setTab,
+      tipoFilter,
+      setTipoFilter,
+      metodoFilter,
+      setMetodoFilter,
+      searchQuery,
+      setSearchQuery,
+      periodScope,
+      setPeriodScope,
+      countInCurrentPeriod,
+      scopedCfdis,
+      emitidosCount,
+      recibidosCount,
+      filteredCfdis,
+      filteredTotals
     }
-    return cfdis;
-  }, [cfdis, periodScope, currentPeriodPrefix]);
+  } = useCfdiFilters(cfdis, currentPeriodPrefix);
 
   const affectableAccounts = useMemo(
     () => accounts.filter((a) => a.isAffectable),
     [accounts]
-  );
-
-  const pendingCfdis = useMemo(() => scopedCfdis.filter((c) => !c.polizaId), [scopedCfdis]);
-  const emitidosCount = useMemo(
-    () => scopedCfdis.filter((c) => c.direction === 'EMITIDO').length,
-    [scopedCfdis]
-  );
-  const recibidosCount = useMemo(
-    () => scopedCfdis.filter((c) => c.direction === 'RECIBIDO').length,
-    [scopedCfdis]
   );
 
   const {
@@ -137,40 +136,7 @@ export function useAddCfdiManager() {
   });
 
   const processXmlFiles = async (fileList: FileList | File[]) => {
-    const rawFiles = Array.from(fileList);
-    const xmlList: string[] = [];
-
-    for (const file of rawFiles) {
-      const lower = file.name.toLowerCase();
-      if (lower.endsWith('.xml') || file.type.includes('xml')) {
-        const text = await file.text();
-        xmlList.push(text);
-      } else if (lower.endsWith('.zip') || file.type.includes('zip')) {
-        try {
-          if (file.size > SAFETY_BOUNDS.MAX_ZIP_UNCOMPRESSED_BYTES) {
-            toast.error(`El archivo ZIP ${file.name} excede el límite de 50MB.`);
-            continue;
-          }
-          const buffer = new Uint8Array(await file.arrayBuffer());
-          const { unzipSync, strFromU8 } = await import('fflate');
-          const unzipped = unzipSync(buffer, {
-            filter(fileInfo) {
-              return fileInfo.originalSize <= SAFETY_BOUNDS.MAX_XML_BYTES;
-            }
-          });
-          for (const [name, content] of Object.entries(unzipped)) {
-            if (name.toLowerCase().endsWith('.xml')) {
-              xmlList.push(strFromU8(content));
-              if (xmlList.length >= SAFETY_BOUNDS.MAX_BATCH_CFDI) break;
-            }
-          }
-        } catch {
-          toast.error(`No fue posible leer el archivo ZIP: ${file.name}`);
-        }
-      }
-    }
-
-    const boundedXmls = xmlList.slice(0, SAFETY_BOUNDS.MAX_BATCH_CFDI);
+    const boundedXmls = await extractXmlStringsFromFiles(fileList, toast);
     if (boundedXmls.length === 0) {
       toast.warning('No se encontraron archivos XML válidos.');
       return;
@@ -210,27 +176,9 @@ export function useAddCfdiManager() {
 
   const openContabilizarModal = (cfdi: CfdiDocument) => {
     setSelectedCfdi(cfdi);
-    const plan = buildAutoPolizaPlan(cfdi, accounts);
-    const opMov = plan.movements[0];
-    const counterMov = plan.movements[plan.movements.length - 1];
-    setOperationAccountCode(
-      opMov?.accountCode ??
-        (cfdi.tipoComprobante === 'P'
-          ? cfdi.direction === 'EMITIDO'
-            ? '105-01-002'
-            : '201-01-099'
-          : cfdi.direction === 'EMITIDO'
-          ? '401-01-002'
-          : '601-01-003')
-    );
-    setCounterAccountCode(
-      counterMov?.accountCode ??
-        (cfdi.metodoPago === 'PUE' || cfdi.tipoComprobante === 'P'
-          ? '102-01-001'
-          : cfdi.direction === 'EMITIDO'
-          ? '105-01-002'
-          : '201-01-099')
-    );
+    const defaults = resolveDefaultAccountsForCfdi(cfdi, accounts);
+    setOperationAccountCode(defaults.operationAccountCode);
+    setCounterAccountCode(defaults.counterAccountCode);
     contabilizarModalRef.current?.showModal();
   };
 
@@ -247,13 +195,7 @@ export function useAddCfdiManager() {
 
   const handleDownloadSelectedXml = () => {
     if (!selectedCfdi) return;
-    const blob = new Blob([selectedCfdi.xmlRaw], { type: 'application/xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CFDI_${selectedCfdi.serie}_${selectedCfdi.folio}_${selectedCfdi.uuid.slice(0, 8)}.xml`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCfdiXmlFile(selectedCfdi);
   };
 
   const previewMovements = useMemo(() => {
@@ -270,13 +212,6 @@ export function useAddCfdiManager() {
       abono: m.abono
     }));
   }, [selectedCfdi, operationAccountCode, counterAccountCode, affectableAccounts]);
-
-  const filteredCfdis = useMemo(
-    () => filterCfdis(cfdis, tab, tipoFilter, searchQuery, periodScope, currentPeriodPrefix, metodoFilter),
-    [cfdis, tab, tipoFilter, searchQuery, periodScope, currentPeriodPrefix, metodoFilter]
-  );
-
-  const filteredTotals = useMemo(() => computeCfdiTotals(filteredCfdis), [filteredCfdis]);
 
   const toggleSelectAll = () => {
     if (selectedCfdiIds.size === filteredCfdis.length && filteredCfdis.length > 0) {

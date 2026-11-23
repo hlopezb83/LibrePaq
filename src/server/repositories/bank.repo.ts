@@ -4,6 +4,7 @@ import {
   sumCents,
   toCents
 } from '../../shared/accounting-engine';
+import { findBankReconciliationMatches } from '../../shared/engine/bank-and-closing.engine';
 import { SAFETY_BOUNDS } from '../../shared/sat-catalog';
 import { getDefaultDateForPeriod } from '../../shared/date-utils';
 import type {
@@ -228,33 +229,19 @@ export function autoMatchBankLinesTransaction(
   );
   if (!current) return null;
 
-  const unmatchedBank = current.statementLines.filter((s) => !s.matchedMovementId);
-  const unmatchedBooks = [...current.bookMovements.filter((b) => !b.isMatched)];
-
-  let matchedCount = 0;
+  const pairs = findBankReconciliationMatches(current.statementLines, current.bookMovements);
   const updateStmt = db.prepare(
     'UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ?'
   );
 
   const tx = db.transaction(() => {
-    for (const bLine of unmatchedBank) {
-      const matchIdx = unmatchedBooks.findIndex(
-        (bm) =>
-          toCents(bm.cargoContable) === toCents(bLine.abonoBanco) &&
-          toCents(bm.abonoContable) === toCents(bLine.cargoBanco)
-      );
-      if (matchIdx !== -1) {
-        const matchedBook = unmatchedBooks[matchIdx];
-        if (matchedBook) {
-          updateStmt.run(matchedBook.movementId, bLine.id);
-          unmatchedBooks.splice(matchIdx, 1);
-          matchedCount += 1;
-        }
-      }
+    for (const pair of pairs) {
+      updateStmt.run(pair.movementId, pair.statementLineId);
     }
   });
 
   tx();
+  const matchedCount = pairs.length;
 
   return {
     matchedCount,

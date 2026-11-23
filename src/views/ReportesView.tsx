@@ -1,81 +1,31 @@
-import { useState } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { useCompany } from '../context/CompanyContext';
-import { apiClient } from '../lib/api-client';
-import { downloadCsvFile } from '../lib/formatters';
 import { MESES_SAT } from '../shared/sat-catalog';
 import { useUIModal } from '../context/UIModalContext';
-import { ReportesHeaderBar, type ReportTabId } from './reportes/ReportesHeaderBar';
+import { ReportesHeaderBar } from './reportes/ReportesHeaderBar';
 import { BalanzaTab } from './reportes/BalanzaTab';
 import { EstadoResultadosTab } from './reportes/EstadoResultadosTab';
 import { BalanceGeneralTab } from './reportes/BalanceGeneralTab';
 import { Anexo24Tab } from './reportes/Anexo24Tab';
 import { DossierEntregablesTab } from './reportes/DossierEntregablesTab';
-import type { SatXmlType } from '../shared/sat-anexo24';
+import { useReportesManager } from './reportes/useReportesManager';
 
 export function ReportesView() {
-  const { activeCompany, activeCompanyId } = useCompany();
-  const currentYear = activeCompany?.currentYear;
-  const currentPeriod = activeCompany?.currentPeriod;
-
-  const [activeTab, setActiveTab] = useState<ReportTabId>('BALANZA');
-  const [satXmlType, setSatXmlType] = useState<SatXmlType>('balanza');
   const { openLedger, openDeliverables } = useUIModal();
-
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['reports', activeCompanyId, currentYear, currentPeriod],
-    queryFn: () => apiClient.getReports(activeCompanyId, currentYear, currentPeriod),
-    enabled: Boolean(activeCompanyId)
-  });
-
-  const { data: satXmlData, isLoading: isLoadingXml } = useQuery({
-    queryKey: ['sat-xml', activeCompanyId, satXmlType, currentYear, currentPeriod],
-    queryFn: () => apiClient.getSatXml(activeCompanyId, satXmlType, currentYear, currentPeriod),
-    enabled: Boolean(activeCompanyId && activeTab === 'ANEXO24')
-  });
-
-  const handleDownloadXml = () => {
-    if (!satXmlData) return;
-    const blob = new Blob([satXmlData.xml], { type: 'application/xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = satXmlData.filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportBalanzaCsv = () => {
-    if (!data) return;
-    const headers = [
-      'Código Cuenta',
-      'Nombre de la Cuenta',
-      'Agrupador SAT',
-      'Naturaleza',
-      'Nivel',
-      'Saldo Inicial',
-      'Cargos (Debe)',
-      'Abonos (Haber)',
-      'Saldo Final'
-    ];
-    const rows = data.trialBalance.map((r) => [
-      r.code,
-      r.name,
-      r.satGroupCode,
-      r.nature,
-      r.level,
-      r.initialBalanceComputed,
-      r.periodCharges,
-      r.periodCredits,
-      r.finalBalance
-    ]);
-    downloadCsvFile(
-      `Balanza_${data.company.rfc}_${data.ejercicio}_P${String(data.periodo).padStart(2, '0')}.csv`,
-      headers,
-      rows
-    );
-  };
+  const {
+    activeTab,
+    setActiveTab,
+    satXmlType,
+    setSatXmlType,
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    satXmlData,
+    isLoadingXml,
+    handleDownloadXml,
+    handleExportBalanzaCsv
+  } = useReportesManager();
 
   if (isError) {
     return (

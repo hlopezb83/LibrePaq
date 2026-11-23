@@ -1,13 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Calculator, Check, Copy, FileText, RefreshCw, Save, Sparkles } from 'lucide-react';
-import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { formatCurrency } from '../../lib/formatters';
 import {
   PapelDia17IsrCard,
   PapelDia17IvaCard,
   PapelDia17UsdCard
 } from './PapelDia17Cards';
+import { usePapelDia17 } from './usePapelDia17';
 
 export interface PapelDia17TabProps {
   companyId: string;
@@ -24,107 +21,26 @@ export function PapelDia17Tab({
   onFeedback,
   onOpenDeliverable
 }: PapelDia17TabProps) {
-  const queryClient = useQueryClient();
-
-  const { data: workpaper, isLoading: loadingWp, isError: isErrorWp, error: errorWp, refetch: refetchWp } = useQuery({
-    queryKey: ['fiscal-workpaper', companyId, year, period],
-    queryFn: () => apiClient.getFiscalWorkpaper(companyId, year, period)
-  });
-
-  const [coefUtilidad, setCoefUtilidad] = useState(0.1845);
-  const [perdidasAmortizar, setPerdidasAmortizar] = useState(0);
-  const [ivaSaldoFavor, setIvaSaldoFavor] = useState(0);
-  const [tcCierreUsd, setTcCierreUsd] = useState(19.85);
-  const [copiedSatDyp, setCopiedSatDyp] = useState(false);
-
-  const handleCopySatDyp = () => {
-    if (!workpaper) return;
-    const isr = workpaper.isrProvisional;
-    const iva = workpaper.ivaDefinitivo;
-    const totalPagar = Math.max(0, isr.isrNetoAPagar) + Math.max(0, iva.ivaNetoAPagar);
-
-    const text = [
-      `=======================================================`,
-      `CÉDULA FISCAL DÍA 17 — SAT DECLARACIONES Y PAGOS (DyP)`,
-      `Empresa: ${workpaper.company.rfc} - ${workpaper.company.name}`,
-      `Periodo: P${String(period).padStart(2, '0')}/${year} | Régimen: ${workpaper.company.regimenFiscal}`,
-      `=======================================================`,
-      ``,
-      `1. PAGO PROVISIONAL ISR (${isr.esResico ? 'RESICO' : `Art. 14 C.U. ${isr.coeficienteUtilidadAplicado.toFixed(4)}`}):`,
-      `- Ingresos Nominales del Mes: ${formatCurrency(isr.ingresosPeriodo)}`,
-      `- Ingresos Acumulados del Ejercicio: ${formatCurrency(isr.ingresosAcumuladosEjercicio)}`,
-      `- Utilidad Fiscal Estimada: ${formatCurrency(isr.utilidadFiscalEstimada)}`,
-      `- Pérdidas Fiscales de Ejercicios Anteriores Amortizadas: -${formatCurrency(isr.perdidasFiscalesAplicadas)}`,
-      `- Base Gravable de ISR: ${formatCurrency(isr.baseGravableIsr)}`,
-      `- ISR Causado (Tasa ${isr.tasaIsrPct}%): ${formatCurrency(isr.isrCausado)}`,
-      `- Pagos Provisionales Previos: -${formatCurrency(isr.pagosProvisionalesPrevios)}`,
-      `- ISR Retenido por Terceros: -${formatCurrency(isr.isrRetenidoPeriodo)}`,
-      `>> ISR A CARGO A ENTERAR: ${formatCurrency(isr.isrNetoAPagar)}`,
-      ``,
-      `2. DETERMINACIÓN DEFINITIVA DE IVA (Art. 5 LIVA - Flujo de Efectivo):`,
-      `- IVA Trasladado Cobrado (16%): ${formatCurrency(iva.ivaTrasladadoCobrado)}`,
-      `- IVA Acreditable Pagado en DIOT: -${formatCurrency(iva.ivaAcreditablePagado)}`,
-      `- IVA Retenido del Periodo: -${formatCurrency(iva.ivaRetenidoPorPagar)}`,
-      `- Saldo a Favor de IVA Anterior Acreditado: -${formatCurrency(iva.saldoFavorIvaAcreditable)}`,
-      `>> ${iva.ivaNetoAPagar > 0 ? 'IVA A CARGO A ENTERAR' : 'SALDO A FAVOR DE IVA'}: ${formatCurrency(iva.ivaNetoAPagar > 0 ? iva.ivaNetoAPagar : iva.saldoFavorIvaRemanente)}`,
-      ``,
-      `-------------------------------------------------------`,
-      `TOTAL ESTIMADO A ENTERAR LÍNEA DE CAPTURA SAT: ${formatCurrency(totalPagar)}`,
-      `=======================================================`
-    ].join('\n');
-
-    navigator.clipboard.writeText(text);
-    setCopiedSatDyp(true);
-    onFeedback('¡Cédula fiscal copiada al portapapeles en formato ordenado para el portal SAT DyP!');
-    setTimeout(() => setCopiedSatDyp(false), 2500);
-  };
-
-  useEffect(() => {
-    if (workpaper?.parameters) {
-      setCoefUtilidad(workpaper.parameters.coeficienteUtilidad);
-      setPerdidasAmortizar(workpaper.parameters.perdidasFiscalesPendientes);
-      setIvaSaldoFavor(workpaper.parameters.saldoFavorIvaAnterior);
-      setTcCierreUsd(workpaper.parameters.tipoCambioDofCierre);
-    }
-  }, [workpaper?.parameters]);
-
-  const saveTaxParamsMutation = useMutation({
-    mutationFn: () =>
-      apiClient.saveTaxParameters({
-        companyId,
-        ejercicio: year,
-        coeficienteUtilidad: coefUtilidad,
-        perdidasFiscalesPendientes: perdidasAmortizar,
-        saldoFavorIvaAnterior: ivaSaldoFavor,
-        tipoCambioDofCierre: tcCierreUsd
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
-      onFeedback('Parámetros fiscales del mes actualizados y cédula Día 17 recalculada.');
-    }
-  });
-
-  const genTaxProvisionMutation = useMutation({
-    mutationFn: () => apiClient.generateTaxProvisionPoliza(companyId),
-    onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
-      queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
-      onFeedback(
-        '¡Póliza de Provisión Mensual de ISR e IVA generada y aplicada en el Libro Diario!'
-      );
-    }
-  });
-
-  const genExchangePolizaMutation = useMutation({
-    mutationFn: () => apiClient.generateExchangePoliza(companyId),
-    onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
-      queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
-      onFeedback(
-        '¡Póliza de Fluctuación Cambiaria USD (Art. 8 CFF / NIF B-15) generada y aplicada en libros!'
-      );
-    }
-  });
+  const {
+    workpaper,
+    loadingWp,
+    isErrorWp,
+    errorWp,
+    refetchWp,
+    coefUtilidad,
+    setCoefUtilidad,
+    perdidasAmortizar,
+    setPerdidasAmortizar,
+    ivaSaldoFavor,
+    setIvaSaldoFavor,
+    tcCierreUsd,
+    setTcCierreUsd,
+    copiedSatDyp,
+    handleCopySatDyp,
+    saveTaxParamsMutation,
+    genTaxProvisionMutation,
+    genExchangePolizaMutation
+  } = usePapelDia17({ companyId, year, period, onFeedback });
 
   if (isErrorWp) {
     return (

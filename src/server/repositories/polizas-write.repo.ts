@@ -195,8 +195,8 @@ export function updatePolizaTransaction(
   const nextFolio = periodOrTypeChanged
     ? Number(
         (maxFolioQuery.get(existing.company_id, tipo, newYear, newPeriod) as {
-          maxFolio?: number;
-        } | null)?.maxFolio ?? 0
+          max_folio?: number;
+        } | null)?.max_folio ?? 0
       ) + 1
     : Number(existing.folio);
 

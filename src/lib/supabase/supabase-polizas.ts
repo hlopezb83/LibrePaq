@@ -1,87 +1,16 @@
 import { supabase } from '../supabase';
 import type { Poliza, PolizaType } from '../../shared/types';
-import { MESES_SAT } from '../../shared/sat-catalog';
 import { resolvePolizaYearPeriod } from '../../shared/date-utils';
 import { validateDoubleEntryMovements } from '../../shared/accounting-engine';
+import {
+  assertSupabasePeriodOpen,
+  buildPolizaMovementInsertRows,
+  mapSupabasePoliza,
+  resolveAccountsMap,
+  resolveNextSupabasePolizaFolio
+} from './supabase-polizas-mappers';
 
-export function mapSupabasePoliza(
-  row: Record<string, unknown>,
-  movementsRaw: unknown = []
-): Poliza {
-  const movsList = Array.isArray(movementsRaw) ? (movementsRaw as Array<Record<string, unknown>>) : [];
-  const movements = movsList.map((m, idx: number) => ({
-    id: String(m.id || `mov_${idx}`),
-    polizaId: String(m.poliza_id || row.id),
-    accountId: String(m.account_id || ''),
-    accountCode: String(m.account_code || ''),
-    accountName: String(m.account_name || ''),
-    referencia: String(m.referencia || ''),
-    concepto: String(m.concepto || ''),
-    cargo: Number(m.cargo || 0),
-    abono: Number(m.abono || 0),
-    cfdiUuid: m.cfdi_uuid ? String(m.cfdi_uuid) : null
-  }));
-
-  const totalCargos = movements.reduce((acc, m) => acc + m.cargo, 0);
-  const totalAbonos = movements.reduce((acc, m) => acc + m.abono, 0);
-  const isBalanced = Math.abs(totalCargos - totalAbonos) < 0.005;
-
-  return {
-    id: String(row.id),
-    companyId: String(row.company_id),
-    tipo: row.tipo as PolizaType,
-    folio: Number(row.folio || 1),
-    fecha: typeof row.fecha === 'string' ? row.fecha.split('T')[0]! : String(row.fecha),
-    ejercicio: Number(row.ejercicio || 2026),
-    periodo: Number(row.periodo || 10),
-    concepto: String(row.concepto || ''),
-    cfdiUuid: row.cfdi_uuid ? String(row.cfdi_uuid) : null,
-    origin: (row.origin as 'MANUAL' | 'ADD_AUTO') || 'MANUAL',
-    totalCargos,
-    totalAbonos,
-    isBalanced,
-    createdAt: row.created_at ? String(row.created_at) : new Date().toISOString(),
-    movements
-  };
-}
-
-export async function assertSupabasePeriodOpen(companyId: string, year: number, period: number): Promise<void> {
-  if (!supabase) return;
-  const { data } = await supabase
-    .from('period_locks')
-    .select('is_locked')
-    .eq('company_id', companyId)
-    .eq('ejercicio', year)
-    .eq('periodo', period)
-    .maybeSingle();
-
-  if (data?.is_locked) {
-    const mesNombre = MESES_SAT.find((m) => m.periodo === period)?.nombre || `Periodo ${period}`;
-    throw new Error(
-      `El periodo contable ${mesNombre} ${year} está CERRADO con candado fiscal. Ábrelo primero si necesitas registrar, editar o eliminar pólizas.`
-    );
-  }
-}
-
-async function resolveAccountsMap(
-  companyId: string,
-  movements: ReadonlyArray<{ accountId: string; accountCode?: string; accountName?: string }>
-): Promise<Map<string, { code: string; name: string }>> {
-  const map = new Map<string, { code: string; name: string }>();
-  const missing = movements.some((m) => !m.accountCode || !m.accountName);
-  if (missing && supabase) {
-    const { data } = await supabase
-      .from('accounts')
-      .select('id, code, name')
-      .eq('company_id', companyId);
-    if (data) {
-      for (const a of data) {
-        map.set(String(a.id), { code: String(a.code || ''), name: String(a.name || '') });
-      }
-    }
-  }
-  return map;
-}
+export { mapSupabasePoliza, assertSupabasePeriodOpen };
 
 export const supabasePolizas = {
   async getPolizas(companyId: string, year?: number, period?: number): Promise<Poliza[]> {
@@ -136,18 +65,7 @@ export const supabasePolizas = {
     validateDoubleEntryMovements(payload.movements);
 
     const polizaId = `pol_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-
-    const { data: maxRows } = await supabase
-      .from('polizas')
-      .select('folio')
-      .eq('company_id', payload.companyId)
-      .eq('tipo', payload.tipo)
-      .eq('ejercicio', year)
-      .eq('periodo', period)
-      .order('folio', { ascending: false })
-      .limit(1);
-
-    const nextFolio = (maxRows?.[0]?.folio || 0) + 1;
+    const nextFolio = await resolveNextSupabasePolizaFolio(payload.companyId, payload.tipo, year, period);
     const now = new Date().toISOString();
 
     const { error: polErr } = await supabase.from('polizas').insert({
@@ -166,18 +84,14 @@ export const supabasePolizas = {
 
     if (polErr) throw new Error(polErr.message);
 
-    const accMap = await resolveAccountsMap(payload.companyId, payload.movements);
-
-    const movementsToInsert = payload.movements.map((m, idx) => {
-      const cached = accMap.get(m.accountId);
-      return {
-        id: `mov_${polizaId}_${idx + 1}`, poliza_id: polizaId,
-        account_id: m.accountId, account_code: m.accountCode || cached?.code || '',
-        account_name: m.accountName || cached?.name || '', referencia: m.referencia || '',
-        concepto: m.concepto || payload.concepto, cargo: Number(m.cargo || 0),
-        abono: Number(m.abono || 0), cfdi_uuid: payload.cfdiUuid || null
-      };
-    });
+    const accMap = await resolveAccountsMap(payload.companyId);
+    const movementsToInsert = buildPolizaMovementInsertRows(
+      polizaId,
+      payload.movements,
+      accMap,
+      payload.concepto,
+      payload.cfdiUuid
+    );
 
     if (movementsToInsert.length > 0) {
       const { error: movErr } = await supabase.from('poliza_movements').insert(movementsToInsert);
@@ -284,18 +198,14 @@ export const supabasePolizas = {
     if (delErr) throw new Error(delErr.message);
 
     const compId = existingPol?.company_id ? String(existingPol.company_id) : '';
-    const accMap = await resolveAccountsMap(compId, payload.movements);
-
-    const movementsToInsert = payload.movements.map((m, idx) => {
-      const cached = accMap.get(m.accountId);
-      return {
-        id: `mov_${polizaId}_${idx + 1}`, poliza_id: polizaId,
-        account_id: m.accountId, account_code: m.accountCode || cached?.code || '',
-        account_name: m.accountName || cached?.name || '', referencia: m.referencia || '',
-        concepto: m.concepto || payload.concepto, cargo: Number(m.cargo || 0),
-        abono: Number(m.abono || 0), cfdi_uuid: payload.cfdiUuid || null
-      };
-    });
+    const accMap = await resolveAccountsMap(compId);
+    const movementsToInsert = buildPolizaMovementInsertRows(
+      polizaId,
+      payload.movements,
+      accMap,
+      payload.concepto,
+      payload.cfdiUuid
+    );
 
     if (movementsToInsert.length > 0) {
       const { error: insErr } = await supabase.from('poliza_movements').insert(movementsToInsert);
