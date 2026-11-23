@@ -28,7 +28,7 @@ export function PolizasTotalsBar({
         <span className="text-slate-600">
           Mostrando <strong>{filteredCount}</strong> {filteredCount === 1 ? 'póliza' : 'pólizas'} en vista actual
           {filteredCount !== totalCount && (
-            <span className="text-slate-400 font-normal"> (de {totalCount} en el periodo)</span>
+            <span className="text-slate-600 font-normal"> (de {totalCount} en el periodo)</span>
           )}
         </span>
 

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
 import { getCurrentFiscalPeriod } from '../../shared/date-utils';
+import { MESES_SAT } from '../../shared/sat-constants';
 import type { ToastContextType } from '../../context/ToastContext';
 
 interface UseAppShellDataParams {
@@ -55,12 +56,18 @@ export function useAppShellData({
       queryClient.invalidateQueries({
         queryKey: ['period-lock', activeCompanyId, activeYear, activePeriod]
       });
-      const label = `P${String(activePeriod ?? 1).padStart(2, '0')}`;
+      const targetPeriod = activePeriod ?? 1;
+      const mesNombre = MESES_SAT.find((m) => m.periodo === targetPeriod)?.nombre ?? '';
+      const label = `P${String(targetPeriod).padStart(2, '0')}`;
+      const descPeriodo = mesNombre ? `${mesNombre} ${effectiveYear} (${label})` : `${label} ${effectiveYear}`;
       if (nextLocked) {
-        toast.warning(`Periodo ${label} bloqueado contra cambios fiscales`);
+        toast.warning(`Periodo ${descPeriodo} bloqueado contra cambios fiscales`);
       } else {
-        toast.success(`Periodo ${label} reabierto para captura contable`);
+        toast.success(`Periodo ${descPeriodo} reabierto para captura contable`);
       }
+    },
+    onError: (err: Error) => {
+      toast.error('No se pudo actualizar el candado del periodo', err.message);
     }
   });
 

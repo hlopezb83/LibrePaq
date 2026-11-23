@@ -241,6 +241,7 @@ export function ActivosFijosTab({
                   id="asset-moi"
                   type="number"
                   inputMode="decimal"
+                  min="0.01"
                   step="0.01"
                   required
                   value={assetMoi}
@@ -257,6 +258,7 @@ export function ActivosFijosTab({
                   id="asset-inpc-adq"
                   type="number"
                   inputMode="decimal"
+                  min="0.001"
                   step="0.001"
                   value={assetInpcAdq}
                   onChange={(e) => setAssetInpcAdq(Number(e.target.value))}
@@ -272,6 +274,7 @@ export function ActivosFijosTab({
                   id="asset-inpc-mid"
                   type="number"
                   inputMode="decimal"
+                  min="0.001"
                   step="0.001"
                   value={assetInpcUso}
                   onChange={(e) => setAssetInpcUso(Number(e.target.value))}
@@ -282,17 +285,25 @@ export function ActivosFijosTab({
               <div className="flex items-end">
                 <button
                   type="submit"
-                  disabled={createAssetMutation.isPending}
-                  className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 disabled:opacity-50 text-white cursor-pointer"
+                  disabled={createAssetMutation.isPending || isPeriodLocked}
+                  title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : undefined}
+                  className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                   Agregar Activo
                 </button>
               </div>
+
+              {assetCat === 'TRANSPORTE_25' && (
+                <p role="note" className="sm:col-span-2 lg:col-span-4 text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                  <strong>Art. 36 Fracc. II LISR:</strong> Automóviles utilitarios deducibles hasta un MOI de $175,000 MXN ($250,000 MXN en vehículos eléctricos o híbridos).
+                </p>
+              )}
             </form>
 
             <ActivosFijosTable
               assets={fixedAssetsData.assets}
+              isPeriodLocked={isPeriodLocked}
               onDeleteAsset={(id) => deleteAssetMutation.mutate(id)}
               isDeleting={deleteAssetMutation.isPending}
             />

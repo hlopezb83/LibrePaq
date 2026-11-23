@@ -26,8 +26,15 @@ export function InpcCatalogModal({
   activeYear = 2026
 }: InpcCatalogModalProps) {
   const [tab, setTab] = useState<'INPC' | 'DOF'>('INPC');
+  const [copiedCell, setCopiedCell] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   useDialogLightDismiss(dialogRef, onClose, { isOpen });
+
+  const handleCopyValue = (raw: string) => {
+    navigator.clipboard?.writeText(raw);
+    setCopiedCell(raw);
+    setTimeout(() => setCopiedCell(null), 1500);
+  };
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -132,9 +139,16 @@ export function InpcCatalogModal({
         >
           {tab === 'INPC' ? (
             <div className="space-y-3">
-              <p className="text-slate-600 text-[11px]">
-                Base: Segunda quincena de julio de 2018 = 100 puntos. Los valores son utilizados para el cálculo de la deducción de inversiones y actualización de pérdidas fiscales.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-slate-600 text-[11px]">
+                  Base: Segunda quincena de julio de 2018 = 100 puntos. Haz clic en un índice para copiarlo al portapapeles.
+                </p>
+                {copiedCell && (
+                  <span role="status" className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    Copiado: {copiedCell}
+                  </span>
+                )}
+              </div>
               <div className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-center border-collapse">
                   <caption className="visually-hidden">Tabla histórica mensual de INPC INEGI</caption>
@@ -150,14 +164,34 @@ export function InpcCatalogModal({
                     {inpcYears.map((yr) => (
                       <tr
                         key={yr}
-                        className={yr === activeYear ? 'bg-blue-50/50 font-bold' : 'hover:bg-slate-50'}
+                        className={yr === activeYear ? 'bg-blue-50/70 font-bold' : 'hover:bg-slate-50'}
                       >
-                        <td className="sticky left-0 bg-white py-2 px-2.5 text-left font-bold text-slate-900 border-r border-slate-100">{yr}</td>
+                        <th
+                          scope="row"
+                          className={`sticky left-0 z-10 py-2 px-2.5 text-left font-bold text-slate-900 border-r border-slate-200 ${
+                            yr === activeYear ? 'bg-blue-50' : 'bg-white'
+                          }`}
+                        >
+                          {yr}
+                        </th>
                         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
                           const val = OFFICIAL_INPC_TABLE[yr]?.[m];
+                          const formatted = val ? val.toFixed(3) : null;
                           return (
-                            <td key={m} className="py-2 px-1 text-slate-700">
-                              {val ? val.toFixed(3) : '-'}
+                            <td key={m} className="py-1.5 px-1 text-slate-700">
+                              {formatted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyValue(formatted)}
+                                  title={`Copiar INPC ${MONTHS[m - 1]} ${yr}: ${formatted}`}
+                                  aria-label={`Copiar INPC ${MONTHS[m - 1]} ${yr}: ${formatted}`}
+                                  className="px-1 py-0.5 rounded hover:bg-blue-100 hover:text-blue-900 cursor-pointer transition"
+                                >
+                                  {formatted}
+                                </button>
+                              ) : (
+                                '-'
+                              )}
                             </td>
                           );
                         })}
@@ -169,9 +203,16 @@ export function InpcCatalogModal({
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-slate-600 text-[11px]">
-                Tipo de cambio para solventar obligaciones denominadas en moneda extranjera, publicado por el Banco de México en el DOF al cierre de cada mes (Art. 8 CFF).
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-slate-600 text-[11px]">
+                  Tipo de cambio de cierre DOF Banxico (Art. 8 CFF). Haz clic en una cifra para copiarla.
+                </p>
+                {copiedCell && (
+                  <span role="status" className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    Copiado: {copiedCell}
+                  </span>
+                )}
+              </div>
               <div className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-center border-collapse">
                   <caption className="visually-hidden">Tabla histórica de Tipo de Cambio DOF Banxico</caption>
@@ -187,14 +228,34 @@ export function InpcCatalogModal({
                     {dofYears.map((yr) => (
                       <tr
                         key={yr}
-                        className={yr === activeYear ? 'bg-blue-50/50 font-bold' : 'hover:bg-slate-50'}
+                        className={yr === activeYear ? 'bg-blue-50/70 font-bold' : 'hover:bg-slate-50'}
                       >
-                        <td className="sticky left-0 bg-white py-2 px-2.5 text-left font-bold text-slate-900 border-r border-slate-100">{yr}</td>
+                        <th
+                          scope="row"
+                          className={`sticky left-0 z-10 py-2 px-2.5 text-left font-bold text-slate-900 border-r border-slate-200 ${
+                            yr === activeYear ? 'bg-blue-50' : 'bg-white'
+                          }`}
+                        >
+                          {yr}
+                        </th>
                         {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
                           const val = OFFICIAL_DOF_EXCHANGE_RATES[yr]?.[m];
+                          const formatted = val ? val.toFixed(4) : null;
                           return (
-                            <td key={m} className="py-2 px-1 text-slate-700">
-                              {val ? `$${val.toFixed(4)}` : '-'}
+                            <td key={m} className="py-1.5 px-1 text-slate-700">
+                              {formatted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyValue(formatted)}
+                                  title={`Copiar TC DOF ${MONTHS[m - 1]} ${yr}: ${formatted}`}
+                                  aria-label={`Copiar Tipo de Cambio ${MONTHS[m - 1]} ${yr}: ${formatted}`}
+                                  className="px-1 py-0.5 rounded hover:bg-blue-100 hover:text-blue-900 cursor-pointer transition"
+                                >
+                                  ${formatted}
+                                </button>
+                              ) : (
+                                '-'
+                              )}
                             </td>
                           );
                         })}

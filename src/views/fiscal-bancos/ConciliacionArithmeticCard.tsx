@@ -45,7 +45,7 @@ export function ConciliacionArithmeticCard({
             </span>
           )}
 
-          <span className="text-[11px] font-mono text-slate-400">
+          <span className="text-[11px] font-mono text-slate-300">
             {reconData.summary.movimientosConciliados} de {reconData.statementLines.length} conciliadas
           </span>
         </div>
@@ -53,7 +53,7 @@ export function ConciliacionArithmeticCard({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
         <div className="p-3 rounded-xl bg-[#111C35] border border-slate-800">
-          <div className="text-[10px] text-slate-400 uppercase font-sans font-semibold">
+          <div className="text-[10px] text-slate-300 uppercase font-sans font-semibold">
             1. Saldo Final en Libros
           </div>
           <div className="mt-1 text-base font-bold text-white">
@@ -62,7 +62,7 @@ export function ConciliacionArithmeticCard({
         </div>
 
         <div className="p-3 rounded-xl bg-[#111C35] border border-slate-800">
-          <div className="text-[10px] text-slate-400 uppercase font-sans font-semibold">
+          <div className="text-[10px] text-slate-300 uppercase font-sans font-semibold">
             2. (+) Depósitos Banco No Reg.
           </div>
           <div className="mt-1 text-base font-bold text-emerald-300">
@@ -71,7 +71,7 @@ export function ConciliacionArithmeticCard({
         </div>
 
         <div className="p-3 rounded-xl bg-[#111C35] border border-slate-800">
-          <div className="text-[10px] text-slate-400 uppercase font-sans font-semibold">
+          <div className="text-[10px] text-slate-300 uppercase font-sans font-semibold">
             3. (-) Cargos Banco No Reg.
           </div>
           <div className="mt-1 text-base font-bold text-red-300">
@@ -88,6 +88,27 @@ export function ConciliacionArithmeticCard({
           </div>
         </div>
       </div>
+
+      {((reconFormula?.cargosContablesEnTransito ?? 0) > 0 ||
+        (reconFormula?.abonosContablesEnTransito ?? 0) > 0) && (
+        <div className="pt-2 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-300">
+          <span className="font-sans text-slate-300 font-semibold">Partidas en tránsito en libros:</span>
+          <div className="flex flex-wrap items-center gap-4">
+            <span>
+              (+) Cargos en tránsito:{' '}
+              <strong className="text-emerald-300">
+                {formatCurrency(reconFormula?.cargosContablesEnTransito ?? 0)}
+              </strong>
+            </span>
+            <span>
+              (-) Cheques / Abonos en tránsito:{' '}
+              <strong className="text-amber-300">
+                {formatCurrency(reconFormula?.abonosContablesEnTransito ?? 0)}
+              </strong>
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -53,12 +53,31 @@ export function useExecutiveDeliverables({
     }
   }, [isOpen, initialTab]);
 
-  const [firmName, setFirmName] = useState('Despacho Contable y Fiscal Integral S.C.');
-  const [auditorName, setAuditorName] = useState('C.P.C. María Elena Gómez Garza');
-  const [auditorCedula, setAuditorCedula] = useState('Céd. Prof. 4829103');
-  const [legalRepName, setLegalRepName] = useState('Ing. Alejandro Garza Martínez');
-  const [legalRepTitle, setLegalRepTitle] = useState('Representante Legal');
-  const [issuanceCity, setIssuanceCity] = useState('Monterrey, Nuevo León');
+  const configKey = `librepaq_deliverable_config_${company.id}`;
+  const readSavedConfig = () => {
+    try {
+      const raw = localStorage.getItem(configKey);
+      return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const [firmName, setFirmName] = useState(() => readSavedConfig().firmName || 'Despacho Contable y Fiscal Integral S.C.');
+  const [auditorName, setAuditorName] = useState(() => readSavedConfig().auditorName || 'C.P.C. María Elena Gómez Garza');
+  const [auditorCedula, setAuditorCedula] = useState(() => readSavedConfig().auditorCedula || 'Céd. Prof. 4829103');
+  const [legalRepName, setLegalRepName] = useState(() => readSavedConfig().legalRepName || 'Ing. Alejandro Garza Martínez');
+  const [legalRepTitle, setLegalRepTitle] = useState(() => readSavedConfig().legalRepTitle || 'Representante Legal');
+  const [issuanceCity, setIssuanceCity] = useState(() => readSavedConfig().issuanceCity || 'Monterrey, Nuevo León');
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        configKey,
+        JSON.stringify({ firmName, auditorName, auditorCedula, legalRepName, legalRepTitle, issuanceCity })
+      );
+    } catch {}
+  }, [configKey, firmName, auditorName, auditorCedula, legalRepName, legalRepTitle, issuanceCity]);
   const [issuanceDate, setIssuanceDate] = useState(() =>
     new Date().toLocaleDateString('es-MX', {
       year: 'numeric',

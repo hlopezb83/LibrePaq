@@ -12,6 +12,7 @@ import {
 export interface PolizasHeaderActionsProps {
   isPeriodLocked: boolean;
   isCloseYearPending: boolean;
+  hasPolizasToExport?: boolean;
   onNewPoliza: () => void;
   onOpenPedimentoModal?: () => void;
   onExportCsv: () => void;
@@ -21,6 +22,7 @@ export interface PolizasHeaderActionsProps {
 export function PolizasHeaderActions({
   isPeriodLocked,
   isCloseYearPending,
+  hasPolizasToExport = true,
   onNewPoliza,
   onOpenPedimentoModal,
   onExportCsv,
@@ -62,8 +64,14 @@ export function PolizasHeaderActions({
       <div className="hidden sm:flex items-center gap-2">
         <button
           type="button"
+          disabled={!hasPolizasToExport}
           onClick={onExportCsv}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+          title={
+            hasPolizasToExport
+              ? 'Exportar pólizas visibles a CSV'
+              : 'No hay pólizas visibles para exportar'
+          }
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Download className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
           <span>Exportar Excel (.CSV)</span>
@@ -142,13 +150,19 @@ export function PolizasHeaderActions({
               <button
                 type="button"
                 role="menuitem"
+                disabled={!hasPolizasToExport}
                 onClick={() => {
                   setIsMenuOpen(false);
                   onExportCsv();
                 }}
-                className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                title={
+                  hasPolizasToExport
+                    ? 'Exportar pólizas visibles a CSV'
+                    : 'No hay pólizas visibles para exportar'
+                }
+                className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Download className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                <Download className="w-4 h-4 text-slate-500" aria-hidden="true" />
                 <span className="font-medium">Exportar Excel (.CSV)</span>
               </button>
 

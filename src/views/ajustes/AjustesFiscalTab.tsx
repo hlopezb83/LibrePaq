@@ -1,8 +1,10 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Coins, Save } from 'lucide-react';
+import { ArrowRight, Coins, RotateCcw, Save } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 
 export interface AjustesFiscalTabProps {
+  currentYear: number;
+  currentPeriod: number;
   coefUtilidad: number;
   setCoefUtilidad: (v: number) => void;
   tcDof: number;
@@ -13,6 +15,8 @@ export interface AjustesFiscalTabProps {
   setPagosAnt: (v: number) => void;
   saldoIvaAnt: number;
   setSaldoIvaAnt: (v: number) => void;
+  isFiscalDirty: boolean;
+  onResetFiscal: () => void;
   saveFiscalParamsMutation: {
     mutate: () => void;
     isPending: boolean;
@@ -30,6 +34,8 @@ export interface AjustesFiscalTabProps {
 }
 
 export function AjustesFiscalTab({
+  currentYear,
+  currentPeriod,
   coefUtilidad,
   setCoefUtilidad,
   tcDof,
@@ -40,6 +46,8 @@ export function AjustesFiscalTab({
   setPagosAnt,
   saldoIvaAnt,
   setSaldoIvaAnt,
+  isFiscalDirty,
+  onResetFiscal,
   saveFiscalParamsMutation,
   fiscalWp
 }: AjustesFiscalTabProps) {
@@ -53,7 +61,7 @@ export function AjustesFiscalTab({
           }}
           className="lg:col-span-2 bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 pb-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Coins className="w-4 h-4 text-emerald-700" aria-hidden="true" />
@@ -66,7 +74,7 @@ export function AjustesFiscalTab({
 
             <Link
               to="/fiscal-bancos"
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition shrink-0"
             >
               Ver Cédula Día 17
               <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
@@ -95,7 +103,9 @@ export function AjustesFiscalTab({
                   C.U.
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600">Ejemplo: 0.2000 para un margen estimado del 20.00%.</p>
+              <p className="text-[11px] text-slate-600">
+                Margen fiscal equivalente: <strong className="font-mono text-slate-800">{(coefUtilidad * 100).toFixed(2)}%</strong>
+              </p>
             </div>
 
             <div className="space-y-1">
@@ -185,46 +195,70 @@ export function AjustesFiscalTab({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
-            <button
-              type="submit"
-              disabled={saveFiscalParamsMutation.isPending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" aria-hidden="true" />
-              <span>{saveFiscalParamsMutation.isPending ? 'Guardando...' : 'Guardar Parámetros Fiscales'}</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-200">
+            <div className="flex items-center gap-2">
+              {isFiscalDirty && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  Cambios sin guardar
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              {isFiscalDirty && (
+                <button
+                  type="button"
+                  onClick={onResetFiscal}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                  Restablecer
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={saveFiscalParamsMutation.isPending || !isFiscalDirty}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" aria-hidden="true" />
+                <span>{saveFiscalParamsMutation.isPending ? 'Guardando...' : 'Guardar Parámetros Fiscales'}</span>
+              </button>
+            </div>
           </div>
         </form>
 
         {/* Tarjeta Informativa de la Cédula Actual */}
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Coins className="w-4 h-4 text-blue-700" aria-hidden="true" />
-              Cédula Fiscal del Periodo Actual
-            </h3>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-blue-700" aria-hidden="true" />
+                Cédula Fiscal del Periodo
+              </h3>
+              <span className="text-[11px] font-mono font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
+                P{String(currentPeriod).padStart(2, '0')}/{currentYear}
+              </span>
+            </div>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Ingresos Acumulados:</span>
+                <span className="text-slate-600">Ingresos Acumulados:</span>
                 <span className="font-mono font-bold text-slate-900">
                   {formatCurrency(fiscalWp?.isrProvisional.ingresosAcumuladosEjercicio ?? 0)}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Utilidad Estimada:</span>
+                <span className="text-slate-600">Utilidad Estimada:</span>
                 <span className="font-mono font-bold text-slate-900">
                   {formatCurrency(fiscalWp?.isrProvisional.utilidadFiscalEstimada ?? 0)}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">ISR Provisional a Pagar:</span>
+                <span className="text-slate-600">ISR Provisional a Pagar:</span>
                 <span className="font-mono font-bold text-emerald-700">
                   {formatCurrency(fiscalWp?.isrProvisional.isrNetoAPagar ?? 0)}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">IVA Definitivo a Pagar:</span>
+                <span className="text-slate-600">IVA Definitivo a Pagar:</span>
                 <span className="font-mono font-bold text-blue-700">
                   {formatCurrency(fiscalWp?.ivaDefinitivo.ivaNetoAPagar ?? 0)}
                 </span>

@@ -16,6 +16,7 @@ import type { Company } from '../../shared/types';
 export interface CfdiDropzoneBarProps {
   isDragging: boolean;
   setIsDragging: (val: boolean) => void;
+  isUploadingFiles?: boolean;
   handleDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -38,6 +39,7 @@ export interface CfdiDropzoneBarProps {
 export function CfdiDropzoneBar({
   isDragging,
   setIsDragging,
+  isUploadingFiles = false,
   handleDrop,
   fileInputRef,
   handleFileUpload,
@@ -148,20 +150,24 @@ export function CfdiDropzoneBar({
           {/* 2. Botón Primario: Subir XMLs / ZIP Locales */}
           <label
             htmlFor="cfdi-dropzone-upload"
+            aria-busy={isUploadingFiles}
             title="Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white shadow-2xs transition cursor-pointer"
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 text-xs font-semibold text-white shadow-2xs transition cursor-pointer ${
+              isUploadingFiles ? 'opacity-75 pointer-events-none' : ''
+            }`}
           >
             <input
               id="cfdi-dropzone-upload"
               ref={fileInputRef}
               type="file"
+              disabled={isUploadingFiles}
               accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
               multiple
               onChange={handleFileUpload}
               className="visually-hidden"
             />
-            <UploadCloud className="w-3.5 h-3.5 text-blue-100" aria-hidden="true" />
-            <span>Subir XMLs / ZIP</span>
+            <UploadCloud className={`w-3.5 h-3.5 text-blue-100 ${isUploadingFiles ? 'animate-pulse' : ''}`} aria-hidden="true" />
+            <span>{isUploadingFiles ? 'Importando XMLs...' : 'Subir XMLs / ZIP'}</span>
             <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
               Alt+U
             </kbd>

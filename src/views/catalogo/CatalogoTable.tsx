@@ -127,7 +127,12 @@ export function CatalogoTable({
         <tbody className="divide-y divide-slate-100 text-xs">
           {isLoading ? (
             <tr>
-              <td colSpan={columns.length} className="py-12 text-center text-slate-400">
+              <td
+                colSpan={columns.length}
+                role="status"
+                aria-live="polite"
+                className="py-12 text-center text-slate-600"
+              >
                 Cargando catálogo contable Anexo 24...
               </td>
             </tr>
@@ -171,6 +176,7 @@ export function CatalogoTable({
                       }
                     }}
                     tabIndex={isRovingTarget ? 0 : -1}
+                    aria-level={acc.level}
                     aria-selected={isSelected}
                     className={`transition group cursor-pointer ${
                       isSelected

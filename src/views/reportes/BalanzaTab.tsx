@@ -152,6 +152,8 @@ export function BalanzaTab({
         hideZeroBalances={hideZeroBalances}
         onToggleHideZero={setHideZeroBalances}
         zeroCount={zeroCount}
+        filteredCount={rows.length}
+        totalCount={trialBalance.length}
       />
 
       <div
@@ -197,13 +199,13 @@ export function BalanzaTab({
                               ? null
                               : flexRender(header.column.columnDef.header, header.getContext())}
                           </span>
-                          <span className="text-slate-400 shrink-0" aria-hidden="true">
+                          <span className="text-slate-600 shrink-0" aria-hidden="true">
                             {sorted === 'asc' ? (
                               <ArrowUp className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
                             ) : sorted === 'desc' ? (
                               <ArrowDown className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-400" aria-hidden="true" />
+                              <ArrowUpDown className="w-3 h-3 text-slate-500" aria-hidden="true" />
                             )}
                           </span>
                         </button>
@@ -245,7 +247,7 @@ export function BalanzaTab({
             ) : (
               <>
                 {paddingTop > 0 && (
-                  <tr>
+                  <tr aria-hidden="true">
                     <td
                       colSpan={table.getAllLeafColumns().length}
                       style={{ height: `${paddingTop}px` }}
@@ -278,7 +280,7 @@ export function BalanzaTab({
                   );
                 })}
                 {paddingBottom > 0 && (
-                  <tr>
+                  <tr aria-hidden="true">
                     <td
                       colSpan={table.getAllLeafColumns().length}
                       style={{ height: `${paddingBottom}px` }}

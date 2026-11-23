@@ -75,18 +75,18 @@ export function CatalogoActionsCell({
                 e.stopPropagation();
                 onConfirmDelete(row.id);
               }}
-              className="text-[10px] font-bold text-red-800 hover:underline cursor-pointer disabled:opacity-50"
+              className="px-2 py-1 rounded text-[10px] font-bold text-red-800 hover:bg-red-100 cursor-pointer disabled:opacity-50"
             >
               Sí
             </button>
-            <span className="text-slate-300">/</span>
+            <span className="text-slate-400" aria-hidden="true">/</span>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setConfirmDeleteId(null);
               }}
-              className="text-[10px] font-bold text-slate-600 hover:underline cursor-pointer"
+              className="px-2 py-1 rounded text-[10px] font-bold text-slate-700 hover:bg-white cursor-pointer"
             >
               No
             </button>

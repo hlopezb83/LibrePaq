@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   Search,
   Building2,
-  Calendar
+  Calendar,
+  X
 } from 'lucide-react';
 import type { AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
 import { CompanyUserOwnerCell } from './CompanyUserOwnerCell';
@@ -128,16 +129,36 @@ export function SuperAdminCompaniesTab({
             </button>
           </div>
 
+          <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-600 whitespace-nowrap">
+            {filtered.length} de {enrichedCompanies.length} empresas
+          </span>
+
           <search className="relative w-full sm:w-64">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && query) {
+                  e.preventDefault();
+                  setQuery('');
+                }
+              }}
               placeholder="Buscar RFC, empresa, usuario o correo..."
               aria-label="Buscar por RFC, razón social, usuario o correo electrónico"
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Limpiar búsqueda de empresas"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            )}
           </search>
         </div>
       </div>

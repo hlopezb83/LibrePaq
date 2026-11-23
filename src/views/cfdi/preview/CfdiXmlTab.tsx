@@ -8,22 +8,36 @@ interface CfdiXmlTabProps {
 }
 
 export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProps) {
-  const xmlPayload = `<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Version="4.0" Serie="${cfdi.serie}" Folio="${cfdi.folio}" Fecha="${cfdi.fecha}" Total="${cfdi.total}" SubTotal="${cfdi.subtotal}" Moneda="${cfdi.moneda}">\n  <cfdi:Emisor Rfc="${cfdi.emisorRfc}" Nombre="${cfdi.emisorNombre}" RegimenFiscal="601"/>\n  <cfdi:Receptor Rfc="${cfdi.receptorRfc}" Nombre="${cfdi.receptorNombre}" UsoCFDI="${cfdi.usoCfdi}"/>\n</cfdi:Comprobante>`;
+  const totalRet = (cfdi.isrRetenido || 0) + (cfdi.ivaRetenido || 0);
+  const retencionesSnippet =
+    totalRet > 0
+      ? `\n    <cfdi:Retenciones>\n${
+          cfdi.isrRetenido > 0 ? `      <cfdi:Retencion Impuesto="001" Importe="${cfdi.isrRetenido}" />\n` : ''
+        }${
+          cfdi.ivaRetenido > 0 ? `      <cfdi:Retencion Impuesto="002" Importe="${cfdi.ivaRetenido}" />\n` : ''
+        }    </cfdi:Retenciones>`
+      : '';
+  const xmlPayload =
+    cfdi.xmlRaw ||
+    `<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Version="4.0" Serie="${cfdi.serie}" Folio="${cfdi.folio}" Fecha="${cfdi.fecha}" Total="${cfdi.total}" SubTotal="${cfdi.subtotal}" Moneda="${cfdi.moneda}">\n  <cfdi:Emisor Rfc="${cfdi.emisorRfc}" Nombre="${cfdi.emisorNombre}" RegimenFiscal="601"/>\n  <cfdi:Receptor Rfc="${cfdi.receptorRfc}" Nombre="${cfdi.receptorNombre}" UsoCFDI="${cfdi.usoCfdi}"/>\n  <cfdi:Impuestos TotalImpuestosTrasladados="${cfdi.ivaTrasladado}"${
+      totalRet > 0 ? ` TotalImpuestosRetenidos="${totalRet}"` : ''
+    }>${retencionesSnippet}\n  </cfdi:Impuestos>\n</cfdi:Comprobante>`;
 
   return (
     <div className="bg-slate-950 text-slate-100 rounded-2xl p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4">
       <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-slate-300">
-          <Code2 className="w-4 h-4 text-cyan-400" />
+          <Code2 className="w-4 h-4 text-cyan-400" aria-hidden="true" />
           <span className="font-bold text-white font-sans text-sm">Estructura Jerárquica del XML CFDI 4.0</span>
         </div>
         <button
           type="button"
           onClick={() => copyToClipboard(xmlPayload, 'XML_NODES')}
-          className="px-2.5 py-1 rounded-lg text-[11px] font-sans font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5"
+          aria-label="Copiar nodos XML al portapapeles"
+          className="px-2.5 py-1 rounded-lg text-[11px] font-sans font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
         >
-          {copiedText === 'XML_NODES' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          Copiar Nodos XML
+          {copiedText === 'XML_NODES' ? <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
+          {copiedText === 'XML_NODES' ? 'XML Copiado' : 'Copiar Nodos XML'}
         </button>
       </div>
 
@@ -69,13 +83,33 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
         </div>
 
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
-          <span className="text-yellow-400 font-bold">&lt;cfdi:Impuestos</span> TotalImpuestosTrasladados=<span className="text-amber-300">"{cfdi.ivaTrasladado}"</span><span className="text-yellow-400 font-bold">&gt;</span>
-          <div className="pl-4 text-slate-300">
+          <span className="text-yellow-400 font-bold">&lt;cfdi:Impuestos</span> TotalImpuestosTrasladados=<span className="text-amber-300">"{cfdi.ivaTrasladado}"</span>
+          {totalRet > 0 && (
+            <> TotalImpuestosRetenidos=<span className="text-amber-300">"{totalRet}"</span></>
+          )}
+          <span className="text-yellow-400 font-bold">&gt;</span>
+          <div className="pl-4 text-slate-300 space-y-1">
             <span className="text-yellow-400 font-bold">&lt;cfdi:Traslados&gt;</span>
             <div className="pl-4">
               <span className="text-yellow-400 font-bold">&lt;cfdi:Traslado</span> Base=<span className="text-amber-300">"{cfdi.subtotal}"</span> Impuesto=<span className="text-emerald-300">"002"</span> TipoFactor=<span className="text-emerald-300">"Tasa"</span> TasaOCuota=<span className="text-emerald-300">"0.160000"</span> Importe=<span className="text-amber-300">"{cfdi.ivaTrasladado}"</span> <span className="text-yellow-400 font-bold">/&gt;</span>
             </div>
             <span className="text-yellow-400 font-bold">&lt;/cfdi:Traslados&gt;</span>
+            {totalRet > 0 && (
+              <div>
+                <span className="text-rose-400 font-bold">&lt;cfdi:Retenciones&gt;</span>
+                {cfdi.isrRetenido > 0 && (
+                  <div className="pl-4">
+                    <span className="text-rose-400 font-bold">&lt;cfdi:Retencion</span> Impuesto=<span className="text-emerald-300">"001"</span> (ISR) Importe=<span className="text-amber-300">"{cfdi.isrRetenido}"</span> <span className="text-rose-400 font-bold">/&gt;</span>
+                  </div>
+                )}
+                {cfdi.ivaRetenido > 0 && (
+                  <div className="pl-4">
+                    <span className="text-rose-400 font-bold">&lt;cfdi:Retencion</span> Impuesto=<span className="text-emerald-300">"002"</span> (IVA) Importe=<span className="text-amber-300">"{cfdi.ivaRetenido}"</span> <span className="text-rose-400 font-bold">/&gt;</span>
+                  </div>
+                )}
+                <span className="text-rose-400 font-bold">&lt;/cfdi:Retenciones&gt;</span>
+              </div>
+            )}
           </div>
           <span className="text-yellow-400 font-bold">&lt;/cfdi:Impuestos&gt;</span>
         </div>

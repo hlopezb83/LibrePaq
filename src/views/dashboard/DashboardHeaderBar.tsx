@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Clock, FileCode2, Printer, ReceiptText, Sparkles } from 'lucide-react';
+import { Clock, FileCode2, Lock, Printer, ReceiptText, Sparkles } from 'lucide-react';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
 
@@ -7,6 +7,7 @@ export interface DashboardHeaderBarProps {
   company: Company;
   mesActualNombre: string;
   cfdisPendientesCount: number;
+  isPeriodLocked?: boolean;
   onOpenDeliverables: () => void;
 }
 
@@ -14,6 +15,7 @@ export function DashboardHeaderBar({
   company,
   mesActualNombre,
   cfdisPendientesCount,
+  isPeriodLocked = false,
   onOpenDeliverables
 }: DashboardHeaderBarProps) {
   const nextMonthPeriod = company.currentPeriod === 12 ? 1 : company.currentPeriod + 1;
@@ -35,6 +37,16 @@ export function DashboardHeaderBar({
             <Clock className="w-3 h-3 text-amber-400" aria-hidden="true" />
             <span>Límite SAT: 17 de {nextMonthName}</span>
           </div>
+          {isPeriodLocked && (
+            <div
+              role="status"
+              title="Este periodo está cerrado con candado fiscal ante el SAT; solo se permiten consultas y auditoría."
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-200 bg-amber-900/50 border border-amber-500/50 px-2.5 py-0.5 rounded-full"
+            >
+              <Lock className="w-3 h-3 text-amber-300" aria-hidden="true" />
+              <span>Periodo Cerrado (Solo Consulta)</span>
+            </div>
+          )}
         </div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
           Resumen General de Operaciones

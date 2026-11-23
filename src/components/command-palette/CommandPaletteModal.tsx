@@ -83,6 +83,18 @@ export function CommandPaletteModal({
       e.preventDefault();
       if (flattenedItems.length === 0) return;
       setHighlightedIndex((prev) => (prev - 1 + flattenedItems.length) % flattenedItems.length);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      if (flattenedItems.length > 0) setHighlightedIndex(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      if (flattenedItems.length > 0) setHighlightedIndex(flattenedItems.length - 1);
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      if (flattenedItems.length > 0) setHighlightedIndex((prev) => Math.min(flattenedItems.length - 1, prev + 5));
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      if (flattenedItems.length > 0) setHighlightedIndex((prev) => Math.max(0, prev - 5));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const currentItem = flattenedItems[highlightedIndex];
@@ -177,7 +189,7 @@ export function CommandPaletteModal({
               <p className="text-sm font-semibold text-slate-700">
                 Sin coincidencias para &ldquo;{query}&rdquo;
               </p>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto">
                 Prueba buscando por código de cuenta (ej. <code>102</code>), nombre (<code>BBVA</code>),
                 tipo de póliza (<code>Diario</code>) o módulo (<code>Balanza</code>).
               </p>
@@ -196,7 +208,7 @@ export function CommandPaletteModal({
               return (
                 <React.Fragment key={item.id}>
                   {isNewCategory && (
-                    <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
                       <span>{item.categoryTitle}</span>
                     </div>
                   )}
@@ -295,30 +307,30 @@ export function CommandPaletteModal({
         </div>
 
         {/* Barra inferior con atajos de ayuda */}
-        <div className="px-3 sm:px-4 py-2 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 shrink-0">
+        <div className="px-3 sm:px-4 py-2 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 font-mono text-[9px] bg-white border border-slate-200 rounded text-slate-600 shadow-2xs">
+              <kbd className="px-1 py-0.5 font-mono text-[9px] bg-white border border-slate-200 rounded text-slate-700 shadow-2xs">
                 ↑↓
               </kbd>
-              <span className="text-slate-400">Navegar</span>
+              <span className="text-slate-600">Navegar</span>
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 font-mono text-[9px] bg-white border border-slate-200 rounded text-slate-600 shadow-2xs">
+              <kbd className="px-1 py-0.5 font-mono text-[9px] bg-white border border-slate-200 rounded text-slate-700 shadow-2xs">
                 ↵
               </kbd>
-              <span className="text-slate-400">Abrir</span>
+              <span className="text-slate-600">Abrir</span>
             </span>
             <span className="hidden sm:flex items-center gap-1">
-              <kbd className="px-1 py-0.5 font-mono text-[9px] bg-white border border-slate-200 rounded text-slate-600 shadow-2xs">
+              <kbd className="px-1 py-0.5 font-mono text-[9px] bg-white border border-slate-200 rounded text-slate-700 shadow-2xs">
                 ESC
               </kbd>
-              <span className="text-slate-400">Cerrar</span>
+              <span className="text-slate-600">Cerrar</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono" aria-live="polite">
-            <span className="hidden sm:inline font-semibold text-slate-500">LibrePaq Pro •</span>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-600 font-mono" aria-live="polite">
+            <span className="hidden sm:inline font-semibold text-slate-600">LibrePaq Pro •</span>
             <span>{flattenedItems.length} comandos</span>
           </div>
         </div>

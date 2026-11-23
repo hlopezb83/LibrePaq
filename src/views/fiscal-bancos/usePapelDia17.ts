@@ -28,6 +28,7 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
 
   const [coefUtilidad, setCoefUtilidad] = useState(0);
   const [perdidasAmortizar, setPerdidasAmortizar] = useState(0);
+  const [pagosPreviosInput, setPagosPreviosInput] = useState(0);
   const [ivaSaldoFavor, setIvaSaldoFavor] = useState(0);
   const [tcCierreUsd, setTcCierreUsd] = useState(0);
   const { copiedKey, copy: copySatDyp } = useCopyToClipboard<'sat-dyp'>(2500);
@@ -37,15 +38,26 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
     if (workpaper?.parameters) {
       setCoefUtilidad(workpaper.parameters.coeficienteUtilidad);
       setPerdidasAmortizar(workpaper.parameters.perdidasFiscalesPendientes);
+      setPagosPreviosInput(workpaper.parameters.pagosProvisionalesAnteriores ?? 0);
       setIvaSaldoFavor(workpaper.parameters.saldoFavorIvaAnterior);
       setTcCierreUsd(workpaper.parameters.tipoCambioDofCierre);
     }
   }, [workpaper?.parameters]);
 
+  const resetTaxParams = () => {
+    if (!workpaper?.parameters) return;
+    setCoefUtilidad(workpaper.parameters.coeficienteUtilidad);
+    setPerdidasAmortizar(workpaper.parameters.perdidasFiscalesPendientes);
+    setPagosPreviosInput(workpaper.parameters.pagosProvisionalesAnteriores ?? 0);
+    setIvaSaldoFavor(workpaper.parameters.saldoFavorIvaAnterior);
+    setTcCierreUsd(workpaper.parameters.tipoCambioDofCierre);
+  };
+
   const hasUnsavedParams = Boolean(
     workpaper?.parameters &&
       (coefUtilidad !== workpaper.parameters.coeficienteUtilidad ||
         perdidasAmortizar !== workpaper.parameters.perdidasFiscalesPendientes ||
+        pagosPreviosInput !== (workpaper.parameters.pagosProvisionalesAnteriores ?? 0) ||
         ivaSaldoFavor !== workpaper.parameters.saldoFavorIvaAnterior ||
         tcCierreUsd !== workpaper.parameters.tipoCambioDofCierre)
   );
@@ -68,6 +80,7 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
         ejercicio: year,
         coeficienteUtilidad: coefUtilidad,
         perdidasFiscalesPendientes: perdidasAmortizar,
+        pagosProvisionalesAnteriores: pagosPreviosInput,
         saldoFavorIvaAnterior: ivaSaldoFavor,
         tipoCambioDofCierre: tcCierreUsd
       }),
@@ -114,11 +127,14 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
     setCoefUtilidad,
     perdidasAmortizar,
     setPerdidasAmortizar,
+    pagosPreviosInput,
+    setPagosPreviosInput,
     ivaSaldoFavor,
     setIvaSaldoFavor,
     tcCierreUsd,
     setTcCierreUsd,
     hasUnsavedParams,
+    resetTaxParams,
     copiedSatDyp,
     handleCopySatDyp,
     saveTaxParamsMutation,

@@ -8,16 +8,24 @@ export function PrivacyPolicyView() {
       {/* Barra Superior */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-2">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" aria-label="Ir al inicio de LibrePaq Pro" className="flex items-center gap-2">
             <LibrePaqLogo variant="horizontal" size="sm" theme="light" badge="PRO" />
           </Link>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
-          >
-            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-            <span>Volver al Inicio</span>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/terms"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+            >
+              Términos de Servicio
+            </Link>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900 transition"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              <span>Volver al Inicio</span>
+            </Link>
+          </div>
         </div>
       </header>
 

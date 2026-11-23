@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -44,6 +44,13 @@ export function AjustesDirectorioTab({
   const { openCompanyWizard } = useUIModal();
   const [companySearch, setCompanySearch] = useState('');
   const [companyPendingDelete, setCompanyPendingDelete] = useState<Company | null>(null);
+  const deleteDialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (companyPendingDelete || confirmDeleteCompany) {
+      deleteDialogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [companyPendingDelete, confirmDeleteCompany]);
 
   const filteredCompanies = companies.filter((c) => {
     if (!companySearch.trim()) return true;
@@ -81,7 +88,7 @@ export function AjustesDirectorioTab({
                 Buscar empresa por razón social, RFC o régimen fiscal
               </label>
               <Search
-                className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                 aria-hidden="true"
               />
               <input
@@ -90,16 +97,22 @@ export function AjustesDirectorioTab({
                 type="search"
                 value={companySearch}
                 onChange={(e) => setCompanySearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && companySearch) {
+                    e.preventDefault();
+                    setCompanySearch('');
+                  }
+                }}
                 placeholder="Buscar por nombre o RFC..."
-                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-blue-700 focus:border-blue-700"
+                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-500 focus:outline-blue-700 focus:border-blue-700"
               />
               {companySearch && (
                 <button
                   type="button"
                   onClick={() => setCompanySearch('')}
                   aria-label="Limpiar búsqueda de empresas"
-                  title="Limpiar búsqueda"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  title="Limpiar búsqueda (Esc)"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
@@ -272,9 +285,17 @@ export function AjustesDirectorioTab({
       {/* Confirmación protegida de baja de una empresa */}
       {(companyPendingDelete || (confirmDeleteCompany && companies.length > 1 && activeCompany)) && (
         <div
+          ref={deleteDialogRef}
           role="alertdialog"
           aria-modal="false"
           aria-labelledby="confirm-delete-company-title"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setConfirmDeleteCompany(false);
+              setCompanyPendingDelete(null);
+            }
+          }}
           className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs space-y-2"
         >
           <div id="confirm-delete-company-title" className="flex items-center gap-2 text-red-900 font-bold">
@@ -291,6 +312,7 @@ export function AjustesDirectorioTab({
           <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
+              autoFocus
               onClick={() => {
                 setConfirmDeleteCompany(false);
                 setCompanyPendingDelete(null);

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { createColumnHelper, tableFeatures } from '@tanstack/react-table';
 import { CheckCircle2, Copy, ExternalLink, FileText, ShieldAlert } from 'lucide-react';
@@ -14,7 +14,7 @@ export interface UseCfdiColumnsProps {
   filteredCfdis: CfdiDocument[];
   selectedCfdiIds: Set<string>;
   toggleSelectAll: () => void;
-  toggleSelectOne: (id: string) => void;
+  toggleSelectOne: (id: string, shiftKey?: boolean) => void;
   copiedUuid: string | null;
   handleCopyUuid: (uuid: string) => void;
   onPreviewInvoice: (cfdi: CfdiDocument) => void;
@@ -50,6 +50,7 @@ export function useCfdiColumns({
   isPeriodLocked
 }: UseCfdiColumnsProps) {
   const navigate = useNavigate();
+  const shiftKeyRef = useRef(false);
 
   return useMemo(
     () =>
@@ -85,13 +86,25 @@ export function useCfdiColumns({
           const isSelected = selectedCfdiIds.has(row.id);
           return (
             <div className="flex items-center justify-center">
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={() => toggleSelectOne(row.id)}
-                className="w-4 h-4 rounded text-blue-700 border-slate-300 focus:ring-blue-600 cursor-pointer"
-                aria-label={`Seleccionar CFDI ${row.serie}-${row.folio}`}
-              />
+              <label
+                className="inline-flex items-center justify-center min-w-[32px] min-h-[32px] cursor-pointer rounded-lg hover:bg-slate-100"
+                title="Clic para seleccionar (Shift+Clic para rango)"
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onClick={(e) => {
+                    shiftKeyRef.current = e.shiftKey;
+                  }}
+                  onChange={() => {
+                    const useRange = shiftKeyRef.current;
+                    shiftKeyRef.current = false;
+                    toggleSelectOne(row.id, useRange);
+                  }}
+                  className="w-4 h-4 rounded text-blue-700 border-slate-300 focus:ring-blue-600 cursor-pointer"
+                  aria-label={`Seleccionar CFDI ${row.serie}-${row.folio}`}
+                />
+              </label>
             </div>
           );
         }
@@ -113,7 +126,7 @@ export function useCfdiColumns({
                   {row.serie}-{row.folio}
                 </span>
               </button>
-              <div className="text-[11px] font-mono text-slate-500 pl-4.5">
+              <div className="text-[11px] font-mono text-slate-600 pl-4.5 whitespace-nowrap">
                 {formatShortDate(row.fecha)}
               </div>
             </div>
@@ -183,14 +196,15 @@ export function useCfdiColumns({
               </div>
               <div className="text-xs text-slate-600 truncate mt-0.5">{row.conceptoPrincipal}</div>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] font-mono text-slate-500">
-                  UUID: {row.uuid.slice(0, 18)}...
+                <span className="text-[10px] font-mono text-slate-600 whitespace-nowrap" title={row.uuid}>
+                  UUID: {row.uuid.slice(0, 8)}…{row.uuid.slice(-4)}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleCopyUuid(row.uuid)}
+                  aria-label={`Copiar UUID completo ${row.uuid}`}
                   title="Copiar UUID completo al portapapeles"
-                  className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-blue-700 hover:text-blue-900 cursor-pointer"
+                  className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-blue-700 hover:text-blue-900 cursor-pointer whitespace-nowrap"
                 >
                   <Copy className="w-2.5 h-2.5" aria-hidden="true" />
                   {copiedUuid === row.uuid ? 'Copiado' : 'Copiar'}
@@ -201,34 +215,34 @@ export function useCfdiColumns({
         }
       }),
       columnHelper.accessor('subtotal', {
-        header: () => <div className="text-right">Base / Subtotal</div>,
+        header: () => <div className="text-right whitespace-nowrap">Base / Subtotal</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-slate-800">
+          <div className="text-right font-mono text-slate-800 whitespace-nowrap tabular-nums">
             {formatCurrency(info.getValue())}
           </div>
         )
       }),
       columnHelper.accessor('ivaTrasladado', {
-        header: () => <div className="text-right">IVA 16%</div>,
+        header: () => <div className="text-right whitespace-nowrap">IVA 16%</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-slate-800">
+          <div className="text-right font-mono text-slate-800 whitespace-nowrap tabular-nums">
             {formatCurrency(info.getValue())}
           </div>
         )
       }),
       columnHelper.display({
         id: 'retenciones',
-        header: () => <div className="text-right">Retenciones</div>,
+        header: () => <div className="text-right whitespace-nowrap">Retenciones</div>,
         cell: (info) => {
           const row = info.row.original;
           const totalRet = row.isrRetenido + row.ivaRetenido;
           if (totalRet <= 0) {
-            return <div className="text-right font-mono text-slate-400">$0.00</div>;
+            return <div className="text-right font-mono text-slate-500 whitespace-nowrap tabular-nums">$0.00</div>;
           }
           return (
-            <div className="text-right font-mono text-red-700 font-semibold">
+            <div className="text-right font-mono text-red-700 font-semibold whitespace-nowrap tabular-nums">
               <div>-{formatCurrency(totalRet)}</div>
-              <div className="text-[10px] text-slate-500 font-normal">
+              <div className="text-[10px] text-slate-600 font-normal">
                 ISR: {formatCurrency(row.isrRetenido)} | IVA: {formatCurrency(row.ivaRetenido)}
               </div>
             </div>
@@ -236,9 +250,9 @@ export function useCfdiColumns({
         }
       }),
       columnHelper.accessor('total', {
-        header: () => <div className="text-right">Total Neto</div>,
+        header: () => <div className="text-right whitespace-nowrap">Total Neto</div>,
         cell: (info) => (
-          <div className="text-right font-mono font-bold text-slate-900">
+          <div className="text-right font-mono font-bold text-slate-900 whitespace-nowrap tabular-nums">
             {formatCurrency(info.getValue())}
           </div>
         )

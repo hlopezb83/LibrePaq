@@ -18,23 +18,23 @@ export function PolizaCardMovementsTable({
           Partidas de la póliza {pol.tipo} #{pol.folio}
         </caption>
         <thead>
-          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-white">
-            <th scope="col" className="py-2 px-4">
+          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600 bg-white">
+            <th scope="col" className="py-2 px-4 w-40 whitespace-nowrap">
               Cuenta Contable (Ver Mayor)
             </th>
-            <th scope="col" className="py-2 px-4">
+            <th scope="col" className="py-2 px-4 w-56">
               Nombre de Cuenta
             </th>
-            <th scope="col" className="py-2 px-4">
+            <th scope="col" className="py-2 px-4 w-28 whitespace-nowrap">
               Referencia
             </th>
-            <th scope="col" className="py-2 px-4">
+            <th scope="col" className="py-2 px-4 min-w-[200px]">
               Concepto del Movimiento
             </th>
-            <th scope="col" className="py-2 px-4 text-right">
+            <th scope="col" className="py-2 px-4 w-36 text-right whitespace-nowrap">
               Cargo (Debe)
             </th>
-            <th scope="col" className="py-2 px-4 text-right">
+            <th scope="col" className="py-2 px-4 w-36 text-right whitespace-nowrap">
               Abono (Haber)
             </th>
           </tr>
@@ -54,18 +54,18 @@ export function PolizaCardMovementsTable({
                     <BookOpen className="w-3 h-3 text-blue-600 group-hover/acc:text-blue-800" aria-hidden="true" />
                     <span>{mov.accountCode}</span>
                   </span>
-                  <span className="hidden xl:inline text-[10px] text-slate-400 font-sans font-medium group-hover/acc:text-blue-700">
+                  <span className="hidden xl:inline text-[10px] text-slate-600 font-sans font-medium group-hover/acc:text-blue-700">
                     Mayor
                   </span>
                 </button>
               </td>
               <td className="py-2 px-4 font-medium text-slate-800">{mov.accountName}</td>
-              <td className="py-2 px-4 font-mono text-slate-500">{mov.referencia}</td>
+              <td className="py-2 px-4 font-mono text-slate-600 whitespace-nowrap">{mov.referencia}</td>
               <td className="py-2 px-4 text-slate-600">{mov.concepto}</td>
-              <td className="py-2 px-4 text-right font-mono font-semibold text-slate-900">
+              <td className="py-2 px-4 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                 {mov.cargo > 0 ? formatCurrency(mov.cargo) : '—'}
               </td>
-              <td className="py-2 px-4 text-right font-mono font-semibold text-slate-900">
+              <td className="py-2 px-4 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                 {mov.abono > 0 ? formatCurrency(mov.abono) : '—'}
               </td>
             </tr>

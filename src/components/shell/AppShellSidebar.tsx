@@ -105,7 +105,7 @@ export function AppShellSidebar({
             onClick={onOpenCommandPalette}
             aria-label="Buscar cuenta o módulo (Ctrl+K)"
             title="Buscar cuenta o módulo (Ctrl+K)"
-            className="p-1.5 rounded-xl bg-[#111C35] border border-[#1E293B] text-blue-400 hover:text-white cursor-pointer"
+            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-blue-400 hover:text-white cursor-pointer"
           >
             <Search className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -115,7 +115,7 @@ export function AppShellSidebar({
             aria-expanded={mobileMenuOpen}
             aria-controls="primary-sidebar-nav"
             aria-label="Mostrar u ocultar menú de módulos"
-            className="p-1.5 rounded-xl bg-[#111C35] border border-[#1E293B] text-slate-300 hover:text-white cursor-pointer"
+            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-slate-300 hover:text-white cursor-pointer"
           >
             {mobileMenuOpen ? (
               <X className="w-4 h-4" aria-hidden="true" />

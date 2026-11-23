@@ -52,6 +52,7 @@ export function SatSoapDownloadCard({
 }: SatSoapDownloadCardProps) {
   const [dismissedErrorId, setDismissedErrorId] = useState<string | null>(null);
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const isDateRangeInvalid = Boolean(fechaInicial && fechaFinal && fechaInicial > fechaFinal);
   const completedRequests = satRequests.filter((r) => r.estadoSolicitud === 'TERMINADA');
   const periodCompletedRequests = completedRequests.filter((r) => r.fechaInicial === fechaInicial && r.fechaFinal === fechaFinal);
   const periodHasCompleted = periodCompletedRequests.length > 0;
@@ -96,9 +97,10 @@ export function SatSoapDownloadCard({
         </div>
 
         {isDemoCompany && (
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0" role="group" aria-label="Modo de ejecución SAT">
             <button
               type="button"
+              aria-pressed={modoEjecucion === 'SAT_LIVE'}
               onClick={() => setModoEjecucion('SAT_LIVE')}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${modoEjecucion === 'SAT_LIVE' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
             >
@@ -106,6 +108,7 @@ export function SatSoapDownloadCard({
             </button>
             <button
               type="button"
+              aria-pressed={modoEjecucion === 'SANDBOX_CRYPTO'}
               onClick={() => setModoEjecucion('SANDBOX_CRYPTO')}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${modoEjecucion === 'SANDBOX_CRYPTO' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
             >
@@ -120,7 +123,7 @@ export function SatSoapDownloadCard({
         <label className="block text-xs font-bold text-slate-800">
           1. ¿Qué tipo de comprobantes deseas descargar?
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5" role="group" aria-label="Tipo de comprobantes a descargar">
           {SAT_TIPO_SOLICITUD_OPTS.map((opt) => {
             const Icon = opt.icon;
             const isSelected = tipoSolicitud === opt.id;
@@ -128,6 +131,7 @@ export function SatSoapDownloadCard({
               <button
                 key={opt.id}
                 type="button"
+                aria-pressed={isSelected}
                 onClick={() => setTipoSolicitud(opt.id)}
                 className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between gap-1.5 ${
                   isSelected ? opt.activeBorder : 'bg-slate-50/60 hover:bg-slate-100/70 border-slate-200'
@@ -197,15 +201,20 @@ export function SatSoapDownloadCard({
             />
           </div>
         </div>
+        {isDateRangeInvalid && (
+          <p role="alert" className="text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            La fecha inicial ({fechaInicial}) no puede ser posterior a la fecha final ({fechaFinal}).
+          </p>
+        )}
       </div>
 
       {/* Botón Principal de Descarga y Prevención 5002 */}
       <div className="space-y-3 pt-1">
         <button
           type="button"
-          disabled={soapDownloadMutation.isPending || !hasCredentials || Boolean(activePendingInPeriod)}
+          disabled={soapDownloadMutation.isPending || !hasCredentials || Boolean(activePendingInPeriod) || isDateRangeInvalid}
           onClick={() => soapDownloadMutation.mutate()}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 cursor-pointer shadow-xs transition"
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-xs transition"
         >
           <CloudDownload className="w-4 h-4 text-indigo-100" aria-hidden="true" />
           {soapDownloadMutation.isPending

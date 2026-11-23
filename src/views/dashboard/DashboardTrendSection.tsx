@@ -139,14 +139,16 @@ export function DashboardTrendSection({
                 <th scope="col">Mes</th>
                 <th scope="col">Ingresos</th>
                 <th scope="col">Egresos</th>
+                <th scope="col">Resultado Neto</th>
               </tr>
             </thead>
             <tbody>
               {monthlyTrend.map((item) => (
                 <tr key={item.periodo}>
-                  <td>{item.mesNombre}</td>
+                  <th scope="row">{item.mesNombre}</th>
                   <td>{formatCurrency(item.ingresos)}</td>
                   <td>{formatCurrency(item.egresos)}</td>
+                  <td>{formatCurrency(item.ingresos - item.egresos)}</td>
                 </tr>
               ))}
             </tbody>

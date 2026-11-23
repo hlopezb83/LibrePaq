@@ -46,7 +46,7 @@ export function AjustesRespaldosTab({
 }: AjustesRespaldosTabProps) {
   return (
     <section className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Tarjeta 1: Exportar Respaldo Completo */}
         <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3 flex flex-col justify-between min-w-0">
           <div className="space-y-2 min-w-0">
@@ -180,6 +180,12 @@ export function AjustesRespaldosTab({
           role="alertdialog"
           aria-modal="false"
           aria-labelledby="confirm-restore-backup-title"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && !isRestoringBackup) {
+              e.preventDefault();
+              cancelRestoreBackup();
+            }
+          }}
           className="bg-amber-50 border border-amber-300 rounded-2xl p-4 sm:p-5 space-y-2 text-xs"
         >
           <div id="confirm-restore-backup-title" className="flex items-center gap-2 text-amber-950 font-bold">
@@ -195,6 +201,7 @@ export function AjustesRespaldosTab({
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <button
               type="button"
+              autoFocus
               disabled={isRestoringBackup}
               onClick={cancelRestoreBackup}
               className="px-3 py-1.5 rounded-xl font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
@@ -222,11 +229,11 @@ export function AjustesRespaldosTab({
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Cuentas en Catálogo</span>
+            <span className="text-[10px] uppercase font-bold text-slate-600 block">Cuentas en Catálogo</span>
             <span className="text-xl font-bold font-mono text-slate-900">{accountsList?.length ?? 0}</span>
           </div>
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Pólizas del Periodo</span>
+            <span className="text-[10px] uppercase font-bold text-slate-600 block">Pólizas del Periodo</span>
             <span className="text-xl font-bold font-mono text-slate-900">{polizasData?.length ?? 0}</span>
           </div>
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">

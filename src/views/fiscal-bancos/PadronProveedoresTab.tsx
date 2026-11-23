@@ -4,21 +4,15 @@ import {
   CheckCircle2,
   Plus,
   RefreshCw,
+  Search,
   ShieldAlert,
-  ShieldCheck,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 import type { AccountWithBalance, Efos69BStatus } from '../../shared/types';
-import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import { Importar69BModal } from './Importar69BModal';
+import { PadronProveedoresTable } from './PadronProveedoresTable';
 import { usePadronProveedores } from './usePadronProveedores';
-
-const EFOS_LABELS: Record<Efos69BStatus, string> = {
-  LIMPIO: '69-B Limpio',
-  PRESUNTO_EFOS: 'Presunto EFOS',
-  DEFINITIVO_EFOS: 'Definitivo EFOS',
-  DESVIRTUADO: 'Desvirtuado'
-};
 
 export interface PadronProveedoresTabProps {
   companyId: string;
@@ -34,6 +28,11 @@ export function PadronProveedoresTab({
   const {
     affectableAccounts,
     thirdParties,
+    filteredThirdParties,
+    searchQuery,
+    setSearchQuery,
+    selectThirdPartyForEdit,
+    resetForm,
     loadingTp,
     isErrorTp,
     refetchTp,
@@ -217,8 +216,51 @@ export function PadronProveedoresTab({
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Guardar
             </button>
+            {(tpRfc || tpNombre) && (
+              <button
+                type="button"
+                onClick={resetForm}
+                title="Limpiar formulario"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 cursor-pointer"
+              >
+                Limpiar
+              </button>
+            )}
           </div>
         </form>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && searchQuery) {
+                  e.preventDefault();
+                  setSearchQuery('');
+                }
+              }}
+              aria-label="Buscar proveedor o cliente por RFC, Razón Social o cuenta"
+              placeholder="Buscar RFC, razón social o cuenta..."
+              className="w-full pl-8 pr-8 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Limpiar búsqueda de padrón"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-600">
+            Mostrando <strong>{filteredThirdParties.length}</strong> de {thirdParties.length} terceros
+          </span>
+        </div>
 
         {isErrorTp ? (
           <div role="alert" className="p-6 text-center rounded-xl border border-red-200 bg-red-50/70 space-y-2.5">
@@ -234,94 +276,17 @@ export function PadronProveedoresTab({
             </button>
           </div>
         ) : loadingTp ? (
-          <div role="status" aria-live="polite" aria-busy="true" className="p-8 text-center text-xs text-slate-500">
+          <div role="status" aria-live="polite" aria-busy="true" className="p-8 text-center text-xs text-slate-600">
             Cargando padrón fiscal de terceros...
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <caption className="visually-hidden">
-                Padrón fiscal de proveedores, clientes y verificación 69-B SAT
-              </caption>
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                  <th scope="col" className="py-2.5 px-3">RFC</th>
-                  <th scope="col" className="py-2.5 px-3">Razón Social</th>
-                  <th scope="col" className="py-2.5 px-3">Rol</th>
-                  <th scope="col" className="py-2.5 px-3">Cuenta Asignada</th>
-                  <th scope="col" className="py-2.5 px-3">Contrapartida</th>
-                  <th scope="col" className="py-2.5 px-3">IVA / DIOT</th>
-                  <th scope="col" className="py-2.5 px-3 text-center">Estatus 69-B SAT</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-xs">
-                {thirdParties.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
-                      No hay proveedores o clientes registrados aún en el padrón fiscal.
-                    </td>
-                  </tr>
-                ) : (
-                  thirdParties.map((tp) => {
-                  const tpCheck = validateRfcModulo11(tp.rfc);
-                  return (
-                    <tr key={tp.id} className="hover:bg-blue-50/30">
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono font-bold text-blue-800">{tp.rfc}</span>
-                          {tpCheck.isValidCheckDigit ? (
-                            <span
-                              className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              title="Dígito verificador SAT Módulo 11 válido"
-                            >
-                              M11 OK
-                            </span>
-                          ) : (
-                            <span
-                              className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
-                              title={`Discrepancia SAT Módulo 11: calcula '${tpCheck.expectedCheckDigit}'`}
-                            >
-                              M11: {tpCheck.expectedCheckDigit}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 font-medium text-slate-900">
-                        {tp.nombre}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">
-                          {tp.rol}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-semibold text-slate-800">
-                        {tp.cuentaOperacionCode}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-600">
-                        {tp.cuentaContrapartidaCode}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-700">
-                        IVA {tp.tasaIvaDefault}% • Op {tp.tipoOperacionDiot}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {tp.estatus69B === 'LIMPIO' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            <ShieldCheck className="w-3 h-3" aria-hidden="true" />
-                            69-B Limpio
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-900 border border-red-300">
-                            <ShieldAlert className="w-3 h-3" aria-hidden="true" />
-                            {EFOS_LABELS[tp.estatus69B] ?? tp.estatus69B}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                }))}
-              </tbody>
-            </table>
-          </div>
+          <PadronProveedoresTable
+            thirdParties={filteredThirdParties}
+            totalCount={thirdParties.length}
+            editingRfc={tpRfc}
+            onEditThirdParty={selectThirdPartyForEdit}
+            onClearSearch={() => setSearchQuery('')}
+          />
         )}
       </div>
 

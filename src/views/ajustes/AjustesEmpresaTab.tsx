@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, FolderTree, Lock, LockOpen, Save, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { REGIMENES_FISCALES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
+import { AjustesEmpresaComplianceCards } from './AjustesEmpresaComplianceCards';
 
 export interface AjustesEmpresaTabProps {
   activeCompany: Company;
@@ -15,6 +15,9 @@ export interface AjustesEmpresaTabProps {
   setCompCp: (v: string) => void;
   compMask: string;
   isRfcValid: boolean;
+  isCpValid: boolean;
+  isCompanyDirty: boolean;
+  onResetCompany: () => void;
   rfcModulo11: { isValidCheckDigit: boolean; expectedCheckDigit?: string | null; expectedRfc?: string | null } | null;
   updateCompanyMutation: { mutate: () => void; isPending: boolean };
   periodLock?: { isLocked: boolean } | null;
@@ -33,12 +36,14 @@ export function AjustesEmpresaTab({
   setCompCp,
   compMask,
   isRfcValid,
+  isCpValid,
+  isCompanyDirty,
+  onResetCompany,
   rfcModulo11,
   updateCompanyMutation,
   periodLock,
   togglePeriodLockMutation
 }: AjustesEmpresaTabProps) {
-  const [confirmLockToggle, setConfirmLockToggle] = useState(false);
   return (
     <section className="space-y-5">
       {/* Grid Equilibrado: Formulario Fiscal + Parámetros de Operación */}
@@ -125,6 +130,8 @@ export function AjustesEmpresaTab({
                     type="text"
                     required
                     maxLength={13}
+                    aria-invalid={!isRfcValid}
+                    aria-describedby="set-rfc-help"
                     value={compRfc}
                     onChange={(e) => setCompRfc(e.target.value.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, ''))}
                     className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold tracking-wider uppercase focus:outline-blue-700 ${
@@ -132,10 +139,13 @@ export function AjustesEmpresaTab({
                         ? rfcModulo11?.isValidCheckDigit
                           ? 'border-emerald-300 bg-emerald-50/20 text-emerald-900'
                           : 'border-amber-300 bg-amber-50/20 text-slate-900'
-                        : 'border-slate-300 text-slate-800'
+                        : 'border-amber-300 text-slate-800'
                     }`}
                     placeholder="BBA830831LJ2"
                   />
+                  <p id="set-rfc-help" className="text-[11px] font-mono text-slate-600">
+                    {compRfc.length}/12 PM ó 13 PF {isRfcValid ? '· Formato SAT válido' : '· Estructura incompleta'}
+                  </p>
                 </div>
 
                 <div className="space-y-1">
@@ -149,12 +159,23 @@ export function AjustesEmpresaTab({
                     type="text"
                     inputMode="numeric"
                     required
+                    pattern="\d{5}"
                     maxLength={5}
+                    aria-invalid={!isCpValid}
+                    aria-describedby="set-cp-help"
                     value={compCp}
                     onChange={(e) => setCompCp(e.target.value.replace(/\D/g, ''))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-900 focus:outline-blue-700"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 focus:outline-blue-700 ${
+                      isCpValid ? 'border-slate-300' : 'border-red-300 bg-red-50/30'
+                    }`}
                     placeholder="64000"
                   />
+                  <p
+                    id="set-cp-help"
+                    className={`text-[11px] ${isCpValid ? 'text-slate-600' : 'text-red-700 font-semibold'}`}
+                  >
+                    {isCpValid ? 'C.P. fiscal de 5 dígitos conforme a CSF' : `Debe tener 5 dígitos (${compCp.length}/5)`}
+                  </p>
                 </div>
               </div>
 
@@ -180,166 +201,60 @@ export function AjustesEmpresaTab({
           </div>
 
           <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
-            <span className="text-[11px] text-slate-600 font-medium">
-              {isRfcValid ? 'Estructura SAT válida' : 'Ingresa un RFC válido (12 o 13 car.)'}
-            </span>
-            <button
-              type="submit"
-              disabled={updateCompanyMutation.isPending || !isRfcValid}
-              aria-busy={updateCompanyMutation.isPending}
-              title={!isRfcValid ? 'Ingresa un RFC válido de 12 o 13 caracteres para guardar' : undefined}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ml-auto"
-            >
-              <Save className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>{updateCompanyMutation.isPending ? 'Guardando...' : 'Guardar Datos Fiscales'}</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-slate-600 font-medium">
+                {!isRfcValid
+                  ? 'Ingresa un RFC válido (12 o 13 car.)'
+                  : !isCpValid
+                  ? 'C.P. debe tener 5 dígitos'
+                  : isCompanyDirty
+                  ? 'Hay cambios pendientes por guardar'
+                  : 'Identidad fiscal al día'}
+              </span>
+              {isCompanyDirty && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  Cambios sin guardar
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              {isCompanyDirty && (
+                <button
+                  type="button"
+                  onClick={onResetCompany}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                  Restablecer
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={updateCompanyMutation.isPending || !isRfcValid || !isCpValid || !isCompanyDirty}
+                aria-busy={updateCompanyMutation.isPending}
+                title={
+                  !isRfcValid || !isCpValid
+                    ? 'Verifica que RFC y Código Postal sean válidos'
+                    : !isCompanyDirty
+                    ? 'No hay modificaciones pendientes por guardar'
+                    : undefined
+                }
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                <Save className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>{updateCompanyMutation.isPending ? 'Guardando...' : 'Guardar Datos Fiscales'}</span>
+              </button>
+            </div>
           </div>
         </form>
 
         {/* Columna 2: Candado de Periodo + Estructura Contable + Garantía SAT */}
-        <div className="space-y-5">
-          {/* Tarjeta: Candado Fiscal de Periodo */}
-          <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
-            <div className="p-5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                <Lock className="w-4 h-4 text-blue-700" aria-hidden="true" />
-                <span>Control y Candado Fiscal</span>
-              </div>
-              <span className="text-[11px] font-mono font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
-                P{String(activeCompany.currentPeriod).padStart(2, '0')}/{activeCompany.currentYear}
-              </span>
-            </div>
-
-            <div className="p-5 space-y-4 text-xs">
-              <p className="text-slate-600 leading-relaxed">
-                Protege los registros contables contra modificaciones accidentales una vez presentada la declaración del mes ante el SAT.
-              </p>
-
-              <div
-                className={`p-4 rounded-xl border ${
-                  periodLock?.isLocked
-                    ? 'bg-amber-50 border-amber-200 text-amber-950'
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-950'
-                }`}
-              >
-                <div className="flex items-center gap-2 font-bold text-xs">
-                  {periodLock?.isLocked ? (
-                    <>
-                      <Lock className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-                      <span>PERIODO BLOQUEADO (SOLO LECTURA)</span>
-                    </>
-                  ) : (
-                    <>
-                      <LockOpen className="w-4 h-4 text-emerald-700 shrink-0" aria-hidden="true" />
-                      <span>PERIODO ABIERTO PARA CAPTURA</span>
-                    </>
-                  )}
-                </div>
-                <p className="text-[11px] mt-1 text-slate-700">
-                  {periodLock?.isLocked
-                    ? `El periodo ${activeCompany.currentPeriod}/${activeCompany.currentYear} se encuentra protegido contra altas, bajas o modificaciones.`
-                    : `Permite registrar pólizas, importar CFDIs y conciliar movimientos bancarios libremente.`}
-                </p>
-              </div>
-
-              {confirmLockToggle ? (
-                <div role="alertdialog" aria-modal="false" aria-label="Confirmar cambio de candado fiscal" className="p-3 rounded-xl bg-amber-50 border border-amber-300 space-y-2">
-                  <p className="font-bold text-amber-950">
-                    {periodLock?.isLocked
-                      ? `¿Confirmas reabrir el periodo P${String(activeCompany.currentPeriod).padStart(2, '0')}/${activeCompany.currentYear} para captura?`
-                      : `¿Confirmas bloquear el periodo P${String(activeCompany.currentPeriod).padStart(2, '0')}/${activeCompany.currentYear} contra cambios?`}
-                  </p>
-                  <div className="flex items-center justify-end gap-2">
-                    <button type="button" onClick={() => setConfirmLockToggle(false)} className="px-3 py-1.5 rounded-lg font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer">Cancelar</button>
-                    <button
-                      type="button"
-                      disabled={togglePeriodLockMutation.isPending}
-                      onClick={() => {
-                        togglePeriodLockMutation.mutate(!(periodLock?.isLocked ?? false));
-                        setConfirmLockToggle(false);
-                      }}
-                      className="px-3 py-1.5 rounded-lg font-bold bg-amber-700 hover:bg-amber-800 text-white cursor-pointer disabled:opacity-50"
-                    >
-                      {periodLock?.isLocked ? 'Sí, reabrir periodo' : 'Sí, bloquear periodo'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={togglePeriodLockMutation.isPending}
-                  onClick={() => setConfirmLockToggle(true)}
-                  className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                    periodLock?.isLocked
-                      ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-2xs'
-                      : 'bg-amber-600 hover:bg-amber-700 text-white border-transparent shadow-xs'
-                  }`}
-                >
-                  {periodLock?.isLocked ? <LockOpen className="w-4 h-4" aria-hidden="true" /> : <Lock className="w-4 h-4" aria-hidden="true" />}
-                  {periodLock?.isLocked ? 'Reabrir Periodo para Captura' : 'Bloquear Periodo Fiscal'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Tarjeta: Estructura y Máscara de Cuentas */}
-          <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3">
-            <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-              <FolderTree className="w-4 h-4 text-purple-700" aria-hidden="true" />
-              <span>Estructura y Catálogo Contable</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="font-bold text-slate-700 block text-[11px]">Máscara Contable</span>
-                <span className="font-mono font-bold text-blue-900 bg-white px-2 py-0.5 rounded border border-slate-300 inline-block mt-1">
-                  {compMask}
-                </span>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  3 niveles estándar reglamentados por Anexo 24.
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="font-bold text-slate-700 block text-[11px]">Catálogo Oficial</span>
-                <span className="text-slate-900 font-bold block mt-1">
-                  SAT Anexo 24
-                </span>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Compatible con CONTPAQi Contabilidad.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Tarjeta: Estándares Fiscales SAT */}
-          <div className="bg-[#0A1120] text-white rounded-2xl p-5 shadow-sm border border-slate-800 space-y-3.5 text-xs">
-            <div className="flex items-center gap-2 text-blue-400 font-bold">
-              <ShieldCheck className="w-4 h-4" />
-              <span className="uppercase tracking-wider text-[11px]">Garantía de Conformidad Fiscal</span>
-            </div>
-            <p className="text-slate-300 text-[11px] leading-relaxed">
-              LibrePaq Pro opera bajo las especificaciones técnicas obligatorias del Servicio de Administración Tributaria.
-            </p>
-
-            <div className="space-y-2 pt-2 border-t border-slate-800 text-[11px]">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Contabilidad Electrónica</span>
-                <span className="font-mono font-bold text-white">Anexo 24 RMF (XML 1.3)</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Comprobantes Fiscales</span>
-                <span className="font-mono font-bold text-white">CFDI Versión 4.0</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Aritmética Monetaria</span>
-                <span className="font-mono font-bold text-emerald-400">Exactitud al Centavo</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Validación de RFC</span>
-                <span className="font-mono font-bold text-emerald-400">SAT Módulo 11 Oficial</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AjustesEmpresaComplianceCards
+          activeCompany={activeCompany}
+          compMask={compMask}
+          periodLock={periodLock}
+          togglePeriodLockMutation={togglePeriodLockMutation}
+        />
       </div>
     </section>
   );

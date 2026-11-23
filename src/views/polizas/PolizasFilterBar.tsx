@@ -22,6 +22,7 @@ export interface PolizasFilterBarProps {
   setCompactMode: (updater: (prev: boolean) => boolean) => void;
   filteredTotals: { cargos: number; abonos: number };
   isPeriodLocked: boolean;
+  hasPolizasToExport?: boolean;
   onNewPoliza: () => void;
   onOpenPedimentoModal?: () => void;
   onExportCsv: () => void;
@@ -42,6 +43,7 @@ export function PolizasFilterBar({
   setCompactMode,
   filteredTotals,
   isPeriodLocked,
+  hasPolizasToExport = true,
   onNewPoliza,
   onOpenPedimentoModal,
   onExportCsv,
@@ -69,6 +71,7 @@ export function PolizasFilterBar({
         <PolizasHeaderActions
           isPeriodLocked={isPeriodLocked}
           isCloseYearPending={isCloseYearPending}
+          hasPolizasToExport={hasPolizasToExport}
           onNewPoliza={onNewPoliza}
           onOpenPedimentoModal={onOpenPedimentoModal}
           onExportCsv={onExportCsv}
@@ -177,7 +180,7 @@ export function PolizasFilterBar({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar concepto, cuenta (102-01) o UUID..."
-              className="w-full pl-9.5 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-2xs"
+              className="w-full pl-9.5 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-2xs"
             />
             {searchQuery && (
               <button
@@ -185,7 +188,7 @@ export function PolizasFilterBar({
                 onClick={() => setSearchQuery('')}
                 aria-label="Limpiar búsqueda de pólizas"
                 title="Limpiar búsqueda"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-0.5 rounded cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>

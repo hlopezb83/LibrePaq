@@ -188,6 +188,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
 
             {message && (
               <div
+                id="auth-alert-msg"
                 role="alert"
                 className={`p-3 rounded-xl text-xs flex items-center gap-2 border ${
                   message.type === 'success'
@@ -224,6 +225,8 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                       autoComplete="name"
                       enterKeyHint="next"
                       required
+                      aria-invalid={message?.type === 'error'}
+                      aria-describedby={message ? 'auth-alert-msg' : undefined}
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Ej. C.P. Héctor López o Despacho Fiscal"
@@ -249,6 +252,8 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                     spellCheck={false}
                     enterKeyHint={mode === 'forgot' ? 'done' : 'next'}
                     required
+                    aria-invalid={message?.type === 'error'}
+                    aria-describedby={message ? 'auth-alert-msg' : undefined}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="contador@despacho.mx"
@@ -283,6 +288,8 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                       enterKeyHint="done"
                       required
                       minLength={6}
+                      aria-invalid={message?.type === 'error'}
+                      aria-describedby={message ? 'auth-alert-msg' : undefined}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={mode === 'signup' ? 'Mínimo 6 caracteres' : 'Tu contraseña de acceso'}

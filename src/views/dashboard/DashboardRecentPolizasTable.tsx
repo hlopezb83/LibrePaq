@@ -132,6 +132,7 @@ export function DashboardRecentPolizasTable({
                   <Link
                     to="/polizas"
                     search={{ search: String(pol.folio) } as unknown as Record<string, string>}
+                    aria-label={`Ver asiento de póliza ${pol.tipo} folio ${pol.folio}`}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition"
                     title="Abrir asiento contable completo"
                   >

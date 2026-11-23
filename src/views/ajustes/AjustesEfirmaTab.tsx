@@ -183,7 +183,7 @@ export function AjustesEfirmaTab({
                     onChange={(e) => setCerFile(e.target.files?.[0] || null)}
                     className="visually-hidden"
                   />
-                  <FileCode2 className={`w-5 h-5 ${cerFile ? 'text-emerald-600' : 'text-slate-400'}`} aria-hidden="true" />
+                  <FileCode2 className={`w-5 h-5 ${cerFile ? 'text-emerald-600' : 'text-slate-500'}`} aria-hidden="true" />
                   <span className="text-xs font-bold truncate max-w-full">
                     {cerFile
                       ? cerFile.name
@@ -191,7 +191,7 @@ export function AjustesEfirmaTab({
                         ? 'Archivo .cer registrado (clic para cambiar)'
                         : 'Seleccionar archivo .cer'}
                   </span>
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-[10px] text-slate-600">
                     {cerFile
                       ? 'Certificado SAT listo para subir'
                       : fielStatus?.hasCredentials
@@ -219,7 +219,7 @@ export function AjustesEfirmaTab({
                     onChange={(e) => setKeyFile(e.target.files?.[0] || null)}
                     className="visually-hidden"
                   />
-                  <KeyRound className={`w-5 h-5 ${keyFile || fielStatus?.hasCredentials ? 'text-emerald-600' : 'text-slate-400'}`} aria-hidden="true" />
+                  <KeyRound className={`w-5 h-5 ${keyFile || fielStatus?.hasCredentials ? 'text-emerald-600' : 'text-slate-500'}`} aria-hidden="true" />
                   <span className="text-xs font-bold truncate max-w-full">
                     {keyFile
                       ? keyFile.name
@@ -227,7 +227,7 @@ export function AjustesEfirmaTab({
                         ? 'Archivo .key registrado (clic para cambiar)'
                         : 'Seleccionar archivo .key'}
                   </span>
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-[10px] text-slate-600">
                     {keyFile
                       ? 'Llave privada lista para subir'
                       : fielStatus?.hasCredentials
@@ -271,7 +271,7 @@ export function AjustesEfirmaTab({
                   Tus archivos ya están cargados. Ingresa tu contraseña para autorizar la descarga del SAT.
                 </span>
               ) : (
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-600">
                   {!fielStatus?.hasCredentials && (!cerFile || !keyFile)
                     ? 'Selecciona tus archivos .cer y .key del SAT'
                     : !fielPass

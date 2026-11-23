@@ -30,8 +30,8 @@ export function CompanySwitchConfirmView({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
           {/* Origen */}
           {activeCompany && (
-            <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1 opacity-70">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">
                 Sesión que se cerrará:
               </span>
               <div className="flex items-center gap-2">
@@ -96,8 +96,15 @@ export function CompanySwitchConfirmView({
           <input
             id="switch-company-ack"
             type="checkbox"
+            autoFocus
             checked={hasAcknowledged}
             onChange={(e) => setHasAcknowledged(e.target.checked)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && hasAcknowledged) {
+                e.preventDefault();
+                e.currentTarget.closest('dialog')?.querySelector<HTMLButtonElement>('[data-confirm-switch]')?.click();
+              }
+            }}
             className="w-4 h-4 mt-0.5 rounded border-amber-400 text-blue-700 focus:ring-blue-600 cursor-pointer"
           />
           <span className="text-xs font-bold text-amber-950">

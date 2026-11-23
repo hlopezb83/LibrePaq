@@ -119,34 +119,36 @@ export function CfdiFilterBar({
             </button>
           </div>
 
-          <div className="h-5 w-px bg-slate-300 mx-0.5 shrink-0" />
+          <div className="h-5 w-px bg-slate-300 mx-0.5 shrink-0" aria-hidden="true" />
 
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                tab === t.id
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200/70'
-              }`}
-            >
-              <span>{t.label}</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+          <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label="Filtrar por dirección y estatus contable">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                   tab === t.id
-                    ? 'bg-blue-800 text-white'
-                    : t.isWarning
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                    : 'bg-slate-200 text-slate-700'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200/70'
                 }`}
               >
-                {t.count}
-              </span>
-            </button>
-          ))}
+                <span>{t.label}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                    tab === t.id
+                      ? 'bg-blue-800 text-white'
+                      : t.isWarning
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {t.count}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <search className="relative w-full md:w-80">
@@ -154,7 +156,7 @@ export function CfdiFilterBar({
             Buscar CFDI por UUID, RFC, Razón Social o Concepto
           </label>
           <Search
-            className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
             aria-hidden="true"
           />
           <input
@@ -165,16 +167,29 @@ export function CfdiFilterBar({
             spellCheck={false}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar RFC, emisor, receptor, concepto o UUID..."
-            className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-2xs"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && searchQuery) {
+                e.preventDefault();
+                setSearchQuery('');
+              }
+            }}
+            placeholder="Buscar RFC, emisor, concepto o UUID..."
+            className="w-full pl-9 pr-9 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-2xs"
           />
-          {searchQuery && (
+          {!searchQuery ? (
+            <kbd
+              aria-hidden="true"
+              className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] bg-slate-100 text-slate-600 border border-slate-300 px-1.5 py-0.5 rounded pointer-events-none"
+            >
+              /
+            </kbd>
+          ) : (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
               aria-label="Limpiar búsqueda de comprobantes"
-              title="Limpiar búsqueda"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+              title="Limpiar búsqueda (Esc)"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1 rounded cursor-pointer"
             >
               <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -232,7 +247,11 @@ export function CfdiFilterBar({
             </>
           )}
         </div>
-        <span className="text-[11px] font-mono text-slate-500">
+        <span
+          role="status"
+          aria-live="polite"
+          className="text-[11px] font-mono text-slate-600"
+        >
           Mostrando <strong>{filteredCount}</strong> de {totalCfdisCount} comprobantes
         </span>
       </div>

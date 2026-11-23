@@ -45,6 +45,7 @@ export function PolizasView() {
         setCompactMode={m.setCompactMode}
         filteredTotals={m.filteredPolizasTotals}
         isPeriodLocked={m.isPeriodLocked}
+        hasPolizasToExport={m.filteredPolizas.length > 0}
         onNewPoliza={m.openNewPolizaModal}
         onOpenPedimentoModal={() => m.setIsPedimentoModalOpen(true)}
         onExportCsv={m.handleExportPolizasCsv}

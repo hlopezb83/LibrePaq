@@ -42,15 +42,15 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
       </section>
 
       {/* Footer Profesional Completo */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-14">
+      <footer className="bg-slate-900 border-t border-slate-800 text-slate-300 text-xs py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
             <div>
               <LibrePaqLogo variant="horizontal" size="md" theme="dark" badge="PRO" />
-              <p className="mt-4 text-slate-400 leading-relaxed">
+              <p className="mt-4 text-slate-300 leading-relaxed">
                 Sistema Contable y Fiscal Inteligente en la Nube con Facturación Electrónica SAT Anexo 24.
               </p>
-              <p className="mt-3 text-cyan-400 font-mono font-medium">
+              <p className="mt-3 text-cyan-300 font-mono font-medium">
                 Hecho en México para Contadores Mexicanos 🇲🇽
               </p>
             </div>
@@ -58,12 +58,12 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
             <div>
               <h3 className="font-bold text-white text-sm mb-3">Módulos Contables</h3>
               <ul className="space-y-2">
-                <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">Tablero Fiscal y Cierre</a></li>
-                <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">Pólizas y Movimientos</a></li>
-                <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">Catálogo de Cuentas SAT</a></li>
-                <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">Bóveda CFDI 4.0 (ADD)</a></li>
-                <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">DIOT y Bancos</a></li>
-                <li><a href="#caracteristicas" onClick={onOpenAuth ? (e) => { e.preventDefault(); onOpenAuth(); } : undefined} className="hover:text-white transition cursor-pointer">Balanza de Comprobación</a></li>
+                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Tablero Fiscal y Cierre</a></li>
+                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Pólizas y Movimientos</a></li>
+                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Catálogo de Cuentas SAT</a></li>
+                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Bóveda CFDI 4.0 (ADD)</a></li>
+                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">DIOT y Bancos</a></li>
+                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Balanza de Comprobación</a></li>
               </ul>
             </div>
 
@@ -90,7 +90,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
             </div>
           </div>
 
-          <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
+          <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-300">
             <p>© {new Date().getFullYear()} LibrePaq Pro. Todos los derechos reservados.</p>
             <p className="max-w-xl text-center sm:text-right">
               Aviso legal: CONTPAQi® es una marca registrada propiedad de Computación en Acción, S.A. de C.V.

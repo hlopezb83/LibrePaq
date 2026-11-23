@@ -4,10 +4,12 @@ import {
   CheckCircle2,
   CreditCard,
   QrCode,
+  ShieldAlert,
   ShieldCheck
 } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../../lib/formatters';
 import type { RfcModulo11Result } from '../../../shared/accounting-engine';
+import { checkRfc69BStatus } from '../../../shared/sat-69b';
 import type { CfdiDocument } from '../../../shared/types';
 
 interface CfdiFacturaTabProps {
@@ -23,8 +25,29 @@ export function CfdiFacturaTab({
   emisorRfcCheck,
   receptorRfcCheck
 }: CfdiFacturaTabProps) {
+  const counterpartyRfc = cfdi.direction === 'EMITIDO' ? cfdi.receptorRfc : cfdi.emisorRfc;
+  const efosCheck = checkRfc69BStatus(counterpartyRfc);
+
   return (
     <div className="border border-slate-300 rounded-2xl p-6 sm:p-8 bg-white shadow-2xs space-y-6 text-slate-900 print:border-none print:p-0">
+      {(cfdi.statusSat === 'CANCELADO' || efosCheck.isEfos) && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 flex items-start gap-2.5 text-xs text-red-900"
+        >
+          <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="space-y-0.5">
+            {cfdi.statusSat === 'CANCELADO' && (
+              <p className="font-bold">Comprobante con estatus CANCELADO en el SAT (no deducible).</p>
+            )}
+            {efosCheck.isEfos && (
+              <p className="font-semibold">
+                Alerta Art. 69-B CFF: El RFC {counterpartyRfc} ({cfdi.direction === 'EMITIDO' ? 'Receptor' : 'Emisor'}) figura en Lista 69-B SAT ({efosCheck.record?.situacion || 'EFOS'}).
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {/* Encabezado del Comprobante Fiscal */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-6 border-b border-slate-200">
         <div className="space-y-1.5">
@@ -239,7 +262,7 @@ export function CfdiFacturaTab({
           <div className="truncate">
             <strong>Cadena Original del Timbre SAT:</strong> ||1.1|{cfdi.uuid}|{cfdi.fecha}T12:00:00|SAT970701NN3||
           </div>
-          <div className="text-slate-400">
+          <div className="text-slate-600">
             Certificado SAT: 00001000000504465028 • RFC Proveedor Autorizado (PAC): SAT970701NN3
           </div>
         </div>

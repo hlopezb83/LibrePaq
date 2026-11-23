@@ -14,6 +14,7 @@ interface UseCatalogoKeyboardNavigationProps {
   openCreateModal: () => void;
   openEditModal: (acc: AccountWithBalance) => void;
   openCreateSubaccountModal: (acc: AccountWithBalance) => void;
+  onOpenLedger?: (id: string) => void;
 }
 
 export function useCatalogoKeyboardNavigation({
@@ -28,7 +29,8 @@ export function useCatalogoKeyboardNavigation({
   setCollapsedCodes,
   openCreateModal,
   openEditModal,
-  openCreateSubaccountModal
+  openCreateSubaccountModal,
+  onOpenLedger
 }: UseCatalogoKeyboardNavigationProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -143,6 +145,25 @@ export function useCatalogoKeyboardNavigation({
         return;
       }
 
+      if (e.key === 'Home') {
+        e.preventDefault();
+        if (filteredAccounts[0]) setSelectedAccountId(filteredAccounts[0].id);
+        return;
+      }
+
+      if (e.key === 'End') {
+        e.preventDefault();
+        const last = filteredAccounts[filteredAccounts.length - 1];
+        if (last) setSelectedAccountId(last.id);
+        return;
+      }
+
+      if (e.key === ' ' && currentSelected && onOpenLedger) {
+        e.preventDefault();
+        onOpenLedger(currentSelected.id);
+        return;
+      }
+
       if (e.key === 'ArrowRight') {
         if (currentSelected && !currentSelected.isAffectable) {
           if (collapsedCodes[currentSelected.code]) {
@@ -190,6 +211,7 @@ export function useCatalogoKeyboardNavigation({
     setCollapsedCodes,
     openCreateModal,
     openEditModal,
-    openCreateSubaccountModal
+    openCreateSubaccountModal,
+    onOpenLedger
   ]);
 }

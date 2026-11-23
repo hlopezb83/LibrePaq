@@ -209,20 +209,29 @@ function PolizaCardItemBase({
             </button>
 
             {confirmDeleteId === pol.id ? (
-              <div className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
+              <div
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    onCancelDelete();
+                  }
+                }}
+                className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1"
+              >
                 <button
                   type="button"
                   disabled={isPeriodLocked}
                   onClick={() => onConfirmDelete(pol.id)}
-                  className="text-[11px] font-bold text-red-800 hover:underline cursor-pointer"
+                  className="px-2 py-0.5 rounded text-[11px] font-bold text-red-800 hover:bg-red-100 cursor-pointer"
                 >
                   Confirmar
                 </button>
-                <span className="text-red-300">|</span>
+                <span className="text-red-300" aria-hidden="true">|</span>
                 <button
                   type="button"
+                  autoFocus
                   onClick={onCancelDelete}
-                  className="text-[11px] text-slate-600 hover:text-slate-900 cursor-pointer"
+                  className="px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 hover:bg-white cursor-pointer"
                 >
                   No
                 </button>

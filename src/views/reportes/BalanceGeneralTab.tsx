@@ -20,6 +20,7 @@ interface BalanceGeneralTabProps {
     isBalanced?: boolean;
   };
   onSelectAccount: (accountId: string) => void;
+  onViewIncomeStatement?: () => void;
 }
 
 export function BalanceGeneralTab({
@@ -28,7 +29,8 @@ export function BalanceGeneralTab({
   periodo,
   mesNombre,
   balanceSheet,
-  onSelectAccount
+  onSelectAccount,
+  onViewIncomeStatement
 }: BalanceGeneralTabProps) {
   const lastDay = new Date(
     ejercicio,
@@ -262,24 +264,48 @@ export function BalanceGeneralTab({
                     </span>
                   </button>
                 ))}
-                <div
-                  className={`py-2 pl-5 pr-2 flex justify-between gap-2 text-xs font-bold rounded ${
-                    isLoss ? 'text-red-800 bg-red-50/70' : 'text-emerald-800 bg-emerald-50/60'
-                  }`}
-                >
-                  <span>
-                    305-01-001 Resultado ({isLoss ? 'Pérdida' : 'Utilidad'}) del Ejercicio Actual
-                  </span>
-                  <span className="flex items-center gap-3 font-mono shrink-0">
-                    <span>{formatCurrency(balanceSheet.utilidadEjercicio)}</span>
-                    <span className={`w-12 text-right text-[11px] ${isLoss ? 'text-red-700' : 'text-emerald-700'}`}>
-                      {formatVerticalPct(
-                        balanceSheet.utilidadEjercicio,
-                        balanceSheet.totalActivo
-                      )}
+                {onViewIncomeStatement ? (
+                  <button
+                    type="button"
+                    onClick={onViewIncomeStatement}
+                    title="Abrir Estado de Resultados (NIF B-3) para auditar el origen del resultado"
+                    className={`w-full py-2 pl-5 pr-2 flex justify-between gap-2 text-left text-xs font-bold rounded transition cursor-pointer hover:ring-1 hover:ring-blue-400 ${
+                      isLoss ? 'text-red-800 bg-red-50/70' : 'text-emerald-800 bg-emerald-50/60'
+                    }`}
+                  >
+                    <span className="underline decoration-dotted underline-offset-2">
+                      305-01-001 Resultado ({isLoss ? 'Pérdida' : 'Utilidad'}) del Ejercicio Actual
                     </span>
-                  </span>
-                </div>
+                    <span className="flex items-center gap-3 font-mono shrink-0">
+                      <span>{formatCurrency(balanceSheet.utilidadEjercicio)}</span>
+                      <span className={`w-12 text-right text-[11px] ${isLoss ? 'text-red-700' : 'text-emerald-700'}`}>
+                        {formatVerticalPct(
+                          balanceSheet.utilidadEjercicio,
+                          balanceSheet.totalActivo
+                        )}
+                      </span>
+                    </span>
+                  </button>
+                ) : (
+                  <div
+                    className={`py-2 pl-5 pr-2 flex justify-between gap-2 text-xs font-bold rounded ${
+                      isLoss ? 'text-red-800 bg-red-50/70' : 'text-emerald-800 bg-emerald-50/60'
+                    }`}
+                  >
+                    <span>
+                      305-01-001 Resultado ({isLoss ? 'Pérdida' : 'Utilidad'}) del Ejercicio Actual
+                    </span>
+                    <span className="flex items-center gap-3 font-mono shrink-0">
+                      <span>{formatCurrency(balanceSheet.utilidadEjercicio)}</span>
+                      <span className={`w-12 text-right text-[11px] ${isLoss ? 'text-red-700' : 'text-emerald-700'}`}>
+                        {formatVerticalPct(
+                          balanceSheet.utilidadEjercicio,
+                          balanceSheet.totalActivo
+                        )}
+                      </span>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

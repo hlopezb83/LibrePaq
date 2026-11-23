@@ -107,12 +107,19 @@ export function SuperAdminBroadcastTab() {
               role="alertdialog"
               aria-modal="false"
               aria-label="Confirmar retiro del comunicado global"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setConfirmClear(false);
+                }
+              }}
               className="p-3 rounded-lg bg-white/90 border border-red-200 flex flex-wrap items-center justify-between gap-2 text-xs"
             >
               <span className="font-bold text-red-900">¿Retirar este comunicado para todos los usuarios?</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  autoFocus
                   onClick={() => setConfirmClear(false)}
                   className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
                 >
@@ -140,6 +147,7 @@ export function SuperAdminBroadcastTab() {
             id="broadcast-title"
             name="broadcastTitle"
             type="text"
+            required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible"
@@ -154,6 +162,7 @@ export function SuperAdminBroadcastTab() {
           <textarea
             id="broadcast-message"
             name="broadcastMessage"
+            required
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={2}
@@ -161,6 +170,32 @@ export function SuperAdminBroadcastTab() {
             className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
         </div>
+
+        {(title.trim() || message.trim()) && (
+          <div
+            aria-label="Vista previa del comunicado"
+            className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${
+              type === 'warning'
+                ? 'bg-amber-50 border-amber-200 text-amber-950'
+                : type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                : 'bg-blue-50 border-blue-200 text-blue-950'
+            }`}
+          >
+            {type === 'warning' ? (
+              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
+            ) : type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" aria-hidden="true" />
+            ) : (
+              <Info className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
+            )}
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider opacity-75">Vista previa</p>
+              <p className="font-bold">{title.trim() || 'Título del comunicado'}</p>
+              {message.trim() && <p className="text-[11px] opacity-90">{message.trim()}</p>}
+            </div>
+          </div>
+        )}
 
         <div>
           <span id="broadcast-type-label" className="block text-xs font-bold text-slate-700 mb-1">

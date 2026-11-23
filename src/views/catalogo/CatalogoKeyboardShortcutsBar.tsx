@@ -37,6 +37,11 @@ export function CatalogoKeyboardShortcutsBar({
         </span>
         <span className="text-slate-300">|</span>
         <span className="inline-flex items-center gap-1">
+          <kbd className="px-1 py-0.2 rounded bg-white border border-slate-300 text-slate-700 shadow-2xs font-bold">Espacio</kbd>
+          <span>Mayor</span>
+        </span>
+        <span className="text-slate-300">|</span>
+        <span className="inline-flex items-center gap-1">
           <kbd className="px-1 py-0.2 rounded bg-white border border-slate-300 text-slate-700 shadow-2xs font-bold">Esc</kbd>
           <span>Deseleccionar</span>
         </span>
@@ -50,7 +55,7 @@ export function CatalogoKeyboardShortcutsBar({
           </span>
         </div>
       ) : (
-        <span className="text-[10px] text-slate-400 font-sans italic">
+        <span className="text-[10px] text-slate-600 font-sans italic">
           Usa las flechas ↑↓ o haz clic en una fila para seleccionarla
         </span>
       )}

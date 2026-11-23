@@ -154,7 +154,7 @@ export function AppShellTopHeader({
                     : 'Periodo anterior'
                 }
                 aria-label="Cambiar al periodo contable anterior"
-                className="p-0.5 sm:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
               >
                 <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
@@ -190,9 +190,13 @@ export function AppShellTopHeader({
                   onChange={(e) => updatePeriod(Number(e.target.value), activeCompany.currentPeriod)}
                   className="text-[11px] sm:text-xs font-bold font-mono text-blue-800 bg-transparent cursor-pointer shrink-0"
                 >
-                  <option value={2025}>2025</option>
-                  <option value={2026}>2026</option>
-                  <option value={2027}>2027</option>
+                  {Array.from(new Set([2022, 2023, 2024, 2025, 2026, 2027, activeCompany.currentYear]))
+                    .sort((a, b) => a - b)
+                    .map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -206,7 +210,7 @@ export function AppShellTopHeader({
                     : 'Periodo siguiente'
                 }
                 aria-label="Cambiar al periodo contable siguiente"
-                className="p-0.5 sm:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
               >
                 <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>

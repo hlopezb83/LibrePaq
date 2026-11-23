@@ -95,8 +95,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const openCompanySwitcherModal = useCallback(() => openModalWithRef(switcherDialogRef, hasOpenedSwitcher, setHasOpenedSwitcher, () => switcherDialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()), [openModalWithRef, hasOpenedSwitcher]);
   const openShortcutsModal = useCallback(() => openModalWithRef(shortcutsDialogRef, hasOpenedShortcuts, setHasOpenedShortcuts, () => shortcutsDialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()), [openModalWithRef, hasOpenedShortcuts]);
-  const openNewCompanyModal = useCallback(() => openModalWithRef(wizardDialogRef, hasOpenedWizard, setHasOpenedWizard), [openModalWithRef, hasOpenedWizard]);
-  const openAuthModal = useCallback(() => openModalWithRef(authDialogRef, hasOpenedAuth, setHasOpenedAuth), [openModalWithRef, hasOpenedAuth]);
+  const openNewCompanyModal = useCallback(
+    () =>
+      openModalWithRef(wizardDialogRef, hasOpenedWizard, setHasOpenedWizard, () =>
+        wizardDialogRef.current?.querySelector<HTMLInputElement>('#wizard-comp-name')?.focus()
+      ),
+    [openModalWithRef, hasOpenedWizard]
+  );
+  const openAuthModal = useCallback(
+    () =>
+      openModalWithRef(authDialogRef, hasOpenedAuth, setHasOpenedAuth, () =>
+        authDialogRef.current?.querySelector<HTMLInputElement>('#auth-fullname, #auth-email')?.focus()
+      ),
+    [openModalWithRef, hasOpenedAuth]
+  );
   const openCommandPaletteModal = useCallback(() => {
     setCmdQuery('');
     openModalWithRef(cmdDialogRef, hasOpenedCmd, setHasOpenedCmd, () => cmdInputRef.current?.focus());

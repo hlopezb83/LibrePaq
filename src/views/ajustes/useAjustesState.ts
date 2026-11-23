@@ -60,6 +60,24 @@ export function useAjustesState() {
   const isRfcValid =
     (isPersonaMoral && /^[A-Z&Ñ]{3}[0-9]{6}[A-Z0-9]{3}$/.test(rfcClean)) ||
     (isPersonaFisica && /^[A-Z&Ñ]{4}[0-9]{6}[A-Z0-9]{3}$/.test(rfcClean));
+  const isCpValid = /^\d{5}$/.test(compCp.trim());
+
+  const isCompanyDirty = Boolean(
+    activeCompany &&
+      (compName.trim() !== activeCompany.name ||
+        rfcClean !== activeCompany.rfc ||
+        compRegimen.trim() !== activeCompany.regimenFiscal ||
+        compCp.trim() !== activeCompany.codigoPostal)
+  );
+
+  const resetCompanyForm = () => {
+    if (!activeCompany) return;
+    setCompName(activeCompany.name);
+    setCompRfc(activeCompany.rfc);
+    setCompRegimen(activeCompany.regimenFiscal);
+    setCompCp(activeCompany.codigoPostal);
+    setCompMask(activeCompany.maskFormat || 'XXX-XX-XXX');
+  };
 
   const rfcModulo11 = React.useMemo(() => {
     if (!rfcClean) return null;
@@ -73,6 +91,9 @@ export function useAjustesState() {
         throw new Error(
           'El RFC no cumple la estructura oficial del SAT (12 caracteres para Moral, 13 para Física).'
         );
+      }
+      if (!isCpValid) {
+        throw new Error('El Código Postal Fiscal (CSF) debe contener exactamente 5 dígitos.');
       }
       return apiClient.updateCompany(activeCompanyId, {
         name: compName.trim(),
@@ -215,6 +236,24 @@ export function useAjustesState() {
   });
 
   // Tab 4: Respaldos delegados (solo activa las consultas cuando la pestaña está visible)
+  const isFiscalDirty = Boolean(
+    fiscalWp?.parameters &&
+      (Number(coefUtilidad) !== fiscalWp.parameters.coeficienteUtilidad ||
+        Number(tcDof) !== fiscalWp.parameters.tipoCambioDofCierre ||
+        Number(perdidasAnt) !== fiscalWp.parameters.perdidasFiscalesPendientes ||
+        Number(pagosAnt) !== fiscalWp.parameters.pagosProvisionalesAnteriores ||
+        Number(saldoIvaAnt) !== fiscalWp.parameters.saldoFavorIvaAnterior)
+  );
+
+  const resetFiscalForm = () => {
+    if (!fiscalWp?.parameters) return;
+    setCoefUtilidad(fiscalWp.parameters.coeficienteUtilidad);
+    setTcDof(fiscalWp.parameters.tipoCambioDofCierre);
+    setPerdidasAnt(fiscalWp.parameters.perdidasFiscalesPendientes);
+    setPagosAnt(fiscalWp.parameters.pagosProvisionalesAnteriores);
+    setSaldoIvaAnt(fiscalWp.parameters.saldoFavorIvaAnterior);
+  };
+
   const backups = useAjustesBackups(activeCompany, activeCompanyId, {
     isTabActive: activeTab === 'respaldos'
   });
@@ -236,6 +275,9 @@ export function useAjustesState() {
     setCompCp,
     compMask,
     isRfcValid,
+    isCpValid,
+    isCompanyDirty,
+    resetCompanyForm,
     isPersonaMoral,
     rfcModulo11,
     updateCompanyMutation,
@@ -246,6 +288,7 @@ export function useAjustesState() {
     togglePeriodLockMutation,
     ...efirma,
     currentYear,
+    currentPeriod,
     coefUtilidad,
     setCoefUtilidad,
     tcDof,
@@ -256,6 +299,8 @@ export function useAjustesState() {
     setPagosAnt,
     saldoIvaAnt,
     setSaldoIvaAnt,
+    isFiscalDirty,
+    resetFiscalForm,
     saveFiscalParamsMutation,
     fiscalWp,
     ...backups,

@@ -18,6 +18,7 @@ export function LandingNavbar({ user, onOpenAuth, onOpenSignIn }: LandingNavbarP
         <div className="flex items-center gap-6 min-w-0">
           <Link
             to="/landing"
+            aria-label="Inicio LibrePaq Pro"
             className="flex items-center group focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-xl p-0.5 shrink-0"
           >
             <div className="sm:hidden">
@@ -112,6 +113,18 @@ export function LandingNavbar({ user, onOpenAuth, onOpenSignIn }: LandingNavbarP
           )}
         </div>
       </div>
+
+      {/* Cinta compacta de secciones en móvil / tablet */}
+      <nav
+        aria-label="Secciones de la página"
+        className="lg:hidden border-t border-slate-100 bg-slate-50/80 px-3 py-1.5 overflow-x-auto flex items-center gap-3 text-[11px] font-semibold text-slate-700"
+      >
+        <a href="#comparativa" className="hover:text-blue-700 whitespace-nowrap py-0.5">vs. CONTPAQi®</a>
+        <a href="#caracteristicas" className="hover:text-blue-700 whitespace-nowrap py-0.5">Módulos</a>
+        <a href="#calculadora" className="hover:text-blue-700 whitespace-nowrap py-0.5">Calculadora</a>
+        <a href="#precios" className="hover:text-blue-700 whitespace-nowrap py-0.5">Planes ($0)</a>
+        <a href="#faq" className="hover:text-blue-700 whitespace-nowrap py-0.5">FAQ</a>
+      </nav>
     </header>
   );
 }

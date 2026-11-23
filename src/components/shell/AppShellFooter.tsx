@@ -22,7 +22,7 @@ export function AppShellFooter({
   }, [accounts]);
 
   return (
-    <footer className="lg:sticky lg:bottom-0 z-20 bg-[#0A1120] text-slate-400 border-t border-[#1E293B] pl-3 pr-14 sm:pl-4 sm:pr-16 lg:px-4 py-1.5 lg:py-1 text-[11px] no-print">
+    <footer className="lg:sticky lg:bottom-0 z-20 bg-[#0A1120] text-slate-400 border-t border-[#1E293B] pl-3 pr-14 sm:pl-4 sm:pr-16 py-1.5 lg:py-1 text-[11px] no-print">
       <div className="max-w-[1800px] mx-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         {/* Indicadores de Entorno Fiscal y Régimen SAT */}
         <div className="flex items-center gap-2 min-w-0">
@@ -39,13 +39,15 @@ export function AppShellFooter({
           <button
             type="button"
             onClick={onOpenShortcuts}
+            aria-label="Abrir guía de atajos de teclado (F1)"
             title="Abrir Centro Unificado de Atajos de Teclado (F1 o ?)"
-            className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#111C35] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-mono text-[10px] transition cursor-pointer"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#111C35] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-mono text-[10px] transition cursor-pointer"
           >
             <Keyboard className="w-3 h-3 text-blue-400" aria-hidden="true" />
-            <span>Atajos [F1]</span>
+            <span className="hidden sm:inline">Atajos [F1]</span>
+            <span className="sm:hidden">F1</span>
           </button>
-          <span className="text-slate-600 hidden sm:inline">|</span>
+          <span className="text-slate-600">|</span>
           <span
             className={`inline-flex items-center gap-1 font-semibold ${
               isTrialBalanced ? 'text-emerald-400' : 'text-red-400'

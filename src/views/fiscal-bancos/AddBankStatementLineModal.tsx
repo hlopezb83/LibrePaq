@@ -38,7 +38,7 @@ export function AddBankStatementLineModal({
   return (
     <dialog
       ref={addBankModalRef}
-      closedby="closerequest"
+      closedby="any"
       aria-labelledby="modal-add-bank-title"
       className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
@@ -52,7 +52,7 @@ export function AddBankStatementLineModal({
               <h2 id="modal-add-bank-title" className="text-base font-bold text-slate-900">
                 Registrar Movimiento en Estado de Cuenta
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 Captura manual para conciliar partidas
               </p>
             </div>
@@ -61,7 +61,7 @@ export function AddBankStatementLineModal({
             type="button"
             onClick={() => addBankModalRef.current?.close()}
             aria-label="Cerrar modal"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>

@@ -86,6 +86,13 @@ export function CfdiBatchActionBar({
         {confirmDelete && (
           <button
             type="button"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setConfirmDelete(false);
+              }
+            }}
             onClick={() => setConfirmDelete(false)}
             className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 cursor-pointer"
           >

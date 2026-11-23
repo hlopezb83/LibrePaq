@@ -123,10 +123,11 @@ export function DeliverableModalHeader({
               }
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white shadow-xs transition cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-100" aria-hidden="true" />
+              <Download className="w-3.5 h-3.5 text-emerald-100 shrink-0" aria-hidden="true" />
               <span className="hidden sm:inline">
                 {isExporting ? 'Generando...' : 'Dossier (.XLSX)'}
               </span>
+              <span className="sm:hidden text-[11px]">{isExporting ? '...' : 'XLSX'}</span>
             </button>
           )}
 
@@ -142,8 +143,8 @@ export function DeliverableModalHeader({
             }
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111C35] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed border border-[#1E293B] text-xs font-semibold text-slate-200 transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
-            <span className="hidden sm:inline">CSV</span>
+            <Download className="w-3.5 h-3.5 text-blue-400 shrink-0" aria-hidden="true" />
+            <span className="text-[11px] sm:text-xs">CSV</span>
           </button>
 
           <button

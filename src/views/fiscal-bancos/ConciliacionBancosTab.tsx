@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AlertCircle,
   BookOpen,
+  Filter,
   Lock,
   Plus,
   RefreshCw,
@@ -35,6 +36,7 @@ export interface ConciliacionBancosTabProps {
   isCreatePolizaPending: boolean;
   onUnmatchBankLine: (lineId: string) => void;
   isUnmatchPending: boolean;
+  activeBankLineId?: string | null;
   bFecha: string;
   setBFecha: (d: string) => void;
   bRef: string;
@@ -70,6 +72,7 @@ export function ConciliacionBancosTab({
   isCreatePolizaPending,
   onUnmatchBankLine,
   isUnmatchPending,
+  activeBankLineId = null,
   bFecha,
   setBFecha,
   bRef,
@@ -83,6 +86,16 @@ export function ConciliacionBancosTab({
   onAddBankLineSubmit,
   isAddBankLinePending
 }: ConciliacionBancosTabProps) {
+  const [showOnlyPending, setShowOnlyPending] = useState(false);
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+
+  const selectedLine = reconData?.statementLines.find((l) => l.id === selectedLineId) || null;
+  const highlightAmount = selectedLine
+    ? selectedLine.cargoBanco > 0
+      ? selectedLine.cargoBanco
+      : selectedLine.abonoBanco
+    : null;
+
   return (
     <div className="space-y-5">
       {/* Selector de Cuenta Bancaria y Botonera Simétrica de Conciliación */}
@@ -118,12 +131,27 @@ export function ConciliacionBancosTab({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            aria-pressed={showOnlyPending}
+            onClick={() => setShowOnlyPending((p) => !p)}
+            title="Mostrar únicamente partidas sin conciliar en estado de cuenta y libros"
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+              showOnlyPending
+                ? 'bg-amber-100 border-amber-300 text-amber-950 shadow-2xs'
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Solo Pendientes</span>
+          </button>
+
           <label
             htmlFor="bank-csv-upload"
             title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Importar CSV Banco'}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition focus-within:outline-2 focus-within:outline-blue-600 focus-within:outline-offset-2 ${
               isPeriodLocked
-                ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200'
                 : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
             }`}
           >
@@ -147,11 +175,11 @@ export function ConciliacionBancosTab({
             title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Agregar Línea Manual al Estado de Cuenta'}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
               isPeriodLocked
-                ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200'
                 : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
             }`}
           >
-            {isPeriodLocked ? <Lock className="w-4 h-4 text-slate-400" aria-hidden="true" /> : <Plus className="w-4 h-4 text-slate-500" aria-hidden="true" />}
+            {isPeriodLocked ? <Lock className="w-4 h-4 text-slate-500" aria-hidden="true" /> : <Plus className="w-4 h-4 text-slate-500" aria-hidden="true" />}
             Agregar Línea
           </button>
 
@@ -211,10 +239,18 @@ export function ConciliacionBancosTab({
             onCreatePolizaFromBank={onCreatePolizaFromBank}
             isUnmatchPending={isUnmatchPending}
             onUnmatchBankLine={onUnmatchBankLine}
+            showOnlyPending={showOnlyPending}
+            selectedLineId={selectedLineId}
+            onSelectLine={(id) => setSelectedLineId((prev) => (prev === id ? null : id))}
+            activeBankLineId={activeBankLineId}
           />
 
           {/* Tabla 2: Movimientos Contables Registrados en Libros */}
-          <BankBookMovementsTable reconData={reconData} />
+          <BankBookMovementsTable
+            reconData={reconData}
+            showOnlyPending={showOnlyPending}
+            highlightAmount={highlightAmount}
+          />
         </>
       )}
 

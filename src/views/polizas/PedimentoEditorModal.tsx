@@ -90,7 +90,7 @@ export function PedimentoEditorModal({
           type="button"
           onClick={onClose}
           aria-label="Cerrar registro de pedimento"
-          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+          className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer shrink-0"
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -106,15 +106,20 @@ export function PedimentoEditorModal({
         <div className="p-5 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-4 text-xs">
           {/* Identificación del Pedimento */}
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-            <div className="font-bold text-slate-800 flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-blue-600" aria-hidden="true" />
-              <span>1. Identificación y Formato Oficial del Pedimento (15 dígitos)</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-blue-600" aria-hidden="true" />
+                <span>1. Identificación y Formato Oficial del Pedimento (15 dígitos)</span>
+              </div>
+              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
+                {ano.padStart(2, '0')}  {aduana.padStart(3, '0')}  {patente.padStart(4, '0')}  {consecutivo.padStart(7, '0')}
+              </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono">
               <div>
                 <label htmlFor="ped-ano" className="block text-[10px] font-bold text-slate-600 mb-1">Año (2)</label>
                 <input
-                  id="ped-ano" type="text" maxLength={2} inputMode="numeric" pattern="[0-9]*" value={ano}
+                  id="ped-ano" type="text" required minLength={2} maxLength={2} inputMode="numeric" pattern="[0-9]{2}" value={ano}
                   onChange={(e) => setAno(e.target.value)}
                   className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
@@ -122,7 +127,7 @@ export function PedimentoEditorModal({
               <div>
                 <label htmlFor="ped-aduana" className="block text-[10px] font-bold text-slate-600 mb-1">Aduana (3)</label>
                 <input
-                  id="ped-aduana" type="text" maxLength={3} inputMode="numeric" pattern="[0-9]*" value={aduana}
+                  id="ped-aduana" type="text" autoFocus required minLength={3} maxLength={3} inputMode="numeric" pattern="[0-9]{3}" value={aduana}
                   onChange={(e) => setAduana(e.target.value)} placeholder="240"
                   className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
@@ -130,7 +135,7 @@ export function PedimentoEditorModal({
               <div>
                 <label htmlFor="ped-patente" className="block text-[10px] font-bold text-slate-600 mb-1">Patente (4)</label>
                 <input
-                  id="ped-patente" type="text" maxLength={4} inputMode="numeric" pattern="[0-9]*" value={patente}
+                  id="ped-patente" type="text" required minLength={4} maxLength={4} inputMode="numeric" pattern="[0-9]{4}" value={patente}
                   onChange={(e) => setPatente(e.target.value)} placeholder="3820"
                   className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
@@ -138,7 +143,7 @@ export function PedimentoEditorModal({
               <div className="sm:col-span-2">
                 <label htmlFor="ped-consecutivo" className="block text-[10px] font-bold text-slate-600 mb-1">Consecutivo (7)</label>
                 <input
-                  id="ped-consecutivo" type="text" maxLength={7} inputMode="numeric" pattern="[0-9]*" value={consecutivo}
+                  id="ped-consecutivo" type="text" required minLength={7} maxLength={7} inputMode="numeric" pattern="[0-9]{7}" value={consecutivo}
                   onChange={(e) => setConsecutivo(e.target.value)} placeholder="4001234"
                   className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />

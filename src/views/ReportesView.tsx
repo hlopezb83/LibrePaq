@@ -21,6 +21,7 @@ export function ReportesView() {
     isError,
     error,
     refetch,
+    isPeriodLocked,
     satXmlData,
     isLoadingXml,
     isErrorXml,
@@ -29,6 +30,11 @@ export function ReportesView() {
     handleDownloadXml,
     handleExportBalanzaCsv
   } = useReportesManager();
+
+  const deliverableTabForActive =
+    activeTab === 'BALANZA' || activeTab === 'RESULTADOS' || activeTab === 'BALANCE'
+      ? activeTab
+      : 'DOSSIER';
 
   if (isError) {
     return (
@@ -81,8 +87,9 @@ export function ReportesView() {
         mesNombre={mesNombre}
         ejercicio={data.ejercicio}
         activeTab={activeTab}
+        isPeriodLocked={isPeriodLocked}
         onTabChange={setActiveTab}
-        onOpenDeliverables={() => openDeliverables()}
+        onOpenDeliverables={() => openDeliverables(deliverableTabForActive)}
         onExportCsv={handleExportBalanzaCsv}
       />
 
@@ -123,6 +130,7 @@ export function ReportesView() {
             mesNombre={mesNombre}
             balanceSheet={data.balanceSheet}
             onSelectAccount={openLedger}
+            onViewIncomeStatement={() => setActiveTab('RESULTADOS')}
           />
         </div>
       )}
@@ -152,7 +160,7 @@ export function ReportesView() {
             totals={data.totals}
             incomeStatement={data.incomeStatement}
             balanceSheet={data.balanceSheet}
-            onOpenDeliverablesModal={() => openDeliverables('DOSSIER')}
+            onOpenDeliverablesModal={(tab) => openDeliverables(tab ?? 'DOSSIER')}
           />
         </div>
       )}

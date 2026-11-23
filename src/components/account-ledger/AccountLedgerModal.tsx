@@ -137,44 +137,56 @@ export function AccountLedgerModal({
           ) : (
           <>
             {/* Resumen del Auxiliar con Arrastre de Saldos */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[11px] font-bold text-slate-500 uppercase">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 min-w-0">
+                <div className="text-[11px] font-bold text-slate-600 uppercase truncate">
                   Saldo Inicial ({mesNombre})
                 </div>
-                <div className="mt-1 text-base font-bold font-mono text-slate-900">
+                <div
+                  className="mt-1 text-sm sm:text-base font-bold font-mono tabular-nums text-slate-900 truncate"
+                  title={formatCurrency(data.initialBalance)}
+                >
                   {formatCurrency(data.initialBalance)}
                 </div>
-                <div className="text-[10px] text-slate-500">
+                <div className="text-[10px] text-slate-600">
                   Incluye arrastre de meses previos
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[11px] font-bold text-slate-500 uppercase">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 min-w-0">
+                <div className="text-[11px] font-bold text-slate-600 uppercase truncate">
                   (+) Cargos del Periodo
                 </div>
-                <div className="mt-1 text-base font-bold font-mono text-slate-900">
+                <div
+                  className="mt-1 text-sm sm:text-base font-bold font-mono tabular-nums text-slate-900 truncate"
+                  title={formatCurrency(data.totalCharges)}
+                >
                   {formatCurrency(data.totalCharges)}
                 </div>
-                <div className="text-[10px] text-slate-500">Movimientos en el Debe</div>
+                <div className="text-[10px] text-slate-600">Movimientos en el Debe</div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[11px] font-bold text-slate-500 uppercase">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 min-w-0">
+                <div className="text-[11px] font-bold text-slate-600 uppercase truncate">
                   (-) Abonos del Periodo
                 </div>
-                <div className="mt-1 text-base font-bold font-mono text-slate-900">
+                <div
+                  className="mt-1 text-sm sm:text-base font-bold font-mono tabular-nums text-slate-900 truncate"
+                  title={formatCurrency(data.totalCredits)}
+                >
                   {formatCurrency(data.totalCredits)}
                 </div>
-                <div className="text-[10px] text-slate-500">Movimientos en el Haber</div>
+                <div className="text-[10px] text-slate-600">Movimientos en el Haber</div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200">
-                <div className="text-[11px] font-bold text-blue-900 uppercase">
+              <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 min-w-0">
+                <div className="text-[11px] font-bold text-blue-900 uppercase truncate">
                   (=) Saldo Final Acumulado
                 </div>
-                <div className="mt-1 text-base font-bold font-mono text-blue-950">
+                <div
+                  className="mt-1 text-sm sm:text-base font-bold font-mono tabular-nums text-blue-950 truncate"
+                  title={formatCurrency(data.finalBalance)}
+                >
                   {formatCurrency(data.finalBalance)}
                 </div>
                 <div className="text-[10px] text-blue-800">

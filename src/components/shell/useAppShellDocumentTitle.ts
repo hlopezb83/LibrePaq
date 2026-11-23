@@ -23,8 +23,10 @@ export function useAppShellDocumentTitle({
   onPathChange
 }: UseAppShellDocumentTitleProps): void {
   useEffect(() => {
-    if (currentPath === '/privacy' || currentPath === '/terms') {
+    if (currentPath === '/privacy') {
       document.title = 'Aviso de Privacidad Integral | LibrePaq Pro';
+    } else if (currentPath === '/terms') {
+      document.title = 'Términos y Condiciones de Uso | LibrePaq Pro';
     } else if (currentPath === '/landing' || (!user && currentPath === '/')) {
       document.title = 'LibrePaq Pro | El Software Contable y Fiscal que Reemplaza a CONTPAQi®';
     } else if (isWorkspaceEmpty) {

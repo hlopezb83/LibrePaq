@@ -121,7 +121,7 @@ export function useCatalogoManager() {
         type,
         nature,
         level,
-        isAffectable: level === 3,
+        isAffectable: level >= 3,
         satGroupCode,
         initialBalance
       });

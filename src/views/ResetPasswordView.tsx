@@ -80,6 +80,7 @@ export function ResetPasswordView() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {errorMsg && (
               <div
+                id="reset-password-error"
                 role="alert"
                 className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2"
               >
@@ -100,6 +101,8 @@ export function ResetPasswordView() {
                   required
                   minLength={6}
                   autoComplete="new-password"
+                  aria-invalid={Boolean(errorMsg)}
+                  aria-describedby={errorMsg ? 'reset-password-error' : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -128,6 +131,8 @@ export function ResetPasswordView() {
                   required
                   minLength={6}
                   autoComplete="new-password"
+                  aria-invalid={Boolean(errorMsg)}
+                  aria-describedby={errorMsg ? 'reset-password-error' : undefined}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

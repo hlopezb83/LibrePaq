@@ -87,7 +87,7 @@ export function PolizaEditorHeader({
           type="button"
           onClick={onClose}
           aria-label="Cerrar captura de póliza"
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+          className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer shrink-0"
         >
           <X className="w-5 h-5" aria-hidden="true" />
         </button>
@@ -107,6 +107,8 @@ export function PolizaEditorHeader({
           <span><kbd className="bg-white px-1.5 py-0.5 rounded border border-slate-300 font-bold">=</kbd> o <kbd className="bg-white px-1.5 py-0.5 rounded border border-slate-300 font-bold">Espacio</kbd> auto-cuadrar</span>
           <span>•</span>
           <span><kbd className="bg-white px-1.5 py-0.5 rounded border border-slate-300 font-bold">Alt+1..3</kbd> plantillas</span>
+          <span>•</span>
+          <span><kbd className="bg-white px-1.5 py-0.5 rounded border border-slate-300 font-bold">F4</kbd> IVA 16%</span>
           <span>•</span>
           <span><kbd className="bg-white px-1.5 py-0.5 rounded border border-slate-300 font-bold">F2</kbd> catálogo</span>
           <span>•</span>
@@ -256,6 +258,7 @@ export function PolizaEditorHeader({
             id="pol-concepto"
             form="poliza-form"
             type="text"
+            autoFocus
             required
             value={concepto}
             onChange={(e) => setConcepto(e.target.value)}

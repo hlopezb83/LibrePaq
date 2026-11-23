@@ -38,6 +38,9 @@ export function DeliverableBalanzaDoc({
   legalRepTitle
 }: DeliverableBalanzaDocProps) {
   const isBalanced = Math.abs(totals.totalCargos - totals.totalAbonos) < 0.01;
+  const affectableAcreedor = trialBalance.filter((r) => r.isAffectable && r.nature === 'ACREEDORA');
+  const initialAcreedor = affectableAcreedor.reduce((s, r) => s + r.initialBalanceComputed, 0);
+  const finalAcreedor = affectableAcreedor.reduce((s, r) => s + r.finalBalance, 0);
 
   return (
     <article className="max-w-5xl mx-auto bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 space-y-5 print-page-break mb-8">
@@ -90,6 +93,7 @@ export function DeliverableBalanzaDoc({
               <th scope="col" className="py-2 px-2.5">Código</th>
               <th scope="col" className="py-2 px-2.5">Nombre de la Cuenta</th>
               <th scope="col" className="py-2 px-2 text-center">SAT</th>
+              <th scope="col" className="py-2 px-1.5 text-center">Nat.</th>
               <th scope="col" className="py-2 px-2.5 text-right">Saldo Inicial</th>
               <th scope="col" className="py-2 px-2.5 text-right">Cargos (Debe)</th>
               <th scope="col" className="py-2 px-2.5 text-right">Abonos (Haber)</th>
@@ -114,8 +118,11 @@ export function DeliverableBalanzaDoc({
                   <td className={`py-1 px-2.5 ${row.level === 3 ? 'pl-6' : ''}`}>
                     {row.name}
                   </td>
-                  <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-500">
+                  <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-600">
                     {row.satGroupCode}
+                  </td>
+                  <td className="py-1 px-1.5 text-center font-mono text-[10px] font-bold text-slate-700">
+                    {row.nature === 'DEUDORA' ? 'D' : 'A'}
                   </td>
                   <td className="py-1 px-2.5 text-right font-mono">
                     {formatCurrency(row.initialBalanceComputed)}
@@ -134,11 +141,12 @@ export function DeliverableBalanzaDoc({
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-900 bg-slate-100 font-bold font-mono text-xs text-slate-900">
-              <td colSpan={3} className="py-2 px-2.5 text-right uppercase">
-                Sumas Iguales:
+              <td colSpan={4} className="py-2 px-2.5 text-right uppercase">
+                Sumas Iguales (Afectables):
               </td>
-              <td className="py-2 px-2.5 text-right">
-                {formatCurrency(totals.initialDeudor)}
+              <td className="py-2 px-2.5 text-right text-[11px]">
+                <div>D: {formatCurrency(totals.initialDeudor)}</div>
+                <div className="text-slate-600">A: {formatCurrency(initialAcreedor)}</div>
               </td>
               <td className="py-2 px-2.5 text-right text-blue-900">
                 {formatCurrency(totals.totalCargos)}
@@ -146,8 +154,9 @@ export function DeliverableBalanzaDoc({
               <td className="py-2 px-2.5 text-right text-blue-900">
                 {formatCurrency(totals.totalAbonos)}
               </td>
-              <td className="py-2 px-2.5 text-right">
-                {formatCurrency(totals.finalDeudor)}
+              <td className="py-2 px-2.5 text-right text-[11px]">
+                <div>D: {formatCurrency(totals.finalDeudor)}</div>
+                <div className="text-slate-600">A: {formatCurrency(finalAcreedor)}</div>
               </td>
             </tr>
           </tfoot>

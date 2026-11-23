@@ -45,9 +45,12 @@ export function AddCfdiView() {
     setPreviewInvoiceCfdi,
     isDragging,
     setIsDragging,
+    isUploadingFiles,
     copiedUuid,
     confirmDeleteCfdiId,
     setConfirmDeleteCfdiId,
+    hasActiveFilters,
+    resetFilters,
     showSoapFielPanel,
     setShowSoapFielPanel,
     periodScope,
@@ -90,19 +93,34 @@ export function AddCfdiView() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const activeTag = (el?.tagName || '').toLowerCase();
+      const isEditable =
+        activeTag === 'input' ||
+        activeTag === 'textarea' ||
+        activeTag === 'select' ||
+        Boolean(el?.isContentEditable);
+      if (isEditable) return;
+
+      if (e.key === '/' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        document.getElementById('add-search')?.focus();
+        return;
+      }
+
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const key = e.key.toLowerCase();
-        const activeTag = (document.activeElement?.tagName || '').toLowerCase();
-        if (activeTag !== 'input' && activeTag !== 'textarea') {
-          if (key === 'u') {
-            e.preventDefault();
-            fileInputRef.current?.click();
-          } else if (key === 's') {
-            e.preventDefault();
-            if (simModalRef.current && !simModalRef.current.open) {
-              simModalRef.current.showModal();
-            }
+        if (key === 'u') {
+          e.preventDefault();
+          fileInputRef.current?.click();
+        } else if (key === 's') {
+          e.preventDefault();
+          if (simModalRef.current && !simModalRef.current.open) {
+            simModalRef.current.showModal();
           }
+        } else if (key === 'f') {
+          e.preventDefault();
+          document.getElementById('add-search')?.focus();
         }
       }
     };
@@ -113,7 +131,10 @@ export function AddCfdiView() {
   return (
     <div className="space-y-4">
       {isPeriodLocked && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs shadow-2xs">
+        <div
+          role="status"
+          className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs shadow-2xs"
+        >
           <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-0.5">
             <span className="font-bold text-sm block text-amber-950">
@@ -129,6 +150,7 @@ export function AddCfdiView() {
       <CfdiDropzoneBar
         isDragging={isDragging}
         setIsDragging={setIsDragging}
+        isUploadingFiles={isUploadingFiles}
         handleDrop={handleDrop}
         fileInputRef={fileInputRef}
         handleFileUpload={handleFileUpload}
@@ -223,6 +245,8 @@ export function AddCfdiView() {
             isDeletePending={deleteCfdiMutation.isPending}
             isPeriodLocked={isPeriodLocked}
             filteredTotals={filteredTotals}
+            hasActiveFilters={hasActiveFilters}
+            onResetFilters={resetFilters}
             onOpenSatDownload={() => {
               setShowSoapFielPanel(true);
               const el = document.getElementById('sat-soap-fiel-section');

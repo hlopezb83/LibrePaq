@@ -47,6 +47,9 @@ export function AjustesView() {
     setCompCp,
     compMask,
     isRfcValid,
+    isCpValid,
+    isCompanyDirty,
+    resetCompanyForm,
     rfcModulo11,
     updateCompanyMutation,
     confirmDeleteCompany,
@@ -67,6 +70,8 @@ export function AjustesView() {
     isUploadingFiel,
     handleUploadFiel,
     handleGenerateTestFiel,
+    currentYear,
+    currentPeriod,
     coefUtilidad,
     setCoefUtilidad,
     tcDof,
@@ -77,6 +82,8 @@ export function AjustesView() {
     setPagosAnt,
     saldoIvaAnt,
     setSaldoIvaAnt,
+    isFiscalDirty,
+    resetFiscalForm,
     saveFiscalParamsMutation,
     fiscalWp,
     accountsList,
@@ -135,7 +142,7 @@ export function AjustesView() {
                 {companies.length} {companies.length === 1 ? 'empresa' : 'empresas'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               Identidad fiscal, e.firma SAT Anexo 24, parámetros y respaldos
             </p>
           </div>
@@ -159,6 +166,7 @@ export function AjustesView() {
                 type="button"
                 role="tab"
                 aria-selected={isSelected}
+                aria-controls={`ajustes-panel-${tab.id}`}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => selectAndFocusTab(tab.id)}
                 onKeyDown={(e) => handleTabKeyDown(e, index)}
@@ -216,6 +224,9 @@ export function AjustesView() {
           setCompCp={setCompCp}
           compMask={compMask}
           isRfcValid={isRfcValid}
+          isCpValid={isCpValid}
+          isCompanyDirty={isCompanyDirty}
+          onResetCompany={resetCompanyForm}
           rfcModulo11={rfcModulo11}
           updateCompanyMutation={updateCompanyMutation}
           periodLock={periodLock}
@@ -244,6 +255,8 @@ export function AjustesView() {
 
       {activeTab === 'fiscal' && activeCompany && (
         <AjustesFiscalTab
+          currentYear={currentYear}
+          currentPeriod={currentPeriod}
           coefUtilidad={coefUtilidad}
           setCoefUtilidad={setCoefUtilidad}
           tcDof={tcDof}
@@ -254,6 +267,8 @@ export function AjustesView() {
           setPagosAnt={setPagosAnt}
           saldoIvaAnt={saldoIvaAnt}
           setSaldoIvaAnt={setSaldoIvaAnt}
+          isFiscalDirty={isFiscalDirty}
+          onResetFiscal={resetFiscalForm}
           saveFiscalParamsMutation={saveFiscalParamsMutation}
           fiscalWp={fiscalWp}
         />

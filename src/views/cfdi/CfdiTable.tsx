@@ -4,7 +4,7 @@ import {
   useTable
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { CloudDownload, UploadCloud } from 'lucide-react';
+import { CloudDownload, SearchX, UploadCloud } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import { cfdiTableFeatures, useCfdiColumns, type UseCfdiColumnsProps } from './useCfdiColumns';
 
@@ -16,6 +16,8 @@ export interface CfdiTableProps extends UseCfdiColumnsProps {
     retenciones: number;
     total: number;
   };
+  hasActiveFilters?: boolean;
+  onResetFilters?: () => void;
   onOpenSatDownload?: () => void;
   onUploadXmlClick?: () => void;
 }
@@ -82,51 +84,72 @@ export function CfdiTable(props: CfdiTableProps) {
         </thead>
         <tbody className="divide-y divide-slate-100 text-xs">
           {isLoading ? (
-            <tr>
-              <td colSpan={columns.length} className="py-12 text-center text-slate-400">
+            <tr role="status">
+              <td colSpan={columns.length} className="py-12 text-center text-slate-600 font-medium">
                 Cargando comprobantes fiscales de la Bóveda Digital...
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="py-12 text-center text-slate-500">
-                <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto p-6 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 shadow-2xs">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-200 shadow-2xs">
-                    <CloudDownload className="w-6 h-6" aria-hidden="true" />
-                  </div>
-                  <p className="font-bold text-slate-900 text-sm mt-0.5">Bóveda sin comprobantes en este periodo</p>
-                  <p className="text-xs text-slate-500 leading-relaxed max-w-xs">
-                    Descarga tus facturas directamente del SAT con tu e.firma o sube tus archivos XML en 2 segundos.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1.5">
-                    {props.onOpenSatDownload && (
+              <td colSpan={columns.length} className="py-12 text-center text-slate-600">
+                {props.hasActiveFilters ? (
+                  <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto p-6 rounded-2xl border border-slate-200 bg-slate-50/70 shadow-2xs">
+                    <div className="w-11 h-11 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-300">
+                      <SearchX className="w-5 h-5" aria-hidden="true" />
+                    </div>
+                    <p className="font-bold text-slate-900 text-sm">Ningún comprobante coincide con los filtros</p>
+                    <p className="text-xs text-slate-600 leading-relaxed max-w-xs">
+                      Ajusta la búsqueda, cambia el alcance de periodo o limpia los filtros activos para ver tus CFDIs.
+                    </p>
+                    {props.onResetFilters && (
                       <button
                         type="button"
-                        onClick={props.onOpenSatDownload}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                        onClick={props.onResetFilters}
+                        className="mt-1 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                       >
-                        <CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Descargar del SAT (e.firma)</span>
-                      </button>
-                    )}
-                    {props.onUploadXmlClick && (
-                      <button
-                        type="button"
-                        onClick={props.onUploadXmlClick}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-300 shadow-2xs transition cursor-pointer"
-                      >
-                        <UploadCloud className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
-                        <span>Subir XMLs o ZIP</span>
+                        Limpiar filtros
                       </button>
                     )}
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-2.5 max-w-md mx-auto p-6 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 shadow-2xs">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-200 shadow-2xs">
+                      <CloudDownload className="w-6 h-6" aria-hidden="true" />
+                    </div>
+                    <p className="font-bold text-slate-900 text-sm mt-0.5">Bóveda sin comprobantes en este periodo</p>
+                    <p className="text-xs text-slate-600 leading-relaxed max-w-xs">
+                      Descarga tus facturas directamente del SAT con tu e.firma o sube tus archivos XML en 2 segundos.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1.5">
+                      {props.onOpenSatDownload && (
+                        <button
+                          type="button"
+                          onClick={props.onOpenSatDownload}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                        >
+                          <CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>Descargar del SAT (e.firma)</span>
+                        </button>
+                      )}
+                      {props.onUploadXmlClick && (
+                        <button
+                          type="button"
+                          onClick={props.onUploadXmlClick}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-300 shadow-2xs transition cursor-pointer"
+                        >
+                          <UploadCloud className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
+                          <span>Subir XMLs o ZIP</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </td>
             </tr>
           ) : (
             <>
               {paddingTop > 0 && (
-                <tr>
+                <tr aria-hidden="true">
                   <td style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
                 </tr>
               )}
@@ -153,7 +176,7 @@ export function CfdiTable(props: CfdiTableProps) {
                 );
               })}
               {paddingBottom > 0 && (
-                <tr>
+                <tr aria-hidden="true">
                   <td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
                 </tr>
               )}
@@ -161,7 +184,7 @@ export function CfdiTable(props: CfdiTableProps) {
           )}
         </tbody>
         {filteredCfdis.length > 0 && (
-          <tfoot className="sticky bottom-0 z-10 bg-slate-100">
+          <tfoot className="sticky bottom-0 z-10 bg-slate-100 [&_td]:bg-slate-100">
             <tr className="border-t-2 border-slate-300 font-mono text-xs font-bold text-slate-900 shadow-xs">
               <td colSpan={4} className="py-3 px-3 font-sans text-right uppercase tracking-wider text-slate-700">
                 Totales Visibles ({filteredCfdis.length} CFDIs):

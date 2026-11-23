@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import { checkRfc69BStatus } from '../../shared/sat-69b';
-import type { AccountWithBalance, Efos69BStatus } from '../../shared/types';
+import type { AccountWithBalance, Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
 
 interface UsePadronProveedoresParams {
   companyId: string;
@@ -37,6 +37,37 @@ export function usePadronProveedores({
   const [tpIvaRate, setTpIvaRate] = useState<16 | 8 | 0>(16);
   const [tpEfos, setTpEfos] = useState<Efos69BStatus>('LIMPIO');
   const [is69BModalOpen, setIs69BModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredThirdParties = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return thirdParties;
+    return thirdParties.filter(
+      (tp) =>
+        tp.rfc.toLowerCase().includes(q) ||
+        tp.nombre.toLowerCase().includes(q) ||
+        tp.cuentaOperacionCode.toLowerCase().includes(q)
+    );
+  }, [thirdParties, searchQuery]);
+
+  const selectThirdPartyForEdit = (tp: ThirdPartyRecord) => {
+    setTpRfc(tp.rfc);
+    setTpNombre(tp.nombre);
+    setTpExpenseAcc(tp.cuentaOperacionCode || '601-01-002');
+    setTpIvaRate((tp.tasaIvaDefault as 16 | 8 | 0) ?? 16);
+    setTpOperacion((tp.tipoOperacionDiot as '03' | '06' | '85') || '03');
+    setTpEfos(tp.estatus69B || 'LIMPIO');
+    document.getElementById('tp-nombre')?.focus();
+  };
+
+  const resetForm = () => {
+    setTpRfc('');
+    setTpNombre('');
+    setTpExpenseAcc('601-01-002');
+    setTpIvaRate(16);
+    setTpOperacion('03');
+    setTpEfos('LIMPIO');
+  };
 
   const tpRfcRes = useMemo(() => {
     if (!tpRfc.trim()) return null;
@@ -90,6 +121,11 @@ export function usePadronProveedores({
   return {
     affectableAccounts,
     thirdParties,
+    filteredThirdParties,
+    searchQuery,
+    setSearchQuery,
+    selectThirdPartyForEdit,
+    resetForm,
     loadingTp,
     isErrorTp,
     refetchTp,

@@ -79,8 +79,15 @@ function AccountPickerComboboxBase({
   });
 
   useEffect(() => {
-    setHighlightedIndex(0);
-  }, [query]);
+    if (query.trim().length > 0) {
+      setHighlightedIndex(0);
+    } else if (value) {
+      const matchIdx = filteredAccounts.findIndex((a) => a.id === value);
+      setHighlightedIndex(matchIdx >= 0 ? matchIdx : 0);
+    } else {
+      setHighlightedIndex(0);
+    }
+  }, [query, value, filteredAccounts]);
 
   useEffect(() => {
     if (!isOpen || !listRef.current) return;
@@ -123,6 +130,16 @@ function AccountPickerComboboxBase({
       if (isOpen) {
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
       }
+    } else if (e.key === 'Home') {
+      if (isOpen && filteredAccounts.length > 0) {
+        e.preventDefault();
+        setHighlightedIndex(0);
+      }
+    } else if (e.key === 'End') {
+      if (isOpen && filteredAccounts.length > 0) {
+        e.preventDefault();
+        setHighlightedIndex(filteredAccounts.length - 1);
+      }
     } else if (e.key === 'Enter') {
       if (isOpen && filteredAccounts.length > 0) {
         e.preventDefault();
@@ -131,12 +148,12 @@ function AccountPickerComboboxBase({
         if (selected) handleSelect(selected);
       }
     } else if (e.key === 'Tab') {
-      if (isOpen && filteredAccounts.length > 0) {
+      if (isOpen && filteredAccounts.length > 0 && (query.trim().length > 0 || !value)) {
         const selected = filteredAccounts[highlightedIndex];
         if (selected) onChange(selected.id);
-        setIsOpen(false);
-        setQuery('');
       }
+      setIsOpen(false);
+      setQuery('');
     } else if (e.key === 'Escape') {
       if (isOpen) {
         e.preventDefault();
@@ -190,6 +207,10 @@ function AccountPickerComboboxBase({
           placeholder={placeholder}
           onFocus={(e) => {
             setIsOpen(true);
+            if (value) {
+              const matchIdx = filteredAccounts.findIndex((a) => a.id === value);
+              if (matchIdx >= 0) setHighlightedIndex(matchIdx);
+            }
             e.target.select();
           }}
           onChange={(e) => {

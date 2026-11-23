@@ -111,7 +111,7 @@ export function Importar69BModal({
             <h3 id="modal-69b-title" className="text-sm font-bold text-slate-900">
               Padrón Oficial Lista Negra SAT (Art. 69-B CFF)
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Actualiza la base de contribuyentes no localizados, presuntos y definitivos
             </p>
           </div>
@@ -120,7 +120,7 @@ export function Importar69BModal({
           type="button"
           onClick={onClose}
           aria-label="Cerrar modal de Lista Negra 69-B"
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -149,10 +149,10 @@ export function Importar69BModal({
         </div>
 
         <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 text-center bg-slate-50 hover:bg-slate-100/70 transition-colors">
-          <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-400 mb-2" aria-hidden="true" />
+          <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-500 mb-2" aria-hidden="true" />
           <label
             htmlFor="csv-69b-upload"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white cursor-pointer mb-1"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 focus-within:outline-2 focus-within:outline-blue-600 focus-within:outline-offset-2 text-white cursor-pointer mb-1"
           >
             <input
               id="csv-69b-upload"
@@ -165,7 +165,7 @@ export function Importar69BModal({
             <Upload className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Seleccionar archivo Listado_Completo_69-B.csv</span>
           </label>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-slate-600">
             {fileName ? `Archivo: ${fileName}` : 'Formato oficial de texto separado por comas o punto y coma'}
           </p>
         </div>
@@ -180,7 +180,7 @@ export function Importar69BModal({
         )}
 
           {isProcessing && (
-            <div className="text-center py-2 text-slate-600 font-semibold">
+            <div role="status" aria-live="polite" aria-busy="true" className="text-center py-2 text-slate-600 font-semibold">
               Procesando y clasificando registros oficiales del SAT...
             </div>
           )}

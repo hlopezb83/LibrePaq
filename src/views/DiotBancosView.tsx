@@ -49,6 +49,7 @@ export function DiotBancosView() {
     createPolizaFromBankMutation,
     unmatchBankLineMutation,
     addBankLineMutation,
+    activeBankLineId,
     handleCsvUpload,
     handleDownloadDiotTxt,
     handleExportDiotCsv,
@@ -105,6 +106,7 @@ export function DiotBancosView() {
             isCreatePolizaPending={createPolizaFromBankMutation.isPending}
             onUnmatchBankLine={(id) => unmatchBankLineMutation.mutate(id)}
             isUnmatchPending={unmatchBankLineMutation.isPending}
+            activeBankLineId={activeBankLineId}
             bFecha={bFecha}
             setBFecha={setBFecha}
             bRef={bRef}

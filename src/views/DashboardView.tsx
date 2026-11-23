@@ -100,6 +100,7 @@ export function DashboardView() {
         company={company}
         mesActualNombre={mesActualNombre}
         cfdisPendientesCount={kpis.cfdisPendientesContabilizar}
+        isPeriodLocked={isPeriodLocked}
         onOpenDeliverables={() => openDeliverables()}
       />
 
@@ -140,7 +141,9 @@ export function DashboardView() {
         margenOperativo={margenOperativo}
         razonCoberturaBancos={razonCoberturaBancos}
         onOpenLedger={handleOpenLedgerByCode}
-        onNavigateReportes={() => navigate({ to: '/reportes' })}
+        onNavigateReportes={() =>
+          navigate({ to: '/reportes', search: { tab: 'RESULTADOS' } as unknown as Record<string, string> })
+        }
       />
 
       {/* Ciclo Contable Mensual del Despacho (5 Etapas de Negocio) */}
@@ -160,6 +163,7 @@ export function DashboardView() {
           isBatchPending={batchAutoPolizaMutation.isPending}
           onBatchAutoPoliza={(ids) => batchAutoPolizaMutation.mutate(ids)}
           isSinglePending={autoPolizaMutation.isPending}
+          pendingCfdiId={autoPolizaMutation.isPending ? autoPolizaMutation.variables : null}
           onSingleAutoPoliza={(id) => autoPolizaMutation.mutate(id)}
           isPeriodLocked={isPeriodLocked}
         />

@@ -4,6 +4,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { checkRfc69BStatus } from '../../shared/sat-69b';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { DiotReportResponse } from '../../shared/types';
+import { DiotSuppliersTable } from './DiotSuppliersTable';
 
 export interface DiotDeclaracionTabProps {
   isLoadingDiot: boolean;
@@ -31,7 +32,7 @@ export function DiotDeclaracionTab({
 
   if (isErrorDiot) {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
+      <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
         <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
           <ShieldAlert className="w-6 h-6" aria-hidden="true" />
         </div>
@@ -54,7 +55,7 @@ export function DiotDeclaracionTab({
 
   if (isLoadingDiot || !diotData) {
     return (
-      <div className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
+      <div role="status" aria-live="polite" aria-busy="true" className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-600">
         Calculando operaciones con terceros y determinación de IVA...
       </div>
     );
@@ -200,88 +201,22 @@ export function DiotDeclaracionTab({
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse erp-sticky-table">
-            <caption className="visually-hidden">
-              Padrón de terceros para la declaración DIOT del SAT
-            </caption>
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                <th scope="col" className="py-3 px-4">Tercero / Operación</th>
-                <th scope="col" className="py-3 px-4">RFC Proveedor</th>
-                <th scope="col" className="py-3 px-4">Nombre / Razón Social</th>
-                <th scope="col" className="py-3 px-4 text-right">Actos Pagados 16%</th>
-                <th scope="col" className="py-3 px-4 text-right">IVA Acreditable 16%</th>
-                <th scope="col" className="py-3 px-4 text-right">IVA Retenido</th>
-                <th scope="col" className="py-3 px-4 text-right">ISR Retenido</th>
-                <th scope="col" className="py-3 px-4">Línea Batch SAT (.txt)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-xs">
-              {rowsWithEfos.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-10 px-4 text-center text-slate-500">
-                    No se registraron operaciones pagadas y contabilizadas con proveedores en {mesName} {diotData.ejercicio}.
-                  </td>
-                </tr>
-              ) : (
-                rowsWithEfos.map((r) => (
-                  <tr
-                    key={r.rfc}
-                    className={
-                      r.isEfos ? 'bg-red-50/70 hover:bg-red-50 transition' : 'hover:bg-blue-50/30 transition'
-                    }
-                  >
-                  <td className="py-3 px-4 font-mono">
-                    <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-[11px]">
-                      {r.tipoTercero} / {r.tipoOperacion}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-mono font-bold text-blue-800">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span>{r.rfc}</span>
-                      {r.isEfos && (
-                        <span
-                          title={`Proveedor publicado en lista negra del SAT Art. 69-B (${r.efosStatus})`}
-                          className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-900 border border-red-300"
-                        >
-                          69-B {r.efosStatus}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 font-medium text-slate-900">
-                    {r.nombre}{' '}
-                    <span className="text-[11px] text-slate-500 font-normal">
-                      ({r.cfdiCount} CFDI)
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900">
-                    {formatCurrency(r.actosPagados16)}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-slate-900 font-semibold">
-                    {formatCurrency(r.ivaAcreditable16)}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-red-700">
-                    {formatCurrency(r.ivaRetenido)}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-red-700">
-                    {formatCurrency(r.isrRetenido)}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-[11px] text-slate-500">
-                    <code>{r.batchLine}</code>
-                  </td>
-                </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DiotSuppliersTable
+          rows={rowsWithEfos}
+          mesName={mesName}
+          ejercicio={diotData.ejercicio}
+          totals={{
+            actosPagados16: diotData.totals.actosPagados16,
+            ivaAcreditable16: diotData.totals.ivaAcreditable16,
+            ivaRetenido: diotData.totals.ivaRetenido,
+            isrRetenido: diotData.totals.isrRetenido
+          }}
+        />
 
         {/* Visor del Archivo Batch .TXT DIOT */}
         <div className="p-4 bg-[#0A1120] text-slate-200 border-t border-slate-800 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-mono text-slate-400">
+            <span className="font-mono text-slate-300">
               Vista Previa Carga Batch SAT ({diotData.filename})
             </span>
             <button

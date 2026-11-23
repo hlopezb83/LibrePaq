@@ -39,10 +39,22 @@ function CfdiActionsCellBase({
   onOpenXmlViewer
 }: CfdiActionsCellProps) {
   const isConfirmingDelete = confirmDeleteCfdiId === row.id;
+  const isCancelledSat = row.statusSat === 'CANCELADO';
+  const isContabilizarDisabled = isPeriodLocked || isCancelledSat;
 
   if (isConfirmingDelete) {
     return (
-      <div className="flex items-center justify-end gap-1">
+      <div
+        role="alertdialog"
+        aria-label={`Confirmar eliminación de ${row.serie}-${row.folio}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            setConfirmDeleteCfdiId(null);
+          }
+        }}
+        className="flex items-center justify-end gap-1"
+      >
         <button
           type="button"
           disabled={isDeletePending}
@@ -53,6 +65,7 @@ function CfdiActionsCellBase({
         </button>
         <button
           type="button"
+          autoFocus
           onClick={() => setConfirmDeleteCfdiId(null)}
           className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
         >
@@ -63,20 +76,23 @@ function CfdiActionsCellBase({
   }
 
   return (
-    <div className="flex items-center justify-end gap-1.5">
+    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
       {!row.polizaId && (
         <button
           type="button"
-          disabled={isPeriodLocked}
+          disabled={isContabilizarDisabled}
           onClick={() => onOpenContabilizarModal(row)}
+          aria-label={`Contabilizar ${row.serie}-${row.folio}`}
           title={
             isPeriodLocked
               ? 'Periodo bloqueado ante el SAT. No se pueden generar pólizas.'
+              : isCancelledSat
+              ? 'CFDI cancelado ante el SAT — no deducible ni contabilizable'
               : 'Contabilizar CFDI y generar póliza cuadrada'
           }
           className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-2xs transition ${
-            isPeriodLocked
-              ? 'opacity-40 cursor-not-allowed bg-slate-400'
+            isContabilizarDisabled
+              ? 'opacity-50 cursor-not-allowed bg-slate-500'
               : 'bg-blue-700 hover:bg-blue-800 cursor-pointer'
           }`}
         >
@@ -135,7 +151,7 @@ function CfdiActionsCellBase({
           aria-label={`Eliminar CFDI ${row.serie}-${row.folio}`}
           className={`p-1.5 rounded-lg transition ${
             isPeriodLocked
-              ? 'opacity-30 cursor-not-allowed text-slate-300'
+              ? 'opacity-40 cursor-not-allowed text-slate-400'
               : 'text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer'
           }`}
         >

@@ -285,9 +285,13 @@ export function WizardStep1Identity({
             onChange={(e) => setCurrentYear(Number(e.target.value))}
             className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold font-mono bg-white cursor-pointer"
           >
-            <option value={2025}>2025</option>
-            <option value={2026}>2026</option>
-            <option value={2027}>2027</option>
+            {Array.from(new Set([2022, 2023, 2024, 2025, 2026, 2027, currentYear]))
+              .sort((a, b) => a - b)
+              .map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))}
           </select>
         </div>
 

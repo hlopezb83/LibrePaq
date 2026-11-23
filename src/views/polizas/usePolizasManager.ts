@@ -179,6 +179,7 @@ export function usePolizasManager() {
       { _rowId: crypto.randomUUID(), accountId: defaultAcc2, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 }
     ]);
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+    requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
   }, [defaultPeriodDate, affectableAccounts]);
 
   const openEditPolizaModal = useCallback((pol: Poliza) => {
@@ -199,6 +200,7 @@ export function usePolizasManager() {
       }))
     );
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+    requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
   }, []);
 
   const openDuplicatePolizaModal = (pol: Poliza) => {
@@ -266,12 +268,17 @@ export function usePolizasManager() {
   };
 
   const handleExportPolizasCsv = () => {
+    if (filteredPolizas.length === 0) {
+      toast.info('Sin pólizas visibles para exportar', 'Ajusta los filtros o captura una póliza primero.');
+      return;
+    }
     exportPolizasCsv(
       filteredPolizas,
       activeCompany?.rfc || activeCompanyId,
       currentYear,
       currentPeriod
     );
+    toast.success('Pólizas exportadas en CSV');
   };
 
   const isDateDifferentPeriod = useMemo(() => {

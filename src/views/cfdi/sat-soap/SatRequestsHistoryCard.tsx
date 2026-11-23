@@ -105,13 +105,13 @@ export function SatRequestsHistoryCard({
                           ? '📤 Emitidas (Ingresos)'
                           : '📥 Recibidas (Gastos)'}
                       </span>
-                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-500" aria-hidden="true">•</span>
                       <span className="text-slate-600 text-[11px]">
                         {r.fechaInicial} al {r.fechaFinal}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
                       <span>Folio:</span>
                       <strong className="text-slate-800 truncate max-w-[140px] sm:max-w-[200px]" title={r.idSolicitudSat}>
                         {r.idSolicitudSat}
@@ -119,10 +119,11 @@ export function SatRequestsHistoryCard({
                       <button
                         type="button"
                         onClick={() => handleCopy(r.idSolicitudSat)}
+                        aria-label={`Copiar folio SAT ${r.idSolicitudSat}`}
                         title="Copiar Folio SAT"
-                        className="p-0.5 text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                        className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                       >
-                        <Copy className="w-3 h-3" />
+                        <Copy className="w-3 h-3" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -174,7 +175,7 @@ export function SatRequestsHistoryCard({
                       </span>
                     )}
 
-                    <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                    <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
                       {r.createdAt?.slice(5, 16).replace('T', ' ')}
                     </span>
                   </div>

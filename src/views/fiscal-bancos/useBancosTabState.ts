@@ -218,6 +218,12 @@ export function useBancosTabState(params: {
     });
   };
 
+  const activeBankLineId = createPolizaFromBankMutation.isPending
+    ? createPolizaFromBankMutation.variables ?? null
+    : unmatchBankLineMutation.isPending
+    ? unmatchBankLineMutation.variables ?? null
+    : null;
+
   return {
     addBankModalRef,
     csvInputRef,
@@ -244,6 +250,7 @@ export function useBancosTabState(params: {
     createPolizaFromBankMutation,
     unmatchBankLineMutation,
     addBankLineMutation,
+    activeBankLineId,
     handleCsvUpload,
     reconFormula,
     handleAddBankLineSubmit

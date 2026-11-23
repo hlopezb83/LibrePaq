@@ -66,7 +66,10 @@ export async function importCatalogoCsvFile(
 
   for (const line of lines) {
     const cols = splitCsvLine(line);
-    const rawCode = cols[0] ?? '';
+    const rawInput = (cols[0] ?? '').trim();
+    const rawCode = /^\d{8}$/.test(rawInput)
+      ? `${rawInput.slice(0, 3)}-${rawInput.slice(3, 5)}-${rawInput.slice(5, 8)}`
+      : rawInput;
     const rawName = cols[1] ?? '';
     if (!/^\d{3}-\d{2}-\d{3}$/.test(rawCode) || !rawName) continue;
     const rawSat = cols[2] || undefined;

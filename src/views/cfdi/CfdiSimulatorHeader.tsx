@@ -29,7 +29,7 @@ export function CfdiSimulatorHeader({
             <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 text-[11px] font-bold">
               {activeCompany?.rfc}
             </span>
-            <span className="text-slate-400">•</span>
+            <span className="text-slate-500" aria-hidden="true">•</span>
             <span className="font-mono text-[11px] text-blue-700 font-semibold">
               Periodo P{String(currentPeriod).padStart(2, '0')}/{currentYear}
             </span>
@@ -39,7 +39,7 @@ export function CfdiSimulatorHeader({
           type="button"
           onClick={onClose}
           aria-label="Cerrar ventana"
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
         >
           <X className="w-5 h-5" aria-hidden="true" />
         </button>

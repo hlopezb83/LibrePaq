@@ -5,16 +5,23 @@ import type { FixedAssetWithCalculation } from '../../shared/types';
 
 export interface ActivosFijosTableProps {
   assets: FixedAssetWithCalculation[];
+  isPeriodLocked?: boolean;
   onDeleteAsset: (id: string) => void;
   isDeleting: boolean;
 }
 
 export function ActivosFijosTable({
   assets,
+  isPeriodLocked = false,
   onDeleteAsset,
   isDeleting
 }: ActivosFijosTableProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const totalMoi = assets.reduce((s, a) => s + a.montoOriginalInversion, 0);
+  const totalDepContable = assets.reduce((s, a) => s + a.depreciacionMensualContable, 0);
+  const totalDepFiscal = assets.reduce((s, a) => s + a.depreciacionMensualFiscalActualizada, 0);
+  const totalValorLibros = assets.reduce((s, a) => s + a.valorNetoEnLibros, 0);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -73,10 +80,20 @@ export function ActivosFijosTable({
               </td>
               <td className="py-2.5 px-3 text-right">
                 {confirmDeleteId === asset.id ? (
-                  <div className="flex items-center justify-end gap-1.5">
+                  <div
+                    role="alertdialog"
+                    aria-label={`Confirmar baja de ${asset.codigo}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setConfirmDeleteId(null);
+                      }
+                    }}
+                    className="flex items-center justify-end gap-1.5"
+                  >
                     <button
                       type="button"
-                      disabled={isDeleting}
+                      disabled={isDeleting || isPeriodLocked}
                       onClick={() => {
                         onDeleteAsset(asset.id);
                         setConfirmDeleteId(null);
@@ -87,6 +104,7 @@ export function ActivosFijosTable({
                     </button>
                     <button
                       type="button"
+                      autoFocus
                       onClick={() => setConfirmDeleteId(null)}
                       className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] hover:bg-slate-300 cursor-pointer"
                     >
@@ -96,11 +114,11 @@ export function ActivosFijosTable({
                 ) : (
                   <button
                     type="button"
-                    disabled={isDeleting}
+                    disabled={isDeleting || isPeriodLocked}
                     onClick={() => setConfirmDeleteId(asset.id)}
-                    title="Eliminar activo fijo"
+                    title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : 'Eliminar activo fijo'}
                     aria-label={`Eliminar activo fijo ${asset.codigo} — ${asset.nombre}`}
-                    className="p-1 text-slate-400 hover:text-red-700 cursor-pointer disabled:opacity-50"
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
@@ -110,6 +128,30 @@ export function ActivosFijosTable({
             ))
           )}
         </tbody>
+        {assets.length > 0 && (
+          <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-mono text-xs font-bold text-slate-900">
+            <tr>
+              <td colSpan={2} className="py-2.5 px-3 font-sans text-right uppercase tracking-wider text-slate-700">
+                Totales ({assets.length} activos):
+              </td>
+              <td className="py-2.5 px-3 text-right whitespace-nowrap tabular-nums">
+                {formatCurrency(totalMoi)}
+              </td>
+              <td />
+              <td className="py-2.5 px-3 text-right text-blue-800 whitespace-nowrap tabular-nums">
+                {formatCurrency(totalDepContable)}
+              </td>
+              <td />
+              <td className="py-2.5 px-3 text-right text-emerald-800 whitespace-nowrap tabular-nums">
+                {formatCurrency(totalDepFiscal)}
+              </td>
+              <td className="py-2.5 px-3 text-right whitespace-nowrap tabular-nums">
+                {formatCurrency(totalValorLibros)}
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

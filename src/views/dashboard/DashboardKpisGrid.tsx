@@ -179,8 +179,12 @@ export function DashboardKpisGrid({
             <div className="font-mono font-bold text-sm text-slate-900">{formatCurrency(kpis.cuentasPorPagar)}</div>
             <span className="text-[10px] text-blue-700 font-medium">Ver auxiliar →</span>
           </button>
-          <div className="space-y-1 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0 sm:pl-3">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">IVA Neto del Mes (SAT)</span>
+          <Link
+            to="/fiscal-bancos"
+            title="Abrir Cédula Fiscal Día 17 e impuestos mensuales ante el SAT"
+            className="space-y-1 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0 sm:pl-3 block hover:bg-slate-50 rounded-lg p-1 -m-1 sm:m-0 transition cursor-pointer"
+          >
+            <span className="text-[10px] uppercase font-bold text-slate-600 block">IVA Neto del Mes (SAT)</span>
             <div
               className={`font-mono font-bold text-sm ${
                 kpis.ivaPorPagarNeto > 0
@@ -197,8 +201,8 @@ export function DashboardKpisGrid({
                 ? '(A Favor)'
                 : '(En ceros)'}
             </div>
-            <span className="text-[10px] text-slate-500">Proyección liquidación Día 17</span>
-          </div>
+            <span className="text-[10px] text-blue-700 font-medium">Ver Cédula Día 17 →</span>
+          </Link>
           <div className="space-y-1 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0 sm:pl-3">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Bóveda Digital ADD</span>
             <div className="font-mono font-bold text-sm text-slate-900">

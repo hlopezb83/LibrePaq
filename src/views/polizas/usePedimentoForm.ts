@@ -40,7 +40,7 @@ export function usePedimentoForm({
 
   const [aduana, setAduana] = useState('240');
   const [patente, setPatente] = useState('3820');
-  const [ano, setAno] = useState('24');
+  const [ano, setAno] = useState(() => String(currentYear).slice(-2));
   const [consecutivo, setConsecutivo] = useState('4001234');
   const [clave, setClave] = useState<'A1' | 'IN' | 'AF'>('A1');
   const clampPeriod = Math.max(1, Math.min(12, currentPeriod));

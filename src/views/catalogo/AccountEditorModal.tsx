@@ -62,6 +62,10 @@ export function AccountEditorModal({
   isSaving
 }: AccountEditorModalProps) {
   useDialogLightDismiss(dialogRef, onClose);
+  const selectedParent = parentCode
+    ? accounts.find((a) => a.code === parentCode)
+    : undefined;
+  const computedLevel = selectedParent ? selectedParent.level + 1 : 1;
 
   return (
     <dialog
@@ -140,6 +144,7 @@ export function AccountEditorModal({
                     setType(parentObj.type);
                     setNature(parentObj.nature);
                     setLevel(parentObj.level + 1);
+                    if (parentObj.satGroupCode) setSatGroupCode(parentObj.satGroupCode);
                     setCode(suggestNextCodeForParent(pCode));
                   } else {
                     setLevel(1);
@@ -157,16 +162,27 @@ export function AccountEditorModal({
             </div>
 
             <div>
-              <label
-                htmlFor="acc-code"
-                className="block text-xs font-semibold text-slate-700 mb-1"
-              >
-                Código Sugerido (XXX-XX-XXX) *
-              </label>
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <label
+                  htmlFor="acc-code"
+                  className="block text-xs font-semibold text-slate-700"
+                >
+                  Código Sugerido (XXX-XX-XXX) *
+                </label>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                  computedLevel >= 3
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}>
+                  N{computedLevel} · {computedLevel >= 3 ? 'Afectable' : 'Mayor'}
+                </span>
+              </div>
               <input
                 id="acc-code"
                 type="text"
                 required
+                pattern="\d{3}-\d{2}-\d{3}"
+                title="Formato requerido: 3 dígitos, guion, 2 dígitos, guion, 3 dígitos (ej. 601-01-006)"
                 disabled={Boolean(editingAccountId)}
                 autoCorrect="off"
                 autoCapitalize="off"
@@ -188,6 +204,7 @@ export function AccountEditorModal({
             <input
               id="acc-name"
               type="text"
+              autoFocus
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -217,11 +234,19 @@ export function AccountEditorModal({
               }}
               className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white"
             >
-              {SAT_GROUP_CODES.map((s) => (
-                <option key={s.code} value={s.code}>
-                  [{s.code}] {s.name} ({s.type} - {s.nature})
-                </option>
-              ))}
+              {(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS'] as const).map((grp) => {
+                const items = SAT_GROUP_CODES.filter((s) => s.type === grp);
+                if (items.length === 0) return null;
+                return (
+                  <optgroup key={grp} label={grp}>
+                    {items.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        [{s.code}] {s.name} ({s.nature})
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
           </div>
 

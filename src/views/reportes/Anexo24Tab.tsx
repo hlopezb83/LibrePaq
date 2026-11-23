@@ -165,6 +165,12 @@ export function Anexo24Tab({
               Esquema XSD SAT 1.3 Válido ✔
             </span>
           </figcaption>
+          <p className="text-[11px] text-slate-600 px-1">
+            Regla 2.8.1.5 RMF:{' '}
+            {satXmlType === 'polizas'
+              ? 'El archivo de Pólizas (PL) se presenta ante el SAT únicamente en solicitudes de devolución, compensación o facultades de comprobación.'
+              : 'Empaqueta este archivo XML dentro de un comprimido .ZIP conservando exactamente la nomenclatura oficial del SAT para enviarlo por Buzón Tributario.'}
+          </p>
           <pre
             tabIndex={0}
             className="p-4 rounded-xl bg-[#0A1120] text-emerald-300 text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800 shadow-inner"

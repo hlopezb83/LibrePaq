@@ -38,8 +38,6 @@ export function PolizaEditorFooter({
 
   return (
     <div
-      role="status"
-      aria-live="polite"
       className={`sticky bottom-0 z-20 p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold backdrop-blur-md shadow-lg transition-colors ${
         isBalanced
           ? 'bg-emerald-50/95 border-emerald-300 text-emerald-950'
@@ -54,7 +52,7 @@ export function PolizaEditorFooter({
             <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
             </div>
-            <div>
+            <div role="status" aria-live="polite">
               <span className="font-bold block text-emerald-900">
                 Póliza Cuadrada — Sumas Iguales Verificadas
               </span>
@@ -72,7 +70,7 @@ export function PolizaEditorFooter({
               <span className="font-bold block text-slate-800">
                 Póliza en Captura — Sin importes registrados
               </span>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-slate-600">
                 Ingresa las cuentas y montos en Cargos (Debe) y Abonos (Haber) para balancear • Pulsa{' '}
                 <kbd className="font-mono bg-white px-1 py-0.5 rounded border border-slate-300 text-slate-700 font-bold">Tab</kbd>
                 {' para avanzar'}

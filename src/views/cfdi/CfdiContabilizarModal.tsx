@@ -45,16 +45,29 @@ export function CfdiContabilizarModal({
   const totalAbonos = previewMovements.reduce((acc, m) => acc + (m.abono || 0), 0);
   const diffCents = Math.abs(Math.round(totalCargos * 100) - Math.round(totalAbonos * 100));
   const isBalanced = diffCents === 0;
+  const counterpartyRfc = selectedCfdi
+    ? selectedCfdi.direction === 'EMITIDO'
+      ? selectedCfdi.receptorRfc
+      : selectedCfdi.emisorRfc
+    : '';
+  const efosCheck = counterpartyRfc ? checkRfc69BStatus(counterpartyRfc) : { isEfos: false };
 
   return (
     <dialog
       ref={dialogRef}
       closedby="any"
+      onClose={onClose}
       aria-labelledby="modal-contabilizar-title"
       className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-3xl overflow-hidden max-h-[92dvh]"
     >
       {selectedCfdi && (
-        <div className="p-4 sm:p-5 max-h-[92dvh] overflow-y-auto overscroll-contain space-y-3.5">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!isPending && isBalanced) onConfirm();
+          }}
+          className="p-4 sm:p-5 max-h-[92dvh] overflow-y-auto overscroll-contain space-y-3.5"
+        >
           <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center">
@@ -64,7 +77,7 @@ export function CfdiContabilizarModal({
                 <h2 id="modal-contabilizar-title" className="text-base font-bold text-slate-900">
                   Contabilizador Automático CFDI 4.0 → Póliza
                 </h2>
-                <p className="text-xs text-slate-500 font-mono break-all">
+                <p className="text-xs text-slate-600 font-mono break-all">
                   {selectedCfdi.serie}-{selectedCfdi.folio} (Tipo {selectedCfdi.tipoComprobante}) • UUID: {selectedCfdi.uuid}
                 </p>
               </div>
@@ -73,23 +86,41 @@ export function CfdiContabilizarModal({
               type="button"
               onClick={onClose}
               aria-label="Cerrar asistente"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
             >
               <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 
-          {checkRfc69BStatus(selectedCfdi.emisorRfc).isEfos && (
-            <div className="bg-red-50 border border-red-300 rounded-xl p-3 flex items-start gap-2.5 text-red-900 text-xs">
+          {selectedCfdi.statusSat === 'CANCELADO' && (
+            <div role="alert" className="bg-red-50 border border-red-300 rounded-xl p-3 flex items-start gap-2.5 text-red-900 text-xs">
+              <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
+              <div>
+                <div className="font-bold">Comprobante Cancelado ante el SAT</div>
+                <p className="text-[11px] text-red-800 mt-0.5">
+                  Este CFDI figura con estatus CANCELADO en el SAT. Evita contabilizarlo como deducción o acreditamiento.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {efosCheck.isEfos && (
+            <div role="alert" className="bg-red-50 border border-red-300 rounded-xl p-3 flex items-start gap-2.5 text-red-900 text-xs">
               <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
               <div>
                 <div className="font-bold">
-                  ⚠️ Emisor en Lista Negra SAT (Art. 69-B CFF - {checkRfc69BStatus(selectedCfdi.emisorRfc).record?.situacion || 'EFOS'})
+                  ⚠️ {selectedCfdi.direction === 'EMITIDO' ? 'Receptor' : 'Emisor'} en Lista Negra SAT (Art. 69-B CFF - {('record' in efosCheck ? efosCheck.record?.situacion : undefined) || 'EFOS'})
                 </div>
                 <p className="text-[11px] text-red-800 mt-0.5 leading-relaxed">
-                  El RFC <strong>{selectedCfdi.emisorRfc}</strong> está catalogado como EFOS por la autoridad fiscal. Los comprobantes fiscales presuntamente no producen efectos deducibles ni acreditables.
+                  El RFC <strong>{counterpartyRfc}</strong> está catalogado como EFOS por la autoridad fiscal. Los comprobantes fiscales presuntamente no producen efectos deducibles ni acreditables.
                 </p>
               </div>
+            </div>
+          )}
+
+          {selectedCfdi.tipoComprobante === 'P' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 text-[11px] text-blue-900">
+              <strong>REP 2.0 (Complemento de Pago):</strong> este asiento liquida el saldo pendiente PPD y reclasifica el IVA efectivamente pagado/cobrado del periodo.
             </div>
           )}
 
@@ -263,17 +294,16 @@ export function CfdiContabilizarModal({
               Cancelar
             </button>
             <button
-              type="button"
+              type="submit"
               disabled={isPending || !isBalanced}
               title={!isBalanced ? 'El asiento proyectado está descuadrado' : undefined}
-              onClick={onConfirm}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
             >
               <Sparkles className="w-4 h-4" aria-hidden="true" />
               {isPending ? 'Generando Póliza...' : 'Confirmar y Generar Póliza'}
             </button>
           </div>
-        </div>
+        </form>
       )}
     </dialog>
   );

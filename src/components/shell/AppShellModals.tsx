@@ -121,8 +121,11 @@ export function AppShellModals({
           onSelectRoute={(to) => navigate({ to })}
           onSelectAccount={(id) => setGlobalLedgerAccountId(id)}
           onSelectCompany={(id) => {
-            setActiveCompanyId(id);
             const comp = companies.find((c) => c.id === id);
+            if (comp && comp.id !== activeCompanyId) {
+              setLastSwitchedCompany(comp);
+            }
+            setActiveCompanyId(id);
             if (comp) {
               toast.success(`Empresa activa: ${comp.name} (${comp.rfc})`);
             }

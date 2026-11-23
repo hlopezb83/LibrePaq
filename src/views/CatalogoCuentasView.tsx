@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useUIModal } from '../context/UIModalContext';
 import { AccountEditorModal } from './catalogo/AccountEditorModal';
@@ -85,7 +85,8 @@ export function CatalogoCuentasView() {
     setCollapsedCodes: manager.setCollapsedCodes,
     openCreateModal,
     openEditModal,
-    openCreateSubaccountModal
+    openCreateSubaccountModal,
+    onOpenLedger: openLedger
   });
 
   const typeFilters = [
@@ -115,6 +116,19 @@ export function CatalogoCuentasView() {
         onExportCsv={handleExportCsv}
         onOpenCreateModal={openCreateModal}
       />
+
+      {isPeriodLocked && (
+        <div
+          role="status"
+          className="px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center gap-2 shadow-2xs"
+        >
+          <Lock className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+          <span>
+            <strong>Periodo {String(activeCompany?.currentPeriod ?? 1).padStart(2, '0')}/{currentYear} bloqueado ante el SAT:</strong>{' '}
+            El catálogo se encuentra en modo de consulta y auditoría de Libro Mayor (altas, ediciones y bajas deshabilitadas).
+          </span>
+        </div>
+      )}
 
       {/* Barra de Búsqueda, Expansión Jerárquica y Filtros */}
       <CatalogoFilterBar

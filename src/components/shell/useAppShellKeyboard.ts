@@ -30,6 +30,13 @@ export function useAppShellKeyboard({
   activeCompany
 }: UseAppShellKeyboardProps) {
   useEffect(() => {
+    const isEditableTarget = () => {
+      const active = document.activeElement as HTMLElement | null;
+      if (!active) return false;
+      const tag = active.tagName.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F1') {
         e.preventDefault();
@@ -42,8 +49,7 @@ export function useAppShellKeyboard({
       }
 
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const activeTag = (document.activeElement?.tagName || '').toLowerCase();
-        if (activeTag !== 'input' && activeTag !== 'textarea') {
+        if (!isEditableTarget()) {
           e.preventDefault();
           if (!shortcutsDialogRef.current?.open) {
             openShortcutsModal();
@@ -65,8 +71,7 @@ export function useAppShellKeyboard({
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
-        const activeTag = (document.activeElement?.tagName || '').toLowerCase();
-        if (activeTag !== 'input' && activeTag !== 'textarea') {
+        if (!isEditableTarget()) {
           e.preventDefault();
           if (!switcherDialogRef.current?.open) {
             openCompanySwitcherModal();
@@ -78,8 +83,7 @@ export function useAppShellKeyboard({
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
-        const activeTag = (document.activeElement?.tagName || '').toLowerCase();
-        if (activeTag !== 'input' && activeTag !== 'textarea') {
+        if (!isEditableTarget()) {
           e.preventDefault();
           setSidebarCollapsed((prev) => !prev);
           return;
@@ -91,8 +95,7 @@ export function useAppShellKeyboard({
           return;
         }
 
-        const activeTag = (document.activeElement?.tagName || '').toLowerCase();
-        if (activeTag !== 'input' && activeTag !== 'textarea') {
+        if (!isEditableTarget()) {
           if (e.key === '[' || e.key === 'PageUp') {
             e.preventDefault();
             stepPeriod(-1);
@@ -108,6 +111,10 @@ export function useAppShellKeyboard({
           const targetItem = navItems[idx];
           if (targetItem) {
             e.preventDefault();
+            if (!activeCompany && idx > 0) {
+              navigate({ to: '/' });
+              return;
+            }
             navigate({ to: targetItem.to });
           }
         }

@@ -102,9 +102,15 @@ export function useWorkspaceEmptyActions({
       onCompanyRestored(res.id, res);
       toast.success(`Empresa ${res.name} restaurada en tu Despacho`);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'El archivo seleccionado no es un respaldo válido'
-      );
+      if (err instanceof SyntaxError) {
+        toast.error(
+          'El archivo seleccionado no tiene un formato de respaldo válido de LibrePaq Pro. Verifica que no sea una factura XML o PDF.'
+        );
+      } else {
+        toast.error(
+          err instanceof Error ? err.message : 'El archivo seleccionado no es un respaldo válido'
+        );
+      }
     } finally {
       setIsRestoring(false);
     }

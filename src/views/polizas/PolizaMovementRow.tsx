@@ -21,6 +21,9 @@ export interface PolizaMovementRowProps {
   abonoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   setMovements: React.Dispatch<React.SetStateAction<DraftMovement[]>>;
   applyBalanceToRow: (idx: number, type: 'cargo' | 'abono') => void;
+  addIva16Line: (idx: number) => void;
+  onRowFocus: (idx: number) => void;
+  onDeleteRow: (idx: number) => void;
   autoBalanceDifference: () => void;
   onLastRowSubmitFocus: () => void;
 }
@@ -41,6 +44,9 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
   abonoRefs,
   setMovements,
   applyBalanceToRow,
+  addIva16Line,
+  onRowFocus,
+  onDeleteRow,
   autoBalanceDifference,
   onLastRowSubmitFocus
 }: PolizaMovementRowProps) {
@@ -190,7 +196,13 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
           aria-label={`Cargo partida ${idx + 1}`}
           value={mov.cargo || ''}
           placeholder="0.00"
+          onFocus={() => onRowFocus(idx)}
           onKeyDown={(e) => {
+            if (e.key === 'F4') {
+              e.preventDefault();
+              addIva16Line(idx);
+              return;
+            }
             if (['e', 'E', '+', '-'].includes(e.key)) {
               e.preventDefault();
               return;
@@ -204,8 +216,18 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
             }
             if (e.key === 'Enter') {
               e.preventDefault();
-              abonoRefs.current[idx]?.focus();
-              abonoRefs.current[idx]?.select();
+              if (mov.cargo > 0) {
+                if (isLastRow) {
+                  if (Math.abs(difference) >= 0.01) autoBalanceDifference();
+                  else onLastRowSubmitFocus();
+                } else {
+                  accountRefs.current[idx + 1]?.focus();
+                  accountRefs.current[idx + 1]?.select();
+                }
+              } else {
+                abonoRefs.current[idx]?.focus();
+                abonoRefs.current[idx]?.select();
+              }
             }
           }}
           onChange={(e) => {
@@ -246,7 +268,13 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
           aria-label={`Abono partida ${idx + 1}`}
           value={mov.abono || ''}
           placeholder="0.00"
+          onFocus={() => onRowFocus(idx)}
           onKeyDown={(e) => {
+            if (e.key === 'F4') {
+              e.preventDefault();
+              addIva16Line(idx);
+              return;
+            }
             if (['e', 'E', '+', '-'].includes(e.key)) {
               e.preventDefault();
               return;
@@ -303,8 +331,8 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
           <button
             type="button"
             aria-label={`Eliminar partida ${idx + 1}`}
-            onClick={() => setMovements((prev) => prev.filter((_, i) => i !== idx))}
-            className="p-1 text-slate-400 hover:text-red-700 cursor-pointer rounded hover:bg-red-50 transition"
+            onClick={() => onDeleteRow(idx)}
+            className="min-w-[28px] min-h-[28px] inline-flex items-center justify-center p-1 text-slate-600 hover:text-red-700 cursor-pointer rounded hover:bg-red-50 transition"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
           </button>

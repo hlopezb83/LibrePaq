@@ -84,6 +84,12 @@ export function CompanyOnboardingWizardModal({
       ref={dialogRef}
       closedby="closerequest"
       aria-labelledby="onboarding-wizard-title"
+      onCancel={(e) => {
+        if (step > 1) {
+          e.preventDefault();
+          prevStep();
+        }
+      }}
       className="rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl overflow-hidden max-h-[92dvh]"
     >
       <div className="flex flex-col h-full max-h-[92dvh]">
@@ -117,9 +123,16 @@ export function CompanyOnboardingWizardModal({
             </button>
           </div>
 
-          <div className="flex items-center justify-between gap-1 pt-0.5">
+          <div
+            role="progressbar"
+            aria-valuenow={step}
+            aria-valuemin={1}
+            aria-valuemax={5}
+            aria-label={`Progreso de alta de empresa: paso ${step} de 5`}
+            className="flex items-center justify-between gap-1 pt-0.5"
+          >
             {[1, 2, 3, 4, 5].map((s) => (
-              <div key={s} className="flex-1 flex items-center gap-1.5">
+              <div key={s} aria-hidden="true" className="flex-1 flex items-center gap-1.5">
                 <div
                   className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
                     s < step

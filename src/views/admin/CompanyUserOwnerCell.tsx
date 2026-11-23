@@ -12,13 +12,13 @@ export function CompanyUserOwnerCell({ company }: CompanyUserOwnerCellProps) {
     return (
       <div className="inline-flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 border border-slate-200 flex items-center justify-center shrink-0">
-          <Database className="w-3.5 h-3.5" />
+          <Database className="w-3.5 h-3.5" aria-hidden="true" />
         </div>
         <div>
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
             Sistema / Demo
           </span>
-          <p className="text-[11px] text-slate-400 mt-0.5">Sin usuario asignado</p>
+          <p className="text-[11px] text-slate-600 mt-0.5">Sin usuario asignado</p>
         </div>
       </div>
     );
@@ -51,15 +51,15 @@ export function CompanyUserOwnerCell({ company }: CompanyUserOwnerCellProps) {
             </span>
           ) : (
             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <UserCheck className="w-2.5 h-2.5" />
+              <UserCheck className="w-2.5 h-2.5" aria-hidden="true" />
               Cliente
             </span>
           )}
         </div>
 
         {company.userEmail ? (
-          <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-            <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+          <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
+            <Mail className="w-3 h-3 text-slate-500 shrink-0" aria-hidden="true" />
             <span className="truncate">{company.userEmail}</span>
             {company.userProvider && (
               <span className="uppercase font-mono text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">

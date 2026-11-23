@@ -1,4 +1,5 @@
-import { AlertCircle, Calculator, Check, Copy, FileText, RefreshCw, Save, Sparkles } from 'lucide-react';
+import { AlertCircle, Calculator, Check, Copy, FileText, RefreshCw, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { formatCurrency } from '../../lib/formatters';
 import {
   PapelDia17IsrCard,
   PapelDia17IvaCard,
@@ -33,11 +34,14 @@ export function PapelDia17Tab({
     setCoefUtilidad,
     perdidasAmortizar,
     setPerdidasAmortizar,
+    pagosPreviosInput,
+    setPagosPreviosInput,
     ivaSaldoFavor,
     setIvaSaldoFavor,
     tcCierreUsd,
     setTcCierreUsd,
     hasUnsavedParams,
+    resetTaxParams,
     copiedSatDyp,
     handleCopySatDyp,
     saveTaxParamsMutation,
@@ -47,7 +51,7 @@ export function PapelDia17Tab({
 
   if (isErrorWp) {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
+      <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
         <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
           <AlertCircle className="w-6 h-6" aria-hidden="true" />
         </div>
@@ -71,11 +75,13 @@ export function PapelDia17Tab({
 
   if (loadingWp || !workpaper) {
     return (
-      <div className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
+      <div role="status" aria-live="polite" aria-busy="true" className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-600">
         Calculando Papel de Trabajo Fiscal Día 17 (ISR Provisional + IVA Definitivo + Fluctuación Cambiaria)...
       </div>
     );
   }
+
+  const cap = workpaper.resumenLineaCapturaSat;
 
   return (
     <div className="space-y-5">
@@ -149,11 +155,11 @@ export function PapelDia17Tab({
             e.preventDefault();
             saveTaxParamsMutation.mutate();
           }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
         >
           <div>
             <label htmlFor="dia17-coef-utilidad" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Coeficiente de Utilidad (C.U.)
+              Coeficiente Utilidad (C.U.)
             </label>
             <input
               id="dia17-coef-utilidad"
@@ -162,15 +168,16 @@ export function PapelDia17Tab({
               step="0.0001"
               min="0"
               max="1"
+              disabled={isPeriodLocked}
               title="Coeficiente de Utilidad según última declaración anual (Art. 14 LISR)"
               value={coefUtilidad}
               onChange={(e) => setCoefUtilidad(Number(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
           <div>
             <label htmlFor="dia17-perdidas-amortizar" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Pérdidas Fiscales x Amortizar ($)
+              Pérdidas x Amortizar ($)
             </label>
             <input
               id="dia17-perdidas-amortizar"
@@ -178,15 +185,33 @@ export function PapelDia17Tab({
               inputMode="decimal"
               step="0.01"
               min="0"
+              disabled={isPeriodLocked}
               title="Pérdidas fiscales pendientes de amortizar actualizadas (Art. 57 LISR)"
               value={perdidasAmortizar}
               onChange={(e) => setPerdidasAmortizar(Number(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label htmlFor="dia17-pagos-previos" className="block text-[11px] font-bold text-slate-700 mb-1">
+              Pagos Prov. Anteriores ($)
+            </label>
+            <input
+              id="dia17-pagos-previos"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              disabled={isPeriodLocked}
+              title="Pagos provisionales de ISR enterados previamente en el ejercicio (Art. 14 LISR)"
+              value={pagosPreviosInput}
+              onChange={(e) => setPagosPreviosInput(Number(e.target.value))}
+              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
           <div>
             <label htmlFor="dia17-iva-saldo-favor" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Saldo a Favor IVA Anterior ($)
+              Saldo a Favor IVA Ant. ($)
             </label>
             <input
               id="dia17-iva-saldo-favor"
@@ -194,15 +219,16 @@ export function PapelDia17Tab({
               inputMode="decimal"
               step="0.01"
               min="0"
+              disabled={isPeriodLocked}
               title="Saldo a favor de IVA de meses previos por acreditar (Art. 6 LIVA)"
               value={ivaSaldoFavor}
               onChange={(e) => setIvaSaldoFavor(Number(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
           <div>
             <label htmlFor="dia17-tc-cierre-usd" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Tipo de Cambio Cierre USD (DOF)
+              TC Cierre USD (DOF)
             </label>
             <input
               id="dia17-tc-cierre-usd"
@@ -210,21 +236,34 @@ export function PapelDia17Tab({
               inputMode="decimal"
               step="0.0001"
               min="0"
+              disabled={isPeriodLocked}
               title="Tipo de cambio oficial publicado por el Diario Oficial de la Federación (DOF) al cierre de mes"
               value={tcCierreUsd}
               onChange={(e) => setTcCierreUsd(Number(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end gap-1.5">
             <button
               type="submit"
-              disabled={saveTaxParamsMutation.isPending}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs"
+              disabled={saveTaxParamsMutation.isPending || isPeriodLocked}
+              title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : undefined}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs"
             >
               <Save className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{saveTaxParamsMutation.isPending ? 'Recalculando Cédula...' : 'Recalcular Cédula Día 17'}</span>
+              <span>{saveTaxParamsMutation.isPending ? 'Aplicando...' : 'Recalcular'}</span>
             </button>
+            {hasUnsavedParams && (
+              <button
+                type="button"
+                onClick={resetTaxParams}
+                title="Descartar cambios sin guardar"
+                aria-label="Descartar cambios de parámetros fiscales"
+                className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </form>
 
@@ -234,9 +273,35 @@ export function PapelDia17Tab({
             aria-live="polite"
             className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 font-medium"
           >
-            Tienes parámetros modificados sin aplicar. Haz clic en <strong>Recalcular Cédula Día 17</strong> para actualizar el ISR, IVA y valuación cambiaria.
+            Tienes parámetros modificados sin aplicar. Haz clic en <strong>Recalcular</strong> para actualizar el ISR, IVA y valuación cambiaria.
           </div>
         )}
+      </div>
+
+      {/* Barra Resumen Línea de Captura SAT Día 17 */}
+      <div className="bg-[#0A1120] text-white rounded-2xl border border-[#1E293B] p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-4 font-mono">
+          <div>
+            <span className="text-[10px] font-sans uppercase text-slate-300 block">ISR Provisional</span>
+            <strong className="text-sm">{formatCurrency(cap.isrProvisionalAPagar)}</strong>
+          </div>
+          <div>
+            <span className="text-[10px] font-sans uppercase text-slate-300 block">IVA Definitivo</span>
+            <strong className="text-sm">{formatCurrency(cap.ivaDefinitivoAPagar)}</strong>
+          </div>
+          <div>
+            <span className="text-[10px] font-sans uppercase text-slate-300 block">Ret. ISR + IVA</span>
+            <strong className="text-sm">{formatCurrency(cap.retencionesIsrPorEnterar + cap.retencionesIvaPorEnterar)}</strong>
+          </div>
+        </div>
+        <div className="flex items-center justify-between lg:justify-end gap-3 bg-[#111C35] px-4 py-2 rounded-xl border border-blue-700/50">
+          <span className="font-sans font-bold text-blue-200 uppercase text-[11px]">
+            Total Estimado Línea de Captura Día 17:
+          </span>
+          <span className="font-mono text-base font-extrabold text-emerald-300">
+            {formatCurrency(cap.totalEstimadoDia17)}
+          </span>
+        </div>
       </div>
 
       {/* 3 Cédulas Fiscales lado a lado: ISR Provisional, IVA Definitivo y Fluctuación USD */}

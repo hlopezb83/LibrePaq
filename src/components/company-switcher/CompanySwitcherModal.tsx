@@ -142,6 +142,12 @@ export function CompanySwitcherModal({
                   if (e.key === 'Escape' && search) {
                     e.stopPropagation();
                     setSearch('');
+                  } else if (e.key === 'Enter') {
+                    const firstSwitchable = filteredCompanies.find((c) => c.id !== activeCompanyId);
+                    if (firstSwitchable) {
+                      e.preventDefault();
+                      handleStartSwitch(firstSwitchable);
+                    }
                   }
                 }}
                 aria-label="Buscar empresa por Razón Social o RFC"
@@ -318,6 +324,7 @@ export function CompanySwitcherModal({
 
               <button
                 type="button"
+                data-confirm-switch="true"
                 disabled={!hasAcknowledged}
                 title={
                   !hasAcknowledged

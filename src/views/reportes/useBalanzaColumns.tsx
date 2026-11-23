@@ -28,6 +28,7 @@ export function useBalanzaColumns(onSelectAccount: (accountId: string) => void) 
             <button
               type="button"
               onClick={() => onSelectAccount(row.id)}
+              aria-label={`Ver auxiliar de mayor de cuenta ${row.code} ${row.name}`}
               title="Ver Tarjeta Auxiliar / Libro Mayor"
               className={`font-mono text-xs text-blue-800 hover:text-blue-950 underline decoration-dotted underline-offset-2 cursor-pointer ${pad}`}
             >
@@ -43,6 +44,7 @@ export function useBalanzaColumns(onSelectAccount: (accountId: string) => void) 
           return (
             <button
               type="button"
+              tabIndex={-1}
               onClick={() => onSelectAccount(row.id)}
               className={`text-left hover:text-blue-800 cursor-pointer ${
                 row.level === 1
@@ -125,6 +127,7 @@ export function useBalanzaColumns(onSelectAccount: (accountId: string) => void) 
           <div className="text-right no-print">
             <button
               type="button"
+              tabIndex={-1}
               onClick={() => onSelectAccount(info.row.original.id)}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer"
             >

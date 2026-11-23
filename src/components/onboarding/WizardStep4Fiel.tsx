@@ -1,5 +1,6 @@
 import type React from 'react';
-import { FileKey2, KeyRound } from 'lucide-react';
+import { useState } from 'react';
+import { Eye, EyeOff, FileKey2, KeyRound } from 'lucide-react';
 
 interface WizardStep4FielProps {
   skipFiel: boolean;
@@ -22,6 +23,7 @@ export function WizardStep4Fiel({
   onCerFileChange,
   onKeyFileChange
 }: WizardStep4FielProps) {
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
@@ -101,14 +103,25 @@ export function WizardStep4Fiel({
             <label htmlFor="wizard-fiel-pass" className="block text-xs font-bold text-slate-700 mb-1">
               Contraseña de Clave Privada (.key)
             </label>
-            <input
-              id="wizard-fiel-pass"
-              type="password"
-              value={fielPassword}
-              onChange={(e) => setFielPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm focus:border-blue-700"
-            />
+            <div className="relative">
+              <input
+                id="wizard-fiel-pass"
+                type={showPassword ? 'text' : 'password'}
+                value={fielPassword}
+                onChange={(e) => setFielPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full px-3.5 py-2 pr-10 rounded-xl border border-slate-300 bg-white text-sm focus:border-blue-700"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-pressed={showPassword}
+                aria-label={showPassword ? 'Ocultar contraseña de clave privada' : 'Mostrar contraseña de clave privada'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+              </button>
+            </div>
           </div>
 
           <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200">

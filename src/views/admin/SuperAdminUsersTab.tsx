@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, CheckCircle, Crown, Mail, Megaphone, UserCheck } from 'lucide-react';
+import { Search, CheckCircle, Crown, Mail, Megaphone, UserCheck, X } from 'lucide-react';
 import type { AdminUserSummary } from '../../shared/admin-types';
 
 interface SuperAdminUsersTabProps {
@@ -39,23 +39,49 @@ export function SuperAdminUsersTab({
           </p>
         </div>
 
-        <search className="relative w-full sm:w-64">
-          <label htmlFor="admin-users-search" className="visually-hidden">
-            Buscar usuario por correo, nombre o campaña
-          </label>
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
-          <input
-            id="admin-users-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar correo, nombre o campaña..."
-            className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </search>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-600">
+            {filtered.length} de {users.length} usuarios
+          </span>
+          <search className="relative w-full sm:w-64">
+            <label htmlFor="admin-users-search" className="visually-hidden">
+              Buscar usuario por correo, nombre o campaña
+            </label>
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            <input
+              id="admin-users-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && query) {
+                  e.preventDefault();
+                  setQuery('');
+                }
+              }}
+              placeholder="Buscar correo, nombre o campaña..."
+              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Limpiar búsqueda de usuarios"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </search>
+        </div>
       </div>
 
-      <div className="overflow-x-auto max-h-[70vh] border border-slate-200 rounded-xl">
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Tabla de usuarios registrados"
+        className="overflow-x-auto max-h-[70vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+      >
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <caption className="visually-hidden">
             Directorio de usuarios registrados en la plataforma
@@ -86,7 +112,7 @@ export function SuperAdminUsersTab({
             ) : (
               filtered.map((u) => (
                 <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                  <td className="py-3 px-3.5">
+                  <th scope="row" className="py-3 px-3.5 text-left font-normal">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
                         {u.fullName.slice(0, 2).toUpperCase() || 'CP'}
@@ -99,7 +125,7 @@ export function SuperAdminUsersTab({
                         </p>
                       </div>
                     </div>
-                  </td>
+                  </th>
                   <td className="py-3 px-3.5">
                     {u.isSuperAdmin ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">

@@ -12,6 +12,7 @@ import {
   SHORTCUT_DATABASE,
   type ShortcutItem
 } from './shortcutDatabase';
+import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
 export type { ShortcutItem };
 
@@ -79,11 +80,7 @@ export function KeyboardShortcutsModal({
     onClose?.();
   };
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
-    if (e.target === dialogRef.current) {
-      handleClose();
-    }
-  };
+  useDialogLightDismiss(dialogRef, handleClose);
 
   const handleNavigateToModule = (route?: string) => {
     if (!route) return;
@@ -95,7 +92,6 @@ export function KeyboardShortcutsModal({
     <dialog
       ref={dialogRef}
       closedby="any"
-      onClick={handleBackdropClick}
       aria-labelledby="shortcuts-modal-title"
       className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-4xl max-h-[92dvh] overflow-hidden backdrop:bg-slate-950/60 backdrop:backdrop-blur-xs p-0 m-auto text-slate-900"
     >
@@ -282,7 +278,7 @@ export function KeyboardShortcutsModal({
 
                   {item.targetRoute && (
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400 font-mono text-[10px]">
+                      <span className="text-slate-600 font-mono text-[10px]">
                         Módulo: {item.categoryLabel}
                       </span>
                       <button

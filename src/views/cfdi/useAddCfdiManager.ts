@@ -31,7 +31,9 @@ export function useAddCfdiManager() {
   const [selectedCfdiIds, setSelectedCfdiIds] = useState<Set<string>>(new Set());
   const [previewInvoiceCfdi, setPreviewInvoiceCfdi] = useState<CfdiDocument | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [copiedUuid, setCopiedUuid] = useState<string | null>(null);
+  const lastSelectedIdRef = useRef<string | null>(null);
   const [confirmDeleteCfdiId, setConfirmDeleteCfdiId] = useState<string | null>(null);
   const [showSoapFielPanel, setShowSoapFielPanel] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -136,27 +138,32 @@ export function useAddCfdiManager() {
   });
 
   const processXmlFiles = async (fileList: FileList | File[]) => {
-    const boundedXmls = await extractXmlStringsFromFiles(fileList, toast);
-    if (boundedXmls.length === 0) {
-      toast.warning('No se encontraron archivos XML válidos.');
-      return;
-    }
+    setIsUploadingFiles(true);
+    try {
+      const boundedXmls = await extractXmlStringsFromFiles(fileList, toast);
+      if (boundedXmls.length === 0) {
+        toast.warning('No se encontraron archivos XML válidos.');
+        return;
+      }
 
-    if (boundedXmls.length === 1 && boundedXmls[0]) {
-      await uploadXmlMutation.mutateAsync({
-        companyId: activeCompanyId,
-        xmlRaw: boundedXmls[0]
-      });
-      return;
-    }
+      if (boundedXmls.length === 1 && boundedXmls[0]) {
+        await uploadXmlMutation.mutateAsync({
+          companyId: activeCompanyId,
+          xmlRaw: boundedXmls[0]
+        });
+        return;
+      }
 
-    const res = await apiClient.batchUploadCfdiXmls(activeCompanyId, boundedXmls);
-    invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
-    toast.success(
-      `Se importaron ${res.uploaded.length} archivos XML al ADD${
-        res.skippedDuplicates > 0 ? ` (${res.skippedDuplicates} duplicados omitidos)` : ''
-      }.`
-    );
+      const res = await apiClient.batchUploadCfdiXmls(activeCompanyId, boundedXmls);
+      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
+      toast.success(
+        `Se importaron ${res.uploaded.length} archivos XML al ADD${
+          res.skippedDuplicates > 0 ? ` (${res.skippedDuplicates} duplicados omitidos)` : ''
+        }.`
+      );
+    } finally {
+      setIsUploadingFiles(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -234,13 +241,42 @@ export function useAddCfdiManager() {
     }
   };
 
-  const toggleSelectOne = (id: string) => {
+  const toggleSelectOne = (id: string, shiftKey = false) => {
     setSelectedCfdiIds((prev) => {
       const next = new Set(prev);
+      const shouldSelect = !prev.has(id);
+
+      if (shiftKey && lastSelectedIdRef.current) {
+        const startIdx = filteredCfdis.findIndex((c) => c.id === lastSelectedIdRef.current);
+        const endIdx = filteredCfdis.findIndex((c) => c.id === id);
+        if (startIdx !== -1 && endIdx !== -1) {
+          const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+          for (let i = from; i <= to; i++) {
+            const doc = filteredCfdis[i];
+            if (!doc) continue;
+            if (shouldSelect) next.add(doc.id);
+            else next.delete(doc.id);
+          }
+          lastSelectedIdRef.current = id;
+          return next;
+        }
+      }
+
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      lastSelectedIdRef.current = id;
       return next;
     });
+  };
+
+  const hasActiveFilters =
+    tab !== 'ALL' || tipoFilter !== 'ALL' || metodoFilter !== 'ALL' || searchQuery.trim().length > 0;
+
+  const resetFilters = () => {
+    setTab('ALL');
+    setTipoFilter('ALL');
+    setMetodoFilter('ALL');
+    setSearchQuery('');
   };
 
   const handleExportCsv = () => {
@@ -277,7 +313,8 @@ export function useAddCfdiManager() {
     searchQuery, setSearchQuery, selectedCfdi, setSelectedCfdi,
     operationAccountCode, setOperationAccountCode, counterAccountCode, setCounterAccountCode,
     selectedCfdiIds, setSelectedCfdiIds, previewInvoiceCfdi, setPreviewInvoiceCfdi,
-    isDragging, setIsDragging, copiedUuid, confirmDeleteCfdiId, setConfirmDeleteCfdiId,
+    isDragging, setIsDragging, isUploadingFiles, copiedUuid, confirmDeleteCfdiId, setConfirmDeleteCfdiId,
+    hasActiveFilters, resetFilters,
     showSoapFielPanel, setShowSoapFielPanel, periodScope, setPeriodScope,
     cfdis, countInCurrentPeriod, accounts, affectableAccounts, pendingCfdis, isLoading, isError, error, refetch,
     verifyingCfdiId: verifySatMutation.isPending ? verifySatMutation.variables ?? null : null,

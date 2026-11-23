@@ -44,6 +44,31 @@ export function PolizaMovementsTable({
   applyBalanceToRow,
   onLastRowSubmitFocus
 }: PolizaMovementsTableProps) {
+  const [activeRowIdx, setActiveRowIdx] = React.useState(0);
+  const prevLengthRef = React.useRef(movements.length);
+
+  React.useEffect(() => {
+    if (movements.length > prevLengthRef.current) {
+      const targetIdx = movements.length - 1;
+      requestAnimationFrame(() => {
+        accountRefs.current[targetIdx]?.focus();
+        accountRefs.current[targetIdx]?.select();
+      });
+    }
+    prevLengthRef.current = movements.length;
+  }, [movements.length, accountRefs]);
+
+  const handleDeleteRow = React.useCallback(
+    (idx: number) => {
+      setMovements((prev) => prev.filter((_, i) => i !== idx));
+      const fallbackIdx = Math.max(0, idx - 1);
+      requestAnimationFrame(() => {
+        accountRefs.current[fallbackIdx]?.focus();
+      });
+    },
+    [setMovements, accountRefs]
+  );
+
   const accountsById = React.useMemo(
     () => new Map(accounts.map((a) => [a.id, a])),
     [accounts]
@@ -63,12 +88,12 @@ export function PolizaMovementsTable({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => addIva16Line(0)}
-            title="Calcula el 16% de IVA sobre la primera partida y genera el asiento automáticamente"
+            onClick={() => addIva16Line(Math.min(activeRowIdx, movements.length - 1))}
+            title="Calcula el 16% de IVA sobre la partida activa (atajo F4) y genera el asiento automáticamente"
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition"
           >
             <Calculator className="w-3.5 h-3.5" aria-hidden="true" />
-            Desglosar IVA 16%
+            Desglosar IVA 16% (F4)
           </button>
 
           {Math.abs(difference) >= 0.01 && (
@@ -109,6 +134,7 @@ export function PolizaMovementsTable({
 
       <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
         <table className="w-full text-left border-collapse erp-sticky-table">
+          <caption className="visually-hidden">Partidas del asiento contable en captura</caption>
           <thead>
             <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 bg-slate-50/90">
               <th scope="col" className="py-2.5 px-3 min-w-[280px]">
@@ -142,12 +168,15 @@ export function PolizaMovementsTable({
                 abonoRefs={abonoRefs}
                 setMovements={setMovements}
                 applyBalanceToRow={applyBalanceToRow}
+                addIva16Line={addIva16Line}
+                onRowFocus={setActiveRowIdx}
+                onDeleteRow={handleDeleteRow}
                 autoBalanceDifference={autoBalanceDifference}
                 onLastRowSubmitFocus={onLastRowSubmitFocus}
               />
             ))}
           </tbody>
-          <tfoot>
+          <tfoot className="sticky bottom-0 z-10 shadow-[0_-1px_0_#cbd5e1]">
             <tr className="bg-slate-100 border-t border-slate-300 font-mono text-xs font-bold">
               <td colSpan={3} className="py-2.5 px-4 text-right text-slate-700">
                 Sumas Iguales (Partida Doble):
