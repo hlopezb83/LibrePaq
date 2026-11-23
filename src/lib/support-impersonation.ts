@@ -11,7 +11,7 @@ const ALLOWED_EXACT_METHODS = new Set<string>([
   'getBroadcastMessage'
 ]);
 
-const ALLOWED_READ_PREFIXES = ['get', 'list', 'fetch', 'query', 'verify', 'export', 'download'] as const;
+const ALLOWED_READ_PREFIXES = ['get', 'list', 'fetch', 'query', 'export', 'download'] as const;
 
 const BLOCKED_MUTATION_PREFIXES = [
   'create', 'update', 'upsert', 'save', 'delete', 'remove', 'import', 'sync',

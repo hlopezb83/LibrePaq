@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { Company } from '../../shared/types';
 import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
+import { parseNavTarget } from './parseNavTarget';
 
 interface UseAppShellKeyboardProps {
   shortcutsDialogRef: React.RefObject<HTMLDialogElement | null>;
@@ -11,9 +12,10 @@ interface UseAppShellKeyboardProps {
   openCompanySwitcherModal: () => void;
   setSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   navItems: CommandPaletteNavItem[];
-  navigate: (opts: { to: string }) => void;
+  navigate: (opts: { to: string; search?: Record<string, string> }) => void;
   stepPeriod: (delta: number) => void;
   activeCompany: Company | null;
+  isOwner?: boolean;
 }
 
 export function useAppShellKeyboard({
@@ -27,7 +29,8 @@ export function useAppShellKeyboard({
   navItems,
   navigate,
   stepPeriod,
-  activeCompany
+  activeCompany,
+  isOwner = false
 }: UseAppShellKeyboardProps) {
   useEffect(() => {
     const isEditableTarget = () => {
@@ -111,11 +114,12 @@ export function useAppShellKeyboard({
           const targetItem = navItems[idx];
           if (targetItem) {
             e.preventDefault();
-            if (!activeCompany && idx > 0) {
+            const parsed = parseNavTarget(targetItem.to);
+            if (!activeCompany && !isOwner && idx > 0 && !parsed.to.startsWith('/admin')) {
               navigate({ to: '/' });
               return;
             }
-            navigate({ to: targetItem.to });
+            navigate(parsed);
           }
         }
       }
@@ -123,5 +127,5 @@ export function useAppShellKeyboard({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navItems, navigate, activeCompany, shortcutsDialogRef, cmdDialogRef, switcherDialogRef, openShortcutsModal, openCommandPaletteModal, openCompanySwitcherModal, setSidebarCollapsed, stepPeriod]);
+  }, [navItems, navigate, activeCompany, isOwner, shortcutsDialogRef, cmdDialogRef, switcherDialogRef, openShortcutsModal, openCommandPaletteModal, openCompanySwitcherModal, setSidebarCollapsed, stepPeriod]);
 }

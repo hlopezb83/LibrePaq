@@ -90,15 +90,26 @@ async function invokeEdge<T>(fnName: string, body: Record<string, unknown>): Pro
 }
 
 export const supabaseAdminEnterpriseApi = {
-  async getAdminCompaniesPaginated(query?: AdminCompaniesPageQuery): Promise<AdminPaginatedResponse<AdminCompanySummary>> {
+  async getAdminCompaniesPaginated(
+    query?: AdminCompaniesPageQuery & { sortBy?: 'createdAt' | 'polizasCount' | 'cfdisCount'; sortDir?: 'asc' | 'desc' }
+  ): Promise<AdminPaginatedResponse<AdminCompanySummary>> {
     const page = query?.page ?? 1, pageSize = query?.pageSize ?? 20;
     const search = query?.search ?? '', ownerType = query?.ownerType ?? 'ALL', fielFilter = query?.fielFilter ?? 'ALL';
+    const sortBy = query?.sortBy ?? 'createdAt', sortDir = query?.sortDir ?? 'desc';
     if (!supabase) return paginateSlice([], page, pageSize);
 
-    const rpc = await callPaginatedRpc<AdminCompanySummary>('admin_list_companies_paginated', {
-      p_page: page, p_page_size: pageSize, p_search: search, p_owner_type: ownerType, p_fiel_filter: fielFilter
+    const rpc7 = await callPaginatedRpc<AdminCompanySummary>('admin_list_companies_paginated', {
+      p_page: page, p_page_size: pageSize, p_search: search, p_owner_type: ownerType, p_fiel_filter: fielFilter,
+      p_sort_by: query?.sortBy ?? 'created_at', p_sort_dir: query?.sortDir ?? 'desc'
     });
-    if (rpc) return rpc;
+    if (rpc7) return rpc7;
+
+    if (sortBy === 'createdAt' && sortDir === 'desc') {
+      const rpc5 = await callPaginatedRpc<AdminCompanySummary>('admin_list_companies_paginated', {
+        p_page: page, p_page_size: pageSize, p_search: search, p_owner_type: ownerType, p_fiel_filter: fielFilter
+      });
+      if (rpc5) return rpc5;
+    }
 
     const all = await supabaseAdminApi.getAdminCompanies();
     const q = search.trim().toLowerCase();
@@ -110,6 +121,12 @@ export const supabaseAdminEnterpriseApi = {
         || (fielFilter === 'WITH_FIEL' && Boolean(c.hasFiel))
         || (fielFilter === 'WITHOUT_FIEL' && !c.hasFiel);
       return matchesSearch && matchesOwner && matchesFiel;
+    });
+    const dir = sortDir === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      if (sortBy === 'polizasCount') return ((a.polizasCount ?? 0) - (b.polizasCount ?? 0)) * dir;
+      if (sortBy === 'cfdisCount') return ((a.cfdisCount ?? 0) - (b.cfdisCount ?? 0)) * dir;
+      return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
     });
     return paginateSlice(filtered, page, pageSize);
   },

@@ -8,8 +8,7 @@ import type { Company } from '../shared/types';
 import { getCompanyTheme } from './company-switcher/companyThemes';
 import { useAuth, checkIsSuperAdmin } from '../context/AuthContext';
 import { useUIModal } from '../context/UIModalContext';
-import { apiClient } from '../lib/api-client';
-import { endSupportSession, useSupportSession } from '../lib/support-impersonation';
+import { useSupportSession } from '../lib/support-impersonation';
 import { AppShellSidebar } from './shell/AppShellSidebar';
 import { AppShellTopHeader } from './shell/AppShellTopHeader';
 import { AppShellFooter } from './shell/AppShellFooter';
@@ -17,6 +16,8 @@ import { AppShellCompanyAlert } from './shell/AppShellCompanyAlert';
 import { APP_SHELL_NAV_ITEMS, SUPERADMIN_NAV_ITEMS } from './shell/appShellNavItems';
 import { useAppShellKeyboard } from './shell/useAppShellKeyboard';
 import { AppShellModals } from './shell/AppShellModals';
+import { parseNavTarget } from './shell/parseNavTarget';
+import { useSupportModeExit } from './shell/useSupportModeExit';
 import { useAppShellDocumentTitle } from './shell/useAppShellDocumentTitle';
 import { useAppShellData } from './shell/useAppShellData';
 import { WhatsAppSupportButton } from './WhatsAppSupportButton';
@@ -44,7 +45,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading, hasAdminAccess, signOut } = useAuth();
   const supportSession = useSupportSession();
   const toast = useToast();
-  const [isExitingSupport, setIsExitingSupport] = useState(false);
 
   const [hasOpenedCmd, setHasOpenedCmd] = useState(false);
   const [hasOpenedWizard, setHasOpenedWizard] = useState(false);
@@ -122,23 +122,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navItems = isOwner ? SUPERADMIN_NAV_ITEMS : APP_SHELL_NAV_ITEMS;
   const isWorkspaceEmpty = Boolean(user && !hasPlatformRole && !companiesLoading && companies.length === 0);
 
-  const handleExitSupportMode = useCallback(async () => {
-    if (!supportSession || isExitingSupport) return;
-    setIsExitingSupport(true);
-    try {
-      await apiClient.recordAdminAuditLog({
-        action: 'END_SUPPORT_IMPERSONATION',
-        targetType: 'company',
-        targetId: supportSession.companyId,
-        metadata: { rfc: supportSession.companyRfc, name: supportSession.companyName }
-      });
-    } catch { /* best-effort audit */ } finally {
-      endSupportSession();
-      void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] });
-      setIsExitingSupport(false);
-      void navigate({ to: '/admin', search: { tab: 'companies' } });
-    }
-  }, [supportSession, isExitingSupport, queryClient, navigate]);
+  const navigateToCompanies = useCallback(
+    () => void navigate({ to: '/admin', search: { tab: 'companies' } }),
+    [navigate]
+  );
+
+  const { isExitingSupport, handleExitSupportMode } = useSupportModeExit({
+    supportSession,
+    isReadOnlySupportMode,
+    currentPath,
+    authLoading,
+    queryClient,
+    navigateToCompanies
+  });
+
+  const navigateTarget = useCallback(
+    (opts: { to: string; search?: Record<string, string> }) => {
+      const parsed = parseNavTarget(opts.to);
+      return navigate({ to: parsed.to, search: opts.search ?? parsed.search });
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     if (!authLoading && user && isOwner && currentPath === '/') {
@@ -175,9 +179,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     openCompanySwitcherModal,
     setSidebarCollapsed,
     navItems,
-    navigate: (opts) => navigate({ to: opts.to }),
+    navigate: navigateTarget,
     stepPeriod,
-    activeCompany
+    activeCompany,
+    isOwner
   });
 
   useEffect(() => {
@@ -309,7 +314,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           companies={companies}
           activeCompany={activeCompany}
           polizas={polizas}
-          navigate={(opts) => navigate({ to: opts.to })}
+          navigate={navigateTarget}
           setActiveCompanyId={setActiveCompanyId}
           updatePeriod={updatePeriod}
           openCompanySwitcherModal={openCompanySwitcherModal}

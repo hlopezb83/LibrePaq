@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
 import {
   ChevronRight,
   Lock,
@@ -13,6 +13,7 @@ import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteMod
 import type { User } from '@supabase/supabase-js';
 import { useAuth, checkIsSuperAdmin } from '../../context/AuthContext';
 import { useSupportSession } from '../../lib/support-impersonation';
+import { parseNavTarget } from './parseNavTarget';
 
 interface AppShellSidebarProps {
   sidebarCollapsed: boolean;
@@ -41,6 +42,10 @@ export function AppShellSidebar({
 }: AppShellSidebarProps) {
   const { hasAdminAccess } = useAuth();
   const supportSession = useSupportSession();
+  const routerSearch = useRouterState({
+    select: (s) => (s.location.search as Record<string, unknown>) || {}
+  });
+  const activeAdminTab = typeof routerSearch.tab === 'string' ? routerSearch.tab : undefined;
   const isOwner = (hasAdminAccess || checkIsSuperAdmin(user ?? null)) && !supportSession;
 
   return (
@@ -174,11 +179,13 @@ export function AppShellSidebar({
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1" role="list">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isLockedModule = !isOwner && isWorkspaceEmpty && item.to !== '/';
+            const parsedTarget = parseNavTarget(item.to);
+            const itemTab = parsedTarget.search?.tab;
+            const isLockedModule = !isOwner && isWorkspaceEmpty && parsedTarget.to !== '/';
             const displayLabel =
-              !isOwner && isWorkspaceEmpty && item.to === '/' ? 'Mi Despacho' : item.label;
+              !isOwner && isWorkspaceEmpty && parsedTarget.to === '/' ? 'Mi Despacho' : item.label;
             const displaySublabel =
-              !isOwner && isWorkspaceEmpty && item.to === '/'
+              !isOwner && isWorkspaceEmpty && parsedTarget.to === '/'
                 ? 'Configura tu primera empresa'
                 : isLockedModule
                 ? 'Requiere empresa activa'
@@ -186,21 +193,20 @@ export function AppShellSidebar({
 
             const isActive = isLockedModule
               ? false
-              : !isOwner && isWorkspaceEmpty && item.to === '/'
+              : !isOwner && isWorkspaceEmpty && parsedTarget.to === '/'
               ? true
               : isOwner
               ? currentPath === '/admin' &&
-                (item.to.includes('?tab=')
-                  ? window.location.search.includes(item.to.slice(item.to.indexOf('?tab=')))
-                  : !window.location.search.includes('?tab='))
-              : item.to === '/'
+                (itemTab ? activeAdminTab === itemTab : !activeAdminTab || activeAdminTab === 'metrics')
+              : parsedTarget.to === '/'
               ? currentPath === '/'
-              : currentPath.startsWith(item.to);
+              : currentPath.startsWith(parsedTarget.to);
 
             return (
               <li key={item.to}>
                 <Link
-                  to={item.to}
+                  to={parsedTarget.to}
+                  search={parsedTarget.search}
                   aria-current={isActive ? 'page' : undefined}
                   aria-disabled={isLockedModule || undefined}
                   onClick={

@@ -1,4 +1,5 @@
 import { db } from '../connection';
+import { tableColumns } from './admin-enterprise.helpers';
 import type {
   AdminCompanyDetail,
   AdminCompanySummary,
@@ -8,6 +9,8 @@ import type {
   AdminSatRequestSummary,
   AdminUserSummary
 } from '../../shared/admin-types';
+
+export type AdminCompanyWithWorkspace = AdminCompanySummary & { userWorkspaceId?: string | null };
 
 const NON_DEMO = "rfc != 'CEJ2106158A0' AND name NOT LIKE '[DEMO]%'";
 const SUPERADMIN_ID = 'usr_owner_hlopez';
@@ -97,7 +100,7 @@ export function getAdminMetricsRepo(): AdminPlatformMetrics {
   };
 }
 
-export function getAdminCompaniesRepo(): AdminCompanySummary[] {
+export function getAdminCompaniesRepo(): AdminCompanyWithWorkspace[] {
   const rows = db
     .query('SELECT id, name, rfc, regimen_fiscal, codigo_postal, current_year, current_period, user_id, created_at FROM companies ORDER BY created_at DESC')
     .all() as Array<{
@@ -119,6 +122,12 @@ export function getAdminCompaniesRepo(): AdminCompanySummary[] {
     (db.query('SELECT company_id, valid_to FROM fiel_credentials').all() as Array<{ company_id: string; valid_to: string }>)
       .map((r) => [r.company_id, r.valid_to])
   );
+  const workspaceByUserId = new Map<string, string | null>();
+  const profileCols = tableColumns('user_profiles');
+  if (profileCols.has('workspace_id')) {
+    const profRows = db.query('SELECT id, workspace_id FROM user_profiles').all() as Array<{ id: string; workspace_id: string | null }>;
+    for (const p of profRows) workspaceByUserId.set(p.id, p.workspace_id ?? null);
+  }
   const usersById = new Map(getAdminUsersRepo().map((u) => [u.id, u]));
 
   return rows.map((r) => {
@@ -126,7 +135,12 @@ export function getAdminCompaniesRepo(): AdminCompanySummary[] {
     const pol = polByComp.get(r.id);
     const cfdi = cfdiByComp.get(r.id);
     const fielValidTo = fielByComp.get(r.id) ?? null;
-    const base: AdminCompanySummary = {
+    const isDemo =
+      !rawUserId ||
+      rawUserId === 'demo' ||
+      r.rfc.toUpperCase() === 'CEJ2106158A0' ||
+      r.name.toUpperCase().startsWith('[DEMO]');
+    const base: AdminCompanyWithWorkspace = {
       id: r.id,
       name: r.name,
       rfc: r.rfc,
@@ -139,10 +153,11 @@ export function getAdminCompaniesRepo(): AdminCompanySummary[] {
       cfdisCount: Number(cfdi?.cnt ?? 0),
       hasFiel: fielValidTo !== null,
       fielValidTo,
-      lastActivityAt: pickLatestIso(pol?.last_at ?? null, cfdi?.last_date ?? null)
+      lastActivityAt: pickLatestIso(pol?.last_at ?? null, cfdi?.last_date ?? null),
+      userWorkspaceId: !isDemo && rawUserId ? (workspaceByUserId.get(rawUserId) ?? null) : null
     };
 
-    if (!rawUserId || rawUserId === 'demo') {
+    if (isDemo) {
       return { ...base, ownerType: 'demo' as const };
     }
     const owner = usersById.get(rawUserId);
@@ -163,9 +178,9 @@ export function getAdminSatHealthRepo(): AdminSatHealthResponse {
   const since7dIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const agg = db.query(`
     SELECT COUNT(*) as total,
-      SUM(CASE WHEN estado_solicitud = 'TERMINADA' THEN 1 ELSE 0 END) as completed,
-      SUM(CASE WHEN estado_solicitud IN ('ACEPTADA', 'EN_PROCESO') THEN 1 ELSE 0 END) as pending,
-      SUM(CASE WHEN estado_solicitud = 'ERROR' OR COALESCE(codigo_estado_sat, '') NOT IN ('', '5000', '3') THEN 1 ELSE 0 END) as failed
+      SUM(CASE WHEN UPPER(COALESCE(estado_solicitud, '')) IN ('TERMINADA', 'COMPLETADA') THEN 1 ELSE 0 END) as completed,
+      SUM(CASE WHEN UPPER(COALESCE(estado_solicitud, '')) IN ('ACEPTADA', 'EN_PROCESO', 'SOLICITADA') THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN UPPER(COALESCE(estado_solicitud, '')) NOT IN ('TERMINADA', 'COMPLETADA', 'ACEPTADA', 'EN_PROCESO', 'SOLICITADA') THEN 1 ELSE 0 END) as failed
     FROM sat_download_requests WHERE created_at >= ?
   `).get(since7dIso) as { total: number; completed: number | null; pending: number | null; failed: number | null } | null;
 

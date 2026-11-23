@@ -31,17 +31,18 @@ describe('Support Impersonation (Read-Only Mode)', () => {
   test('isReadOnlyBlockedMethod allows reads and safe admin audit/health methods', () => {
     const allowed = [
       'getPolizas', 'listAdminPlatformAlerts', 'fetchAccounts', 'querySatCfdi',
-      'verifyPendingSat', 'exportCompanyBackup', 'downloadDiot', 'recordAdminAuditLog',
+      'exportCompanyBackup', 'downloadDiot', 'recordAdminAuditLog',
       'runAdminHealthScan', 'updateAdminPlatformAlertStatus', 'getActiveBroadcast', 'getBroadcastMessage'
     ];
     for (const method of allowed) expect(isReadOnlyBlockedMethod(method)).toBe(false);
   });
 
-  test('isReadOnlyBlockedMethod blocks tenant mutations and unknown methods by default', () => {
+  test('isReadOnlyBlockedMethod blocks tenant mutations, verify* writers, and unknown methods by default', () => {
     const blocked = [
       'createPoliza', 'updateCompany', 'upsertWorkspaceQuota', 'saveFiscalParameters',
       'deletePoliza', 'importAccounts', 'setAdminUserStatus', 'reconcileBankLines',
-      'restoreCompanyBackup', 'unknownDangerousOperation', ''
+      'restoreCompanyBackup', 'verifyCfdiSatStatus', 'verifyPendingSatRequests',
+      'verifyPendingSat', 'unknownDangerousOperation', ''
     ];
     for (const method of blocked) expect(isReadOnlyBlockedMethod(method)).toBe(true);
   });

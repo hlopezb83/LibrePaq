@@ -45,8 +45,8 @@ export function SuperAdminCompaniesTab({
   isDeletingCompany = false
 }: SuperAdminCompaniesTabProps) {
   const [searchInput, setSearchInput] = useState(query.search || '');
-  const [sortBy, setSortBy] = useState<CompanySort>('createdAt');
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const sortBy: CompanySort = query.sortBy ?? 'createdAt';
+  const sortDir: 'desc' | 'asc' = query.sortDir ?? 'desc';
   const [inspectingCompanyId, setInspectingCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,11 +120,11 @@ export function SuperAdminCompaniesTab({
             </span>
 
             <div className="inline-flex items-center gap-1">
-              <label htmlFor="admin-companies-sort" className="visually-hidden">Ordenar página actual</label>
+              <label htmlFor="admin-companies-sort" className="visually-hidden">Ordenar empresas</label>
               <select
                 id="admin-companies-sort"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as CompanySort)}
+                onChange={(e) => onQueryChange({ ...query, page: 1, sortBy: e.target.value as CompanySort, sortDir })}
                 className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="createdAt">Fecha creación</option>
@@ -133,7 +133,7 @@ export function SuperAdminCompaniesTab({
               </select>
               <button
                 type="button"
-                onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+                onClick={() => onQueryChange({ ...query, page: 1, sortBy, sortDir: sortDir === 'desc' ? 'asc' : 'desc' })}
                 aria-label={`Cambiar orden a ${sortDir === 'desc' ? 'ascendente' : 'descendente'}`}
                 className="p-1.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
               >

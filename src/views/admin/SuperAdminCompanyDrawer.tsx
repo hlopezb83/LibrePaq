@@ -115,16 +115,21 @@ export function SuperAdminCompanyDrawer({
 
   const handleDelete = async () => {
     if (!companyId || !detail || !onDeleteCompany || confirmRfc.trim().toUpperCase() !== detail.company.rfc.toUpperCase()) return;
-    await onDeleteCompany(companyId);
-    onClose();
+    try {
+      await onDeleteCompany(companyId);
+      onClose();
+    } catch {
+      /* toast handled in mutation onError */
+    }
   };
 
   if (typeof document === 'undefined') return null;
 
   const isRfcMatch = Boolean(detail && confirmRfc.trim().toUpperCase() === detail.company.rfc.toUpperCase());
   const resolvedWsId =
+    detail?.company.userWorkspaceId ||
     workspaceIdHint ||
-    (detail?.company.userId ? `ws_${detail.company.userId.slice(0, 8)}` : detail ? `ws_${detail.company.id.slice(0, 8)}` : '');
+    (detail?.company.userId ? `ws_${detail.company.userId.slice(0, 8)}` : '');
   const stats = detail
     ? [
         { label: 'Cuentas', value: detail.accountsCount, icon: Layers },
@@ -256,7 +261,9 @@ export function SuperAdminCompanyDrawer({
                 </div>
               </div>
 
-              {resolvedWsId && <SuperAdminQuotaCard workspaceId={resolvedWsId} userId={detail.company.userId} canEdit={canManageBillingAndQuotas(platformRole)} />}
+              {detail.company.ownerType !== 'demo' && resolvedWsId && (
+                <SuperAdminQuotaCard workspaceId={resolvedWsId} userId={detail.company.userId} canEdit={canManageBillingAndQuotas(platformRole)} />
+              )}
 
               <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="text-xs">

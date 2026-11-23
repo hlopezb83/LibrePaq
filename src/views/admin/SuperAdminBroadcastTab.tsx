@@ -67,7 +67,8 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
   const invalidateBroadcastQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['platform-broadcast'] }),
-      queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] }),
+      queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] })
     ]);
   };
 
@@ -110,6 +111,10 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
     const expiresAt = toIsoOrNull(expiresAtInput);
     if (expiresAtInput && !expiresAt) {
       toast.warning('La fecha y hora de expiración no tiene un formato válido.');
+      return;
+    }
+    if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+      toast.warning('La fecha de expiración debe ser posterior al momento actual.');
       return;
     }
     publishMutation.mutate({ title: title.trim(), message: message.trim(), type, expiresAt });
@@ -218,7 +223,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
           </div>
           <div>
             <label htmlFor="broadcast-expires-at" className="block text-xs font-bold text-slate-700 mb-1">Expiración automática (opcional)</label>
-            <input id="broadcast-expires-at" name="broadcastExpiresAt" type="datetime-local" disabled={isPending} value={expiresAtInput} onChange={(e) => setExpiresAtInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100" />
+            <input id="broadcast-expires-at" name="broadcastExpiresAt" type="datetime-local" min={toDatetimeLocalValue(new Date().toISOString())} disabled={isPending} value={expiresAtInput} onChange={(e) => setExpiresAtInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100" />
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {([
                 { label: '+2 h', hours: 2 },

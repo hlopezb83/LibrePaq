@@ -1,7 +1,7 @@
 import { supabase } from '../supabase';
 import type { AdminPlatformMetrics, AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
 import { adminApi } from '../api/admin.api';
-import { isSuperAdminEmail } from '../../shared/superadmin';
+import { hasPlatformAdminAccess, isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
 
 type Row = Record<string, unknown>;
 
@@ -12,19 +12,43 @@ const isRealCompany = (c: Row): boolean =>
   String(c.rfc || '').toUpperCase() !== 'CEJ2106158A0' &&
   !String(c.name || '').toUpperCase().startsWith('[DEMO]');
 
-function countByCompany(rows: Array<{ company_id?: unknown }> | null | undefined): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const r of rows || []) {
-    const cid = r.company_id ? String(r.company_id) : '';
-    if (cid) map.set(cid, (map.get(cid) || 0) + 1);
+async function countTableExactForCompany(table: 'polizas' | 'cfdi_documents', companyId: string): Promise<number> {
+  if (!supabase) return 0;
+  const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+  return error ? 0 : (count ?? 0);
+}
+
+async function fetchCompanyCountsBatched(
+  companyIds: string[]
+): Promise<{ polMap: Map<string, number>; cfdiMap: Map<string, number> }> {
+  const polMap = new Map<string, number>();
+  const cfdiMap = new Map<string, number>();
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < companyIds.length; i += BATCH_SIZE) {
+    const batch = companyIds.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (cid) => {
+        const [polCnt, cfdiCnt] = await Promise.all([
+          countTableExactForCompany('polizas', cid),
+          countTableExactForCompany('cfdi_documents', cid)
+        ]);
+        polMap.set(cid, polCnt);
+        cfdiMap.set(cid, cfdiCnt);
+      })
+    );
   }
-  return map;
+  return { polMap, cfdiMap };
 }
 
 function mapUserProfileRow(p: Row, compList: Row[]): AdminUserSummary {
   const uid = String(p.id);
   const email = String(p.email || '').toLowerCase();
-  const isSuper = isSuperAdminEmail(email) || Boolean(p.is_superadmin);
+  const platformRole = normalizePlatformRole(
+    p.platform_role ? String(p.platform_role) : null,
+    Boolean(p.is_superadmin),
+    email
+  );
+  const isSuper = platformRole === 'SUPERADMIN';
   const meta = (p.raw_user_meta_data as Row | undefined) || {};
   const displayName = String(p.full_name || email.split('@')[0] || 'Contador');
   const gclid = p.gclid ? String(p.gclid) : meta.gclid ? String(meta.gclid) : undefined;
@@ -44,6 +68,7 @@ function mapUserProfileRow(p: Row, compList: Row[]): AdminUserSummary {
     utmCampaign: p.utm_campaign ? String(p.utm_campaign) : meta.utm_campaign ? String(meta.utm_campaign) : undefined,
     utmTerm: p.utm_term ? String(p.utm_term) : meta.utm_term ? String(meta.utm_term) : undefined,
     isSuperAdmin: isSuper,
+    platformRole,
     createdAt: String(p.created_at || new Date().toISOString()),
     lastSignInAt: p.last_sign_in_at ? String(p.last_sign_in_at) : undefined,
     companiesCount: compList.filter((c) => String(c.user_id || '') === uid).length,
@@ -67,20 +92,25 @@ export const supabaseAdminApi = {
     const profilesById = new Map<string, Row>();
     for (const p of (profRes.data || []) as Row[]) if (p.id) profilesById.set(String(p.id), p);
     const currentUser = authRes.data?.user;
-    const isSuperCaller =
-      isSuperAdminEmail(currentUser?.email) || Boolean(currentUser?.id && profilesById.get(currentUser.id)?.is_superadmin);
+    const callerProfile = currentUser?.id ? profilesById.get(currentUser.id) : undefined;
+    const callerRole = normalizePlatformRole(
+      callerProfile?.platform_role ? String(callerProfile.platform_role) : null,
+      Boolean(callerProfile?.is_superadmin),
+      currentUser?.email
+    );
+    const hasAdminAccess = hasPlatformAdminAccess(callerRole);
 
     let polMap = new Map<string, number>();
     let cfdiMap = new Map<string, number>();
     const fielMap = new Map<string, string | null>();
-    if (isSuperCaller && compRes.data.length > 0) {
-      const [polRes, cfdiRes, fielRes] = await Promise.all([
-        supabase.from('polizas').select('company_id'),
-        supabase.from('cfdi_documents').select('company_id'),
+    if (hasAdminAccess && compRes.data.length > 0) {
+      const companyIds = (compRes.data as Row[]).map((c) => String(c.id));
+      const [counts, fielRes] = await Promise.all([
+        fetchCompanyCountsBatched(companyIds),
         supabase.from('fiel_credentials').select('company_id, valid_to')
       ]);
-      if (!polRes.error) polMap = countByCompany(polRes.data);
-      if (!cfdiRes.error) cfdiMap = countByCompany(cfdiRes.data);
+      polMap = counts.polMap;
+      cfdiMap = counts.cfdiMap;
       if (!fielRes.error) {
         for (const f of fielRes.data || []) if (f.company_id) fielMap.set(String(f.company_id), f.valid_to ? String(f.valid_to) : null);
       }
@@ -99,14 +129,18 @@ export const supabaseAdminApi = {
         currentPeriod: Number(c.current_period || 10),
         ownerType: isDemo ? 'demo' : 'user',
         createdAt: String(c.created_at || new Date().toISOString()),
-        ...(isSuperCaller ? { polizasCount: polMap.get(id) ?? 0, cfdisCount: cfdiMap.get(id) ?? 0, hasFiel: fielMap.has(id), fielValidTo: fielMap.get(id) ?? null } : {})
+        ...(hasAdminAccess ? { polizasCount: polMap.get(id) ?? 0, cfdisCount: cfdiMap.get(id) ?? 0, hasFiel: fielMap.has(id), fielValidTo: fielMap.get(id) ?? null } : {})
       };
       if (isDemo) return base;
 
       const profile = rawUserId ? profilesById.get(rawUserId) : undefined;
       if (profile) {
         const email = String(profile.email || '');
-        const isSuper = isSuperAdminEmail(email) || Boolean(profile.is_superadmin);
+        const isSuper = normalizePlatformRole(
+          profile.platform_role ? String(profile.platform_role) : null,
+          Boolean(profile.is_superadmin),
+          email
+        ) === 'SUPERADMIN';
         return {
           ...base, userId: rawUserId, userEmail: email || undefined,
           userFullName: String(profile.full_name || email.split('@')[0] || 'Usuario Registrado'),
@@ -192,15 +226,17 @@ export const supabaseAdminApi = {
 
     let totalPolizas = 0, totalCfdis = 0, activeCompaniesCount = 0, companiesWithFielCount = 0;
     if (realIds.length > 0) {
-      const [polRes, cfdiRes, fielRes] = await Promise.all([
-        supabase.from('polizas').select('company_id').in('company_id', realIds),
-        supabase.from('cfdi_documents').select('company_id').in('company_id', realIds),
+      const [{ polMap, cfdiMap }, fielRes] = await Promise.all([
+        fetchCompanyCountsBatched(realIds),
         supabase.from('fiel_credentials').select('company_id').in('company_id', realIds)
       ]);
-      const polRows = polRes.data || [], cfdiRows = cfdiRes.data || [];
-      totalPolizas = polRows.length;
-      totalCfdis = cfdiRows.length;
-      activeCompaniesCount = new Set([...polRows, ...cfdiRows].map((r) => String(r.company_id))).size;
+      for (const cid of realIds) {
+        const p = polMap.get(cid) ?? 0;
+        const c = cfdiMap.get(cid) ?? 0;
+        totalPolizas += p;
+        totalCfdis += c;
+        if (p > 0 || c > 0) activeCompaniesCount += 1;
+      }
       companiesWithFielCount = new Set((fielRes.data || []).map((f) => String(f.company_id))).size;
     }
 

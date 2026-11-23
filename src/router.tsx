@@ -50,17 +50,19 @@ const addRoute = createRoute({
   )
 });
 
+function validateStringSearch(search: Record<string, unknown>): Record<string, string> {
+  const res: Record<string, string> = {};
+  for (const [k, v] of Object.entries(search)) {
+    if (typeof v === 'string') res[k] = v;
+    else if (typeof v === 'number' || typeof v === 'boolean') res[k] = String(v);
+  }
+  return res;
+}
+
 const polizasRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/polizas',
-  validateSearch: (search: Record<string, unknown>): Record<string, string> => {
-    const res: Record<string, string> = {};
-    for (const [k, v] of Object.entries(search)) {
-      if (typeof v === 'string') res[k] = v;
-      else if (typeof v === 'number' || typeof v === 'boolean') res[k] = String(v);
-    }
-    return res;
-  },
+  validateSearch: validateStringSearch,
   component: lazyRouteComponent(
     () => import('./views/PolizasView'),
     'PolizasView'
@@ -133,6 +135,7 @@ const termsRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
+  validateSearch: validateStringSearch,
   component: lazyRouteComponent(
     () => import('./views/SuperAdminView'),
     'SuperAdminView'

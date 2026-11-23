@@ -67,9 +67,9 @@ export function SuperAdminView() {
     );
   }
 
-  const usersCount = m.usersPage?.total ?? m.metrics?.totalUsers ?? m.users.length;
-  const companiesCount = m.companiesPage?.total ?? m.metrics?.totalCompanies ?? m.companies.filter((c) => c.ownerType !== 'demo').length;
-  const openAlertsCount = m.alerts.filter((a) => a.status === 'open').length;
+  const usersCount = m.metrics?.totalUsers ?? m.users.length;
+  const companiesCount = m.metrics?.totalCompanies ?? m.companies.filter((c) => c.ownerType !== 'demo').length;
+  const openAlertsCount = m.openAlertsCount;
   const roleBadge = getRoleBadgeMeta(m.platformRole);
 
   const adminTabs: Array<{ id: SuperAdminTab; label: string; icon: ComponentType<{ className?: string }> }> = [

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useAuth } from '../../context/AuthContext';
@@ -39,8 +39,10 @@ export function useSuperAdminManager() {
     page: 1,
     pageSize: 20,
     search: searchQuery,
-    ownerType: 'user',
-    fielFilter: 'ALL'
+    ownerType: searchQuery ? 'ALL' : 'user',
+    fielFilter: 'ALL',
+    sortBy: 'createdAt',
+    sortDir: 'desc'
   }));
   const [usersQuery, setUsersQuery] = useState<AdminUsersPageQuery>({
     page: 1,
@@ -58,13 +60,32 @@ export function useSuperAdminManager() {
   });
   const [alertsStatusFilter, setAlertsStatusFilter] = useState<'ALL' | PlatformAlertStatus>('open');
 
+  useEffect(() => {
+    setCompaniesQuery((prev) => {
+      if (searchQuery) {
+        if (prev.search === searchQuery && prev.ownerType === 'ALL' && prev.fielFilter === 'ALL') {
+          return prev;
+        }
+        return { ...prev, page: 1, search: searchQuery, ownerType: 'ALL', fielFilter: 'ALL' };
+      }
+      if (!prev.search) return prev;
+      return { ...prev, page: 1, search: '' };
+    });
+  }, [searchQuery]);
+
   const setActiveTab = (tab: SuperAdminTab, q?: string) => {
     const nextSearch: Record<string, string> = {};
     if (tab !== 'metrics') nextSearch.tab = tab;
     if (q) {
       nextSearch.q = q;
       if (tab === 'companies') {
-        setCompaniesQuery((prev) => ({ ...prev, page: 1, search: q }));
+        setCompaniesQuery((prev) => ({
+          ...prev,
+          page: 1,
+          search: q,
+          ownerType: 'ALL',
+          fielFilter: 'ALL'
+        }));
       }
     }
     void navigate({
@@ -119,6 +140,12 @@ export function useSuperAdminManager() {
     queryKey: ['admin-alerts', alertsStatusFilter],
     queryFn: () => apiClient.getAdminPlatformAlerts(alertsStatusFilter),
     enabled: Boolean(hasAdminAccess && (activeTab === 'sat' || activeTab === 'metrics'))
+  });
+
+  const openAlertsCountQuery = useQuery({
+    queryKey: ['admin-alerts', 'open'],
+    queryFn: () => apiClient.getAdminPlatformAlerts('open'),
+    enabled: Boolean(hasAdminAccess)
   });
 
   const invalidateAuditAndUsers = () => {
@@ -196,16 +223,24 @@ export function useSuperAdminManager() {
     companiesPageQuery.isFetching ||
     satHealthQuery.isFetching ||
     alertsQuery.isFetching ||
+    openAlertsCountQuery.isFetching ||
     auditPageQuery.isFetching;
 
+  const openAlertsCount =
+    openAlertsCountQuery.data?.length ??
+    (alertsQuery.data ? alertsQuery.data.filter((a) => a.status === 'open').length : 0);
+
   const refetchAll = async () => {
-    const tasks: Array<Promise<unknown>> = [metricsQuery.refetch()];
+    const tasks: Array<Promise<unknown>> = [metricsQuery.refetch(), openAlertsCountQuery.refetch()];
     if (activeTab === 'users') tasks.push(usersPageQuery.refetch());
     if (activeTab === 'companies') tasks.push(companiesPageQuery.refetch());
     if (activeTab === 'ads' || activeTab === 'metrics') {
       tasks.push(usersQueryAll.refetch(), companiesQueryAll.refetch());
     }
-    if (activeTab === 'sat' || activeTab === 'metrics') tasks.push(satHealthQuery.refetch(), alertsQuery.refetch());
+    if (activeTab === 'sat' || activeTab === 'metrics') {
+      tasks.push(satHealthQuery.refetch());
+      if (alertsStatusFilter !== 'open') tasks.push(alertsQuery.refetch());
+    }
     if (activeTab === 'audit') tasks.push(auditPageQuery.refetch());
     await Promise.all(tasks);
   };
@@ -218,7 +253,7 @@ export function useSuperAdminManager() {
     usersQuery, setUsersQuery, usersPage: usersPageQuery.data, loadingUsersPage: usersPageQuery.isLoading, fetchingUsersPage: usersPageQuery.isFetching,
     auditQuery, setAuditQuery, auditPage: auditPageQuery.data, loadingAuditPage: auditPageQuery.isLoading, fetchingAuditPage: auditPageQuery.isFetching, auditLogsError: auditPageQuery.isError, refetchAuditLogs: auditPageQuery.refetch,
     satHealth: satHealthQuery.data, loadingSatHealth: satHealthQuery.isLoading, satHealthError: satHealthQuery.isError, refetchSatHealth: satHealthQuery.refetch,
-    alerts: alertsQuery.data ?? [], loadingAlerts: alertsQuery.isLoading, alertsStatusFilter, setAlertsStatusFilter,
+    alerts: alertsQuery.data ?? [], openAlertsCount, loadingAlerts: alertsQuery.isLoading, alertsStatusFilter, setAlertsStatusFilter,
     scanAlertsMutation, updateAlertStatusMutation,
     hasError, isRefreshing, refetchAll, updateUserStatusMutation, updateUserRoleMutation, deleteCompanyMutation
   };

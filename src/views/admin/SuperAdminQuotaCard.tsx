@@ -27,7 +27,7 @@ const PLAN_PRESETS: Record<WorkspacePlanTier, { maxCompanies: number; maxCfdisPe
 
 const DEFAULT_FORM = {
   planTier: 'FREE' as WorkspacePlanTier,
-  maxCompanies: 1,
+  maxCompanies: 3,
   maxCfdisPerMonth: 500,
   maxStorageMb: 250,
   notes: ''
@@ -106,7 +106,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
       planTier,
       maxCompanies: Math.max(1, Number(maxCompanies) || 1),
       maxCfdisPerMonth: Math.max(1, Number(maxCfdisPerMonth) || 1),
-      maxStorageMb: Math.max(1, Number(maxStorageMb) || 1),
+      maxStorageMb: Math.max(10, Number(maxStorageMb) || 10),
       notes: notes.trim() || null
     });
   };
@@ -227,7 +227,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
               name="maxStorageMb"
               type="number"
               inputMode="numeric"
-              min={1}
+              min={10}
               value={maxStorageMb}
               onChange={(e) => setMaxStorageMb(Number(e.target.value))}
               disabled={disabled}

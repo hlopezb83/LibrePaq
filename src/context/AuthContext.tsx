@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast as sonnerToast } from 'sonner';
@@ -124,6 +124,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [platformRole, setPlatformRole] = useState<PlatformRole>('NONE');
   const [isSuspended, setIsSuspended] = useState(false);
   const [suspendedMessage, setSuspendedMessage] = useState<string | null>(null);
+  const authCheckSeqRef = useRef(0);
+
+  const clearSuspension = useCallback(() => {
+    setIsSuspended(false);
+    setSuspendedMessage(null);
+  }, []);
 
   const enforceSuspension = useCallback(
     async (client: NonNullable<typeof supabase>) => {
@@ -148,80 +154,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     captureAdAttributionOnLanding();
     const isGuestActive = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
 
+    const activateGuestDemo = () => {
+      setPlatformRole('NONE');
+      setUser(GUEST_DEMO_USER);
+      setApiAuthUser(GUEST_DEMO_USER);
+    };
+
     if (!supabase || !isSupabaseConfigured) {
-      if (isGuestActive) {
-        setUser(GUEST_DEMO_USER);
-        setApiAuthUser(GUEST_DEMO_USER);
-      }
+      if (isGuestActive) activateGuestDemo();
       setPlatformRole('NONE');
       setLoading(false);
       return;
     }
 
     const client = supabase;
+    let isMounted = true;
 
+    const commitSession = (activeSession: Session, role: PlatformRole) => {
+      const wasGuest = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
+      localStorage.removeItem(GUEST_DEMO_KEY);
+      if (wasGuest) queryClient.clear();
+      clearSuspension();
+      setPlatformRole(role);
+      setSession(activeSession);
+      setUser(activeSession.user);
+      setApiAuthUser(activeSession.user, activeSession.access_token);
+      setLoading(false);
+    };
+
+    const applyAuthenticatedSession = async (activeSession: Session, seq: number) => {
+      const access = await fetchUserAccessCheck(activeSession.user);
+      if (!isMounted || seq !== authCheckSeqRef.current) return;
+      if (access.suspended) {
+        await enforceSuspension(client);
+        if (isMounted && seq === authCheckSeqRef.current) setLoading(false);
+        return;
+      }
+      commitSession(activeSession, access.platformRole);
+    };
+
+    const initialSeq = ++authCheckSeqRef.current;
     client.auth
       .getSession()
-      .then(async ({ data: { session } }) => {
-        if (session?.user) {
-          const access = await fetchUserAccessCheck(session.user);
-          if (access.suspended) {
-            await enforceSuspension(client);
-            return;
-          }
-          setIsSuspended(false);
-          setSuspendedMessage(null);
-          setPlatformRole(access.platformRole);
-          localStorage.removeItem(GUEST_DEMO_KEY);
-          setSession(session);
-          setUser(session.user);
-          setApiAuthUser(session.user, session.access_token);
-        } else if (isGuestActive) {
-          setPlatformRole('NONE');
-          setUser(GUEST_DEMO_USER);
-          setApiAuthUser(GUEST_DEMO_USER);
+      .then(async ({ data: { session: initialSession } }) => {
+        if (!isMounted || initialSeq !== authCheckSeqRef.current) return;
+        if (initialSession?.user && !initialSession.user.user_metadata?.is_guest) {
+          await applyAuthenticatedSession(initialSession, initialSeq);
+          return;
         }
+        if (initialSession?.user) {
+          commitSession(initialSession, 'NONE');
+          return;
+        }
+        if (isGuestActive) activateGuestDemo();
+        setLoading(false);
       })
       .catch((err) => {
         console.error('[AuthContext] Error al recuperar sesión inicial:', err);
-        if (isGuestActive) {
-          setPlatformRole('NONE');
-          setUser(GUEST_DEMO_USER);
-          setApiAuthUser(GUEST_DEMO_USER);
-        }
-      })
-      .finally(() => setLoading(false));
+        if (!isMounted || initialSeq !== authCheckSeqRef.current) return;
+        if (isGuestActive) activateGuestDemo();
+        setLoading(false);
+      });
 
-    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        const wasGuest = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
-        localStorage.removeItem(GUEST_DEMO_KEY);
-        if (wasGuest) queryClient.clear();
-        setIsSuspended(false);
-        setSuspendedMessage(null);
-        setSession(session);
-        setUser(session.user);
-        setApiAuthUser(session.user, session.access_token);
-        setPlatformRole(
-          normalizePlatformRole(null, session.user.app_metadata?.role === 'superadmin', session.user.email)
-        );
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, nextSession) => {
+      const seq = ++authCheckSeqRef.current;
+      if (nextSession?.user && !nextSession.user.user_metadata?.is_guest) {
+        if (event !== 'TOKEN_REFRESHED') setLoading(true);
+        setTimeout(() => {
+          if (!isMounted || seq !== authCheckSeqRef.current) return;
+          void applyAuthenticatedSession(nextSession, seq).catch(() => {
+            if (isMounted && seq === authCheckSeqRef.current) setLoading(false);
+          });
+        }, 0);
+        return;
+      }
 
-        if (!session.user.user_metadata?.is_guest) {
-          const activeUser = session.user;
-          setTimeout(() => {
-            void fetchUserAccessCheck(activeUser).then((access) => {
-              if (access.suspended) {
-                void enforceSuspension(client);
-                return;
-              }
-              setPlatformRole(access.platformRole);
-            });
-          }, 0);
-        }
-      } else if (localStorage.getItem(GUEST_DEMO_KEY) === 'true') {
-        setPlatformRole('NONE');
-        setUser(GUEST_DEMO_USER);
-        setApiAuthUser(GUEST_DEMO_USER);
+      if (nextSession?.user) {
+        commitSession(nextSession, 'NONE');
+        return;
+      }
+      if (localStorage.getItem(GUEST_DEMO_KEY) === 'true') {
+        activateGuestDemo();
       } else if (event === 'SIGNED_OUT') {
         endSupportSession();
         setPlatformRole('NONE');
@@ -233,75 +246,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, [queryClient, enforceSuspension]);
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [queryClient, enforceSuspension, clearSuspension]);
 
   const startGuestDemo = useCallback(async () => {
-    setIsSuspended(false);
-    setSuspendedMessage(null);
+    clearSuspension();
     try {
       const { provisionSandboxDemoCompany } = await import('../lib/sandbox-demo-seeder');
       await provisionSandboxDemoCompany();
-    } catch {
-      // Si la empresa de ejemplo ya existía, se continúa normalmente
-    }
+    } catch { /* demo company already exists */ }
     localStorage.setItem(GUEST_DEMO_KEY, 'true');
     setUser(GUEST_DEMO_USER);
     setApiAuthUser(GUEST_DEMO_USER);
     void queryClient.invalidateQueries({ queryKey: ['companies'] });
     trackAnalyticsEvent('start_guest_demo', { location: 'landing' });
-  }, [queryClient]);
+  }, [queryClient, clearSuspension]);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     if (!supabase) return { error: new Error('Supabase no está configurado') };
-    setIsSuspended(false);
-    setSuspendedMessage(null);
+    clearSuspension();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
-  }, []);
+  }, [clearSuspension]);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, fullName?: string) => {
     if (!supabase) return { error: new Error('Supabase no está configurado') };
-    setIsSuspended(false);
-    setSuspendedMessage(null);
+    clearSuspension();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: { full_name: fullName || email.split('@')[0] }
-      }
+      options: { emailRedirectTo: `${window.location.origin}/`, data: { full_name: fullName || email.split('@')[0] } }
     });
     return { data, error };
-  }, []);
+  }, [clearSuspension]);
 
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) return { error: new Error('Supabase no está configurado') };
-    setIsSuspended(false);
-    setSuspendedMessage(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin }
-    });
+    clearSuspension();
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
     return { error };
-  }, []);
+  }, [clearSuspension]);
 
   const signOut = useCallback(async () => {
-    setIsSuspended(false);
-    setSuspendedMessage(null);
+    clearSuspension();
     localStorage.removeItem(GUEST_DEMO_KEY);
     endSupportSession();
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('librepaq_') && key !== 'librepaq_theme') {
-          localStorage.removeItem(key);
-        }
+        if (key && key.startsWith('librepaq_') && key !== 'librepaq_theme') localStorage.removeItem(key);
       }
       if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
-    } catch {
-      // Ignore storage errors in restricted contexts
-    }
+    } catch { /* Ignore storage errors in restricted contexts */ }
     void queryClient.cancelQueries();
     queryClient.clear();
     try {
@@ -313,13 +312,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       queryClient.clear();
     }
     return { error: null };
-  }, [queryClient]);
+  }, [queryClient, clearSuspension]);
 
   const resetPassword = useCallback(async (email: string) => {
     if (!supabase) return { error: new Error('Supabase no está configurado') };
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
-    });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
     return { error };
   }, []);
 

@@ -215,7 +215,7 @@ export const adminApi = {
   },
 
   async runAdminHealthScan(): Promise<{ scannedAtIso: string; alertsCreated: number; openAlertsCount: number }> {
-    const res = await fetchWithTimeout('/api/admin/health-scan', {
+    const res = await fetchWithTimeout('/api/admin/alerts/scan', {
       method: 'POST',
       headers: jsonHeaders()
     });
@@ -226,7 +226,7 @@ export const adminApi = {
     alertId: string,
     status: PlatformAlertStatus
   ): Promise<AdminPlatformAlert> {
-    const res = await fetchWithTimeout(`/api/admin/alerts/${encodeURIComponent(alertId)}`, {
+    const res = await fetchWithTimeout(`/api/admin/alerts/${encodeURIComponent(alertId)}/status`, {
       method: 'PATCH',
       headers: jsonHeaders(),
       body: JSON.stringify({ status })
@@ -239,7 +239,14 @@ export const adminApi = {
       const stored = localStorage.getItem(BROADCAST_STORAGE_KEY);
       if (!stored) return null;
       const parsed = JSON.parse(stored) as AdminBroadcastMessage;
-      return parsed.active ? parsed : null;
+      if (!parsed?.active) return null;
+      if (parsed.expiresAt) {
+        const expiresAtMs = new Date(parsed.expiresAt).getTime();
+        if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+          return null;
+        }
+      }
+      return parsed;
     } catch {
       return null;
     }

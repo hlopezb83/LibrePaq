@@ -45,7 +45,7 @@ describe('Phase 5 SuperAdmin Enterprise Suite', () => {
     for (const sid of TEST_SAT_IDS) db.prepare('DELETE FROM sat_download_requests WHERE id = ?').run(sid);
     db.prepare('DELETE FROM companies WHERE id IN (?, ?)').run(TEST_COMP_FIEL, TEST_COMP_NOFIEL);
     db.prepare('DELETE FROM workspace_quotas WHERE workspace_id = ?').run(TEST_WS_ID);
-    db.prepare('DELETE FROM platform_alerts WHERE target_id IN (?, ?, ?) OR code = ?').run(TEST_COMP_FIEL, TEST_COMP_NOFIEL, TEST_WS_ID, 'SAT_ERROR_SPIKE');
+    db.prepare('DELETE FROM platform_alerts WHERE target_id IN (?, ?, ?) OR code = ?').run(TEST_COMP_FIEL, TEST_COMP_NOFIEL, TEST_WS_ID, 'SAT_ERROR_SPIKE_24H');
     db.prepare('DELETE FROM admin_user_overrides WHERE user_id = ?').run(TEST_USER_ID);
     db.prepare("DELETE FROM admin_audit_logs WHERE target_id IN (?, ?, ?) OR action IN ('RUN_HEALTH_SCAN', 'RESOLVE_PLATFORM_ALERT')").run(
       TEST_USER_ID, TEST_WS_ID, TEST_COMP_FIEL
@@ -196,9 +196,15 @@ describe('Phase 5 SuperAdmin Enterprise Suite', () => {
 
     const openAlerts = await reqJson<AdminPlatformAlert[]>('/admin/alerts?status=open', { headers: SUPER_HEADERS });
     expect(openAlerts.status).toBe(200);
-    const fielAlert = openAlerts.body.find((a) => a.code === `FIEL_EXPIRING:${TEST_COMP_FIEL}`);
-    const quotaAlert = openAlerts.body.find((a) => a.code === `QUOTA_LIMIT:${TEST_WS_ID}`);
-    const satAlert = openAlerts.body.find((a) => a.code === 'SAT_ERROR_SPIKE');
+    const fielAlert = openAlerts.body.find(
+      (a) => a.code === 'FIEL_EXPIRY_SOON' && a.targetType === 'company' && a.targetId === TEST_COMP_FIEL
+    );
+    const quotaAlert = openAlerts.body.find(
+      (a) => a.code === 'WORKSPACE_QUOTA_REACHED' && a.targetType === 'workspace' && a.targetId === TEST_WS_ID
+    );
+    const satAlert = openAlerts.body.find(
+      (a) => a.code === 'SAT_ERROR_SPIKE_24H' && a.targetType === 'platform' && a.targetId === 'sat_soap'
+    );
     expect(fielAlert?.severity).toBe('warning');
     expect(quotaAlert?.severity).toBe('warning');
     expect(satAlert?.severity).toBe('critical');
@@ -223,7 +229,7 @@ describe('Phase 5 SuperAdmin Enterprise Suite', () => {
 
     await reqJson('/admin/alerts/scan', { method: 'POST', headers: SUPER_HEADERS });
     const resolvedList = await reqJson<AdminPlatformAlert[]>('/admin/alerts?status=resolved', { headers: SUPER_HEADERS });
-    expect(resolvedList.body.some((a) => a.code === `QUOTA_LIMIT:${TEST_WS_ID}` && a.status === 'resolved')).toBe(true);
-    expect(resolvedList.body.some((a) => a.code === 'SAT_ERROR_SPIKE' && a.status === 'resolved')).toBe(true);
+    expect(resolvedList.body.some((a) => a.code === 'WORKSPACE_QUOTA_REACHED' && a.targetId === TEST_WS_ID && a.status === 'resolved')).toBe(true);
+    expect(resolvedList.body.some((a) => a.code === 'SAT_ERROR_SPIKE_24H' && a.targetId === 'sat_soap' && a.status === 'resolved')).toBe(true);
   });
 });

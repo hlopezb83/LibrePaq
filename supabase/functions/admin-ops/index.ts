@@ -181,6 +181,28 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ ok: false, error: 'No puedes suspender tu propia cuenta administrativa' }, 400, headers);
       }
 
+      const { data: targetProfile, error: targetLookupErr } = await supabase
+        .from('user_profiles')
+        .select('id, email, platform_role, is_superadmin')
+        .eq('id', targetUserId)
+        .maybeSingle();
+
+      if (targetLookupErr) {
+        return jsonResponse({ ok: false, error: targetLookupErr.message }, 500, headers);
+      }
+      if (!targetProfile) {
+        return jsonResponse({ ok: false, error: 'Usuario no encontrado' }, 404, headers);
+      }
+
+      const targetRole = resolvePlatformRole(
+        targetProfile.platform_role,
+        targetProfile.is_superadmin,
+        targetProfile.email
+      );
+      if (targetRole === 'SUPERADMIN') {
+        return jsonResponse({ ok: false, error: 'No es posible suspender una cuenta SuperAdmin' }, 403, headers);
+      }
+
       const { error: updErr } = await supabase
         .from('user_profiles')
         .update({ status: nextStatus })
@@ -241,11 +263,18 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ ok: false, error: 'companyId es requerido' }, 400, headers);
       }
 
-      const { data: comp } = await supabase
+      const { data: comp, error: compErr } = await supabase
         .from('companies')
         .select('id, name, rfc')
         .eq('id', companyId)
         .maybeSingle();
+
+      if (compErr) {
+        return jsonResponse({ ok: false, error: compErr.message }, 500, headers);
+      }
+      if (!comp) {
+        return jsonResponse({ ok: false, error: 'Empresa no encontrada' }, 404, headers);
+      }
 
       const { data: deleted, error: rpcErr } = await supabase.rpc('delete_company_cascade', {
         company_id_param: companyId
@@ -258,7 +287,7 @@ Deno.serve(async (req: Request) => {
         auditAction: 'DELETE_COMPANY',
         targetType: 'company',
         targetId: companyId,
-        metadata: { companyName: comp?.name ?? null, companyRfc: comp?.rfc ?? null }
+        metadata: { companyName: comp.name ?? null, companyRfc: comp.rfc ?? null }
       });
 
       return jsonResponse({ ok: true, deleted: Boolean(deleted ?? true), companyId }, 200, headers);
@@ -270,6 +299,18 @@ Deno.serve(async (req: Request) => {
       const type = body.type;
       if (!title || !message || !type || !['info', 'warning', 'success'].includes(type)) {
         return jsonResponse({ ok: false, error: 'title, message y type (info|warning|success) son requeridos' }, 400, headers);
+      }
+
+      const rawExpiresAt = typeof body.expiresAt === 'string' ? body.expiresAt.trim() : '';
+      let expiresAtIso: string | null = null;
+      if (rawExpiresAt) {
+        const parsedMs = Date.parse(rawExpiresAt);
+        if (!Number.isFinite(parsedMs) || parsedMs <= Date.now()) {
+          return jsonResponse({ ok: false, error: 'La fecha de expiración debe ser futura' }, 400, headers);
+        }
+        expiresAtIso = new Date(parsedMs).toISOString();
+      } else if (body.expiresAt !== undefined && body.expiresAt !== null && typeof body.expiresAt !== 'string') {
+        return jsonResponse({ ok: false, error: 'La fecha de expiración debe ser futura' }, 400, headers);
       }
 
       const nowIso = new Date().toISOString();
@@ -288,7 +329,7 @@ Deno.serve(async (req: Request) => {
           type,
           active: true,
           starts_at: nowIso,
-          expires_at: body.expiresAt ?? null,
+          expires_at: expiresAtIso,
           created_by: user.email || user.id,
           created_at: nowIso,
           updated_at: nowIso
@@ -304,7 +345,7 @@ Deno.serve(async (req: Request) => {
         auditAction: 'PUBLISH_BROADCAST',
         targetType: 'broadcast',
         targetId: inserted.id,
-        metadata: { title, type, expiresAt: body.expiresAt ?? null }
+        metadata: { title, type, expiresAt: expiresAtIso }
       });
 
       return jsonResponse(
@@ -361,14 +402,17 @@ Deno.serve(async (req: Request) => {
         !planTier ||
         !VALID_TIERS.has(planTier) ||
         !Number.isFinite(maxCompanies) ||
-        maxCompanies < 0 ||
+        maxCompanies < 1 ||
         !Number.isFinite(maxCfdisPerMonth) ||
-        maxCfdisPerMonth < 0 ||
+        maxCfdisPerMonth < 1 ||
         !Number.isFinite(maxStorageMb) ||
-        maxStorageMb < 0
+        maxStorageMb < 10
       ) {
         return jsonResponse(
-          { ok: false, error: 'workspaceId, planTier y límites numéricos válidos son requeridos' },
+          {
+            ok: false,
+            error: 'workspaceId, planTier y límites numéricos válidos son requeridos (maxCompanies >= 1, maxCfdisPerMonth >= 1, maxStorageMb >= 10)'
+          },
           400,
           headers
         );

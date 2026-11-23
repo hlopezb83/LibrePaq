@@ -1,6 +1,8 @@
 import { db } from '../connection';
-import { isSuperAdminEmail } from '../../shared/superadmin';
+import { isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
 import type { AdminAuditLogEntry, AdminBroadcastMessage } from '../../shared/admin-types';
+import { tableColumns } from './admin-enterprise.helpers';
+import { getAdminUsersRepo } from './admin.repo';
 
 interface BroadcastDbRow {
   id: string; title: string; message: string; type: string; active: number;
@@ -160,6 +162,42 @@ export function clearBroadcastRepo(
   })();
 }
 
+function isTargetSuperAdmin(userId: string): boolean {
+  const trimmed = userId.trim();
+  if (trimmed === 'usr_owner_hlopez' || isSuperAdminEmail(trimmed)) return true;
+
+  const ovRow = db
+    .query('SELECT platform_role FROM admin_user_overrides WHERE user_id = ?')
+    .get(trimmed) as { platform_role: string | null } | null;
+  if (normalizePlatformRole(ovRow?.platform_role, false, null) === 'SUPERADMIN') return true;
+
+  const profileCols = tableColumns('user_profiles');
+  if (profileCols.size > 0) {
+    const selectCols = ['id'];
+    if (profileCols.has('platform_role')) selectCols.push('platform_role');
+    if (profileCols.has('is_superadmin')) selectCols.push('is_superadmin');
+    if (profileCols.has('email')) selectCols.push('email');
+    const prof = db.query(`SELECT ${selectCols.join(', ')} FROM user_profiles WHERE id = ?`).get(trimmed) as Record<
+      string,
+      unknown
+    > | null;
+    if (prof) {
+      const role = normalizePlatformRole(
+        prof.platform_role ? String(prof.platform_role) : null,
+        Boolean(prof.is_superadmin),
+        prof.email ? String(prof.email) : null
+      );
+      if (role === 'SUPERADMIN') return true;
+    }
+  }
+
+  const repoUser = getAdminUsersRepo().find((u) => u.id === trimmed);
+  if (repoUser && (repoUser.isSuperAdmin || normalizePlatformRole(repoUser.platformRole, repoUser.isSuperAdmin, repoUser.email) === 'SUPERADMIN')) {
+    return true;
+  }
+  return false;
+}
+
 export function setAdminUserStatusRepo(
   userId: string,
   status: 'ACTIVO' | 'SUSPENDIDO',
@@ -167,7 +205,7 @@ export function setAdminUserStatusRepo(
   actorUserId?: string | null,
   reason?: string
 ): { userId: string; status: 'ACTIVO' | 'SUSPENDIDO'; updatedAt: string } {
-  if (userId === 'usr_owner_hlopez' || isSuperAdminEmail(userId)) {
+  if (status === 'SUSPENDIDO' && isTargetSuperAdmin(userId)) {
     throw new Error('No es posible suspender una cuenta SuperAdmin');
   }
 

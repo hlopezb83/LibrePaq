@@ -6,7 +6,7 @@ import type {
   AdminSatHealthResponse,
   AdminUserStatusPayload
 } from '../../shared/admin-types';
-import { isSuperAdminEmail } from '../../shared/superadmin';
+import { isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
 
 type Row = Record<string, unknown>;
 
@@ -218,8 +218,34 @@ export const supabaseAdminOpsApi = {
     if (!supabase) throw new Error('Supabase no disponible');
     const res = await invokeAdminOps<{ userId: string; status: 'ACTIVO' | 'SUSPENDIDO' }>({ action: 'SET_USER_STATUS', userId, status: payload.status, reason: payload.reason });
     if (!res.unavailable && res.data) return { userId: res.data.userId, status: res.data.status };
-    const { error } = await supabase.from('user_profiles').update({ status: payload.status }).eq('id', userId);
-    if (error) throw new Error(error.message);
+
+    if (payload.status === 'SUSPENDIDO') {
+      const { data: targetProf } = await supabase
+        .from('user_profiles')
+        .select('email, is_superadmin, platform_role')
+        .eq('id', userId)
+        .maybeSingle();
+      const targetRole = normalizePlatformRole(
+        targetProf?.platform_role ? String(targetProf.platform_role) : null,
+        Boolean(targetProf?.is_superadmin),
+        targetProf?.email ? String(targetProf.email) : userId
+      );
+      if (targetRole === 'SUPERADMIN') {
+        throw new Error('No es posible suspender una cuenta SuperAdmin');
+      }
+    }
+
+    const { data, error } = await supabase.from('user_profiles').update({ status: payload.status }).eq('id', userId).select('id');
+    if (error) {
+      const msgLower = error.message.toLowerCase();
+      if (msgLower.includes('row-level security') || msgLower.includes('permission denied') || error.code === '42501') {
+        throw new Error('No tienes permisos RLS para cambiar el estatus directamente. Habilita la Edge Function admin-ops para operadores BILLING_OPS.');
+      }
+      throw new Error(error.message);
+    }
+    if (!data || data.length === 0) {
+      throw new Error('No fue posible actualizar el estatus del usuario (usuario no encontrado o bloqueado por RLS; requiere Edge Function admin-ops).');
+    }
     await insertAuditFallback({ action: 'SET_USER_STATUS', targetType: 'user', targetId: userId, metadata: { status: payload.status, reason: payload.reason ?? null } });
     return { userId, status: payload.status };
   },

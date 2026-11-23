@@ -3,6 +3,7 @@ import type { Company, AccountWithBalance, Poliza } from '../../shared/types';
 import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 import type { ToastContextType } from '../../context/ToastContext';
 import { useUIModal } from '../../context/UIModalContext';
+import { parseNavTarget } from './parseNavTarget';
 
 const CommandPaletteModal = lazy(() =>
   import('../command-palette/CommandPaletteModal').then((m) => ({ default: m.CommandPaletteModal }))
@@ -45,7 +46,7 @@ interface AppShellModalsProps {
   companies: Company[];
   activeCompany: Company | null;
   polizas: Poliza[];
-  navigate: (opts: { to: string }) => void;
+  navigate: (opts: { to: string; search?: Record<string, string> }) => void;
   setActiveCompanyId: (id: string, comp?: Company) => void;
   updatePeriod: (year: number, period: number) => void;
   openCompanySwitcherModal: () => void;
@@ -118,7 +119,7 @@ export function AppShellModals({
           companies={companies}
           activeCompany={activeCompany}
           polizas={polizas}
-          onSelectRoute={(to) => navigate({ to })}
+          onSelectRoute={(to) => navigate(parseNavTarget(to))}
           onSelectAccount={(id) => setGlobalLedgerAccountId(id)}
           onSelectCompany={(id) => {
             const comp = companies.find((c) => c.id === id);
@@ -173,7 +174,7 @@ export function AppShellModals({
       {hasOpenedShortcuts && (
         <KeyboardShortcutsModal
           dialogRef={shortcutsDialogRef}
-          onNavigate={(to) => navigate({ to })}
+          onNavigate={(to) => navigate(parseNavTarget(to))}
         />
       )}
 

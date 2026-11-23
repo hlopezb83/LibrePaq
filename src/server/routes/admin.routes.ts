@@ -1,6 +1,13 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
-import { isSuperAdminEmail } from '../../shared/superadmin';
+import {
+  canDeletePlatformTenants,
+  canManageBillingAndQuotas,
+  canManagePlatformRoles,
+  canPublishPlatformBroadcast,
+  hasPlatformAdminAccess
+} from '../../shared/superadmin';
+import type { PlatformRole } from '../../shared/admin-types';
 import {
   getAdminCompaniesRepo,
   getAdminCompanyDetailRepo,
@@ -28,8 +35,10 @@ import {
   updateAdminPlatformAlertStatusRepo,
   upsertWorkspaceQuotaRepo
 } from '../repositories/admin-enterprise.repo';
+import { resolveCallerPlatformRoleRepo } from '../repositories/admin-enterprise.helpers';
 
-export const adminRoutes = new Hono();
+type AdminEnv = { Variables: { callerRole: PlatformRole } };
+export const adminRoutes = new Hono<AdminEnv>();
 
 const isoDateSchema = z.string().refine((val) => !Number.isNaN(Date.parse(val)), 'Fecha ISO inválida');
 
@@ -63,7 +72,9 @@ const companiesPageQuerySchema = z.object({
   pageSize: optInt(100),
   search: optStr(120),
   ownerType: optEnum(['ALL', 'user', 'superadmin', 'demo']),
-  fielFilter: optEnum(['ALL', 'WITH_FIEL', 'WITHOUT_FIEL'])
+  fielFilter: optEnum(['ALL', 'WITH_FIEL', 'WITHOUT_FIEL']),
+  sortBy: optEnum(['createdAt', 'polizasCount', 'cfdisCount']),
+  sortDir: optEnum(['asc', 'desc'])
 });
 
 const usersPageQuerySchema = z.object({
@@ -104,10 +115,11 @@ function parseQuery<T>(c: Context, schema: z.ZodType<T>): { data: T } | { error:
   return { data: parsed.data };
 }
 
-function getActorContext(c: Context): { actorEmail: string; actorUserId: string | null } {
+function getActorContext(c: Context<AdminEnv>): { actorEmail: string; actorUserId: string | null } {
   const email = (c.req.header('X-User-Email') || c.req.header('x-user-email') || '').trim().toLowerCase();
   const userId = (c.req.header('X-User-Id') || c.req.header('x-user-id') || '').trim();
-  return { actorEmail: email || 'hlopezb@gmail.com', actorUserId: userId || null };
+  const fallbackActor = c.get('callerRole') === 'SUPERADMIN' ? 'hlopezb@gmail.com' : (userId || 'platform-operator');
+  return { actorEmail: email || fallbackActor, actorUserId: userId || null };
 }
 
 async function parseJsonBody<T>(c: Context, schema: z.ZodType<T>): Promise<{ data: T } | { error: string }> {
@@ -121,6 +133,14 @@ async function parseJsonBody<T>(c: Context, schema: z.ZodType<T>): Promise<{ dat
   }
 }
 
+function denyIfForbidden(c: Context<AdminEnv>, allow: (role: PlatformRole) => boolean, action: string) {
+  const role = c.get('callerRole') ?? 'NONE';
+  if (!allow(role)) {
+    return c.json({ error: `FORBIDDEN: Tu rol (${role}) no tiene permiso para ejecutar ${action}` }, 403);
+  }
+  return null;
+}
+
 // Exento del guard SuperAdmin para que BroadcastBanner pueda consultarlo para cualquier usuario
 adminRoutes.get('/admin/broadcast/active', (c) => c.json(getActiveBroadcastRepo()));
 
@@ -132,11 +152,18 @@ adminRoutes.use('/admin/*', async (c, next) => {
 
   const hasSecret = Boolean(adminSecret && bearerToken === adminSecret);
   const userEmail = (c.req.header('X-User-Email') || c.req.header('x-user-email') || '').toLowerCase().trim();
-  const isAuthorized = isProd ? hasSecret : hasSecret || isSuperAdminEmail(userEmail);
+  const userId = (c.req.header('X-User-Id') || c.req.header('x-user-id') || '').trim();
 
-  if (!isAuthorized) {
-    return c.json({ error: 'UNAUTHORIZED: Requiere autorización válida de SuperAdmin' }, 403);
+  const callerRole: PlatformRole = hasSecret
+    ? 'SUPERADMIN'
+    : isProd
+      ? 'NONE'
+      : resolveCallerPlatformRoleRepo(userId, userEmail);
+
+  if (!hasPlatformAdminAccess(callerRole)) {
+    return c.json({ error: 'UNAUTHORIZED: Requiere autorización válida de plataforma administrativa' }, 403);
   }
+  c.set('callerRole', callerRole);
   return await next();
 });
 
@@ -151,12 +178,16 @@ adminRoutes.get('/admin/companies/:id/detail', (c) => {
 });
 
 adminRoutes.delete('/admin/companies/:id', (c) => {
+  const denied = denyIfForbidden(c, canDeletePlatformTenants, 'DELETE_COMPANY');
+  if (denied) return denied;
   const { actorEmail, actorUserId } = getActorContext(c);
   const result = deleteAdminCompanyRepo(c.req.param('id'), actorEmail, actorUserId);
   return result.deleted ? c.json(result) : c.json({ error: 'Empresa no encontrada.' }, 404);
 });
 
 adminRoutes.patch('/admin/users/:id/status', async (c) => {
+  const denied = denyIfForbidden(c, canManageBillingAndQuotas, 'SET_USER_STATUS');
+  if (denied) return denied;
   const parsed = await parseJsonBody(c, userStatusSchema);
   if ('error' in parsed) return c.json({ error: parsed.error }, 400);
 
@@ -170,14 +201,21 @@ adminRoutes.patch('/admin/users/:id/status', async (c) => {
 });
 
 adminRoutes.post('/admin/broadcast', async (c) => {
+  const denied = denyIfForbidden(c, canPublishPlatformBroadcast, 'PUBLISH_BROADCAST');
+  if (denied) return denied;
   const parsed = await parseJsonBody(c, broadcastSchema);
   if ('error' in parsed) return c.json({ error: parsed.error }, 400);
+  if (parsed.data.expiresAt && Date.parse(parsed.data.expiresAt) <= Date.now()) {
+    return c.json({ error: 'La fecha de expiración (expiresAt) debe ser futura.' }, 400);
+  }
 
   const { actorEmail, actorUserId } = getActorContext(c);
   return c.json(saveBroadcastRepo(parsed.data, actorEmail, actorUserId), 201);
 });
 
 adminRoutes.delete('/admin/broadcast', (c) => {
+  const denied = denyIfForbidden(c, canPublishPlatformBroadcast, 'CLEAR_BROADCAST');
+  if (denied) return denied;
   const { actorEmail, actorUserId } = getActorContext(c);
   return c.json(clearBroadcastRepo(actorEmail, actorUserId));
 });
@@ -219,6 +257,8 @@ adminRoutes.get('/admin/audit-logs/paginated', (c) => {
 });
 
 adminRoutes.patch('/admin/users/:id/role', async (c) => {
+  const denied = denyIfForbidden(c, canManagePlatformRoles, 'SET_USER_ROLE');
+  if (denied) return denied;
   const parsed = await parseJsonBody(c, userRoleSchema);
   if ('error' in parsed) return c.json({ error: parsed.error }, 400);
   const { actorEmail, actorUserId } = getActorContext(c);
@@ -234,6 +274,8 @@ adminRoutes.patch('/admin/users/:id/role', async (c) => {
 adminRoutes.get('/admin/workspaces/:workspaceId/quota', (c) => c.json(getWorkspaceQuotaRepo(c.req.param('workspaceId'))));
 
 adminRoutes.put('/admin/workspaces/:workspaceId/quota', async (c) => {
+  const denied = denyIfForbidden(c, canManageBillingAndQuotas, 'UPSERT_WORKSPACE_QUOTA');
+  if (denied) return denied;
   const parsed = await parseJsonBody(c, workspaceQuotaSchema);
   if ('error' in parsed) return c.json({ error: parsed.error }, 400);
   const { actorEmail, actorUserId } = getActorContext(c);

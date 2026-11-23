@@ -46,6 +46,7 @@ export interface AdminCompanySummary {
   currentYear: number;
   currentPeriod: number;
   userId?: string;
+  userWorkspaceId?: string | null;
   userEmail?: string;
   userFullName?: string;
   userProvider?: 'google' | 'email';
@@ -171,6 +172,8 @@ export interface AdminCompaniesPageQuery {
   search?: string;
   ownerType?: 'ALL' | 'user' | 'superadmin' | 'demo';
   fielFilter?: 'ALL' | 'WITH_FIEL' | 'WITHOUT_FIEL';
+  sortBy?: 'createdAt' | 'polizasCount' | 'cfdisCount';
+  sortDir?: 'asc' | 'desc';
 }
 
 export interface AdminUsersPageQuery {
