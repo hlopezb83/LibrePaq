@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import * as fflate from 'npm:fflate@0.8.2';
+import * as fflate from 'npm:fflate@0.8.3';
 import {
   parseAndDecryptFiel,
   encryptPrivateKeyIfConfigured,
