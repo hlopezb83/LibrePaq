@@ -141,7 +141,7 @@ export function SuperAdminView() {
           </button>
         </div>
 
-        <div role="tablist" aria-label="Secciones de administración de plataforma" className="flex items-center gap-1 erp-tab-scroller max-w-full py-0.5 border-t border-slate-100 pt-3">
+        <div role="tablist" aria-label="Secciones de administración de plataforma" className="flex items-center gap-1.5 overflow-x-auto md:flex-wrap md:overflow-visible [scrollbar-width:none] max-w-full py-0.5 border-t border-slate-100 pt-3">
           {adminTabs.map((tab) => {
             const Icon = tab.icon;
             const isSelected = m.activeTab === tab.id;
@@ -156,7 +156,7 @@ export function SuperAdminView() {
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => m.setActiveTab(tab.id)}
                 onKeyDown={(e) => handleTablistKeyDown(e, adminTabs, m.activeTab, m.setActiveTab, 'admin-tab-')}
-                className={`snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                   isSelected
                     ? 'bg-blue-600 text-white border-blue-900 shadow-xs'
                     : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'

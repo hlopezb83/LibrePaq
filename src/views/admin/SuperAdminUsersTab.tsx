@@ -153,26 +153,26 @@ export function SuperAdminUsersTab({
           <caption className="visually-hidden">Directorio paginado de usuarios registrados y niveles de acceso</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
             <tr>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Usuario / Correo</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Despacho / Nivel de acceso</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Canal / Acceso</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Empresas</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Registro</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Último acceso</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50 text-right">Estado / Control</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Usuario / Correo</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Despacho / Nivel de acceso</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Canal / Acceso</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Empresas</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Registro</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Último acceso</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50 text-right">Estado / Control</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {isLoading ? (
               Array.from({ length: 4 }).map((_, idx) => (
                 <tr key={`skeleton-${idx}`} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
-                  <td className="py-3 px-3.5"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-lg bg-slate-200 shrink-0" /><div><div className="h-3.5 w-32 bg-slate-200 rounded mb-1" /><div className="h-3 w-40 bg-slate-100 rounded" /></div></div></td>
-                  <td className="py-3 px-3.5"><div className="h-5 w-36 bg-slate-200 rounded-full mb-1" /><div className="h-6 w-32 bg-slate-100 rounded-lg" /></td>
-                  <td className="py-3 px-3.5"><div className="h-4 w-16 bg-slate-200 rounded mb-1" /><div className="h-3 w-24 bg-slate-100 rounded" /></td>
-                  <td className="py-3 px-3.5"><div className="h-5 w-12 bg-slate-200 rounded-lg" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-20 bg-slate-200 rounded" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-20 bg-slate-200 rounded" /></td>
-                  <td className="py-3 px-3.5 text-right"><div className="h-5 w-16 bg-slate-200 rounded-full ml-auto" /></td>
+                  <td className="py-2.5 px-2.5"><div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg bg-slate-200 shrink-0" /><div><div className="h-3.5 w-28 bg-slate-200 rounded mb-1" /><div className="h-3 w-36 bg-slate-100 rounded" /></div></div></td>
+                  <td className="py-2.5 px-2.5"><div className="h-5 w-32 bg-slate-200 rounded-lg mb-1" /><div className="h-6 w-28 bg-slate-100 rounded-lg" /></td>
+                  <td className="py-2.5 px-2.5"><div className="h-4 w-16 bg-slate-200 rounded mb-1" /><div className="h-3 w-24 bg-slate-100 rounded" /></td>
+                  <td className="py-2.5 px-2.5"><div className="h-5 w-12 bg-slate-200 rounded-lg" /></td>
+                  <td className="py-2.5 px-2.5"><div className="h-3.5 w-20 bg-slate-200 rounded" /></td>
+                  <td className="py-2.5 px-2.5"><div className="h-3.5 w-20 bg-slate-200 rounded" /></td>
+                  <td className="py-2.5 px-2.5 text-right"><div className="h-5 w-16 bg-slate-200 rounded-full ml-auto" /></td>
                 </tr>
               ))
             ) : users.length === 0 ? (
@@ -182,19 +182,20 @@ export function SuperAdminUsersTab({
                 const isMutating = mutatingUserId === u.id;
                 const isSuspended = u.status === 'SUSPENDIDO';
                 const currentRole: PlatformRole = u.platformRole || (u.isSuperAdmin ? 'SUPERADMIN' : 'NONE');
+                const workspaceLabel = u.workspaceName || `Despacho — ${u.fullName}`;
 
                 return (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                    <th scope="row" className="py-3 px-3.5 text-left font-normal">
-                      <div className="flex items-center gap-2.5">
+                    <th scope="row" className="py-2.5 px-2.5 max-w-[215px] text-left font-normal">
+                      <div className="flex items-center gap-2 min-w-0">
                         <div aria-hidden="true" className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
                           {u.fullName.slice(0, 2).toUpperCase() || 'CP'}
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900">{u.fullName}</p>
-                          <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 truncate" title={u.fullName}>{u.fullName}</p>
+                          <div className="text-[11px] text-slate-600 flex items-center gap-1 min-w-0">
                             <Mail className="w-3 h-3 text-slate-600 shrink-0" aria-hidden="true" />
-                            <span>{u.email}</span>
+                            <span className="truncate" title={u.email}>{u.email}</span>
                             <button type="button" onClick={() => void copyEmail(u.email, u.id)} aria-label={`Copiar correo ${u.email}`} title={copiedEmail === u.id ? 'Correo copiado' : `Copiar correo ${u.email}`} className="min-h-7 min-w-7 inline-flex items-center justify-center rounded text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer shrink-0">
                               {copiedEmail === u.id ? <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                             </button>
@@ -202,17 +203,20 @@ export function SuperAdminUsersTab({
                         </div>
                       </div>
                     </th>
-                    <td className="py-3 px-3.5 space-y-1.5">
+                    <td className="py-2.5 px-2.5 max-w-[190px] space-y-1.5">
                       {currentRole === 'SUPERADMIN' ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                           <Crown className="w-3 h-3 text-amber-700" aria-hidden="true" /> SuperAdmin
                         </span>
                       ) : (
-                        <div>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                            {u.workspaceName || `Despacho — ${u.fullName}`}
+                        <div className="max-w-full">
+                          <span
+                            title={workspaceLabel}
+                            className="inline-block max-w-full truncate px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 align-bottom"
+                          >
+                            {workspaceLabel}
                           </span>
-                          {u.workspaceId && <p className="text-[10px] font-mono text-slate-600 mt-0.5">{u.workspaceId}</p>}
+                          {u.workspaceId && <p className="text-[10px] font-mono text-slate-600 mt-0.5 truncate" title={u.workspaceId}>{u.workspaceId}</p>}
                         </div>
                       )}
                       {canManageQuotas && u.workspaceId && (
@@ -228,7 +232,7 @@ export function SuperAdminUsersTab({
                         <AdminUserRoleControl user={u} currentRole={currentRole} isMutating={isMutating} onChangeUserRole={onChangeUserRole} />
                       )}
                     </td>
-                    <td className="py-3 px-3.5">
+                    <td className="py-2.5 px-2.5">
                       <div className="flex flex-col items-start gap-1">
                         <span className="capitalize font-mono text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">{u.provider}</span>
                         {!u.isSuperAdmin && (u.acquisitionSource === 'google_ads' ? (
@@ -242,7 +246,7 @@ export function SuperAdminUsersTab({
                         ))}
                       </div>
                     </td>
-                    <td className="py-3 px-3.5 font-bold text-slate-900">
+                    <td className="py-2.5 px-2.5 font-bold text-slate-900 whitespace-nowrap">
                       {u.companiesCount > 0 && onViewUserCompanies ? (
                         <button
                           type="button"
@@ -256,9 +260,9 @@ export function SuperAdminUsersTab({
                         <span className="text-slate-600 font-medium tabular-nums">{u.companiesCount}</span>
                       )}
                     </td>
-                    <td className="py-3 px-3.5 text-slate-600 text-[11px] whitespace-nowrap">{formatAdminDate(u.createdAt)}</td>
-                    <td className="py-3 px-3.5 text-slate-600 text-[11px] whitespace-nowrap">{formatAdminDate(u.lastSignInAt)}</td>
-                    <td className="py-3 px-3.5 text-right">
+                    <td className="py-2.5 px-2.5 text-slate-600 text-[11px] whitespace-nowrap">{formatAdminDate(u.createdAt)}</td>
+                    <td className="py-2.5 px-2.5 text-slate-600 text-[11px] whitespace-nowrap">{formatAdminDate(u.lastSignInAt)}</td>
+                    <td className="py-2.5 px-2.5 text-right whitespace-nowrap">
                       <div className="inline-flex flex-col items-end gap-1.5">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${isSuspended ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-emerald-100 text-emerald-800'}`}>
                           {isSuspended ? <Ban className="w-3 h-3 text-red-600" aria-hidden="true" /> : <CheckCircle className="w-3 h-3 text-emerald-600" aria-hidden="true" />}

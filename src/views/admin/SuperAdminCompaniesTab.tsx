@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Calendar, Check, Copy, Eye, KeyRound, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Calendar, Check, Copy, Eye, KeyRound, X } from 'lucide-react';
 import type {
   AdminCompaniesPageQuery,
   AdminCompanySummary,
@@ -81,6 +81,19 @@ export function SuperAdminCompaniesTab({
   const activitySortAria = sortBy === 'polizasCount' || sortBy === 'cfdisCount' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
   const createdSortAria = sortBy === 'createdAt' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
 
+  const toggleHeaderSort = (target: 'cfdisCount' | 'createdAt') => {
+    const isSame = target === 'cfdisCount' ? sortBy === 'cfdisCount' || sortBy === 'polizasCount' : sortBy === 'createdAt';
+    const nextSortBy = isSame ? sortBy : target;
+    const nextDir: 'asc' | 'desc' = isSame ? (sortDir === 'desc' ? 'asc' : 'desc') : 'desc';
+    onQueryChange({ ...query, page: 1, sortBy: nextSortBy, sortDir: nextDir });
+  };
+
+  const renderSortIcon = (ariaState: 'ascending' | 'descending' | 'none') => {
+    if (ariaState === 'ascending') return <ArrowUp className="w-3 h-3 text-blue-600 shrink-0" aria-hidden="true" />;
+    if (ariaState === 'descending') return <ArrowDown className="w-3 h-3 text-blue-600 shrink-0" aria-hidden="true" />;
+    return <ArrowUpDown className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />;
+  };
+
   return (
     <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
       <AdminCompaniesFilterBar
@@ -149,26 +162,44 @@ export function SuperAdminCompaniesTab({
           <caption id="admin-companies-caption" className="visually-hidden">Directorio global paginado de empresas fiscales</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
             <tr>
-              <th scope="col" className="py-2.5 px-3.5 max-w-[220px] border-b border-slate-200 bg-slate-50 lg:sticky lg:left-0 lg:z-20 lg:border-r lg:border-slate-200">RFC / Empresa</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Usuario Relacionado</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Régimen / C.P.</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Periodo</th>
-              <th scope="col" aria-sort={activitySortAria} className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Actividad / e.firma</th>
-              <th scope="col" aria-sort={createdSortAria} className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Creación</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50 text-right">Acciones</th>
+              <th scope="col" className="py-2.5 px-2.5 max-w-[190px] border-b border-slate-200 bg-slate-50 lg:sticky lg:left-0 lg:z-20 lg:border-r lg:border-slate-200">RFC / Empresa</th>
+              <th scope="col" className="py-2.5 px-2.5 max-w-[185px] border-b border-slate-200 bg-slate-50">Usuario Relacionado</th>
+              <th scope="col" className="py-2.5 px-2.5 max-w-[165px] border-b border-slate-200 bg-slate-50">Régimen / C.P.</th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Periodo</th>
+              <th scope="col" aria-sort={activitySortAria} className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">
+                <button
+                  type="button"
+                  onClick={() => toggleHeaderSort('cfdisCount')}
+                  className="inline-flex items-center gap-1 uppercase tracking-wider font-semibold hover:text-blue-700 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
+                >
+                  <span>Actividad / e.firma</span>
+                  {renderSortIcon(activitySortAria)}
+                </button>
+              </th>
+              <th scope="col" aria-sort={createdSortAria} className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">
+                <button
+                  type="button"
+                  onClick={() => toggleHeaderSort('createdAt')}
+                  className="inline-flex items-center gap-1 uppercase tracking-wider font-semibold hover:text-blue-700 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 rounded"
+                >
+                  <span>Creación</span>
+                  {renderSortIcon(createdSortAria)}
+                </button>
+              </th>
+              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="text-slate-700">
             {isLoading ? (
               Array.from({ length: 4 }).map((_, idx) => (
                 <tr key={`skeleton-${idx}`} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
-                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-4 w-28 bg-slate-200 rounded mb-1.5" /><div className="h-3 w-40 bg-slate-100 rounded" /></td>
-                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-4 w-36 bg-slate-200 rounded mb-1" /><div className="h-3 w-28 bg-slate-100 rounded" /></td>
-                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-3.5 w-32 bg-slate-200 rounded mb-1" /><div className="h-3 w-16 bg-slate-100 rounded" /></td>
-                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-5 w-20 bg-slate-200 rounded" /></td>
-                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-3.5 w-28 bg-slate-200 rounded mb-1" /><div className="h-4 w-20 bg-slate-100 rounded-full" /></td>
-                  <td className="py-3 px-3.5 border-b border-slate-100"><div className="h-3.5 w-20 bg-slate-200 rounded" /></td>
-                  <td className="py-3 px-3.5 border-b border-slate-100 text-right"><div className="h-7 w-24 bg-slate-200 rounded-xl ml-auto" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-4 w-28 bg-slate-200 rounded mb-1.5" /><div className="h-3 w-36 bg-slate-100 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-4 w-32 bg-slate-200 rounded mb-1" /><div className="h-3 w-24 bg-slate-100 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-3.5 w-28 bg-slate-200 rounded mb-1" /><div className="h-3 w-16 bg-slate-100 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-5 w-16 bg-slate-200 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-3.5 w-24 bg-slate-200 rounded mb-1" /><div className="h-4 w-20 bg-slate-100 rounded-full" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-3.5 w-16 bg-slate-200 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-100 text-right"><div className="h-7 w-20 bg-slate-200 rounded-xl ml-auto" /></td>
                 </tr>
               ))
             ) : sortedCompanies.length === 0 ? (
@@ -181,9 +212,9 @@ export function SuperAdminCompaniesTab({
             ) : (
               sortedCompanies.map((c) => (
                 <tr key={c.id} className="group hover:bg-slate-50 transition">
-                  <th scope="row" className="py-3 px-3.5 max-w-[220px] text-left font-normal border-b border-slate-100 bg-white group-hover:bg-slate-50 lg:sticky lg:left-0 lg:border-r lg:border-slate-200 z-[1]">
+                  <th scope="row" className="py-2.5 px-2.5 max-w-[190px] text-left font-normal border-b border-slate-100 bg-white group-hover:bg-slate-50 lg:sticky lg:left-0 lg:border-r lg:border-slate-200 z-[1]">
                     <div className="inline-flex items-center gap-1">
-                      <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.rfc}</span>
+                      <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">{c.rfc}</span>
                       <button
                         type="button"
                         onClick={() => void copyRfc(c.rfc, c.id)}
@@ -203,18 +234,18 @@ export function SuperAdminCompaniesTab({
                       {c.name}
                     </button>
                   </th>
-                  <td className="py-3 px-3.5 border-b border-slate-100 min-w-[220px]"><CompanyUserOwnerCell company={c} /></td>
-                  <td className="py-3 px-3.5 max-w-[200px] border-b border-slate-100">
+                  <td className="py-2.5 px-2.5 border-b border-slate-100 max-w-[185px]"><CompanyUserOwnerCell company={c} /></td>
+                  <td className="py-2.5 px-2.5 max-w-[165px] border-b border-slate-100">
                     <p className="truncate text-slate-700" title={c.regimenFiscal}>{c.regimenFiscal}</p>
                     <p className="font-mono text-[11px] text-slate-600">C.P. {c.codigoPostal}</p>
                   </td>
-                  <td className="py-3 px-3.5 border-b border-slate-100 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                  <td className="py-2.5 px-2.5 border-b border-slate-100 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
                       <Calendar className="w-3 h-3 text-slate-600" aria-hidden="true" />
                       P{String(c.currentPeriod).padStart(2, '0')} / {c.currentYear}
                     </span>
                   </td>
-                  <td className="py-3 px-3.5 border-b border-slate-100 whitespace-nowrap">
+                  <td className="py-2.5 px-2.5 border-b border-slate-100 whitespace-nowrap">
                     <div className="flex flex-col items-start gap-1">
                       <span className="text-[11px] font-semibold text-slate-800">{(c.polizasCount ?? 0).toLocaleString('es-MX')} pól. · {(c.cfdisCount ?? 0).toLocaleString('es-MX')} CFDI</span>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${c.hasFiel ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'}`}>
@@ -222,11 +253,11 @@ export function SuperAdminCompaniesTab({
                       </span>
                     </div>
                   </td>
-                  <td className="py-3 px-3.5 text-slate-600 text-[11px] border-b border-slate-100 whitespace-nowrap">
+                  <td className="py-2.5 px-2.5 text-slate-600 text-[11px] border-b border-slate-100 whitespace-nowrap">
                     {formatAdminDate(c.createdAt)}
                   </td>
-                  <td className="py-3 px-3.5 text-right border-b border-slate-100 whitespace-nowrap">
-                    <button type="button" onClick={(e) => openDrawer(c.id, e.currentTarget)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition cursor-pointer">
+                  <td className="py-2.5 px-2.5 text-right border-b border-slate-100 whitespace-nowrap">
+                    <button type="button" onClick={(e) => openDrawer(c.id, e.currentTarget)} className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition cursor-pointer">
                       <Eye className="w-3.5 h-3.5" aria-hidden="true" /> Inspeccionar<span className="visually-hidden"> {c.name}</span>
                     </button>
                   </td>
