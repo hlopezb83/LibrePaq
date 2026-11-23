@@ -5,7 +5,6 @@ import {
   createAccountRecord,
   deleteAccountRecord,
   getAccountLedger,
-  getCompanyById,
   updateAccountRecord
 } from '../db';
 import {
@@ -13,14 +12,14 @@ import {
   validateAccountCreatePayload,
   validateAccountUpdatePayload
 } from '../validators';
-import { errorStatus } from './route-helpers';
+import { errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
 import type { AccountNature, AccountType } from '../../shared/types';
 
 export const accountsRoutes = new Hono();
 
 accountsRoutes.get('/accounts', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json([], 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -34,7 +33,7 @@ accountsRoutes.get('/accounts', (c) => {
 accountsRoutes.get('/accounts/:id/ledger', (c) => {
   const accountId = c.req.param('id');
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(

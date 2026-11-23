@@ -28,6 +28,7 @@ export function calculateResicoPfRate(monthlyRevenueCents: number): number {
 
 export interface UsdMonetaryItemInput {
   total: number;
+  saldoInsolutoUsd?: number;
   tipoCambio: number;
   direction: 'EMITIDO' | 'RECIBIDO';
   metodoPago?: 'PUE' | 'PPD';
@@ -181,7 +182,9 @@ export function computeFiscalWorkpaper(params: {
 
     const creditNoteFlip = doc.tipoComprobante === 'E' ? -1 : 1;
     const sign = (doc.direction === 'EMITIDO' ? 1 : -1) * creditNoteFlip;
-    const usdAmountCents = toCents(doc.total);
+    const effectiveUsd = doc.saldoInsolutoUsd !== undefined ? doc.saldoInsolutoUsd : doc.total;
+    const usdAmountCents = toCents(effectiveUsd);
+    if (usdAmountCents <= 0) continue;
     const tcDoc = doc.tipoCambio > 1 ? doc.tipoCambio : 19.5;
     const mxnAmountCents = Math.round(usdAmountCents * tcDoc);
     netUsdCents += sign * usdAmountCents;

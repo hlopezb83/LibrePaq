@@ -43,13 +43,31 @@ const selectLeafAccounts = (accounts: readonly AccountWithBalance[]): AccountWit
 };
 
 function computeNetIncomeFromInitialCents(accounts: readonly AccountWithBalance[]): number {
-  const sumLeaves = (pred: (a: AccountWithBalance) => boolean): number =>
-    accounts.reduce((acc, a) => (a.isAffectable && pred(a) ? acc + toCents(a.initialBalanceComputed) : acc), 0);
-  const ingresos = sumLeaves((a) => a.type === 'INGRESOS');
-  const costos = sumLeaves((a) => a.type === 'COSTOS');
-  const gastos = sumLeaves((a) => a.type === 'GASTOS' && !a.code.startsWith('8') && !a.satGroupCode.startsWith('611'));
-  const isr = sumLeaves((a) => a.code.startsWith('801') || a.code.startsWith('800') || a.satGroupCode.startsWith('611'));
-  return ingresos - costos - gastos - isr;
+  const leaves = selectLeafAccounts(accounts);
+  let ingresosCents = 0;
+  let costosCents = 0;
+  let gastosCents = 0;
+  let isrCents = 0;
+
+  for (const a of leaves) {
+    const balCents = toCents(a.initialBalanceComputed);
+    if (a.type === 'INGRESOS') {
+      ingresosCents += (a.nature === 'ACREEDORA' ? 1 : -1) * balCents;
+    } else if (a.type === 'COSTOS') {
+      costosCents += (a.nature === 'DEUDORA' ? 1 : -1) * balCents;
+    } else if (a.type === 'GASTOS') {
+      const signedBal = (a.nature === 'DEUDORA' ? 1 : -1) * balCents;
+      if (a.code.startsWith('8') || a.satGroupCode.startsWith('611')) {
+        isrCents += signedBal;
+      } else {
+        gastosCents += signedBal;
+      }
+    } else if (a.code.startsWith('8') || a.satGroupCode.startsWith('611')) {
+      isrCents += (a.nature === 'DEUDORA' ? 1 : -1) * balCents;
+    }
+  }
+
+  return ingresosCents - costosCents - gastosCents - isrCents;
 }
 
 function buildAccountPairs(

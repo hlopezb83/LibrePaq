@@ -45,9 +45,12 @@ export function PolizasView() {
         setCompactMode={m.setCompactMode}
         filteredTotals={m.filteredPolizasTotals}
         isPeriodLocked={m.isPeriodLocked}
+        isReadOnlyClient={m.isReadOnlyClient}
         hasPolizasToExport={m.filteredPolizas.length > 0}
         onNewPoliza={m.openNewPolizaModal}
-        onOpenPedimentoModal={() => m.setIsPedimentoModalOpen(true)}
+        onOpenPedimentoModal={() => {
+          if (!m.isWriteBlocked) m.setIsPedimentoModalOpen(true);
+        }}
         onExportCsv={m.handleExportPolizasCsv}
         onCloseYear={() => m.closeYearMutation.mutate()}
         isCloseYearPending={m.closeYearMutation.isPending}
@@ -116,8 +119,14 @@ export function PolizasView() {
             <button
               type="button"
               onClick={m.openNewPolizaModal}
-              disabled={m.isPeriodLocked}
-              title={m.isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : undefined}
+              disabled={m.isWriteBlocked}
+              title={
+                m.isReadOnlyClient
+                  ? 'Modo solo lectura'
+                  : m.isPeriodLocked
+                  ? 'Periodo fiscal bloqueado ante el SAT'
+                  : undefined
+              }
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
@@ -152,6 +161,7 @@ export function PolizasView() {
                 compactMode={m.compactMode}
                 isExactMatch={isExactMatch}
                 isPeriodLocked={m.isPeriodLocked}
+                isReadOnlyClient={m.isReadOnlyClient}
                 copiedPolizaId={m.copiedPolizaId}
                 confirmDeleteId={m.confirmDeleteId}
                 onToggleExpand={(id) =>
@@ -177,7 +187,7 @@ export function PolizasView() {
         activeCompany={m.activeCompany}
         currentYear={m.currentYear}
         currentPeriod={m.currentPeriod}
-        isPeriodLocked={m.isPeriodLocked}
+        isPeriodLocked={m.isWriteBlocked}
         predictedNextFolio={m.predictedNextFolio}
         tipo={m.tipo}
         setTipo={m.setTipo}
@@ -212,6 +222,8 @@ export function PolizasView() {
         onClose={() => m.setIsPedimentoModalOpen(false)}
         currentYear={m.currentYear ?? 2026}
         currentPeriod={m.currentPeriod ?? 10}
+        isPeriodLocked={m.isPeriodLocked}
+        isReadOnlyClient={m.isReadOnlyClient}
         accounts={m.affectableAccounts}
         onSavePoliza={(data) => m.createPedimentoMutation.mutate(data)}
         isSaving={m.createPedimentoMutation.isPending}

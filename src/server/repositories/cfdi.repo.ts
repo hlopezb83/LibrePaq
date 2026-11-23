@@ -17,6 +17,7 @@ import { getAccounts } from './accounts.repo';
 import { assertPeriodOpen } from './period-locks.repo';
 import { getPolizaById, insertMovementStmt, insertPolizaStmt, maxFolioQuery } from './polizas.repo';
 import { getThirdPartyByRfc } from './third-parties.repo';
+import { listAccountingRulesRepo } from './accounting-rules.repo';
 
 export function getCfdiDocuments(companyId: string, opts?: { includeXml?: boolean }): CfdiDocument[] {
   const projection = opts?.includeXml
@@ -223,13 +224,15 @@ export function generateAutoPolizaFromCfdiId(
   const accounts = getAccounts(company.id);
   const accById = new Map(accounts.map((a) => [a.id, a]));
 
-  // Fase 3: Consultar Padrón Fiscal por RFC para asignar cuentas configuradas automáticamente
+  // Fase 3: Consultar Padrón Fiscal por RFC y reglas contables aprendidas
   const counterpartyRfc =
     cfdi.direction === 'RECIBIDO' ? cfdi.emisorRfc : cfdi.receptorRfc;
   const thirdParty = getThirdPartyByRfc(company.id, counterpartyRfc);
+  const rules = overrides?.rules ?? listAccountingRulesRepo(company.id);
 
   const plan = buildAutoPolizaPlan(cfdi, accounts, {
     ...overrides,
+    rules,
     thirdParty: overrides?.thirdParty ?? thirdParty
   });
   validateDoubleEntryMovements(plan.movements, accById);

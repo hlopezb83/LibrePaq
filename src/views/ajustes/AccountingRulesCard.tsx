@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookMarked, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { accountingRulesClient } from '../../lib/accounting-rules-client';
 import { apiClient } from '../../lib/api-client';
@@ -11,6 +12,8 @@ export interface AccountingRulesCardProps {
 }
 
 export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
+  const { isReadOnlySupportMode, isReadOnlyClient } = useCompany();
+  const isReadOnly = isReadOnlySupportMode || isReadOnlyClient;
   const queryClient = useQueryClient();
   const toast = useToast();
   const [direction, setDirection] = useState<AccountingRuleDirection>('RECIBIDO');
@@ -33,9 +36,20 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
   });
   const affectableAccounts = accounts.filter((a) => a.isAffectable);
 
+  useEffect(() => {
+    if (affectableAccounts.length === 0) return;
+    const exists = affectableAccounts.some((acc) => acc.code === operationAccountCode);
+    if (!exists && affectableAccounts[0]?.code) {
+      setOperationAccountCode(affectableAccounts[0].code);
+    }
+  }, [affectableAccounts, operationAccountCode]);
+
   const createMutation = useMutation({
-    mutationFn: () =>
-      accountingRulesClient.upsertAccountingRule({
+    mutationFn: () => {
+      if (isReadOnly) {
+        throw new Error('Modo solo lectura: no es posible crear o editar reglas contables.');
+      }
+      return accountingRulesClient.upsertAccountingRule({
         companyId,
         direction,
         matchRfc: matchRfc.trim().toUpperCase() || null,
@@ -45,7 +59,8 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
         deductiblePct: direction === 'RECIBIDO' ? deductiblePct : 100,
         priority,
         autoLearned: false
-      }),
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['accounting-rules', companyId] });
       setMatchRfc('');
@@ -58,7 +73,12 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (ruleId: string) => accountingRulesClient.deleteAccountingRule(companyId, ruleId),
+    mutationFn: (ruleId: string) => {
+      if (isReadOnly) {
+        throw new Error('Modo solo lectura: no es posible eliminar reglas contables.');
+      }
+      return accountingRulesClient.deleteAccountingRule(companyId, ruleId);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['accounting-rules', companyId] });
       toast.info('Regla contable eliminada.');
@@ -69,7 +89,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
   const hasCriteria = Boolean(matchRfc.trim() || matchClaveProdServ.trim() || matchUsoCfdi.trim());
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (hasCriteria && operationAccountCode && !createMutation.isPending) createMutation.mutate();
+    if (!isReadOnly && hasCriteria && operationAccountCode && !createMutation.isPending) createMutation.mutate();
   };
 
   return (
@@ -93,43 +113,43 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
           <div>
             <label htmlFor="rule-direction" className="block font-semibold text-slate-700 mb-1">Dirección</label>
-            <select id="rule-direction" value={direction} onChange={(e) => setDirection(e.target.value as AccountingRuleDirection)} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium">
+            <select id="rule-direction" disabled={isReadOnly} value={direction} onChange={(e) => setDirection(e.target.value as AccountingRuleDirection)} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-medium disabled:bg-slate-100">
               <option value="RECIBIDO">RECIBIDO (Gasto)</option>
               <option value="EMITIDO">EMITIDO (Ingreso)</option>
             </select>
           </div>
           <div>
             <label htmlFor="rule-rfc" className="block font-semibold text-slate-700 mb-1">RFC (Prioridad alta)</label>
-            <input id="rule-rfc" type="text" maxLength={13} value={matchRfc} onChange={(e) => setMatchRfc(e.target.value.toUpperCase())} placeholder="Ej. PRO180214A99" className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono uppercase" />
+            <input id="rule-rfc" type="text" maxLength={13} disabled={isReadOnly} value={matchRfc} onChange={(e) => setMatchRfc(e.target.value.toUpperCase())} placeholder="Ej. PRO180214A99" className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono uppercase disabled:bg-slate-100" />
           </div>
           <div>
             <label htmlFor="rule-clave" className="block font-semibold text-slate-700 mb-1">ClaveProdServ SAT</label>
-            <input id="rule-clave" type="text" maxLength={10} value={matchClaveProdServ} onChange={(e) => setMatchClaveProdServ(e.target.value.toUpperCase())} placeholder="Ej. 81112501" className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono" />
+            <input id="rule-clave" type="text" maxLength={10} disabled={isReadOnly} value={matchClaveProdServ} onChange={(e) => setMatchClaveProdServ(e.target.value.toUpperCase())} placeholder="Ej. 81112501" className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono disabled:bg-slate-100" />
           </div>
           <div>
             <label htmlFor="rule-uso" className="block font-semibold text-slate-700 mb-1">Uso CFDI</label>
-            <input id="rule-uso" type="text" maxLength={5} value={matchUsoCfdi} onChange={(e) => setMatchUsoCfdi(e.target.value.toUpperCase())} placeholder="Ej. G03" className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono uppercase" />
+            <input id="rule-uso" type="text" maxLength={5} disabled={isReadOnly} value={matchUsoCfdi} onChange={(e) => setMatchUsoCfdi(e.target.value.toUpperCase())} placeholder="Ej. G03" className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono uppercase disabled:bg-slate-100" />
           </div>
           <div>
             <label htmlFor="rule-account" className="block font-semibold text-slate-700 mb-1">Cuenta Operativa</label>
             {affectableAccounts.length > 0 ? (
-              <select id="rule-account" value={operationAccountCode} onChange={(e) => setOperationAccountCode(e.target.value)} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono">
+              <select id="rule-account" disabled={isReadOnly} value={operationAccountCode} onChange={(e) => setOperationAccountCode(e.target.value)} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono disabled:bg-slate-100">
                 {affectableAccounts.map((acc) => (
                   <option key={acc.id} value={acc.code}>{acc.code} - {acc.name}</option>
                 ))}
               </select>
             ) : (
-              <input id="rule-account" type="text" value={operationAccountCode} onChange={(e) => setOperationAccountCode(e.target.value)} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono" />
+              <input id="rule-account" type="text" disabled={isReadOnly} value={operationAccountCode} onChange={(e) => setOperationAccountCode(e.target.value)} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono disabled:bg-slate-100" />
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label htmlFor="rule-deductible" className="block font-semibold text-slate-700 mb-1">% Ded.</label>
-              <input id="rule-deductible" type="number" min={0} max={100} value={deductiblePct} disabled={direction === 'EMITIDO'} onChange={(e) => setDeductiblePct(Number(e.target.value))} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono disabled:bg-slate-100" />
+              <input id="rule-deductible" type="number" min={0} max={100} value={deductiblePct} disabled={isReadOnly || direction === 'EMITIDO'} onChange={(e) => setDeductiblePct(Number(e.target.value))} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono disabled:bg-slate-100" />
             </div>
             <div>
               <label htmlFor="rule-priority" className="block font-semibold text-slate-700 mb-1">Prioridad</label>
-              <input id="rule-priority" type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono" />
+              <input id="rule-priority" type="number" disabled={isReadOnly} value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white font-mono disabled:bg-slate-100" />
             </div>
           </div>
         </div>
@@ -137,7 +157,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
           <span className="text-[11px] text-slate-600">
             Precedencia: <strong>RFC</strong> &gt; <strong>ClaveProdServ</strong> &gt; <strong>Uso CFDI</strong>. Deducibilidad &lt; 100% envía diferencia + IVA a cuenta 801.
           </span>
-          <button type="submit" disabled={!hasCriteria || !operationAccountCode || createMutation.isPending} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+          <button type="submit" disabled={isReadOnly || !hasCriteria || !operationAccountCode || createMutation.isPending} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
             <Plus className="w-3.5 h-3.5" aria-hidden="true" />
             {createMutation.isPending ? 'Guardando...' : 'Agregar Regla'}
           </button>
@@ -175,7 +195,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
                   <span className="text-slate-500">Prio:{rule.priority}</span>
                 </div>
               </div>
-              <button type="button" aria-label={`Eliminar regla ${rule.name || rule.id}`} disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(rule.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 transition cursor-pointer">
+              <button type="button" aria-label={`Eliminar regla ${rule.name || rule.id}`} disabled={isReadOnly || deleteMutation.isPending} onClick={() => deleteMutation.mutate(rule.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer">
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>

@@ -8,10 +8,27 @@ interface UsePapelDia17Params {
   companyId: string;
   year: number;
   period: number;
+  isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
-export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelDia17Params) {
+function sanitizeFiniteNonNeg(val: number): number {
+  return Number.isFinite(val) && val >= 0 ? val : 0;
+}
+
+export function usePapelDia17({
+  companyId,
+  year,
+  period,
+  isPeriodLocked = false,
+  isReadOnlyClient = false,
+  onFeedback
+}: UsePapelDia17Params) {
+  const isWriteLocked = isPeriodLocked || isReadOnlyClient;
+  const lockMsg = isReadOnlyClient
+    ? 'Modo solo lectura: no es posible modificar parámetros fiscales ni generar pólizas.'
+    : 'Periodo fiscal bloqueado ante el SAT.';
   const queryClient = useQueryClient();
 
   const {
@@ -74,18 +91,20 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
   };
 
   const saveTaxParamsMutation = useMutation({
-    mutationFn: () =>
-      apiClient.saveTaxParameters({
+    mutationFn: () => {
+      if (isWriteLocked) throw new Error(lockMsg);
+      return apiClient.saveTaxParameters({
         companyId,
         ejercicio: year,
-        coeficienteUtilidad: coefUtilidad,
-        perdidasFiscalesPendientes: perdidasAmortizar,
-        pagosProvisionalesAnteriores: pagosPreviosInput,
-        saldoFavorIvaAnterior: ivaSaldoFavor,
-        tipoCambioDofCierre: tcCierreUsd
-      }),
+        coeficienteUtilidad: Math.min(1, sanitizeFiniteNonNeg(coefUtilidad)),
+        perdidasFiscalesPendientes: sanitizeFiniteNonNeg(perdidasAmortizar),
+        pagosProvisionalesAnteriores: sanitizeFiniteNonNeg(pagosPreviosInput),
+        saldoFavorIvaAnterior: sanitizeFiniteNonNeg(ivaSaldoFavor),
+        tipoCambioDofCierre: sanitizeFiniteNonNeg(tcCierreUsd)
+      });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
+      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
       onFeedback('Parámetros fiscales del mes actualizados y cédula Día 17 recalculada.');
     },
     onError: (err: Error) => {
@@ -94,10 +113,17 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
   });
 
   const genTaxProvisionMutation = useMutation({
-    mutationFn: () => apiClient.generateTaxProvisionPoliza(companyId),
+    mutationFn: () => {
+      if (isWriteLocked) throw new Error(lockMsg);
+      return apiClient.generateTaxProvisionPoliza(companyId);
+    },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
-      queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
+      invalidateAccountingQueries(
+        queryClient,
+        ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        companyId
+      );
+      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
       onFeedback('¡Póliza de Provisión Mensual de ISR e IVA generada y aplicada en el Libro Diario!');
     },
     onError: (err: Error) => {
@@ -106,10 +132,17 @@ export function usePapelDia17({ companyId, year, period, onFeedback }: UsePapelD
   });
 
   const genExchangePolizaMutation = useMutation({
-    mutationFn: () => apiClient.generateExchangePoliza(companyId),
+    mutationFn: () => {
+      if (isWriteLocked) throw new Error(lockMsg);
+      return apiClient.generateExchangePoliza(companyId);
+    },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
-      queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
+      invalidateAccountingQueries(
+        queryClient,
+        ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        companyId
+      );
+      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
       onFeedback('¡Póliza de Fluctuación Cambiaria USD (Art. 8 CFF / NIF B-15) generada y aplicada en libros!');
     },
     onError: (err: Error) => {

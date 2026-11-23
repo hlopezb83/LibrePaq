@@ -20,6 +20,7 @@ interface UseOnboardingAutofillParams {
     info: (msg: string) => void;
     success: (msg: string) => void;
     warning: (msg: string) => void;
+    error: (msg: string) => void;
   };
 }
 
@@ -89,11 +90,23 @@ export function useOnboardingAutofill({
     toast.warning('No se encontró un RFC válido en el documento o texto proporcionado.');
   };
 
-  const readFileAsBase64 = (file: File, onLoaded: (b64: string | null) => void) => {
+  const readFileAsBase64 = (
+    file: File,
+    onLoaded: (b64: string | null) => void,
+    onError: () => void
+  ) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const result = reader.result as string;
-      onLoaded((result.includes(',') ? result.split(',')[1] : result) || null);
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const base64 = (result.includes(',') ? result.split(',')[1] : result) || null;
+      if (!base64) {
+        onError();
+        return;
+      }
+      onLoaded(base64);
+    };
+    reader.onerror = () => {
+      onError();
     };
     reader.readAsDataURL(file);
   };
@@ -102,7 +115,11 @@ export function useOnboardingAutofill({
     const f = e.target.files?.[0];
     if (f) {
       setFielCerName(f.name);
-      readFileAsBase64(f, setFielCerBase64);
+      readFileAsBase64(f, setFielCerBase64, () => {
+        setFielCerName(null);
+        setFielCerBase64(null);
+        toast.error(`No se pudo leer el certificado .cer (${f.name}). Verifica el archivo e inténtalo de nuevo.`);
+      });
     }
   };
 
@@ -110,7 +127,11 @@ export function useOnboardingAutofill({
     const f = e.target.files?.[0];
     if (f) {
       setFielKeyName(f.name);
-      readFileAsBase64(f, setFielKeyBase64);
+      readFileAsBase64(f, setFielKeyBase64, () => {
+        setFielKeyName(null);
+        setFielKeyBase64(null);
+        toast.error(`No se pudo leer la llave privada .key (${f.name}). Verifica el archivo e inténtalo de nuevo.`);
+      });
     }
   };
 

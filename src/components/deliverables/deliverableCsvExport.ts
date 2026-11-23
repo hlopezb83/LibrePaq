@@ -1,12 +1,30 @@
-import { downloadCsvFile } from '../../lib/formatters';
+import { strToU8, zipSync } from 'fflate';
+import { downloadBlobFile } from '../../lib/formatters';
+import { sanitizeSpreadsheetText } from '../../shared/date-utils';
 import type { Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../../shared/types';
+
+function buildCsvContent(
+  headers: string[],
+  rows: Array<Array<string | number | null | undefined>>
+): string {
+  const escapeCell = (val: string | number | null | undefined): string => {
+    if (val === null || val === undefined) return '';
+    const str = typeof val === 'number' ? String(val) : sanitizeSpreadsheetText(String(val));
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+  const lines = [headers.map(escapeCell).join(','), ...rows.map((r) => r.map(escapeCell).join(','))];
+  return '\uFEFF' + lines.join('\r\n');
+}
 
 export function exportAllDeliverablesCsv({
   reportsData,
   fiscalData,
   company,
   year,
-  period,
+  period: _period,
   formatVerticalPct
 }: {
   reportsData: FinancialStatementsResponse | null | undefined;
@@ -41,66 +59,85 @@ export function exportAllDeliverablesCsv({
     r.periodCredits,
     r.finalBalance
   ]);
-  downloadCsvFile(
-    `01_Balanza_Comprobacion_${company.rfc}_${year}_P${String(period).padStart(2, '0')}.csv`,
-    balanzaHeaders,
-    balanzaRows
-  );
 
   // 2. Estado de Resultados
+  const er = reportsData.incomeStatement;
+  const totalIsr = er.totalIsr ?? 0;
+  const isrRows: Array<Array<string | number>> =
+    totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
+      ? [
+          ...(er.isrEjercicio ?? []).map((a) => [
+            'ISR EJERCICIO',
+            a.code,
+            a.name,
+            a.finalBalance,
+            formatVerticalPct(a.finalBalance, er.totalIngresos)
+          ]),
+          [
+            'IMPUESTOS A LA UTILIDAD (ISR)',
+            '',
+            'Provisión ISR del Ejercicio (NIF D-4)',
+            totalIsr,
+            formatVerticalPct(totalIsr, er.totalIngresos)
+          ]
+        ]
+      : [];
+
   const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Importe MXN', '% s/Ventas'];
   const erRows: Array<Array<string | number>> = [
-    ...reportsData.incomeStatement.ingresos.map((a) => [
+    ...er.ingresos.map((a) => [
       'INGRESOS',
       a.code,
       a.name,
       a.finalBalance,
-      formatVerticalPct(a.finalBalance, reportsData.incomeStatement.totalIngresos)
+      formatVerticalPct(a.finalBalance, er.totalIngresos)
     ]),
-    ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', reportsData.incomeStatement.totalIngresos, '100.0%'],
-    ...reportsData.incomeStatement.costos.map((a) => [
+    ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', er.totalIngresos, '100.0%'],
+    ...er.costos.map((a) => [
       'COSTOS',
       a.code,
       a.name,
       a.finalBalance,
-      formatVerticalPct(a.finalBalance, reportsData.incomeStatement.totalIngresos)
+      formatVerticalPct(a.finalBalance, er.totalIngresos)
     ]),
-    ['TOTAL COSTOS', '', 'Costo de Ventas', reportsData.incomeStatement.totalCostos, formatVerticalPct(reportsData.incomeStatement.totalCostos, reportsData.incomeStatement.totalIngresos)],
-    ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', reportsData.incomeStatement.utilidadBruta, formatVerticalPct(reportsData.incomeStatement.utilidadBruta, reportsData.incomeStatement.totalIngresos)],
-    ...reportsData.incomeStatement.gastos.map((a) => [
+    ['TOTAL COSTOS', '', 'Costo de Ventas', er.totalCostos, formatVerticalPct(er.totalCostos, er.totalIngresos)],
+    ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', er.utilidadBruta, formatVerticalPct(er.utilidadBruta, er.totalIngresos)],
+    ...er.gastos.map((a) => [
       'GASTOS',
       a.code,
       a.name,
       a.finalBalance,
-      formatVerticalPct(a.finalBalance, reportsData.incomeStatement.totalIngresos)
+      formatVerticalPct(a.finalBalance, er.totalIngresos)
     ]),
-    ['TOTAL GASTOS', '', 'Gastos Generales de Operación', reportsData.incomeStatement.totalGastos, formatVerticalPct(reportsData.incomeStatement.totalGastos, reportsData.incomeStatement.totalIngresos)],
-    ['UTILIDAD NETA', '', 'Resultado Neto del Periodo', reportsData.incomeStatement.utilidadNeta, formatVerticalPct(reportsData.incomeStatement.utilidadNeta, reportsData.incomeStatement.totalIngresos)]
+    ['TOTAL GASTOS', '', 'Gastos Generales de Operación', er.totalGastos, formatVerticalPct(er.totalGastos, er.totalIngresos)],
+    ...isrRows,
+    ['UTILIDAD NETA', '', 'Resultado Neto del Periodo', er.utilidadNeta, formatVerticalPct(er.utilidadNeta, er.totalIngresos)]
   ];
-  downloadCsvFile(
-    `02_Estado_Resultados_${company.rfc}_${year}_P${String(period).padStart(2, '0')}.csv`,
-    erHeaders,
-    erRows
-  );
 
   // 3. Balance General
+  const signedBal = (
+    a: FinancialStatementsResponse['trialBalance'][number],
+    expectedNature: 'DEUDORA' | 'ACREEDORA'
+  ) => (a.nature === expectedNature ? a.finalBalance : -a.finalBalance);
+
   const bgHeaders = ['Clasificación', 'Código', 'Nombre Cuenta', 'Saldo Final MXN'];
   const bgRows: Array<Array<string | number>> = [
-    ...reportsData.balanceSheet.activos.map((a) => ['ACTIVO', a.code, a.name, a.finalBalance]),
+    ...reportsData.balanceSheet.activos.map((a) => ['ACTIVO', a.code, a.name, signedBal(a, 'DEUDORA')]),
     ['TOTAL ACTIVO', '100', 'Total Activo Circulante y No Circulante', reportsData.balanceSheet.totalActivo],
-    ...reportsData.balanceSheet.pasivos.map((a) => ['PASIVO', a.code, a.name, a.finalBalance]),
+    ...reportsData.balanceSheet.pasivos.map((a) => ['PASIVO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
     ['TOTAL PASIVO', '200', 'Total Pasivo Corto y Largo Plazo', reportsData.balanceSheet.totalPasivo],
-    ...reportsData.balanceSheet.capital.map((a) => ['CAPITAL', a.code, a.name, a.finalBalance]),
+    ...reportsData.balanceSheet.capital.map((a) => ['CAPITAL', a.code, a.name, signedBal(a, 'ACREEDORA')]),
     ['UTILIDAD EJERCICIO', '305', 'Resultado del Ejercicio Actual', reportsData.balanceSheet.utilidadEjercicio],
     ['PASIVO + CAPITAL', '', 'Suma Pasivo y Capital Contable (Ecuación Cuadrada)', reportsData.balanceSheet.totalPasivoMasCapital]
   ];
-  downloadCsvFile(
-    `03_Balance_General_${company.rfc}_${year}_P${String(period).padStart(2, '0')}.csv`,
-    bgHeaders,
-    bgRows
-  );
 
-  // 4. Cédula Día 17 (si está disponible)
+  const files: Record<string, Uint8Array> = {
+    'Balanza_Comprobacion.csv': strToU8(buildCsvContent(balanzaHeaders, balanzaRows)),
+    'Estado_Resultados.csv': strToU8(buildCsvContent(erHeaders, erRows)),
+    'Balance_General.csv': strToU8(buildCsvContent(bgHeaders, bgRows))
+  };
+
+  // 4. Papel Fiscal / Cédula Día 17 (si está disponible)
   if (fiscalData) {
     const d17Headers = ['Concepto Fiscal', 'Fundamento Legal / Base', 'Importe Determinado MXN'];
     const d17Rows: Array<Array<string | number>> = [
@@ -117,10 +154,11 @@ export function exportAllDeliverablesCsv({
       ['(=) IVA Neto a Pagar', 'Art. 5-D LIVA', fiscalData.ivaDefinitivo.ivaNetoAPagar],
       ['TOTAL ESTIMADO DÍA 17 (ISR + IVA + Retenciones)', 'Línea de Captura SAT', fiscalData.resumenLineaCapturaSat.totalEstimadoDia17]
     ];
-    downloadCsvFile(
-      `04_Cedula_Dia17_${company.rfc}_${year}_P${String(period).padStart(2, '0')}.csv`,
-      d17Headers,
-      d17Rows
-    );
+    files['Papel_Fiscal.csv'] = strToU8(buildCsvContent(d17Headers, d17Rows));
   }
+
+  const safeRfc = (company.rfc || 'EMPRESA').replace(/[^a-zA-Z0-9_-]/g, '');
+  const zipped = zipSync(files, { level: 6 });
+  const zipBuffer = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+  downloadBlobFile(`Paquete_CSV_${safeRfc}_${year}.zip`, zipBuffer, 'application/zip');
 }

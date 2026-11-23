@@ -6,12 +6,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { setApiAuthUser } from '../lib/api/api-helpers';
 import { captureAdAttributionOnLanding, trackAnalyticsEvent } from '../lib/analytics';
 import { endSupportSession } from '../lib/support-impersonation';
-import {
-  getSuperAdminEmails,
-  hasPlatformAdminAccess,
-  isSuperAdminEmail,
-  normalizePlatformRole
-} from '../shared/superadmin';
+import { getSuperAdminEmails, hasPlatformAdminAccess, isSuperAdminEmail, normalizePlatformRole } from '../shared/superadmin';
 import type { PlatformRole } from '../shared/admin-types';
 
 export const SUPERADMIN_EMAILS = getSuperAdminEmails();
@@ -81,14 +76,9 @@ async function fetchUserAccessCheck(sessionUser: User): Promise<UserAccessCheck>
 function notifySuspendedAccount(): void {
   try {
     if (typeof window !== 'undefined') {
-      sonnerToast.error('Cuenta suspendida', {
-        description: SUSPENDED_ACCOUNT_MESSAGE,
-        duration: 10000
-      });
+      sonnerToast.error('Cuenta suspendida', { description: SUSPENDED_ACCOUNT_MESSAGE, duration: 10000 });
     }
-  } catch {
-    // Ignorar en entornos sin DOM/Toaster
-  }
+  } catch { /* Ignorar en entornos sin DOM/Toaster */ }
 }
 
 interface AuthContextType {
@@ -125,6 +115,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSuspended, setIsSuspended] = useState(false);
   const [suspendedMessage, setSuspendedMessage] = useState<string | null>(null);
   const authCheckSeqRef = useRef(0);
+  const activeUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeUserIdRef.current = user?.id ?? null;
+  }, [user?.id]);
 
   const clearSuspension = useCallback(() => {
     setIsSuspended(false);
@@ -133,6 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const enforceSuspension = useCallback(
     async (client: NonNullable<typeof supabase>) => {
+      activeUserIdRef.current = null;
       setIsSuspended(true);
       setSuspendedMessage(SUSPENDED_ACCOUNT_MESSAGE);
       setPlatformRole('NONE');
@@ -142,9 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       queryClient.clear();
       try {
         await client.auth.signOut();
-      } catch {
-        // Ignorar error de cierre de sesión suspendida
-      }
+      } catch { /* Ignorar error de cierre de sesión suspendida */ }
       notifySuspendedAccount();
     },
     [queryClient]
@@ -155,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isGuestActive = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
 
     const activateGuestDemo = () => {
+      activeUserIdRef.current = GUEST_DEMO_USER.id;
       setPlatformRole('NONE');
       setUser(GUEST_DEMO_USER);
       setApiAuthUser(GUEST_DEMO_USER);
@@ -175,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(GUEST_DEMO_KEY);
       if (wasGuest) queryClient.clear();
       clearSuspension();
+      activeUserIdRef.current = activeSession.user.id;
       setPlatformRole(role);
       setSession(activeSession);
       setUser(activeSession.user);
@@ -219,7 +215,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, nextSession) => {
       const seq = ++authCheckSeqRef.current;
       if (nextSession?.user && !nextSession.user.user_metadata?.is_guest) {
-        if (event !== 'TOKEN_REFRESHED') setLoading(true);
+        const userChanged = nextSession.user.id !== activeUserIdRef.current;
+        if (event !== 'TOKEN_REFRESHED' && (userChanged || activeUserIdRef.current === null)) {
+          setLoading(true);
+        }
         setTimeout(() => {
           if (!isMounted || seq !== authCheckSeqRef.current) return;
           void applyAuthenticatedSession(nextSession, seq).catch(() => {
@@ -237,6 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         activateGuestDemo();
       } else if (event === 'SIGNED_OUT') {
         endSupportSession();
+        activeUserIdRef.current = null;
         setPlatformRole('NONE');
         setSession(null);
         setUser(null);
@@ -260,6 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await provisionSandboxDemoCompany();
     } catch { /* demo company already exists */ }
     localStorage.setItem(GUEST_DEMO_KEY, 'true');
+    activeUserIdRef.current = GUEST_DEMO_USER.id;
     setPlatformRole('NONE');
     setUser(GUEST_DEMO_USER);
     setApiAuthUser(GUEST_DEMO_USER);
@@ -309,6 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (supabase) await supabase.auth.signOut();
     } finally {
+      activeUserIdRef.current = null;
       setPlatformRole('NONE');
       setUser(null);
       setSession(null);

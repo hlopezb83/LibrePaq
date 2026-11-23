@@ -280,9 +280,8 @@ export function CfdiFacturaTab({
           )}
           {preview.impuestos.traslados.length > 0 ? (
             preview.impuestos.traslados.map((t, idx) => {
-              const pct = t.tasaOCuota
-                ? ` (${Number((Number.parseFloat(t.tasaOCuota) * 100).toFixed(2))}%)`
-                : '';
+              const rawRate = Number.parseFloat(t.tasaOCuota ?? '');
+              const pct = Number.isFinite(rawRate) ? ` (${Number((rawRate * 100).toFixed(2))}%)` : '';
               return (
                 <div key={`tras-${t.impuesto}-${idx}`} className="flex justify-between text-slate-700">
                   <span className="font-sans">

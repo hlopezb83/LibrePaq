@@ -54,6 +54,10 @@ export function useAjustesEfirma(activeCompanyId: string | null) {
     }
 
     const hasStoredCredentials = Boolean(fielStatus?.hasCredentials);
+    if ((cerFile && !keyFile) || (!cerFile && keyFile)) {
+      toast.error('Si deseas adjuntar archivos de e.firma, selecciona ambos: el certificado .cer y la clave privada .key.');
+      return;
+    }
     if (!hasStoredCredentials && (!cerFile || !keyFile)) {
       toast.error('Debes seleccionar el archivo .cer y el archivo .key.');
       return;

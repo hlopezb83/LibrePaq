@@ -11,6 +11,7 @@ export interface UsePolizasMutationsParams {
   currentYear?: number;
   currentPeriod?: number;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   editingPolizaId: string | null;
   tipo: PolizaType;
   fecha: string;
@@ -30,6 +31,7 @@ export function usePolizasMutations({
   currentYear,
   currentPeriod,
   isPeriodLocked,
+  isReadOnlyClient = false,
   editingPolizaId,
   tipo,
   fecha,
@@ -45,12 +47,15 @@ export function usePolizasMutations({
 }: UsePolizasMutationsParams) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   const savePolizaMutation = useMutation({
     mutationFn: async () => {
-      if (isPeriodLocked) {
+      if (isWriteBlocked) {
         throw new Error(
-          `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} se encuentra bloqueado ante el SAT. No se pueden registrar o modificar pólizas.`
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no se pueden registrar o modificar pólizas.'
+            : `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} se encuentra bloqueado ante el SAT. No se pueden registrar o modificar pólizas.`
         );
       }
       if (editingPolizaId) {
@@ -107,8 +112,12 @@ export function usePolizasMutations({
 
   const deletePolizaMutation = useMutation({
     mutationFn: (id: string) => {
-      if (isPeriodLocked) {
-        throw new Error('El periodo contable está bloqueado ante el SAT.');
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no se pueden eliminar pólizas.'
+            : 'El periodo contable está bloqueado ante el SAT.'
+        );
       }
       return apiClient.deletePoliza(id);
     },
@@ -135,6 +144,13 @@ export function usePolizasMutations({
 
   const closeYearMutation = useMutation({
     mutationFn: async () => {
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no es posible ejecutar el cierre anual.'
+            : 'El periodo contable está bloqueado ante el SAT.'
+        );
+      }
       if (!currentYear) throw new Error('Año no definido');
       return apiClient.closeYearPoliza(activeCompanyId);
     },
@@ -170,9 +186,11 @@ export function usePolizasMutations({
         abono: number;
       }>;
     }) => {
-      if (isPeriodLocked) {
+      if (isWriteBlocked) {
         throw new Error(
-          `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} está bloqueado ante el SAT.`
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no se pueden registrar pedimentos.'
+            : `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} está bloqueado ante el SAT.`
         );
       }
       const mappedMovements = pedimentoData.movements.map((mov) => {

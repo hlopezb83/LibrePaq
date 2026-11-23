@@ -14,9 +14,22 @@ export function useBancosTabState(params: {
   currentPeriod?: number;
   accounts: AccountWithBalance[];
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   enabled: boolean;
 }) {
-  const { activeCompanyId, currentYear, currentPeriod, accounts, isPeriodLocked, enabled } = params;
+  const {
+    activeCompanyId,
+    currentYear,
+    currentPeriod,
+    accounts,
+    isPeriodLocked,
+    isReadOnlyClient = false,
+    enabled
+  } = params;
+  const isWriteLocked = isPeriodLocked || isReadOnlyClient;
+  const lockMsg = isReadOnlyClient
+    ? 'Modo solo lectura: no es posible modificar la conciliación bancaria.'
+    : 'Periodo bloqueado ante el SAT. No es posible alterar la conciliación.';
   const queryClient = useQueryClient();
   const toast = useToast();
   const addBankModalRef = useRef<HTMLDialogElement>(null);
@@ -64,15 +77,19 @@ export function useBancosTabState(params: {
   });
 
   const autoMatchMutation = useMutation({
-    mutationFn: () =>
-      apiClient.autoMatchBankReconciliation(
+    mutationFn: () => {
+      if (isWriteLocked) {
+        throw new Error(lockMsg);
+      }
+      return apiClient.autoMatchBankReconciliation(
         activeCompanyId,
         effectiveBankId,
         currentYear,
         currentPeriod
-      ),
+      );
+    },
     onSuccess: (res) => {
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard']);
+      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], activeCompanyId);
       if (res.matchedCount > 0) {
         toast.success(
           `¡Conciliación automática exitosa! Se cruzaron ${res.matchedCount} movimientos con la contabilidad`
@@ -88,20 +105,17 @@ export function useBancosTabState(params: {
 
   const createPolizaFromBankMutation = useMutation({
     mutationFn: (lineId: string) => {
-      if (isPeriodLocked) {
-        throw new Error('Periodo bloqueado ante el SAT. No se pueden generar pólizas desde banco.');
+      if (isWriteLocked) {
+        throw new Error(lockMsg);
       }
       return apiClient.createPolizaFromBankLine(lineId, { desglosarIva: true });
     },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, [
-        'bank-reconciliation',
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard'
-      ]);
+      invalidateAccountingQueries(
+        queryClient,
+        ['bank-reconciliation', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        activeCompanyId
+      );
       toast.success(
         '¡Póliza contable generada desde estado de cuenta (desglose IVA 16%) y partida conciliada!'
       );
@@ -113,13 +127,13 @@ export function useBancosTabState(params: {
 
   const unmatchBankLineMutation = useMutation({
     mutationFn: (lineId: string) => {
-      if (isPeriodLocked) {
-        throw new Error('Periodo bloqueado ante el SAT. No es posible alterar la conciliación.');
+      if (isWriteLocked) {
+        throw new Error(lockMsg);
       }
       return apiClient.unmatchBankLine(lineId);
     },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard']);
+      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], activeCompanyId);
       toast.info('Movimiento bancario desconciliado. Disponible para nueva correspondencia.');
     },
     onError: (err: Error) => {
@@ -129,13 +143,13 @@ export function useBancosTabState(params: {
 
   const addBankLineMutation = useMutation({
     mutationFn: (payload: Parameters<typeof apiClient.addBankStatementLines>[0]) => {
-      if (isPeriodLocked) {
-        throw new Error('Periodo bloqueado ante el SAT. No se pueden agregar movimientos.');
+      if (isWriteLocked) {
+        throw new Error(lockMsg);
       }
       return apiClient.addBankStatementLines(payload);
     },
     onSuccess: (_data, variables) => {
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard']);
+      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], variables.companyId);
       addBankModalRef.current?.close();
       const count = variables.lines.length;
       toast.success(
@@ -151,7 +165,10 @@ export function useBancosTabState(params: {
 
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || isWriteLocked) {
+      e.target.value = '';
+      return;
+    }
     try {
       const text = await file.text();
       const parsedLines = parseBankStatementCsv(text, defaultPeriodDate);
@@ -203,6 +220,7 @@ export function useBancosTabState(params: {
 
   const handleAddBankLineSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isWriteLocked) return;
     addBankLineMutation.mutate({
       companyId: activeCompanyId,
       accountId: effectiveBankId,

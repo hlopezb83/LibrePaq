@@ -13,6 +13,7 @@ export interface PadronProveedoresTableProps {
   thirdParties: ThirdPartyRecord[];
   totalCount: number;
   editingRfc?: string;
+  isReadOnlyClient?: boolean;
   onEditThirdParty: (tp: ThirdPartyRecord) => void;
   onClearSearch?: () => void;
 }
@@ -21,6 +22,7 @@ export function PadronProveedoresTable({
   thirdParties,
   totalCount,
   editingRfc,
+  isReadOnlyClient = false,
   onEditThirdParty,
   onClearSearch
 }: PadronProveedoresTableProps) {
@@ -124,10 +126,11 @@ export function PadronProveedoresTable({
                   <td className="py-2.5 px-3 text-right">
                     <button
                       type="button"
-                      onClick={() => onEditThirdParty(tp)}
+                      disabled={isReadOnlyClient}
+                      onClick={() => { if (!isReadOnlyClient) onEditThirdParty(tp); }}
                       aria-label={`Editar perfil fiscal de ${tp.rfc}`}
-                      title="Cargar en formulario para editar"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-200 cursor-pointer transition"
+                      title={isReadOnlyClient ? 'Modo solo lectura' : 'Cargar en formulario para editar'}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
                     >
                       <Pencil className="w-3 h-3" aria-hidden="true" />
                       Editar

@@ -17,6 +17,8 @@ export function CatalogoCuentasView() {
     activeCompany,
     currentYear,
     isPeriodLocked,
+    isReadOnlyClient,
+    isWriteBlocked,
     dialogRef,
     csvImportRef,
     accounts,
@@ -76,7 +78,7 @@ export function CatalogoCuentasView() {
   useCatalogoKeyboardNavigation({
     dialogRef,
     ledgerAccountId: globalLedgerAccountId,
-    isPeriodLocked,
+    isPeriodLocked: isWriteBlocked,
     filteredAccounts,
     selectedAccountId,
     selectedIndex,
@@ -112,6 +114,7 @@ export function CatalogoCuentasView() {
       <CatalogoHeaderBar
         csvImportRef={csvImportRef}
         isPeriodLocked={isPeriodLocked}
+        isReadOnlyClient={isReadOnlyClient}
         onImportCsv={handleImportAccountsCsv}
         onExportCsv={handleExportCsv}
         onOpenCreateModal={openCreateModal}
@@ -176,7 +179,7 @@ export function CatalogoCuentasView() {
           <CatalogoTable
             filteredAccounts={filteredAccounts}
             isLoading={isLoading}
-            isPeriodLocked={isPeriodLocked}
+            isPeriodLocked={isWriteBlocked}
             copiedCode={copiedCode}
             selectedAccountId={selectedAccountId}
             onSelectAccount={(id) => setSelectedAccountId(id)}
@@ -224,6 +227,7 @@ export function CatalogoCuentasView() {
         onClose={() => dialogRef.current?.close()}
         onSave={() => saveAccountMutation.mutate()}
         isSaving={saveAccountMutation.isPending}
+        isWriteBlocked={isWriteBlocked}
       />
     </div>
   );

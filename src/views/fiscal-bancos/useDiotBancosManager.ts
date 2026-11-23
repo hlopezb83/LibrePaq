@@ -8,7 +8,8 @@ import { useBancosTabState } from './useBancosTabState';
 import { useDiotTabState } from './useDiotTabState';
 
 export function useDiotBancosManager() {
-  const { activeCompany, activeCompanyId } = useCompany();
+  const { activeCompany, activeCompanyId, isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = isReadOnlyClient || isReadOnlySupportMode;
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
   const toast = useToast();
@@ -34,6 +35,7 @@ export function useDiotBancosManager() {
     currentPeriod,
     accounts,
     isPeriodLocked,
+    isReadOnlyClient: isReadOnly,
     enabled: activeTab === 'CONCILIACION'
   });
 
@@ -54,6 +56,8 @@ export function useDiotBancosManager() {
     setActiveTab,
     accounts,
     isPeriodLocked,
+    isReadOnlyClient: isReadOnly,
+    isReadOnlySupportMode,
     ...bancos,
     ...diot
   };

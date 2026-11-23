@@ -16,8 +16,17 @@ export const supabaseBank = {
     companyId: string, accountId: string, year?: number, period?: number
   ): Promise<BankReconciliationResponse> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const currentYear = year || 2026;
-    const currentPeriod = period || 10;
+    let currentYear = year;
+    let currentPeriod = period;
+    if (!currentYear || !currentPeriod) {
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('current_year, current_period')
+        .eq('id', companyId)
+        .maybeSingle();
+      currentYear = currentYear || Number(comp?.current_year) || 2026;
+      currentPeriod = currentPeriod || Number(comp?.current_period) || 10;
+    }
     const accounts = await supabaseCompaniesAndAccounts.getAccounts(companyId, currentYear, currentPeriod);
     const effectiveAcc = accounts.find((a) => a.id === accountId) ||
       accounts.find((a) => a.code.startsWith('102')) || {
@@ -224,6 +233,12 @@ export const supabaseBank = {
     const lineYear = Number(bLine.ejercicio) || 2026;
     const linePeriod = Number(bLine.periodo) || 10;
     await assertSupabasePeriodOpen(String(bLine.company_id), lineYear, linePeriod);
+
+    const { error: matchDelErr } = await supabase
+      .from('bank_statement_matches')
+      .delete()
+      .eq('bank_line_id', lineId);
+    if (matchDelErr) throw new Error(matchDelErr.message);
 
     const { error: updErr } = await supabase
       .from('bank_statement_lines')

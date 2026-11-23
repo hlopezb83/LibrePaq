@@ -100,19 +100,23 @@ export function useCfdiContabilizarRules({
     if (!selectedCfdi || affectableAccounts.length === 0) {
       return fallbackPreviewMovements;
     }
-    const plan = buildAutoPolizaPlan(selectedCfdi, affectableAccounts, {
-      operationAccountCode: operationAccountCode || undefined,
-      counterAccountCode: counterAccountCode || undefined,
-      rules,
-      deductiblePct
-    });
-    return plan.movements.map((m) => ({
-      code: m.accountCode,
-      name: m.accountName,
-      concepto: m.concepto,
-      cargo: m.cargo,
-      abono: m.abono
-    }));
+    try {
+      const plan = buildAutoPolizaPlan(selectedCfdi, affectableAccounts, {
+        operationAccountCode: operationAccountCode || undefined,
+        counterAccountCode: counterAccountCode || undefined,
+        rules,
+        deductiblePct
+      });
+      return plan.movements.map((m) => ({
+        code: m.accountCode,
+        name: m.accountName,
+        concepto: m.concepto,
+        cargo: m.cargo,
+        abono: m.abono
+      }));
+    } catch {
+      return [];
+    }
   }, [
     selectedCfdi,
     affectableAccounts,

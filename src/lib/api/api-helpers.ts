@@ -23,8 +23,18 @@ export async function fetchWithTimeout(
   if (!signal && typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
     signal = AbortSignal.timeout(timeoutMs);
   }
+  const headers: Record<string, string> = { ...getAuthHeaders() };
+  if (init?.headers) {
+    const incoming = Object.fromEntries(new Headers(init.headers).entries());
+    for (const [key, val] of Object.entries(incoming)) {
+      const existingKey = Object.keys(headers).find((hk) => hk.toLowerCase() === key.toLowerCase());
+      if (existingKey && existingKey !== key) delete headers[existingKey];
+      headers[key] = val;
+    }
+  }
   return fetch(input, {
     ...init,
+    headers,
     signal: signal ?? init?.signal
   });
 }

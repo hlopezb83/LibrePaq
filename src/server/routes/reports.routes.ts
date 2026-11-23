@@ -1,20 +1,20 @@
 import { Hono } from 'hono';
 import {
   computeTrialBalance,
-  getCompanyById,
   getCfdiDocuments,
   getDiotReport,
   getPolizas
 } from '../db';
 import { buildFinancialStatementsFromTrialBalance } from '../../shared/engine/financial-reports.engine';
 import { buildSatAnexo24Xml, resolveYearAndPeriod } from '../validators';
+import { getAuthorizedCompanyForRoute } from './route-helpers';
 import type { Anexo24CfdiMetadata } from '../../shared/sat-anexo24';
 
 export const reportsRoutes = new Hono();
 
 reportsRoutes.get('/reports', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -30,8 +30,7 @@ reportsRoutes.get('/reports', (c) => {
 reportsRoutes.get('/sat-xml', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
   const type = c.req.query('type') || 'balanza';
-  const userId = c.req.header('X-User-Id') || c.req.header('x-user-id');
-  const company = getCompanyById(companyId, userId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada o no autorizada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -61,7 +60,7 @@ reportsRoutes.get('/sat-xml', (c) => {
 
 reportsRoutes.get('/diot', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(

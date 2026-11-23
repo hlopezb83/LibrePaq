@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { resolveRequestActor } from '../auth-actor';
 import {
   getAnnualTaxSummaryRepo,
   saveAnnualTaxInputsRepo
@@ -13,7 +14,7 @@ annualTaxRoutes.get('/companies/:companyId/annual-tax', (c) => {
     const denied = assertRouteCompanyAccess(c, companyId);
     if (denied) return denied;
 
-    const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+    const { userId } = resolveRequestActor(c);
     const rawYear = c.req.query('year') ?? c.req.query('ejercicio');
     const parsedYear = rawYear ? Number(rawYear) : undefined;
     const ejercicio =
@@ -31,10 +32,10 @@ annualTaxRoutes.get('/companies/:companyId/annual-tax', (c) => {
 annualTaxRoutes.post('/companies/:companyId/annual-tax', async (c) => {
   try {
     const companyId = c.req.param('companyId');
-    const denied = assertRouteCompanyAccess(c, companyId);
+    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
     if (denied) return denied;
 
-    const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+    const { userId } = resolveRequestActor(c);
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const rawYear = body.ejercicio ?? body.year ?? c.req.query('year');
     const ejercicio =

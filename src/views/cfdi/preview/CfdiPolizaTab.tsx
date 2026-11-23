@@ -6,6 +6,7 @@ import type { CfdiDocument } from '../../../shared/types';
 interface CfdiPolizaTabProps {
   cfdi: CfdiDocument;
   autoPlan: ReturnType<typeof buildAutoPolizaPlan> | null;
+  isWriteBlocked?: boolean;
   onContabilizar?: (cfdi: CfdiDocument) => void;
   onClose: () => void;
 }
@@ -13,9 +14,12 @@ interface CfdiPolizaTabProps {
 export function CfdiPolizaTab({
   cfdi,
   autoPlan,
+  isWriteBlocked = false,
   onContabilizar,
   onClose
 }: CfdiPolizaTabProps) {
+  const isNonContabilizable = cfdi.statusSat === 'CANCELADO' || cfdi.tipoComprobante === 'T';
+  const isDisabled = isWriteBlocked || isNonContabilizable;
   return (
     <div className="bg-white rounded-2xl border border-slate-300 p-5 shadow-2xs space-y-4">
       <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
@@ -96,11 +100,22 @@ export function CfdiPolizaTab({
             {!cfdi.polizaId && onContabilizar && (
               <button
                 type="button"
+                disabled={isDisabled}
+                title={
+                  isWriteBlocked
+                    ? 'Periodo bloqueado o modo solo lectura'
+                    : cfdi.statusSat === 'CANCELADO'
+                    ? 'CFDI cancelado ante el SAT'
+                    : cfdi.tipoComprobante === 'T'
+                    ? 'CFDI de Traslado (T) no contabilizable'
+                    : undefined
+                }
                 onClick={() => {
+                  if (isDisabled) return;
                   onClose();
                   onContabilizar(cfdi);
                 }}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 shadow-2xs transition cursor-pointer shrink-0"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs transition cursor-pointer shrink-0"
               >
                 Aplicar en Libros
               </button>

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
@@ -38,6 +39,48 @@ function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyRecord {
   };
 }
 
+export async function saveThirdPartyWithClient(
+  client: SupabaseClient,
+  payload: Omit<ThirdPartyRecord, 'id' | 'updatedAt'>
+): Promise<ThirdPartyRecord> {
+  const cleanRfc = payload.rfc.trim().toUpperCase();
+  const { data: existing, error: lookupErr } = await client
+    .from('third_parties')
+    .select('id')
+    .eq('company_id', payload.companyId)
+    .eq('rfc', cleanRfc)
+    .maybeSingle();
+  if (lookupErr) throw new Error(lookupErr.message);
+
+  const id = existing?.id ? String(existing.id) : `tp_${payload.companyId}_${cleanRfc}`;
+  const now = new Date().toISOString();
+
+  const { data, error } = await client
+    .from('third_parties')
+    .upsert(
+      {
+        id,
+        company_id: payload.companyId,
+        rfc: cleanRfc,
+        nombre: payload.nombre.trim(),
+        rol: payload.rol,
+        cuenta_operacion_code: payload.cuentaOperacionCode,
+        cuenta_contrapartida_code: payload.cuentaContrapartidaCode,
+        tipo_tercero_diot: payload.tipoTerceroDiot,
+        tipo_operacion_diot: payload.tipoOperacionDiot,
+        tasa_iva_default: payload.tasaIvaDefault,
+        estatus_69b: payload.estatus69B,
+        updated_at: now
+      },
+      { onConflict: 'company_id,rfc' }
+    )
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapSupabaseThirdParty(data as Record<string, unknown>);
+}
+
 export const supabaseFiscalAndAssets = {
   async getThirdParties(companyId: string): Promise<ThirdPartyRecord[]> {
     if (!supabase) return [];
@@ -49,43 +92,9 @@ export const supabaseFiscalAndAssets = {
     return (data || []).map((t: Record<string, unknown>) => mapSupabaseThirdParty(t));
   },
 
-  async saveThirdParty(payload: {
-    companyId: string;
-    rfc: string;
-    nombre: string;
-    rol: 'PROVEEDOR' | 'CLIENTE' | 'AMBOS';
-    cuentaOperacionCode: string;
-    cuentaContrapartidaCode: string;
-    tipoTerceroDiot: '04' | '05';
-    tipoOperacionDiot: '03' | '06' | '85';
-    tasaIvaDefault: 16 | 8 | 0;
-    estatus69B: Efos69BStatus;
-  }): Promise<ThirdPartyRecord> {
+  async saveThirdParty(payload: Omit<ThirdPartyRecord, 'id' | 'updatedAt'>): Promise<ThirdPartyRecord> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const id = `tp_${payload.companyId}_${payload.rfc.toUpperCase()}`;
-    const now = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from('third_parties')
-      .upsert({
-        id,
-        company_id: payload.companyId,
-        rfc: payload.rfc.toUpperCase(),
-        nombre: payload.nombre.trim(),
-        rol: payload.rol,
-        cuenta_operacion_code: payload.cuentaOperacionCode,
-        cuenta_contrapartida_code: payload.cuentaContrapartidaCode,
-        tipo_tercero_diot: payload.tipoTerceroDiot,
-        tipo_operacion_diot: payload.tipoOperacionDiot,
-        tasa_iva_default: payload.tasaIvaDefault,
-        estatus_69b: payload.estatus69B,
-        updated_at: now
-      })
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return mapSupabaseThirdParty(data as Record<string, unknown>);
+    return saveThirdPartyWithClient(supabase, payload);
   },
 
   async getFixedAssets(companyId: string): Promise<FixedAssetsResponse> {

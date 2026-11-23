@@ -5,6 +5,7 @@ import type { BankReconciliationResponse } from '../../shared/types';
 interface BankStatementTableProps {
   reconData: BankReconciliationResponse;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   isCreatePolizaPending: boolean;
   onCreatePolizaFromBank: (lineId: string) => void;
   isUnmatchPending: boolean;
@@ -18,6 +19,7 @@ interface BankStatementTableProps {
 export function BankStatementTable({
   reconData,
   isPeriodLocked,
+  isReadOnlyClient = false,
   isCreatePolizaPending,
   onCreatePolizaFromBank,
   isUnmatchPending,
@@ -27,6 +29,10 @@ export function BankStatementTable({
   onSelectLine,
   activeBankLineId = null
 }: BankStatementTableProps) {
+  const isLocked = isPeriodLocked || isReadOnlyClient;
+  const lockReason = isReadOnlyClient
+    ? 'Modo solo lectura'
+    : 'Periodo bloqueado ante el SAT';
   const visibleLines = showOnlyPending
     ? reconData.statementLines.filter((l) => !l.matchedMovementId)
     : reconData.statementLines;
@@ -144,21 +150,21 @@ export function BankStatementTable({
                   {!line.matchedMovementId ? (
                     <button
                       type="button"
-                      disabled={isCreatePolizaPending || isPeriodLocked}
+                      disabled={isCreatePolizaPending || isLocked}
                       aria-busy={isCreatePolizaPending && isRowMutating}
                       onClick={() => onCreatePolizaFromBank(line.id)}
                       title={
-                        isPeriodLocked
-                          ? 'Periodo bloqueado ante el SAT. No es posible generar pólizas.'
+                        isLocked
+                          ? `${lockReason}. No es posible generar pólizas.`
                           : 'Crear Póliza y Conciliar'
                       }
                       className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-2xs transition ${
-                        isPeriodLocked
+                        isLocked
                           ? 'opacity-50 cursor-not-allowed bg-slate-500 text-white'
                           : 'bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white cursor-pointer'
                       }`}
                     >
-                      {isPeriodLocked ? (
+                      {isLocked ? (
                         <Lock className="w-3.5 h-3.5" aria-hidden="true" />
                       ) : (
                         <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
@@ -170,16 +176,16 @@ export function BankStatementTable({
                   ) : (
                     <button
                       type="button"
-                      disabled={isUnmatchPending || isPeriodLocked}
+                      disabled={isUnmatchPending || isLocked}
                       aria-busy={isUnmatchPending && isRowMutating}
                       onClick={() => onUnmatchBankLine(line.id)}
                       title={
-                        isPeriodLocked
-                          ? 'Periodo bloqueado ante el SAT'
+                        isLocked
+                          ? lockReason
                           : 'Desvincular esta línea bancaria para volver a conciliar'
                       }
                       className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                        isPeriodLocked
+                        isLocked
                           ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200'
                           : 'text-slate-700 bg-slate-100 hover:bg-red-50 hover:text-red-800 border-slate-200 hover:border-red-200 disabled:opacity-50 cursor-pointer'
                       }`}

@@ -12,6 +12,7 @@ import type {
 } from '../types/cost-of-sales.types';
 import type { JoinedPolizaMovementInput } from './financial-reports.engine';
 import {
+  AccountingInvariantError,
   assertAccountingInvariant,
   fromCents,
   toCents,
@@ -122,13 +123,19 @@ function resolveInventoryOrPurchasesAccount(
   costAcc: Account
 ): Account {
   const affectable = accounts.filter((a) => a.isAffectable);
-  return (
+  const match =
     affectable.find((a) => a.code === '115-01-001') ??
     affectable.find((a) => a.code.startsWith('115-') || (a.satGroupCode ?? '').startsWith('115')) ??
     affectable.find((a) => a.code.startsWith('502-') || (a.satGroupCode ?? '').startsWith('502')) ??
-    affectable.find((a) => a.id !== costAcc.id && (a.code.startsWith('501') || (a.satGroupCode ?? '').startsWith('501'))) ??
-    costAcc
-  );
+    affectable.find((a) => a.id !== costAcc.id && (a.code.startsWith('501') || (a.satGroupCode ?? '').startsWith('501')));
+
+  if (!match) {
+    throw new AccountingInvariantError(
+      'INVENTORY_ACCOUNT_NOT_FOUND',
+      'No se encontró cuenta de Inventarios (115-*) o Compras (502-* / 501-*) distinta a Costo de Ventas.'
+    );
+  }
+  return match;
 }
 
 function resolveCdmxPolizaDate(year: number, period: number, explicitFecha?: string): string {

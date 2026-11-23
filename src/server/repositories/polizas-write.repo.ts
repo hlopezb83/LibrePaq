@@ -9,8 +9,51 @@ import {
 import { resolvePolizaYearPeriod } from '../../shared/date-utils';
 import type { Poliza, PolizaType } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
+import { ensureBankN1MatchesTable } from './bank-n1.repo';
 import { assertPeriodOpen } from './period-locks.repo';
 import { getPolizaById } from './polizas.repo';
+
+function clearBankMatchesForPolizaTx(polizaId: string): void {
+  ensureBankN1MatchesTable(db);
+  const movRows = db
+    .prepare('SELECT id FROM poliza_movements WHERE poliza_id = ?')
+    .all(polizaId) as Array<{ id: string }>;
+  const movIds = movRows.map((r) => r.id);
+
+  const affectedLineIds = new Set<string>();
+  const byPolRows = db
+    .prepare('SELECT bank_line_id FROM bank_statement_matches WHERE poliza_id = ?')
+    .all(polizaId) as Array<{ bank_line_id: string }>;
+  for (const r of byPolRows) affectedLineIds.add(r.bank_line_id);
+
+  if (movIds.length > 0) {
+    const placeholders = movIds.map(() => '?').join(',');
+    const byMovRows = db
+      .prepare(`SELECT bank_line_id FROM bank_statement_matches WHERE movement_id IN (${placeholders})`)
+      .all(...movIds) as Array<{ bank_line_id: string }>;
+    for (const r of byMovRows) affectedLineIds.add(r.bank_line_id);
+
+    db.prepare(
+      `UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE matched_movement_id IN (${placeholders})`
+    ).run(...movIds);
+    db.prepare(`DELETE FROM bank_statement_matches WHERE movement_id IN (${placeholders})`).run(
+      ...movIds
+    );
+  }
+
+  const lineIds = Array.from(affectedLineIds);
+  if (lineIds.length > 0) {
+    const linePlaceholders = lineIds.map(() => '?').join(',');
+    db.prepare(
+      `UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE id IN (${linePlaceholders})`
+    ).run(...lineIds);
+    db.prepare(`DELETE FROM bank_statement_matches WHERE bank_line_id IN (${linePlaceholders})`).run(
+      ...lineIds
+    );
+  }
+
+  db.prepare('DELETE FROM bank_statement_matches WHERE poliza_id = ?').run(polizaId);
+}
 
 // NASA Power of 10 - Regla 3 (H-14): Sentencias SQL preparadas de forma perezosa
 let _insertPolizaStmt: ReturnType<typeof db.prepare> | null = null;
@@ -220,9 +263,7 @@ export function updatePolizaTransaction(
       );
     }
 
-    db.prepare(
-      'UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE matched_movement_id IN (SELECT id FROM poliza_movements WHERE poliza_id = ?)'
-    ).run(polizaId);
+    clearBankMatchesForPolizaTx(polizaId);
     db.prepare('DELETE FROM poliza_movements WHERE poliza_id = ?').run(polizaId);
 
     for (let idx = 0; idx < input.movements.length; idx += 1) {
@@ -261,16 +302,7 @@ export function deletePolizaTransaction(polizaId: string): boolean {
 
   const tx = db.transaction(() => {
     db.prepare('UPDATE cfdi_documents SET poliza_id = NULL WHERE poliza_id = ?').run(polizaId);
-    const movRows = db
-      .prepare('SELECT id FROM poliza_movements WHERE poliza_id = ?')
-      .all(polizaId) as Array<{ id: string }>;
-    const movIds = movRows.map((r) => r.id);
-    if (movIds.length > 0) {
-      const placeholders = movIds.map(() => '?').join(',');
-      db.prepare(
-        `UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE matched_movement_id IN (${placeholders})`
-      ).run(...movIds);
-    }
+    clearBankMatchesForPolizaTx(polizaId);
     const res = db.prepare('DELETE FROM polizas WHERE id = ?').run(polizaId);
     return res.changes > 0;
   });

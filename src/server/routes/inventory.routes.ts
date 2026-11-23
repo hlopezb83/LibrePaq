@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { resolveRequestActor } from '../auth-actor';
 import { getInventoryPeriodRepo, saveInventoryPeriodRepo } from '../repositories/inventory.repo';
 import { assertRouteCompanyAccess, errorStatus } from './route-helpers';
 
@@ -10,7 +11,7 @@ inventoryRoutes.get('/companies/:companyId/inventory-cost', (c) => {
     const denied = assertRouteCompanyAccess(c, companyId);
     if (denied) return denied;
 
-    const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+    const { userId } = resolveRequestActor(c);
     const rawYear = c.req.query('year') ?? c.req.query('ejercicio');
     const rawPeriod = c.req.query('period') ?? c.req.query('periodo');
     const ejercicio = rawYear ? Number(rawYear) : undefined;
@@ -26,10 +27,10 @@ inventoryRoutes.get('/companies/:companyId/inventory-cost', (c) => {
 inventoryRoutes.post('/companies/:companyId/inventory-cost', async (c) => {
   try {
     const companyId = c.req.param('companyId');
-    const denied = assertRouteCompanyAccess(c, companyId);
+    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
     if (denied) return denied;
 
-    const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+    const { userId } = resolveRequestActor(c);
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const rawYear = body.ejercicio ?? body.year ?? c.req.query('year');
     const rawPeriod = body.periodo ?? body.period ?? c.req.query('period');

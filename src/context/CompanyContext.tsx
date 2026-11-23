@@ -1,12 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../lib/api-client';
-import {
-  getStoredAdAttribution,
-  trackWorkspaceSignupConversion
-} from '../lib/analytics';
+import { getStoredAdAttribution, trackWorkspaceSignupConversion } from '../lib/analytics';
 import { useAuth, checkIsSuperAdmin } from './AuthContext';
-import { useSupportSession } from '../lib/support-impersonation';
+import { setClientReadOnlyMode, useSupportSession } from '../lib/support-impersonation';
 import { workspaceRbacClient } from '../lib/workspace-rbac-client';
 import { getCurrentFiscalPeriod } from '../shared/date-utils';
 import type { Company } from '../shared/types';
@@ -46,6 +43,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const wsStorageKey = `librepaq_workspace_name_${userScope}`;
   const provisionedUserRef = useRef<string | null>(null);
   const acceptedInvitesUserRef = useRef<string | null>(null);
+  const inFlightInvitesUserRef = useRef<string | null>(null);
 
   const [workspaceNameOverride, setWorkspaceNameOverride] = useState<string | null>(null);
 
@@ -119,17 +117,35 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, [user, isOwner, isSupportImpersonation, hasAdminAccess, defaultWorkspaceName]);
 
   useEffect(() => {
-    if (!user || isOwner || isSupportImpersonation || hasAdminAccess || checkIsSuperAdmin(user)) return;
-    if (user.user_metadata?.is_guest || acceptedInvitesUserRef.current === user.id) return;
-    acceptedInvitesUserRef.current = user.id;
+    if (!user) {
+      acceptedInvitesUserRef.current = null;
+      inFlightInvitesUserRef.current = null;
+      return;
+    }
+    if (isOwner || isSupportImpersonation || hasAdminAccess || checkIsSuperAdmin(user)) return;
+    if (
+      user.user_metadata?.is_guest ||
+      acceptedInvitesUserRef.current === user.id ||
+      inFlightInvitesUserRef.current === user.id
+    ) {
+      return;
+    }
+    const targetUserId = user.id;
+    inFlightInvitesUserRef.current = targetUserId;
     void workspaceRbacClient
       .acceptPendingInvites()
       .then((res) => {
+        if (inFlightInvitesUserRef.current === targetUserId) inFlightInvitesUserRef.current = null;
+        acceptedInvitesUserRef.current = targetUserId;
         if (res.acceptedCount > 0) {
           void queryClient.invalidateQueries({ queryKey: ['companies', userScope] });
+          void queryClient.invalidateQueries({ queryKey: ['effective-company-role'] });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (inFlightInvitesUserRef.current === targetUserId) inFlightInvitesUserRef.current = null;
+        acceptedInvitesUserRef.current = null;
+      });
   }, [user, isOwner, isSupportImpersonation, hasAdminAccess, queryClient, userScope]);
 
   const renameWorkspace = useCallback(
@@ -231,28 +247,46 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const resolvedActiveCompanyId = activeCompany?.id ?? '';
 
-  const { data: effectiveRoleInfo } = useQuery({
+  const shouldCheckCompanyRole = Boolean(
+    user &&
+      resolvedActiveCompanyId &&
+      !isSupportImpersonation &&
+      !hasAdminAccess &&
+      !checkIsSuperAdmin(user) &&
+      !user.user_metadata?.is_guest
+  );
+
+  const { data: effectiveRoleInfo, isLoading: effectiveRoleLoading } = useQuery({
     queryKey: ['effective-company-role', resolvedActiveCompanyId, user?.id],
     queryFn: () => workspaceRbacClient.getEffectiveCompanyRole(resolvedActiveCompanyId),
-    enabled: Boolean(
-      user &&
-        resolvedActiveCompanyId &&
-        !isSupportImpersonation &&
-        !hasAdminAccess &&
-        !checkIsSuperAdmin(user) &&
-        !user.user_metadata?.is_guest
-    ),
+    enabled: shouldCheckCompanyRole,
     staleTime: 60_000,
     retry: false
   });
 
+  const isRoleUnresolved = shouldCheckCompanyRole && (effectiveRoleLoading || !effectiveRoleInfo);
+  const isFailClosedNullRole = shouldCheckCompanyRole && effectiveRoleInfo?.role === null;
   const isReadOnlyClient = Boolean(
-    effectiveRoleInfo?.isReadOnlyClient || effectiveRoleInfo?.role === 'CLIENTE_LECTURA'
+    isRoleUnresolved ||
+      isFailClosedNullRole ||
+      effectiveRoleInfo?.isReadOnlyClient ||
+      effectiveRoleInfo?.role === 'CLIENTE_LECTURA'
   );
   const effectiveCompanyRole: DespachoRole | 'OWNER' | null = isSupportImpersonation
     ? 'CLIENTE_LECTURA'
-    : effectiveRoleInfo?.role ?? (activeCompany ? 'OWNER' : null);
+    : shouldCheckCompanyRole
+      ? isRoleUnresolved || !effectiveRoleInfo?.role
+        ? null
+        : effectiveRoleInfo.role
+      : activeCompany
+        ? 'OWNER'
+        : null;
   const isReadOnlySupportMode = isSupportImpersonation || isReadOnlyClient;
+
+  useEffect(() => {
+    setClientReadOnlyMode(isReadOnlyClient);
+    return () => setClientReadOnlyMode(false);
+  }, [isReadOnlyClient]);
 
   const periodMutation = useMutation({
     mutationFn: ({ year, period }: { year: number; period: number }) =>
@@ -295,34 +329,17 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       effectiveCompanyRole
     }),
     [
-      workspace,
-      renameWorkspace,
-      effectiveCompanies,
-      activeCompany,
-      resolvedActiveCompanyId,
-      setActiveCompanyId,
-      updatePeriod,
-      isUpdatingPeriod,
-      isSupportImpersonation,
-      isReadOnlySupportMode,
-      isReadOnlyClient,
-      effectiveCompanyRole,
-      supportLoading,
-      isLoading
+      workspace, renameWorkspace, effectiveCompanies, activeCompany, resolvedActiveCompanyId,
+      setActiveCompanyId, updatePeriod, isUpdatingPeriod, isSupportImpersonation,
+      isReadOnlySupportMode, isReadOnlyClient, effectiveCompanyRole, supportLoading, isLoading
     ]
   );
 
-  return (
-    <CompanyContext.Provider value={contextValue}>
-      {children}
-    </CompanyContext.Provider>
-  );
+  return <CompanyContext.Provider value={contextValue}>{children}</CompanyContext.Provider>;
 }
 
 export function useCompany() {
   const ctx = useContext(CompanyContext);
-  if (!ctx) {
-    throw new Error('useCompany debe usarse dentro de CompanyProvider');
-  }
+  if (!ctx) throw new Error('useCompany debe usarse dentro de CompanyProvider');
   return ctx;
 }

@@ -3,11 +3,18 @@ import { getOfficialDofExchangeRate } from '../../shared/sat-inpc-catalog';
 import type { Account } from '../../shared/types';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
+export function parseNonNegNumber(raw: string): number {
+  const val = Number.parseFloat(raw);
+  return Number.isFinite(val) && val >= 0 ? val : 0;
+}
+
 interface UsePedimentoFormParams {
   isOpen: boolean;
   onClose: () => void;
   currentYear: number;
   currentPeriod: number;
+  isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   accounts: Account[];
   onSavePoliza: (poliza: {
     tipo: 'EGRESO' | 'DIARIO';
@@ -22,9 +29,12 @@ export function usePedimentoForm({
   onClose,
   currentYear,
   currentPeriod,
+  isPeriodLocked = false,
+  isReadOnlyClient = false,
   accounts,
   onSavePoliza
 }: UsePedimentoFormParams) {
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   const defaultIva = useMemo(
     () => accounts.find((a) => a.code === '118-01-001' || a.code.startsWith('118'))?.code || '118-01-001',
     [accounts]
@@ -57,6 +67,13 @@ export function usePedimentoForm({
   useDialogLightDismiss(dialogRef, onClose, { isOpen });
 
   useEffect(() => {
+    if (!isOpen) return;
+    const clamped = Math.max(1, Math.min(12, currentPeriod));
+    setAno(String(currentYear).slice(-2));
+    setFecha(`${currentYear}-${String(clamped).padStart(2, '0')}-15`);
+  }, [currentYear, currentPeriod, isOpen]);
+
+  useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (isOpen) {
@@ -82,6 +99,7 @@ export function usePedimentoForm({
   const conceptoPoliza = `Pago Pedimento Aduanal ${clave} ${pedimentoCompleto} - Aduana ${aduana}`;
 
   const handleConfirm = () => {
+    if (isWriteBlocked || !Number.isFinite(totalDesembolso) || totalDesembolso <= 0) return;
     onSavePoliza({
       tipo: 'EGRESO',
       fecha,

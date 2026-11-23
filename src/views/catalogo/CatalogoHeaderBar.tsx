@@ -4,6 +4,7 @@ import { Download, FolderTree, Lock, Plus, Upload } from 'lucide-react';
 export interface CatalogoHeaderBarProps {
   csvImportRef: React.RefObject<HTMLInputElement | null>;
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onImportCsv: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onExportCsv: () => void;
   onOpenCreateModal: () => void;
@@ -12,10 +13,15 @@ export interface CatalogoHeaderBarProps {
 export function CatalogoHeaderBar({
   csvImportRef,
   isPeriodLocked = false,
+  isReadOnlyClient = false,
   onImportCsv,
   onExportCsv,
   onOpenCreateModal
 }: CatalogoHeaderBarProps) {
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
+  const blockedReason = isReadOnlyClient
+    ? 'Modo solo lectura'
+    : 'Periodo fiscal bloqueado ante el SAT';
   return (
     <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs">
       <div className="flex items-start gap-3.5 min-w-0">
@@ -36,12 +42,12 @@ export function CatalogoHeaderBar({
         <label
           htmlFor="catalogo-import-csv"
           title={
-            isPeriodLocked
-              ? 'Periodo fiscal bloqueado ante el SAT'
+            isWriteBlocked
+              ? blockedReason
               : 'Importar catálogo de cuentas desde archivo CSV o layout CONTPAQi'
           }
           className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition ${
-            isPeriodLocked
+            isWriteBlocked
               ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
               : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
           }`}
@@ -51,7 +57,7 @@ export function CatalogoHeaderBar({
             ref={csvImportRef}
             type="file"
             accept=".csv,text/csv"
-            disabled={isPeriodLocked}
+            disabled={isWriteBlocked}
             onChange={onImportCsv}
             className="visually-hidden"
           />
@@ -70,22 +76,22 @@ export function CatalogoHeaderBar({
 
         <button
           type="button"
-          disabled={isPeriodLocked}
+          disabled={isWriteBlocked}
           onClick={onOpenCreateModal}
           title={
-            isPeriodLocked
-              ? 'Periodo fiscal bloqueado ante el SAT'
+            isWriteBlocked
+              ? blockedReason
               : 'Dar de alta nueva cuenta contable (Alt+N o Insert)'
           }
           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold text-white shadow-xs transition cursor-pointer shrink-0"
         >
-          {isPeriodLocked ? (
+          {isWriteBlocked ? (
             <Lock className="w-4 h-4" aria-hidden="true" />
           ) : (
             <Plus className="w-4 h-4 text-blue-100" aria-hidden="true" />
           )}
           <span>Nueva Cuenta</span>
-          {!isPeriodLocked && (
+          {!isWriteBlocked && (
             <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
               Alt+N
             </kbd>

@@ -5,12 +5,14 @@ interface SatPendingStatusBannerProps {
   pendingRequests: SatDownloadRequestRecord[];
   onVerifyPending?: () => void;
   isVerifyingPending?: boolean;
+  isReadOnlyClient?: boolean;
 }
 
 export function SatPendingStatusBanner({
   pendingRequests,
   onVerifyPending,
-  isVerifyingPending
+  isVerifyingPending,
+  isReadOnlyClient = false
 }: SatPendingStatusBannerProps) {
   if (pendingRequests.length === 0) return null;
 
@@ -25,9 +27,9 @@ export function SatPendingStatusBanner({
           {onVerifyPending && (
             <button
               type="button"
-              disabled={isVerifyingPending}
+              disabled={isVerifyingPending || isReadOnlyClient}
               onClick={onVerifyPending}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="Consultar al SAT si los paquetes ya fueron generados para descargarlos e importarlos"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingPending ? 'animate-spin' : ''}`} aria-hidden="true" />

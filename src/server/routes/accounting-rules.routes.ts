@@ -24,7 +24,7 @@ accountingRulesRoutes.get('/companies/:companyId/accounting-rules', (c) => {
 accountingRulesRoutes.post('/companies/:companyId/accounting-rules', async (c) => {
   try {
     const companyId = c.req.param('companyId');
-    const denied = assertRouteCompanyAccess(c, companyId);
+    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
     if (denied) return denied;
 
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -59,7 +59,7 @@ accountingRulesRoutes.post('/companies/:companyId/accounting-rules', async (c) =
 accountingRulesRoutes.delete('/companies/:companyId/accounting-rules/:ruleId', (c) => {
   try {
     const companyId = c.req.param('companyId');
-    const denied = assertRouteCompanyAccess(c, companyId);
+    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
     if (denied) return denied;
 
     const ruleId = c.req.param('ruleId');

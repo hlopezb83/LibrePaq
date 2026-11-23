@@ -28,6 +28,8 @@ interface SatSoapDownloadCardProps {
   pendingCfdisCount?: number;
   onBatchAutoPoliza?: () => void;
   isBatchAutoPolizaPending?: boolean;
+  isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
 }
 
 export function SatSoapDownloadCard({
@@ -49,7 +51,9 @@ export function SatSoapDownloadCard({
   currentPeriod = getCurrentFiscalPeriod().period,
   pendingCfdisCount,
   onBatchAutoPoliza,
-  isBatchAutoPolizaPending
+  isBatchAutoPolizaPending,
+  isPeriodLocked = false,
+  isReadOnlyClient = false
 }: SatSoapDownloadCardProps) {
   const [dismissedErrorId, setDismissedErrorId] = useState<string | null>(null);
   const todayStr = useMemo(() => getTodayLocalIso(), []);
@@ -213,7 +217,14 @@ export function SatSoapDownloadCard({
       <div className="space-y-3 pt-1">
         <button
           type="button"
-          disabled={soapDownloadMutation.isPending || !hasCredentials || Boolean(activePendingInPeriod) || isDateRangeInvalid}
+          disabled={
+            soapDownloadMutation.isPending ||
+            !hasCredentials ||
+            Boolean(activePendingInPeriod) ||
+            isDateRangeInvalid ||
+            isReadOnlyClient
+          }
+          title={isReadOnlyClient ? 'Modo solo lectura: descarga SAT deshabilitada' : undefined}
           onClick={() => soapDownloadMutation.mutate()}
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-xs transition"
         >
@@ -245,6 +256,8 @@ export function SatSoapDownloadCard({
             pendingCfdisCount={pendingCfdisCount}
             onBatchAutoPoliza={onBatchAutoPoliza}
             isBatchAutoPolizaPending={isBatchAutoPolizaPending}
+            isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
           />
         )}
 
@@ -253,6 +266,7 @@ export function SatSoapDownloadCard({
             pendingRequests={pendingRequests}
             onVerifyPending={onVerifyPending}
             isVerifyingPending={isVerifyingPending}
+            isReadOnlyClient={isReadOnlyClient}
           />
         )}
 
@@ -300,6 +314,7 @@ export function SatSoapDownloadCard({
           satRequests={satRequests}
           onVerifyPending={onVerifyPending}
           isVerifyingPending={isVerifyingPending}
+          isReadOnlyClient={isReadOnlyClient}
         />
       </div>
     </div>

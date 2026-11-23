@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
       const { data: pending } = await supabase
         .from('workspace_members')
         .select('id')
-        .ilike('email', ctx.email)
+        .eq('email', ctx.email)
         .eq('status', 'INVITADO');
       const ids = (pending || []).map((r) => String(r.id));
       if (ids.length > 0) {
@@ -156,7 +156,7 @@ Deno.serve(async (req: Request) => {
         .from('workspace_members')
         .select('*')
         .eq('workspace_id', wsId)
-        .ilike('email', email)
+        .eq('email', email)
         .maybeSingle();
 
       let memberRow: Record<string, unknown>;
@@ -166,7 +166,7 @@ Deno.serve(async (req: Request) => {
         }
         const { data: upd, error: uErr } = await supabase
           .from('workspace_members')
-          .update({ role, status: 'INVITADO', invited_by: ctx.email, updated_at: nowIso })
+          .update({ email, role, status: 'INVITADO', invited_by: ctx.email, updated_at: nowIso })
           .eq('id', existing.id)
           .select()
           .single();
@@ -191,8 +191,10 @@ Deno.serve(async (req: Request) => {
         if (iErr) return jsonResponse({ ok: false, error: iErr.message }, 500, headers);
         memberRow = ins;
       }
-      if (cids.length > 0) {
+      if (existing || cids.length > 0) {
         await supabase.from('company_member_access').delete().eq('member_id', memberRow.id);
+      }
+      if (cids.length > 0) {
         await supabase.from('company_member_access').insert(
           cids.map((cid) => ({
             id: `cma_${crypto.randomUUID().slice(0, 12)}`,

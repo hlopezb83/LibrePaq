@@ -16,12 +16,14 @@ export interface SatRequestsHistoryCardProps {
   satRequests: SatDownloadRequestRecord[];
   onVerifyPending?: () => void;
   isVerifyingPending?: boolean;
+  isReadOnlyClient?: boolean;
 }
 
 export function SatRequestsHistoryCard({
   satRequests,
   onVerifyPending,
-  isVerifyingPending
+  isVerifyingPending,
+  isReadOnlyClient = false
 }: SatRequestsHistoryCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const toast = useToast();
@@ -70,9 +72,9 @@ export function SatRequestsHistoryCard({
         {hasPending && onVerifyPending && (
           <button
             type="button"
-            disabled={isVerifyingPending}
+            disabled={isVerifyingPending || isReadOnlyClient}
             onClick={onVerifyPending}
-            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50 shrink-0"
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             title="Consultar al SAT estatus de las solicitudes pendientes"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingPending ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -151,9 +153,9 @@ export function SatRequestsHistoryCard({
                         {onVerifyPending && (
                           <button
                             type="button"
-                            disabled={isVerifyingPending}
+                            disabled={isVerifyingPending || isReadOnlyClient}
                             onClick={onVerifyPending}
-                            className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[10px] font-bold transition cursor-pointer disabled:opacity-50"
+                            className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[10px] font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Comprobar estatus oficial en el SAT"
                           >
                             ↻ Comprobar

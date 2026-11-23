@@ -11,6 +11,7 @@ export interface UseSatSoapFielManagerParams {
   defaultStartDate: string;
   defaultEndDate: string;
   isDemoCompany?: boolean;
+  isReadOnlyClient?: boolean;
   onDownloadSuccess?: (message: string) => void;
 }
 
@@ -24,12 +25,15 @@ export function useSatSoapFielManager({
   defaultStartDate,
   defaultEndDate,
   isDemoCompany,
+  isReadOnlyClient = false,
   onDownloadSuccess
 }: UseSatSoapFielManagerParams) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const cerInputRef = useRef<HTMLInputElement>(null);
   const keyInputRef = useRef<HTMLInputElement>(null);
+  const latestCompanyIdRef = useRef(companyId);
+  latestCompanyIdRef.current = companyId;
 
   const [cerFileName, setCerFileName] = useState('');
   const [keyFileName, setKeyFileName] = useState('');
@@ -110,14 +114,20 @@ export function useSatSoapFielManager({
   }, [satRequests, toast]);
 
   const verifyPendingMutation = useMutation({
-    mutationFn: () => apiClient.verifyPendingSatRequests(companyId),
-    onSuccess: (res) => {
-      invalidateAccountingQueries(queryClient, [
-        'cfdis',
-        'sat-requests',
-        'dashboard',
-        'fiscal-workpaper'
-      ]);
+    onMutate: () => ({ targetCompanyId: companyId }),
+    mutationFn: async () => {
+      if (isReadOnlyClient) throw new Error('Acceso de solo lectura: acción bloqueada.');
+      const targetCompanyId = companyId;
+      const res = await apiClient.verifyPendingSatRequests(targetCompanyId);
+      return { res, targetCompanyId };
+    },
+    onSuccess: ({ res, targetCompanyId }) => {
+      invalidateAccountingQueries(
+        queryClient,
+        ['cfdis', 'sat-requests', 'dashboard', 'fiscal-workpaper'],
+        targetCompanyId
+      );
+      if (targetCompanyId !== latestCompanyIdRef.current) return;
       if (res.downloadedCount > 0) {
         const msg = `¡Sincronización completada! ${res.downloadedCount} comprobante(s) integrados con éxito a la Bóveda ADD.`;
         setPanelFeedback(msg);
@@ -143,7 +153,8 @@ export function useSatSoapFielManager({
         toast.info('Verificación SAT', msg);
       }
     },
-    onError: (err: Error) => {
+    onError: (err: Error, _vars, ctx) => {
+      if (ctx?.targetCompanyId !== latestCompanyIdRef.current) return;
       const msg = `Error al verificar con el SAT: ${err.message}`;
       setPanelError(msg);
       toast.error('Error SAT', msg);
@@ -151,24 +162,45 @@ export function useSatSoapFielManager({
   });
 
   const saveFielMutation = useMutation({
-    mutationFn: () => apiClient.saveFielCredentials({ companyId, cerBase64, keyBase64, passphrase }),
-    onSuccess: (saved) => {
+    onMutate: () => ({ targetCompanyId: companyId }),
+    mutationFn: async () => {
+      if (isReadOnlyClient) throw new Error('Acceso de solo lectura: acción bloqueada.');
+      const targetCompanyId = companyId;
+      const saved = await apiClient.saveFielCredentials({
+        companyId: targetCompanyId,
+        cerBase64,
+        keyBase64,
+        passphrase
+      });
+      return { saved, targetCompanyId };
+    },
+    onSuccess: ({ saved, targetCompanyId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['fiel-status', targetCompanyId] });
+      if (targetCompanyId !== latestCompanyIdRef.current) return;
       setPanelError(null);
       setShowChangeFiel(false);
       setPanelFeedback(
         `e.firma de ${saved.nombreTitular || saved.rfcTitular} guardada y validada correctamente (Serie ${saved.numeroSerieCertificado}). Ya puedes descargar comprobantes.`
       );
-      void queryClient.invalidateQueries({ queryKey: ['fiel-status', companyId] });
     },
-    onError: (err: Error) => {
+    onError: (err: Error, _vars, ctx) => {
+      if (ctx?.targetCompanyId !== latestCompanyIdRef.current) return;
       setPanelFeedback(null);
       setPanelError(err.message);
     }
   });
 
   const generateTestFielMutation = useMutation({
-    mutationFn: () => apiClient.generateTestFiel(companyId, passphrase || 'Contpaq2026'),
-    onSuccess: (res) => {
+    onMutate: () => ({ targetCompanyId: companyId }),
+    mutationFn: async () => {
+      if (isReadOnlyClient) throw new Error('Acceso de solo lectura: acción bloqueada.');
+      const targetCompanyId = companyId;
+      const res = await apiClient.generateTestFiel(targetCompanyId, passphrase || 'Contpaq2026');
+      return { res, targetCompanyId };
+    },
+    onSuccess: ({ res, targetCompanyId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['fiel-status', targetCompanyId] });
+      if (targetCompanyId !== latestCompanyIdRef.current) return;
       setPanelError(null);
       setShowChangeFiel(false);
       setGeneratedTestFiles(res.generatedFiles);
@@ -180,19 +212,22 @@ export function useSatSoapFielManager({
       setPanelFeedback(
         `Certificados Demo generados e instalados para ${res.status.rfcTitular}. Ya puedes realizar descargas.`
       );
-      void queryClient.invalidateQueries({ queryKey: ['fiel-status', companyId] });
     },
-    onError: (err: Error) => {
+    onError: (err: Error, _vars, ctx) => {
+      if (ctx?.targetCompanyId !== latestCompanyIdRef.current) return;
       setPanelFeedback(null);
       setPanelError(err.message);
     }
   });
 
   const soapDownloadMutation = useMutation({
+    onMutate: () => ({ targetCompanyId: companyId }),
     mutationFn: async () => {
+      if (isReadOnlyClient) throw new Error('Acceso de solo lectura: acción bloqueada.');
+      const targetCompanyId = companyId;
       const exec = (tipo: 'RECIBIDOS' | 'EMITIDOS') =>
         apiClient.executeSatSoapDownload({
-          companyId,
+          companyId: targetCompanyId,
           tipoSolicitud: tipo,
           fechaInicial,
           fechaFinal,
@@ -204,6 +239,7 @@ export function useSatSoapFielManager({
         await new Promise((resolve) => setTimeout(resolve, 1500));
         const rEmit = await exec('EMITIDOS');
         return {
+          targetCompanyId,
           requestRecord: rEmit.requestRecord,
           receivedRecord: rRec.requestRecord,
           totalCount: rRec.downloadedCfdis.length + rEmit.downloadedCfdis.length,
@@ -212,12 +248,19 @@ export function useSatSoapFielManager({
       }
       const res = await exec(tipoSolicitud);
       return {
+        targetCompanyId,
         requestRecord: res.requestRecord,
         totalCount: res.downloadedCfdis.length,
         tipoDescarga: tipoSolicitud
       };
     },
     onSuccess: (res) => {
+      invalidateAccountingQueries(
+        queryClient,
+        ['cfdis', 'sat-requests', 'third-parties', 'dashboard', 'fiscal-workpaper'],
+        res.targetCompanyId
+      );
+      if (res.targetCompanyId !== latestCompanyIdRef.current) return;
       setPanelError(null);
       const desc =
         res.tipoDescarga === 'AMBOS'
@@ -232,51 +275,60 @@ export function useSatSoapFielManager({
           ? `Sincronización SAT al día: ${res.requestRecord.cfdisDescargados} comprobante(s) de ${desc} ya están en la Bóveda.`
           : `Sincronización exitosa: ${res.totalCount} factura(s) ${desc} integradas a la Bóveda.`;
       setPanelFeedback(msg);
-      invalidateAccountingQueries(queryClient, [
-        'cfdis',
-        'sat-requests',
-        'third-parties',
-        'dashboard',
-        'fiscal-workpaper'
-      ]);
       onDownloadSuccess?.(msg);
     },
-    onError: (err: Error) => {
+    onError: (err: Error, _vars, ctx) => {
+      if (ctx?.targetCompanyId !== latestCompanyIdRef.current) return;
       setPanelFeedback(null);
       setPanelError(err.message);
     }
   });
 
-  const handleCerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCerFileName(file.name);
-      setCerBase64(await fileToBase64(file));
+  const readFielFile = async (
+    file: File | undefined,
+    setName: (v: string) => void,
+    setB64: (v: string) => void,
+    fallbackMsg: string
+  ) => {
+    if (!file || isReadOnlyClient) return;
+    try {
+      setB64(await fileToBase64(file));
+      setName(file.name);
+      setPanelError(null);
+    } catch (err: unknown) {
+      setPanelError(err instanceof Error ? err.message : fallbackMsg);
     }
   };
 
-  const handleKeySelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setKeyFileName(file.name);
-      setKeyBase64(await fileToBase64(file));
-    }
-  };
+  const handleCerSelect = (e: React.ChangeEvent<HTMLInputElement>) =>
+    readFielFile(e.target.files?.[0], setCerFileName, setCerBase64, 'No se pudo leer el archivo .cer');
+
+  const handleKeySelect = (e: React.ChangeEvent<HTMLInputElement>) =>
+    readFielFile(e.target.files?.[0], setKeyFileName, setKeyBase64, 'No se pudo leer el archivo .key');
 
   const handleFilesDrop = async (files: File[]) => {
-    for (const file of files) {
-      const lower = file.name.toLowerCase();
-      if (lower.endsWith('.cer') || lower.endsWith('.crt')) {
-        setCerFileName(file.name);
-        setCerBase64(await fileToBase64(file));
-      } else if (lower.endsWith('.key') || lower.endsWith('.der')) {
-        setKeyFileName(file.name);
-        setKeyBase64(await fileToBase64(file));
+    if (isReadOnlyClient) return;
+    try {
+      for (const file of files) {
+        const lower = file.name.toLowerCase();
+        if (lower.endsWith('.cer') || lower.endsWith('.crt')) {
+          const b64 = await fileToBase64(file);
+          setCerFileName(file.name);
+          setCerBase64(b64);
+        } else if (lower.endsWith('.key') || lower.endsWith('.der')) {
+          const b64 = await fileToBase64(file);
+          setKeyFileName(file.name);
+          setKeyBase64(b64);
+        }
       }
+      setPanelError(null);
+    } catch (err: unknown) {
+      setPanelError(err instanceof Error ? err.message : 'Error al leer los archivos de e.firma');
     }
   };
 
   const handleVerifyPending = () => {
+    if (isReadOnlyClient) return;
     toast.info(
       'Consultando al SAT...',
       'Verificando estatus de empaquetado de comprobantes oficiales...'
@@ -285,39 +337,13 @@ export function useSatSoapFielManager({
   };
 
   return {
-    cerInputRef,
-    keyInputRef,
-    cerFileName,
-    keyFileName,
-    cerBase64,
-    keyBase64,
-    passphrase,
-    setPassphrase,
-    showChangeFiel,
-    setShowChangeFiel,
-    tipoSolicitud,
-    setTipoSolicitud,
-    fechaInicial,
-    setFechaInicial,
-    fechaFinal,
-    setFechaFinal,
-    modoEjecucion,
-    setModoEjecucion,
-    panelFeedback,
-    setPanelFeedback,
-    panelError,
-    setPanelError,
-    generatedTestFiles,
-    fielStatus,
-    hasCredentials: Boolean(fielStatus?.hasCredentials),
-    satRequests,
-    verifyPendingMutation,
-    saveFielMutation,
-    generateTestFielMutation,
-    soapDownloadMutation,
-    handleCerSelect,
-    handleKeySelect,
-    handleFilesDrop,
-    handleVerifyPending
+    cerInputRef, keyInputRef, cerFileName, keyFileName, cerBase64, keyBase64,
+    passphrase, setPassphrase, showChangeFiel, setShowChangeFiel,
+    tipoSolicitud, setTipoSolicitud, fechaInicial, setFechaInicial,
+    fechaFinal, setFechaFinal, modoEjecucion, setModoEjecucion,
+    panelFeedback, setPanelFeedback, panelError, setPanelError,
+    generatedTestFiles, fielStatus, hasCredentials: Boolean(fielStatus?.hasCredentials),
+    satRequests, verifyPendingMutation, saveFielMutation, generateTestFielMutation,
+    soapDownloadMutation, handleCerSelect, handleKeySelect, handleFilesDrop, handleVerifyPending
   };
 }

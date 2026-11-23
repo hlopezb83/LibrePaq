@@ -13,6 +13,24 @@ import { generateDeliverableSummaryText } from './deliverableSummaryText';
 
 export type DeliverableTabId = 'DOSSIER' | 'BALANZA' | 'RESULTADOS' | 'BALANCE' | 'DIA17' | 'CONFIG';
 
+const DEFAULT_DELIVERABLE_CONFIG = {
+  firmName: 'Despacho Contable y Fiscal Integral S.C.',
+  auditorName: 'C.P.C. María Elena Gómez Garza',
+  auditorCedula: 'Céd. Prof. 4829103',
+  legalRepName: 'Ing. Alejandro Garza Martínez',
+  legalRepTitle: 'Representante Legal',
+  issuanceCity: 'Monterrey, Nuevo León'
+} as const;
+
+function readSavedConfigForKey(key: string): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
 interface UseExecutiveDeliverablesParams {
   company: Company;
   year: number;
@@ -54,23 +72,40 @@ export function useExecutiveDeliverables({
   }, [isOpen, initialTab]);
 
   const configKey = `librepaq_deliverable_config_${company.id}`;
-  const readSavedConfig = () => {
-    try {
-      const raw = localStorage.getItem(configKey);
-      return raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    } catch {
-      return {};
-    }
-  };
+  const loadedConfigKeyRef = useRef<string>(configKey);
 
-  const [firmName, setFirmName] = useState(() => readSavedConfig().firmName || 'Despacho Contable y Fiscal Integral S.C.');
-  const [auditorName, setAuditorName] = useState(() => readSavedConfig().auditorName || 'C.P.C. María Elena Gómez Garza');
-  const [auditorCedula, setAuditorCedula] = useState(() => readSavedConfig().auditorCedula || 'Céd. Prof. 4829103');
-  const [legalRepName, setLegalRepName] = useState(() => readSavedConfig().legalRepName || 'Ing. Alejandro Garza Martínez');
-  const [legalRepTitle, setLegalRepTitle] = useState(() => readSavedConfig().legalRepTitle || 'Representante Legal');
-  const [issuanceCity, setIssuanceCity] = useState(() => readSavedConfig().issuanceCity || 'Monterrey, Nuevo León');
+  const [firmName, setFirmName] = useState(
+    () => readSavedConfigForKey(configKey).firmName || DEFAULT_DELIVERABLE_CONFIG.firmName
+  );
+  const [auditorName, setAuditorName] = useState(
+    () => readSavedConfigForKey(configKey).auditorName || DEFAULT_DELIVERABLE_CONFIG.auditorName
+  );
+  const [auditorCedula, setAuditorCedula] = useState(
+    () => readSavedConfigForKey(configKey).auditorCedula || DEFAULT_DELIVERABLE_CONFIG.auditorCedula
+  );
+  const [legalRepName, setLegalRepName] = useState(
+    () => readSavedConfigForKey(configKey).legalRepName || DEFAULT_DELIVERABLE_CONFIG.legalRepName
+  );
+  const [legalRepTitle, setLegalRepTitle] = useState(
+    () => readSavedConfigForKey(configKey).legalRepTitle || DEFAULT_DELIVERABLE_CONFIG.legalRepTitle
+  );
+  const [issuanceCity, setIssuanceCity] = useState(
+    () => readSavedConfigForKey(configKey).issuanceCity || DEFAULT_DELIVERABLE_CONFIG.issuanceCity
+  );
 
   useEffect(() => {
+    if (loadedConfigKeyRef.current !== configKey) {
+      const saved = readSavedConfigForKey(configKey);
+      setFirmName(saved.firmName || DEFAULT_DELIVERABLE_CONFIG.firmName);
+      setAuditorName(saved.auditorName || DEFAULT_DELIVERABLE_CONFIG.auditorName);
+      setAuditorCedula(saved.auditorCedula || DEFAULT_DELIVERABLE_CONFIG.auditorCedula);
+      setLegalRepName(saved.legalRepName || DEFAULT_DELIVERABLE_CONFIG.legalRepName);
+      setLegalRepTitle(saved.legalRepTitle || DEFAULT_DELIVERABLE_CONFIG.legalRepTitle);
+      setIssuanceCity(saved.issuanceCity || DEFAULT_DELIVERABLE_CONFIG.issuanceCity);
+      loadedConfigKeyRef.current = configKey;
+      return;
+    }
+
     try {
       localStorage.setItem(
         configKey,

@@ -100,15 +100,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     openModalWithRef(cmdDialogRef, hasOpenedCmd, setHasOpenedCmd, () => cmdInputRef.current?.focus());
   }, [openModalWithRef, hasOpenedCmd]);
 
-  const { isModalOpen, closeModal } = useUIModal();
+  const { isModalOpen } = useUIModal();
   useEffect(() => { if (isModalOpen('COMPANY_WIZARD')) openNewCompanyModal(); }, [isModalOpen, openNewCompanyModal]);
-  useEffect(() => {
-    const wizardEl = wizardDialogRef.current;
-    if (!wizardEl) return;
-    const onClose = () => closeModal('COMPANY_WIZARD');
-    wizardEl.addEventListener('close', onClose);
-    return () => wizardEl.removeEventListener('close', onClose);
-  }, [hasOpenedWizard, closeModal]);
   useEffect(() => { try { localStorage.setItem('librepaq_sidebar_collapsed', String(sidebarCollapsed)); } catch {} }, [sidebarCollapsed]);
 
   const isPublicPage = ['/landing', '/privacy', '/terms', '/reset-password'].includes(currentPath) || (!user && currentPath === '/');

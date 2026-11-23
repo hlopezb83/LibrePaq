@@ -4,6 +4,7 @@ import { assertAccountingInvariant } from '../../shared/accounting-engine';
 import type { Company } from '../../shared/types';
 import { createPolizaTransaction } from './polizas.repo';
 import { saveFielCredentialsForCompany } from './fiel-credentials.repo';
+import { getEffectiveCompanyRoleRepo, isWorkspaceSocioRepo } from './workspace-members.repo';
 
 export function getCompanies(
   userId?: string | null,
@@ -15,8 +16,16 @@ export function getCompanies(
       .query('SELECT * FROM companies WHERE user_id = ? ORDER BY created_at ASC')
       .all(userId) as CompanyDbRow[];
 
-    // Si el usuario es nuevo y aún no tiene empresas en su workspace, auto-crear su empresa inicial limpia
-    if (userRows.length === 0) {
+    const candidateShared = db
+      .query("SELECT * FROM companies WHERE user_id IS NOT NULL AND user_id != 'demo' AND user_id != ? ORDER BY created_at ASC")
+      .all(userId) as CompanyDbRow[];
+    const sharedRows = candidateShared.filter(
+      (row) => getEffectiveCompanyRoleRepo(row.id, userId, userEmail).role !== null
+    );
+    const allRows = [...userRows, ...sharedRows];
+
+    // Si el usuario es nuevo y aún no tiene empresas propias ni compartidas, auto-crear su empresa inicial limpia
+    if (allRows.length === 0) {
       const displayName = fullName || (userEmail ? userEmail.split('@')[0] : 'Mi Despacho');
       const cleanCompany = createCompanyRecord({
         name: `Despacho Contable - ${displayName}`,
@@ -27,7 +36,7 @@ export function getCompanies(
       });
       return [cleanCompany];
     }
-    return userRows.map(mapCompanyRow);
+    return allRows.map(mapCompanyRow);
   }
 
   const demoRows = db
@@ -43,18 +52,29 @@ export function companyExistsById(companyId: string): boolean {
   return Boolean(row);
 }
 
-export function getCompanyById(companyId: string, userId?: string | null): Company | null {
+export function getCompanyById(
+  companyId: string,
+  userId?: string | null,
+  userEmail?: string | null
+): Company | null {
   const row = db
     .query('SELECT * FROM companies WHERE id = ?')
     .get(companyId) as CompanyDbRow | null;
   if (!row) {
     return null;
   }
-  // Aislamiento Multi-Tenant estricto: empresas privadas exigen coincidencia de userId
+  // Aislamiento Multi-Tenant estricto: empresas privadas exigen coincidencia de userId o membresía RBAC de despacho
   if (row.user_id && row.user_id !== 'demo') {
-    if (!userId || row.user_id !== userId) {
-      return null;
+    if (userId && row.user_id === userId) {
+      return mapCompanyRow(row);
     }
+    if (userId || userEmail) {
+      const eff = getEffectiveCompanyRoleRepo(companyId, userId, userEmail);
+      if (eff.role !== null) {
+        return mapCompanyRow(row);
+      }
+    }
+    return null;
   }
   return mapCompanyRow(row);
 }
@@ -154,41 +174,52 @@ export function createCompanyRecord(input: {
   return created;
 }
 
+function canMutateCompanyRecord(
+  id: string,
+  userId?: string | null,
+  userEmail?: string | null,
+  requireSocioForDelete = false
+): boolean {
+  const row = db.query('SELECT user_id FROM companies WHERE id = ?').get(id) as {
+    user_id: string | null;
+  } | null;
+  if (!row) return false;
+  if (row.user_id && row.user_id !== 'demo') {
+    if (userId && row.user_id === userId) return true;
+    if (!userId && !userEmail) return false;
+    const eff = getEffectiveCompanyRoleRepo(id, userId, userEmail);
+    return requireSocioForDelete ? eff.role === 'SOCIO' : eff.canWrite;
+  }
+  if (row.user_id === 'demo' && userId) {
+    return isWorkspaceSocioRepo('ws_demo', userId, userEmail);
+  }
+  return true;
+}
+
 export function updateCompanyRecord(
   id: string,
   input: { name: string; rfc: string; regimenFiscal: string; codigoPostal: string },
-  userId?: string | null
+  userId?: string | null,
+  userEmail?: string | null
 ): Company | null {
-  const result = userId
-    ? db
-        .prepare(`
-          UPDATE companies
-          SET name = ?, rfc = ?, regimen_fiscal = ?, codigo_postal = ?
-          WHERE id = ? AND (user_id = ? OR user_id IS NULL OR user_id = 'demo')
-        `)
-        .run(input.name, input.rfc, input.regimenFiscal, input.codigoPostal, id, userId)
-    : db
-        .prepare(`
-          UPDATE companies
-          SET name = ?, rfc = ?, regimen_fiscal = ?, codigo_postal = ?
-          WHERE id = ? AND (user_id IS NULL OR user_id = 'demo')
-        `)
-        .run(input.name, input.rfc, input.regimenFiscal, input.codigoPostal, id);
+  if (!canMutateCompanyRecord(id, userId, userEmail)) return null;
+  const result = db
+    .prepare(
+      'UPDATE companies SET name = ?, rfc = ?, regimen_fiscal = ?, codigo_postal = ? WHERE id = ?'
+    )
+    .run(input.name, input.rfc, input.regimenFiscal, input.codigoPostal, id);
 
   if (result.changes === 0) return null;
-  return getCompanyById(id, userId);
+  return getCompanyById(id, userId, userEmail);
 }
 
-export function deleteCompanyRecord(id: string, userId?: string | null): boolean {
-  if (userId) {
-    const result = db
-      .prepare('DELETE FROM companies WHERE id = ? AND (user_id = ? OR user_id IS NULL OR user_id = "demo")')
-      .run(id, userId);
-    return result.changes > 0;
-  }
-  const result = db
-    .prepare('DELETE FROM companies WHERE id = ? AND (user_id IS NULL OR user_id = "demo")')
-    .run(id);
+export function deleteCompanyRecord(
+  id: string,
+  userId?: string | null,
+  userEmail?: string | null
+): boolean {
+  if (!canMutateCompanyRecord(id, userId, userEmail, true)) return false;
+  const result = db.prepare('DELETE FROM companies WHERE id = ?').run(id);
   return result.changes > 0;
 }
 
@@ -196,16 +227,14 @@ export function updateCompanyPeriodRecord(
   id: string,
   currentYear: number,
   currentPeriod: number,
-  userId?: string | null
+  userId?: string | null,
+  userEmail?: string | null
 ): Company | null {
-  const result = userId
-    ? db
-        .prepare('UPDATE companies SET current_year = ?, current_period = ? WHERE id = ? AND (user_id = ? OR user_id IS NULL OR user_id = "demo")')
-        .run(currentYear, currentPeriod, id, userId)
-    : db
-        .prepare('UPDATE companies SET current_year = ?, current_period = ? WHERE id = ? AND (user_id IS NULL OR user_id = "demo")')
-        .run(currentYear, currentPeriod, id);
+  if (!canMutateCompanyRecord(id, userId, userEmail)) return null;
+  const result = db
+    .prepare('UPDATE companies SET current_year = ?, current_period = ? WHERE id = ?')
+    .run(currentYear, currentPeriod, id);
 
   if (result.changes === 0) return null;
-  return getCompanyById(id, userId);
+  return getCompanyById(id, userId, userEmail);
 }

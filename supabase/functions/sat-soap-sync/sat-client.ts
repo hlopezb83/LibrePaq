@@ -68,7 +68,6 @@ export async function resolveCompanyFielCredentials(
 ): Promise<{ cerBase64: string; privateKeyPem: string; companyRfc: string }> {
   let cerBase64 = '';
   let privateKeyPem = '';
-  let companyRfc = initialRfc;
 
   const { data: creds } = await supabase
     .from('fiel_credentials')
@@ -81,19 +80,19 @@ export async function resolveCompanyFielCredentials(
     privateKeyPem = creds.private_key_pem
       ? await decryptPrivateKeyIfNeeded(creds.private_key_pem)
       : '';
-    if (!companyRfc && creds.rfc_titular) {
-      companyRfc = creds.rfc_titular;
-    }
   }
 
-  if (!companyRfc) {
+  let dbRfc = creds?.rfc_titular || '';
+  if (!dbRfc) {
     const { data: comp } = await supabase
       .from('companies')
       .select('rfc')
       .eq('id', companyId)
       .maybeSingle();
-    if (comp?.rfc) companyRfc = comp.rfc;
+    if (comp?.rfc) dbRfc = comp.rfc;
   }
+
+  const companyRfc = dbRfc || initialRfc;
 
   return { cerBase64, privateKeyPem, companyRfc };
 }

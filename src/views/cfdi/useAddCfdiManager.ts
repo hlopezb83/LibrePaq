@@ -16,7 +16,8 @@ import { useAddCfdiMutations } from './useAddCfdiMutations';
 import { useCfdiFilters } from './useCfdiFilters';
 
 export function useAddCfdiManager() {
-  const { activeCompany, activeCompanyId } = useCompany();
+  const { activeCompany, activeCompanyId, isReadOnlySupportMode, isReadOnlyClient: rawReadOnlyClient } = useCompany();
+  const isReadOnlyClient = Boolean(isReadOnlySupportMode || rawReadOnlyClient);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -72,6 +73,7 @@ export function useAddCfdiManager() {
     enabled: Boolean(activeCompanyId)
   });
   const isPeriodLocked = Boolean(periodLock?.isLocked);
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   const { data: cfdis = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['cfdis', activeCompanyId],
@@ -133,6 +135,7 @@ export function useAddCfdiManager() {
   } = useAddCfdiMutations({
     activeCompanyId,
     isPeriodLocked,
+    isReadOnlyClient,
     currentYear,
     currentPeriod,
     simModalRef,
@@ -142,6 +145,7 @@ export function useAddCfdiManager() {
   });
 
   const processXmlFiles = async (fileList: FileList | File[]) => {
+    if (isReadOnlyClient) return;
     setIsUploadingFiles(true);
     try {
       const boundedXmls = await extractXmlStringsFromFiles(fileList, toast);
@@ -195,8 +199,14 @@ export function useAddCfdiManager() {
   };
 
   const openContabilizarModal = (cfdi: CfdiDocument) => {
+    if (isWriteBlocked) return;
     setSelectedCfdi(cfdi);
-    const defaults = resolveDefaultAccountsForCfdi(cfdi, accounts);
+    let defaults = { operationAccountCode: '', counterAccountCode: '' };
+    try {
+      defaults = resolveDefaultAccountsForCfdi(cfdi, accounts);
+    } catch {
+      defaults = { operationAccountCode: '', counterAccountCode: '' };
+    }
     setOperationAccountCode(defaults.operationAccountCode);
     setCounterAccountCode(defaults.counterAccountCode);
     if (contabilizarModalRef.current && !contabilizarModalRef.current.open) {
@@ -224,17 +234,21 @@ export function useAddCfdiManager() {
 
   const previewMovements = useMemo(() => {
     if (!selectedCfdi || affectableAccounts.length === 0) return [];
-    const plan = buildAutoPolizaPlan(selectedCfdi, affectableAccounts, {
-      operationAccountCode: operationAccountCode || undefined,
-      counterAccountCode: counterAccountCode || undefined
-    });
-    return plan.movements.map((m) => ({
-      code: m.accountCode,
-      name: m.accountName,
-      concepto: m.concepto,
-      cargo: m.cargo,
-      abono: m.abono
-    }));
+    try {
+      const plan = buildAutoPolizaPlan(selectedCfdi, affectableAccounts, {
+        operationAccountCode: operationAccountCode || undefined,
+        counterAccountCode: counterAccountCode || undefined
+      });
+      return plan.movements.map((m) => ({
+        code: m.accountCode,
+        name: m.accountName,
+        concepto: m.concepto,
+        cargo: m.cargo,
+        abono: m.abono
+      }));
+    } catch {
+      return [];
+    }
   }, [selectedCfdi, operationAccountCode, counterAccountCode, affectableAccounts]);
 
   const toggleSelectAll = () => {
@@ -299,20 +313,15 @@ export function useAddCfdiManager() {
   };
 
   const handleSimulateSubmit = (payload: SimulatedCfdiPayload) => {
+    if (isReadOnlyClient) return;
     const xmlRaw = buildSimulatedCfdiXml(payload, activeCompany);
     uploadXmlMutation.mutate({ companyId: activeCompanyId, xmlRaw });
   };
 
   return {
-    activeCompany,
-    activeCompanyId,
-    currentYear,
-    currentPeriod,
-    isPeriodLocked,
-    xmlModalRef,
-    contabilizarModalRef,
-    simModalRef,
-    fileInputRef,
+    activeCompany, activeCompanyId, currentYear, currentPeriod,
+    isPeriodLocked, isReadOnlyClient, isWriteBlocked,
+    xmlModalRef, contabilizarModalRef, simModalRef, fileInputRef,
     tab, setTab, tipoFilter, setTipoFilter, metodoFilter, setMetodoFilter,
     searchQuery, setSearchQuery, selectedCfdi, setSelectedCfdi,
     operationAccountCode, setOperationAccountCode, counterAccountCode, setCounterAccountCode,

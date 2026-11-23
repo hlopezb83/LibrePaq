@@ -9,6 +9,7 @@ import {
   Users,
   X
 } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
 import type { AccountWithBalance, Efos69BStatus } from '../../shared/types';
 import { Importar69BModal } from './Importar69BModal';
 import { PadronProveedoresTable } from './PadronProveedoresTable';
@@ -17,14 +18,18 @@ import { usePadronProveedores } from './usePadronProveedores';
 export interface PadronProveedoresTabProps {
   companyId: string;
   accounts: AccountWithBalance[];
+  isReadOnlyClient?: boolean;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export function PadronProveedoresTab({
   companyId,
   accounts,
+  isReadOnlyClient: isReadOnlyClientProp = false,
   onFeedback
 }: PadronProveedoresTabProps) {
+  const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
   const {
     affectableAccounts,
     thirdParties,
@@ -53,7 +58,7 @@ export function PadronProveedoresTab({
     handleRfcChange,
     handle69BImportComplete,
     saveThirdPartyMutation
-  } = usePadronProveedores({ companyId, accounts, onFeedback });
+  } = usePadronProveedores({ companyId, accounts, isReadOnlyClient: isReadOnly, onFeedback });
 
   return (
     <div className="space-y-5">
@@ -72,8 +77,10 @@ export function PadronProveedoresTab({
           </div>
           <button
             type="button"
-            onClick={() => setIs69BModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 shadow-2xs cursor-pointer shrink-0"
+            disabled={isReadOnly}
+            onClick={() => { if (!isReadOnly) setIs69BModalOpen(true); }}
+            title={isReadOnly ? 'Modo solo lectura' : undefined}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
           >
             <ShieldAlert className="w-4 h-4 text-red-600" aria-hidden="true" />
             Importar Lista 69-B del SAT (.CSV)
@@ -83,7 +90,7 @@ export function PadronProveedoresTab({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            saveThirdPartyMutation.mutate();
+            if (!isReadOnly) saveThirdPartyMutation.mutate();
           }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200"
         >
@@ -104,8 +111,9 @@ export function PadronProveedoresTab({
                       {tpRfcRes.expectedRfc && (
                         <button
                           type="button"
+                          disabled={isReadOnly}
                           onClick={() => handleRfcChange(tpRfcRes.expectedRfc!)}
-                          className="underline text-blue-700 hover:text-blue-900 cursor-pointer font-bold"
+                          className="underline text-blue-700 hover:text-blue-900 disabled:opacity-50 cursor-pointer font-bold"
                         >
                           Corregir
                         </button>
@@ -119,12 +127,13 @@ export function PadronProveedoresTab({
               id="tp-rfc"
               type="text"
               required
+              disabled={isReadOnly}
               minLength={12}
               maxLength={13}
               value={tpRfc}
               onChange={(e) => handleRfcChange(e.target.value)}
               placeholder="TLE180920K71"
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono uppercase bg-white"
+              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono uppercase bg-white disabled:bg-slate-100"
             />
           </div>
 
@@ -136,10 +145,11 @@ export function PadronProveedoresTab({
               id="tp-nombre"
               type="text"
               required
+              disabled={isReadOnly}
               value={tpNombre}
               onChange={(e) => setTpNombre(e.target.value)}
               placeholder="Transportes y Logística Empresarial SA de CV"
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
+              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white disabled:bg-slate-100"
             />
           </div>
 
@@ -149,9 +159,10 @@ export function PadronProveedoresTab({
             </label>
             <select
               id="tp-expense-acc"
+              disabled={isReadOnly}
               value={tpExpenseAcc}
               onChange={(e) => setTpExpenseAcc(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white disabled:bg-slate-100"
             >
               {affectableAccounts.map((acc) => (
                 <option key={acc.id} value={acc.code}>
@@ -169,9 +180,10 @@ export function PadronProveedoresTab({
               <select
                 id="tp-iva-rate"
                 aria-label="Tasa de IVA"
+                disabled={isReadOnly}
                 value={tpIvaRate}
                 onChange={(e) => setTpIvaRate(Number(e.target.value) as 16 | 8 | 0)}
-                className="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white"
+                className="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white disabled:bg-slate-100"
               >
                 <option value={16}>16%</option>
                 <option value={8}>8% Frontera</option>
@@ -180,9 +192,10 @@ export function PadronProveedoresTab({
               <select
                 id="tp-operacion-diot"
                 aria-label="Tipo de Operación DIOT"
+                disabled={isReadOnly}
                 value={tpOperacion}
                 onChange={(e) => setTpOperacion(e.target.value as '03' | '06' | '85')}
-                className="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white"
+                className="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white disabled:bg-slate-100"
               >
                 <option value="03">03 Serv. Prof.</option>
                 <option value="06">06 Arrend.</option>
@@ -198,9 +211,10 @@ export function PadronProveedoresTab({
               </label>
               <select
                 id="tp-efos"
+                disabled={isReadOnly}
                 value={tpEfos}
                 onChange={(e) => setTpEfos(e.target.value as Efos69BStatus)}
-                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white"
+                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white disabled:bg-slate-100"
               >
                 <option value="LIMPIO">Limpio</option>
                 <option value="PRESUNTO_EFOS">Presunto</option>
@@ -210,8 +224,8 @@ export function PadronProveedoresTab({
             </div>
             <button
               type="submit"
-              disabled={saveThirdPartyMutation.isPending}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white cursor-pointer"
+              disabled={saveThirdPartyMutation.isPending || isReadOnly}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               Guardar
@@ -219,9 +233,10 @@ export function PadronProveedoresTab({
             {(tpRfc || tpNombre) && (
               <button
                 type="button"
+                disabled={isReadOnly}
                 onClick={resetForm}
                 title="Limpiar formulario"
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 cursor-pointer"
               >
                 Limpiar
               </button>
@@ -284,6 +299,7 @@ export function PadronProveedoresTab({
             thirdParties={filteredThirdParties}
             totalCount={thirdParties.length}
             editingRfc={tpRfc}
+            isReadOnlyClient={isReadOnly}
             onEditThirdParty={selectThirdPartyForEdit}
             onClearSearch={() => setSearchQuery('')}
           />
@@ -291,7 +307,7 @@ export function PadronProveedoresTab({
       </div>
 
       <Importar69BModal
-        isOpen={is69BModalOpen}
+        isOpen={!isReadOnly && is69BModalOpen}
         onClose={() => setIs69BModalOpen(false)}
         onImportComplete={handle69BImportComplete}
       />

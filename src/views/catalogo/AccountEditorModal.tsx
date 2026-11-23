@@ -31,35 +31,15 @@ export interface AccountEditorModalProps {
   onClose: () => void;
   onSave: () => void;
   isSaving: boolean;
+  isWriteBlocked?: boolean;
 }
 
 export function AccountEditorModal({
-  dialogRef,
-  editingAccountId,
-  activeCompany,
-  currentYear,
-  formError,
-  parentCode,
-  setParentCode,
-  parentAccounts,
-  accounts,
-  code,
-  setCode,
-  name,
-  setName,
-  satGroupCode,
-  setSatGroupCode,
-  type,
-  setType,
-  nature,
-  setNature,
-  setLevel,
-  initialBalance,
-  setInitialBalance,
-  suggestNextCodeForParent,
-  onClose,
-  onSave,
-  isSaving
+  dialogRef, editingAccountId, activeCompany, currentYear, formError,
+  parentCode, setParentCode, parentAccounts, accounts, code, setCode,
+  name, setName, satGroupCode, setSatGroupCode, type, setType,
+  nature, setNature, setLevel, initialBalance, setInitialBalance,
+  suggestNextCodeForParent, onClose, onSave, isSaving, isWriteBlocked = false
 }: AccountEditorModalProps) {
   useDialogLightDismiss(dialogRef, onClose);
   const selectedParent = parentCode
@@ -109,6 +89,7 @@ export function AccountEditorModal({
           method="post"
           onSubmit={(e) => {
             e.preventDefault();
+            if (isWriteBlocked || isSaving) return;
             onSave();
           }}
           className="flex-1 min-h-0 flex flex-col overflow-hidden"
@@ -321,7 +302,7 @@ export function AccountEditorModal({
             </button>
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || isWriteBlocked}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
             >
               <CheckCircle2 className="w-4 h-4" aria-hidden="true" />

@@ -15,6 +15,7 @@ import type {
 import { computeTrialBalance } from './trial-balance.repo';
 import { getCompanyById } from './companies.repo';
 import { assertPeriodOpen } from './period-locks.repo';
+import { ensureBankN1MatchesTable } from './bank-n1.repo';
 
 export function getBankReconciliation(
   companyId: string,
@@ -264,7 +265,12 @@ export function unmatchBankLineTransaction(lineId: string): {
   if (!bLine) return { found: false };
 
   assertPeriodOpen(bLine.company_id, Number(bLine.ejercicio), Number(bLine.periodo));
-  db.prepare('UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE id = ?').run(lineId);
+  ensureBankN1MatchesTable(db);
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM bank_statement_matches WHERE bank_line_id = ?').run(lineId);
+    db.prepare('UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE id = ?').run(lineId);
+  });
+  tx();
   const company = getCompanyById(bLine.company_id);
   if (!company) return { found: true, reconciliation: null };
 

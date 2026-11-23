@@ -31,8 +31,9 @@ function corsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-const STATUS_BY_CODE: Record<BankPdfFailureCode | 'UNAUTHORIZED', number> = {
+const STATUS_BY_CODE: Record<BankPdfFailureCode | 'UNAUTHORIZED' | 'FORBIDDEN', number> = {
   UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
   INVALID_INPUT: 400,
   FILE_TOO_LARGE: 413,
   INVALID_DOCUMENT: 422,
@@ -45,8 +46,8 @@ Deno.serve(async (req: Request) => {
     ...corsHeaders(req.headers.get('Origin')),
     'Content-Type': 'application/json'
   };
-  const fail = (code: BankPdfFailureCode | 'UNAUTHORIZED') =>
-    new Response(JSON.stringify({ ok: false, code }), {
+  const fail = (code: BankPdfFailureCode | 'UNAUTHORIZED' | 'FORBIDDEN', error?: string) =>
+    new Response(JSON.stringify({ ok: false, code, ...(error ? { error } : {}) }), {
       status: STATUS_BY_CODE[code],
       headers
     });
@@ -54,7 +55,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers });
   if (req.method !== 'POST') return fail('INVALID_INPUT');
 
-  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return fail('UNAUTHORIZED');
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -64,6 +65,21 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, anonKey);
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
   if (userError || !userData?.user) return fail('UNAUTHORIZED');
+
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const profileClient = serviceRoleKey
+    ? createClient(supabaseUrl, serviceRoleKey)
+    : createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+  const { data: profile } = await profileClient
+    .from('user_profiles')
+    .select('status')
+    .eq('id', userData.user.id)
+    .maybeSingle();
+  if (String(profile?.status || '').trim().toUpperCase() === 'SUSPENDIDO') {
+    return fail('FORBIDDEN', 'Acceso denegado: cuenta suspendida');
+  }
 
   let body: { data?: unknown; mimeType?: unknown };
   try {

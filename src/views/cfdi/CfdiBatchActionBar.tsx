@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 
 export interface CfdiBatchActionBarProps {
@@ -12,6 +12,7 @@ export interface CfdiBatchActionBarProps {
   isBatchDeletePending: boolean;
   onBatchDeleteSelected: () => void;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
 }
 
 export function CfdiBatchActionBar({
@@ -24,9 +25,15 @@ export function CfdiBatchActionBar({
   onVerifySatBatchSelected,
   isBatchDeletePending,
   onBatchDeleteSelected,
-  isPeriodLocked
+  isPeriodLocked,
+  isReadOnlyClient = false
 }: CfdiBatchActionBarProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
+
+  useEffect(() => {
+    setConfirmDelete(false);
+  }, [selectedCfdiIds]);
 
   if (selectedCfdiIds.size === 0) return null;
 
@@ -46,10 +53,12 @@ export function CfdiBatchActionBar({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          disabled={isBatchContabilizarPending || isPeriodLocked}
+          disabled={isBatchContabilizarPending || isWriteBlocked}
           onClick={onBatchContabilizarSelected}
           title={
-            isPeriodLocked
+            isReadOnlyClient
+              ? 'Modo solo lectura: no se pueden generar pólizas.'
+              : isPeriodLocked
               ? 'Periodo bloqueado ante el SAT. No se pueden generar pólizas.'
               : 'Contabilizar los comprobantes seleccionados en lote'
           }
@@ -66,9 +75,13 @@ export function CfdiBatchActionBar({
         {onVerifySatBatchSelected && (
           <button
             type="button"
-            disabled={isVerifySatBatchPending || isBatchContabilizarPending || isBatchDeletePending}
+            disabled={isVerifySatBatchPending || isBatchContabilizarPending || isBatchDeletePending || isReadOnlyClient}
             onClick={onVerifySatBatchSelected}
-            title="Consultar estatus vigente o cancelado ante el SAT y lista 69-B para los CFDIs seleccionados"
+            title={
+              isReadOnlyClient
+                ? 'Modo solo lectura: validación SAT deshabilitada'
+                : 'Consultar estatus vigente o cancelado ante el SAT y lista 69-B para los CFDIs seleccionados'
+            }
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
           >
             <ShieldCheck className={`w-3.5 h-3.5 ${isVerifySatBatchPending ? 'animate-pulse' : ''}`} aria-hidden="true" />
@@ -78,8 +91,9 @@ export function CfdiBatchActionBar({
 
         <button
           type="button"
-          disabled={isBatchDeletePending || isPeriodLocked}
+          disabled={isBatchDeletePending || isWriteBlocked}
           onClick={() => {
+            if (isWriteBlocked) return;
             if (!confirmDelete) {
               setConfirmDelete(true);
               return;
@@ -87,9 +101,15 @@ export function CfdiBatchActionBar({
             onBatchDeleteSelected();
             setConfirmDelete(false);
           }}
-          title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Eliminar del ADD'}
+          title={
+            isReadOnlyClient
+              ? 'Modo solo lectura'
+              : isPeriodLocked
+              ? 'Periodo bloqueado ante el SAT'
+              : 'Eliminar del ADD'
+          }
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition ${
-            isPeriodLocked
+            isWriteBlocked
               ? 'bg-slate-400 cursor-not-allowed opacity-60'
               : confirmDelete
               ? 'bg-red-700 ring-2 ring-red-400 cursor-pointer animate-pulse'

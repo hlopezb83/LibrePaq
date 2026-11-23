@@ -1,14 +1,14 @@
 import type { SupabaseClient, User } from 'jsr:@supabase/supabase-js@2';
-import { isSuperAdminEmail } from '../_shared/admin-edge-auth.ts';
+import {
+  DESPACHO_ROLE_RANK,
+  isSuperAdminEmail,
+  resolveEffectiveCompanyRole,
+  type DespachoRole
+} from '../_shared/admin-edge-auth.ts';
 
-export type DespachoRole = 'SOCIO' | 'CONTADOR' | 'AUXILIAR' | 'CLIENTE_LECTURA';
+export type { DespachoRole };
 export const VALID_ROLES = new Set<DespachoRole>(['SOCIO', 'CONTADOR', 'AUXILIAR', 'CLIENTE_LECTURA']);
-export const ROLE_RANK: Record<DespachoRole, number> = {
-  CLIENTE_LECTURA: 1,
-  AUXILIAR: 2,
-  CONTADOR: 3,
-  SOCIO: 4
-};
+export const ROLE_RANK: Record<DespachoRole, number> = DESPACHO_ROLE_RANK;
 
 export interface WorkspaceInvitesReqBody {
   action?: string;
@@ -100,7 +100,7 @@ export async function isWorkspaceSocio(
   ctx: CallerContext
 ): Promise<boolean> {
   if (ctx.isSuper) return true;
-  if (wsId === ctx.userId || wsId === ctx.defaultWsId || wsId === ctx.profileWorkspaceId) return true;
+  if (wsId === ctx.userId || wsId === ctx.defaultWsId) return true;
   const { data } = await supabase
     .from('workspace_members')
     .select('id, user_id, email')
@@ -108,7 +108,9 @@ export async function isWorkspaceSocio(
     .eq('status', 'ACTIVO')
     .eq('role', 'SOCIO');
   return (data || []).some(
-    (m) => m.user_id === ctx.userId || (!m.user_id && String(m.email || '').toLowerCase() === ctx.email)
+    (m) =>
+      m.user_id === ctx.userId ||
+      (!m.user_id && ctx.email !== '' && String(m.email || '').trim().toLowerCase() === ctx.email)
   );
 }
 
@@ -125,7 +127,9 @@ export async function isWorkspaceMember(
     .eq('workspace_id', wsId)
     .eq('status', 'ACTIVO');
   return (data || []).some(
-    (m) => m.user_id === ctx.userId || (!m.user_id && String(m.email || '').toLowerCase() === ctx.email)
+    (m) =>
+      m.user_id === ctx.userId ||
+      (!m.user_id && ctx.email !== '' && String(m.email || '').trim().toLowerCase() === ctx.email)
   );
 }
 
@@ -144,17 +148,21 @@ export async function assertCompaniesBelongToWorkspace(
   if ((comps || []).length !== companyIds.length) {
     return 'Una o más empresas seleccionadas no existen';
   }
-  const { data: wsOwners } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('workspace_id', wsId);
-  const wsOwnerIds = new Set((wsOwners || []).map((u) => String(u.id)));
+  const { data: socios } = await supabase
+    .from('workspace_members')
+    .select('user_id')
+    .eq('workspace_id', wsId)
+    .eq('status', 'ACTIVO')
+    .eq('role', 'SOCIO');
+  const socioUserIds = new Set(
+    (socios || []).map((s) => (s.user_id ? String(s.user_id) : '')).filter(Boolean)
+  );
   for (const c of comps || []) {
     const uid = c.user_id ? String(c.user_id) : '';
     const ok =
-      uid === ctx.userId ||
-      uid === wsId ||
-      (uid !== '' && (`ws_${uid.slice(0, 8)}` === wsId || wsOwnerIds.has(uid)));
+      uid !== '' &&
+      uid !== 'demo' &&
+      (uid === ctx.userId || uid === wsId || `ws_${uid.slice(0, 8)}` === wsId || socioUserIds.has(uid));
     if (!ok) return 'No tienes autorización sobre una o más empresas seleccionadas';
   }
   return null;
@@ -167,57 +175,5 @@ export async function resolveCompanyRole(
 ): Promise<{ role: DespachoRole | 'OWNER' | null; canWrite: boolean; isReadOnlyClient: boolean }> {
   if (ctx.isSuper) return { role: 'OWNER', canWrite: true, isReadOnlyClient: false };
   if (ctx.isSupport) return { role: 'CLIENTE_LECTURA', canWrite: false, isReadOnlyClient: true };
-
-  const { data: comp } = await supabase.from('companies').select('id, user_id').eq('id', companyId).maybeSingle();
-  if (!comp) return { role: null, canWrite: false, isReadOnlyClient: false };
-  if (comp.user_id === ctx.userId) return { role: 'OWNER', canWrite: true, isReadOnlyClient: false };
-
-  const { data: members } = await supabase
-    .from('workspace_members')
-    .select('*')
-    .eq('status', 'ACTIVO')
-    .or(`user_id.eq.${ctx.userId},email.ilike.${ctx.email}`);
-
-  const active = (members || []).filter(
-    (m) => m.user_id === ctx.userId || (!m.user_id && String(m.email || '').toLowerCase() === ctx.email)
-  );
-  if (active.length === 0) return { role: null, canWrite: false, isReadOnlyClient: false };
-
-  const memberIds = active.map((m) => String(m.id));
-  const { data: allAccess } = await supabase
-    .from('company_member_access')
-    .select('*')
-    .in('member_id', memberIds);
-
-  const accessByMember = new Map<string, Record<string, unknown>[]>();
-  for (const row of allAccess || []) {
-    const mid = String(row.member_id);
-    const list = accessByMember.get(mid) || [];
-    list.push(row);
-    accessByMember.set(mid, list);
-  }
-
-  let bestRole: DespachoRole | null = null;
-  for (const m of active) {
-    const mid = String(m.id);
-    const restricted = accessByMember.get(mid) || [];
-    let candidate: DespachoRole | null = null;
-    if (restricted.length > 0) {
-      const match = restricted.find((r) => String(r.company_id) === companyId);
-      if (match) candidate = (match.role_override || m.role) as DespachoRole;
-    } else if (
-      comp.user_id &&
-      (m.workspace_id === comp.user_id || m.workspace_id === `ws_${String(comp.user_id).slice(0, 8)}`)
-    ) {
-      candidate = m.role as DespachoRole;
-    }
-    if (candidate && (!bestRole || ROLE_RANK[candidate] > ROLE_RANK[bestRole])) {
-      bestRole = candidate;
-    }
-  }
-  return {
-    role: bestRole,
-    canWrite: bestRole ? bestRole !== 'CLIENTE_LECTURA' : false,
-    isReadOnlyClient: bestRole === 'CLIENTE_LECTURA'
-  };
+  return await resolveEffectiveCompanyRole(supabase, companyId, ctx.userId, ctx.email);
 }

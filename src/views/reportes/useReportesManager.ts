@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
@@ -17,10 +18,16 @@ const VALID_REPORT_TABS: readonly ReportTabId[] = [
   'ENTREGABLES'
 ];
 
+function resolveReportTab(raw: unknown): ReportTabId | null {
+  if (typeof raw !== 'string') return null;
+  const param = raw.toUpperCase() as ReportTabId;
+  return VALID_REPORT_TABS.includes(param) ? param : null;
+}
+
 function getInitialReportTab(): ReportTabId {
   if (typeof window !== 'undefined' && window.location.search) {
-    const param = new URLSearchParams(window.location.search).get('tab')?.toUpperCase() as ReportTabId | undefined;
-    if (param && VALID_REPORT_TABS.includes(param)) return param;
+    const resolved = resolveReportTab(new URLSearchParams(window.location.search).get('tab'));
+    if (resolved) return resolved;
   }
   return 'BALANZA';
 }
@@ -31,15 +38,19 @@ export function useReportesManager() {
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
 
-  const [activeTab, setActiveTab] = useState<ReportTabId>(getInitialReportTab);
+  const urlTab = useRouterState({
+    select: (s) => (s.location.search as Record<string, unknown>)?.tab
+  });
+
+  const [activeTab, setActiveTab] = useState<ReportTabId>(
+    () => resolveReportTab(urlTab) ?? getInitialReportTab()
+  );
   const [satXmlType, setSatXmlType] = useState<SatXmlType>('balanza');
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.search) {
-      const param = new URLSearchParams(window.location.search).get('tab')?.toUpperCase() as ReportTabId | undefined;
-      if (param && VALID_REPORT_TABS.includes(param)) setActiveTab(param);
-    }
-  }, []);
+    const next = resolveReportTab(urlTab);
+    if (next) setActiveTab(next);
+  }, [urlTab]);
 
   const { data: periodLock } = useQuery({
     queryKey: ['period-lock', activeCompanyId, currentYear, currentPeriod],
@@ -52,6 +63,14 @@ export function useReportesManager() {
     queryKey: ['reports', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getReports(activeCompanyId, currentYear, currentPeriod),
     enabled: Boolean(activeCompanyId)
+  });
+
+  const { data: prevReports } = useQuery({
+    queryKey: ['reports', activeCompanyId, currentYear ? currentYear - 1 : undefined, currentPeriod],
+    queryFn: () => apiClient.getReports(activeCompanyId, (currentYear ?? 2026) - 1, currentPeriod),
+    enabled: Boolean(
+      activeCompanyId && activeTab === 'FLUJOS_CAPITAL' && currentYear && currentYear > 2000
+    )
   });
 
   const {
@@ -128,6 +147,7 @@ export function useReportesManager() {
     satXmlType,
     setSatXmlType,
     data,
+    prevReports,
     isLoading,
     isError,
     error,

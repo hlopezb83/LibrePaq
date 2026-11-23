@@ -1,4 +1,4 @@
-import { type RefObject, useState, useEffect } from 'react';
+import { type RefObject, useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
@@ -13,6 +13,7 @@ type SatBatchApiClient = typeof apiClient & {
 export interface UseAddCfdiMutationsParams {
   activeCompanyId: string;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   currentYear: number;
   currentPeriod: number;
   simModalRef?: RefObject<HTMLDialogElement | null>;
@@ -26,6 +27,7 @@ export interface UseAddCfdiMutationsParams {
 export function useAddCfdiMutations({
   activeCompanyId,
   isPeriodLocked,
+  isReadOnlyClient = false,
   currentYear,
   currentPeriod,
   simModalRef,
@@ -37,9 +39,17 @@ export function useAddCfdiMutations({
 }: UseAddCfdiMutationsParams) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const latestCompanyIdRef = useRef(activeCompanyId);
+  latestCompanyIdRef.current = activeCompanyId;
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   const uploadXmlMutation = useMutation({
-    mutationFn: apiClient.uploadCfdi,
+    mutationFn: (params: { companyId: string; xmlRaw: string }) => {
+      if (isReadOnlyClient) {
+        throw new Error('Acceso de solo lectura: no es posible importar comprobantes CFDI.');
+      }
+      return apiClient.uploadCfdi(params);
+    },
     onSuccess: (created) => {
       invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard', 'fiscal-workpaper', 'diot']);
       toast.success(
@@ -59,9 +69,11 @@ export function useAddCfdiMutations({
       operationAccountCode?: string;
       counterAccountCode?: string;
     }) => {
-      if (isPeriodLocked) {
+      if (isWriteBlocked) {
         throw new Error(
-          `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} está cerrado ante el SAT. No se pueden generar pólizas.`
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no se pueden generar pólizas.'
+            : `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} está cerrado ante el SAT. No se pueden generar pólizas.`
         );
       }
       return apiClient.autoPolizaFromCfdi(params.cfdiId, {
@@ -95,8 +107,12 @@ export function useAddCfdiMutations({
 
   const deleteCfdiMutation = useMutation({
     mutationFn: (cfdiId: string) => {
-      if (isPeriodLocked) {
-        throw new Error('No es posible eliminar comprobantes en un periodo contable bloqueado ante el SAT.');
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no es posible eliminar comprobantes.'
+            : 'No es posible eliminar comprobantes en un periodo contable bloqueado ante el SAT.'
+        );
       }
       return apiClient.deleteCfdi(cfdiId);
     },
@@ -114,8 +130,12 @@ export function useAddCfdiMutations({
 
   const batchContabilizarMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (isPeriodLocked) {
-        throw new Error('Periodo bloqueado ante el SAT. No es posible contabilizar en lote.');
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no es posible contabilizar en lote.'
+            : 'Periodo bloqueado ante el SAT. No es posible contabilizar en lote.'
+        );
       }
       setBatchProgress({ current: 0, total: ids.length });
       try {
@@ -164,7 +184,13 @@ export function useAddCfdiMutations({
 
   const batchDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (isPeriodLocked) throw new Error('No es posible eliminar comprobantes en un periodo bloqueado.');
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no es posible eliminar comprobantes.'
+            : 'No es posible eliminar comprobantes en un periodo bloqueado.'
+        );
+      }
       const batches = chunkArray(ids, 10);
       for (const batch of batches) {
         await Promise.all(batch.map((id) => apiClient.deleteCfdi(id)));
@@ -180,7 +206,12 @@ export function useAddCfdiMutations({
   });
 
   const verifySatMutation = useMutation({
-    mutationFn: (cfdiId: string) => apiClient.verifyCfdiSatStatus(cfdiId),
+    mutationFn: (cfdiId: string) => {
+      if (isReadOnlyClient) {
+        throw new Error('Acceso de solo lectura: validación SAT deshabilitada.');
+      }
+      return apiClient.verifyCfdiSatStatus(cfdiId);
+    },
     onSuccess: (res) => {
       invalidateAccountingQueries(queryClient, ['cfdis']);
       toast.info(
@@ -202,16 +233,22 @@ export function useAddCfdiMutations({
   }, [activeCompanyId]);
 
   const verifySatBatchMutation = useMutation({
-    mutationFn: (cfdiIds: string[]) => {
+    mutationFn: async (cfdiIds: string[]) => {
+      if (isReadOnlyClient) {
+        throw new Error('Acceso de solo lectura: validación SAT en lote deshabilitada.');
+      }
+      const targetCompanyId = activeCompanyId;
       const client = apiClient as SatBatchApiClient;
       if (typeof client.verifyCfdisSatBatch !== 'function') {
         throw new Error('El servicio de validación SAT en lote aún no está disponible.');
       }
-      return client.verifyCfdisSatBatch(activeCompanyId, cfdiIds);
+      const result = await client.verifyCfdisSatBatch(targetCompanyId, cfdiIds);
+      return { result, targetCompanyId };
     },
-    onSuccess: (res) => {
-      void queryClient.invalidateQueries({ queryKey: ['cfdis', activeCompanyId] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', activeCompanyId] });
+    onSuccess: ({ result: res, targetCompanyId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['cfdis', targetCompanyId] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', targetCompanyId] });
+      if (latestCompanyIdRef.current !== targetCompanyId) return;
       if (res.cancelledWithPolizaCount > 0) {
         setSatBatchAlert({
           cancelledWithPolizaCount: res.cancelledWithPolizaCount,

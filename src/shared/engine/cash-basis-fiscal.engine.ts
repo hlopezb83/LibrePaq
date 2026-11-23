@@ -134,10 +134,26 @@ export function computeCashBasisFiscalSummary({
   let hasEmitidosCashActivity = false;
   let hasRecibidosCashActivity = false;
 
+  const ppdInvoiceUuids = new Set<string>();
+  for (const c of cfdis) {
+    if (c.statusSat === 'CANCELADO') continue;
+    if (c.tipoComprobante === 'I' && c.metodoPago === 'PPD' && c.uuid) {
+      ppdInvoiceUuids.add(c.uuid.trim().toUpperCase());
+    }
+  }
+
   for (const doc of cfdis) {
     if (doc.statusSat === 'CANCELADO') continue;
     if (doc.tipoComprobante === 'T' || doc.tipoComprobante === 'N') continue;
     if (doc.tipoComprobante === 'I' && doc.metodoPago === 'PPD') continue;
+    if (doc.tipoComprobante === 'E') {
+      if (doc.metodoPago === 'PPD') continue;
+      const relUuid = doc.uuidRelacionado?.trim().toUpperCase();
+      const relatesToPpd =
+        (relUuid ? ppdInvoiceUuids.has(relUuid) : false) ||
+        Boolean(doc.relatedDocs?.some((dr) => ppdInvoiceUuids.has((dr.idDocumento || '').trim().toUpperCase())));
+      if (relatesToPpd) continue;
+    }
 
     const cal = parseCalendarDate(doc.fecha, ejercicio, targetPeriod);
     if (cal.year !== ejercicio || cal.month > targetPeriod) continue;

@@ -1,4 +1,5 @@
 import { AlertCircle, Calculator, Check, Copy, FileText, RefreshCw, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
 import { formatCurrency } from '../../lib/formatters';
 import {
   PapelDia17IsrCard,
@@ -8,11 +9,18 @@ import {
 import { ResicoCashBasisBanner } from './ResicoCashBasisBanner';
 import { usePapelDia17 } from './usePapelDia17';
 
+function sanitizeNonNeg(raw: string, max?: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return max !== undefined ? Math.min(n, max) : n;
+}
+
 export interface PapelDia17TabProps {
   companyId: string;
   year: number;
   period: number;
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
   onOpenDeliverable?: (tab: 'DOSSIER' | 'BALANZA' | 'RESULTADOS' | 'BALANCE' | 'DIA17' | 'CONFIG') => void;
 }
@@ -22,9 +30,14 @@ export function PapelDia17Tab({
   year,
   period,
   isPeriodLocked = false,
+  isReadOnlyClient: isReadOnlyClientProp = false,
   onFeedback,
   onOpenDeliverable
 }: PapelDia17TabProps) {
+  const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
+  const isWriteLocked = isPeriodLocked || isReadOnly;
+  const lockTitle = isReadOnly ? 'Modo solo lectura' : 'Periodo fiscal bloqueado ante el SAT';
   const {
     workpaper,
     loadingWp,
@@ -48,7 +61,7 @@ export function PapelDia17Tab({
     saveTaxParamsMutation,
     genTaxProvisionMutation,
     genExchangePolizaMutation
-  } = usePapelDia17({ companyId, year, period, onFeedback });
+  } = usePapelDia17({ companyId, year, period, isPeriodLocked, isReadOnlyClient: isReadOnly, onFeedback });
 
   if (isErrorWp) {
     return (
@@ -134,10 +147,10 @@ export function PapelDia17Tab({
             )}
             <button
               type="button"
-              disabled={genTaxProvisionMutation.isPending || isPeriodLocked}
+              disabled={genTaxProvisionMutation.isPending || isWriteLocked}
               title={
-                isPeriodLocked
-                  ? 'Periodo fiscal bloqueado ante el SAT'
+                isWriteLocked
+                  ? lockTitle
                   : 'Contabilizar provisión mensual de ISR e IVA'
               }
               onClick={() => genTaxProvisionMutation.mutate()}
@@ -154,7 +167,7 @@ export function PapelDia17Tab({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            saveTaxParamsMutation.mutate();
+            if (!isWriteLocked) saveTaxParamsMutation.mutate();
           }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
         >
@@ -169,10 +182,10 @@ export function PapelDia17Tab({
               step="0.0001"
               min="0"
               max="1"
-              disabled={isPeriodLocked}
+              disabled={isWriteLocked}
               title="Coeficiente de Utilidad según última declaración anual (Art. 14 LISR)"
               value={coefUtilidad}
-              onChange={(e) => setCoefUtilidad(Number(e.target.value))}
+              onChange={(e) => setCoefUtilidad(sanitizeNonNeg(e.target.value, 1))}
               className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
@@ -186,10 +199,10 @@ export function PapelDia17Tab({
               inputMode="decimal"
               step="0.01"
               min="0"
-              disabled={isPeriodLocked}
+              disabled={isWriteLocked}
               title="Pérdidas fiscales pendientes de amortizar actualizadas (Art. 57 LISR)"
               value={perdidasAmortizar}
-              onChange={(e) => setPerdidasAmortizar(Number(e.target.value))}
+              onChange={(e) => setPerdidasAmortizar(sanitizeNonNeg(e.target.value))}
               className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
@@ -203,10 +216,10 @@ export function PapelDia17Tab({
               inputMode="decimal"
               step="0.01"
               min="0"
-              disabled={isPeriodLocked}
+              disabled={isWriteLocked}
               title="Pagos provisionales de ISR enterados previamente en el ejercicio (Art. 14 LISR)"
               value={pagosPreviosInput}
-              onChange={(e) => setPagosPreviosInput(Number(e.target.value))}
+              onChange={(e) => setPagosPreviosInput(sanitizeNonNeg(e.target.value))}
               className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
@@ -220,10 +233,10 @@ export function PapelDia17Tab({
               inputMode="decimal"
               step="0.01"
               min="0"
-              disabled={isPeriodLocked}
+              disabled={isWriteLocked}
               title="Saldo a favor de IVA de meses previos por acreditar (Art. 6 LIVA)"
               value={ivaSaldoFavor}
-              onChange={(e) => setIvaSaldoFavor(Number(e.target.value))}
+              onChange={(e) => setIvaSaldoFavor(sanitizeNonNeg(e.target.value))}
               className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
@@ -237,18 +250,18 @@ export function PapelDia17Tab({
               inputMode="decimal"
               step="0.0001"
               min="0"
-              disabled={isPeriodLocked}
+              disabled={isWriteLocked}
               title="Tipo de cambio oficial publicado por el Diario Oficial de la Federación (DOF) al cierre de mes"
               value={tcCierreUsd}
-              onChange={(e) => setTcCierreUsd(Number(e.target.value))}
+              onChange={(e) => setTcCierreUsd(sanitizeNonNeg(e.target.value))}
               className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
           <div className="flex items-end gap-1.5">
             <button
               type="submit"
-              disabled={saveTaxParamsMutation.isPending || isPeriodLocked}
-              title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : undefined}
+              disabled={saveTaxParamsMutation.isPending || isWriteLocked}
+              title={isWriteLocked ? lockTitle : undefined}
               className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs"
             >
               <Save className="w-3.5 h-3.5" aria-hidden="true" />
@@ -257,10 +270,11 @@ export function PapelDia17Tab({
             {hasUnsavedParams && (
               <button
                 type="button"
+                disabled={isWriteLocked}
                 onClick={resetTaxParams}
                 title="Descartar cambios sin guardar"
                 aria-label="Descartar cambios de parámetros fiscales"
-                className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
@@ -315,6 +329,7 @@ export function PapelDia17Tab({
         <PapelDia17UsdCard
           workpaper={workpaper}
           isPeriodLocked={isPeriodLocked}
+          isReadOnlyClient={isReadOnly}
           genExchangePolizaMutation={genExchangePolizaMutation}
         />
       </div>

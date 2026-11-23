@@ -44,10 +44,9 @@ export function buildAnnualMonthlyBalancesFromMovements(
         unclosedCargoCents += cargoCents;
         unclosedAbonoCents += abonoCents;
       }
-    } else if (p.ejercicio === ejercicio) {
-      const targetMonth = p.periodo >= 1 && p.periodo <= 12 ? p.periodo : 12;
-      const chgMap = yearMonthCharges.get(targetMonth)!;
-      const credMap = yearMonthCredits.get(targetMonth)!;
+    } else if (p.ejercicio === ejercicio && p.periodo >= 1 && p.periodo <= 12) {
+      const chgMap = yearMonthCharges.get(p.periodo)!;
+      const credMap = yearMonthCredits.get(p.periodo)!;
       chgMap.set(row.account_id, (chgMap.get(row.account_id) || 0) + cargoCents);
       credMap.set(row.account_id, (credMap.get(row.account_id) || 0) + abonoCents);
     }
@@ -100,9 +99,18 @@ export function computeAnnualFixedAssetFiscalDeduction(
   let totalCents = 0;
   for (const asset of assets) {
     if (asset.estatus !== 'ACTIVO') continue;
+    let extraMonths = 0;
+    const basePriorMonths = Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
     for (let m = 1; m <= 12; m += 1) {
-      const calc = computeFixedAssetWithDepreciation(asset, { ejercicio, periodo: m });
-      totalCents += toCents(calc.depreciacionMensualFiscalActualizada);
+      const calc = computeFixedAssetWithDepreciation(
+        { ...asset, mesesDepreciadosPrevios: basePriorMonths + extraMonths },
+        { ejercicio, periodo: m }
+      );
+      const fiscalCents = toCents(calc.depreciacionMensualFiscalActualizada);
+      if (fiscalCents > 0) {
+        totalCents += fiscalCents;
+        extraMonths += 1;
+      }
     }
   }
   return fromCents(totalCents);

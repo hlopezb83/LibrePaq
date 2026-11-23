@@ -21,7 +21,8 @@ const REGIME_LABELS: Record<AnnualTaxRegimeType, string> = {
 };
 
 export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTabProps) {
-  const { activeCompanyId, activeCompany } = useCompany();
+  const { activeCompanyId, activeCompany, isReadOnlySupportMode, isReadOnlyClient } = useCompany();
+  const isReadOnly = isReadOnlySupportMode || isReadOnlyClient;
   const toast = useToast();
   const queryClient = useQueryClient();
   const [showMonthlyInflation, setShowMonthlyInflation] = useState(false);
@@ -36,10 +37,21 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
   });
 
   const saveMutation = useMutation({
-    mutationFn: (payload: SaveAnnualTaxInputsPayload) =>
-      annualTaxClient.saveAnnualTaxInputs(targetCompanyId, payload),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(['annual-tax', targetCompanyId, targetYear], updated);
+    mutationFn: ({
+      companyId: cid,
+      payload
+    }: {
+      companyId: string;
+      year: number;
+      payload: SaveAnnualTaxInputsPayload;
+    }) => {
+      if (isReadOnly) {
+        throw new Error('Modo solo lectura: no es posible modificar los parámetros anuales.');
+      }
+      return annualTaxClient.saveAnnualTaxInputs(cid, payload);
+    },
+    onSuccess: (updated, variables) => {
+      queryClient.setQueryData(['annual-tax', variables.companyId, variables.year], updated);
       toast.success('Parámetros anuales guardados y cálculo actualizado');
     },
     onError: (err: unknown) => {
@@ -286,7 +298,10 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
       <DeclaracionAnualInputsCard
         inputs={inputs}
         isSaving={saveMutation.isPending}
-        onSave={(payload) => saveMutation.mutate(payload)}
+        isReadOnly={isReadOnly}
+        onSave={(payload) =>
+          saveMutation.mutate({ companyId: targetCompanyId, year: targetYear, payload })
+        }
       />
     </div>
   );

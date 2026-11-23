@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  AlertCircle, BookOpen, CheckCircle2, Filter, GitMerge, Lock, Plus, RefreshCw, Sparkles, UploadCloud, X
+  AlertCircle, BookOpen, Filter, GitMerge, Lock, Plus, RefreshCw, Sparkles, UploadCloud
 } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -11,6 +11,7 @@ import { formatCurrency } from '../../lib/formatters';
 import type { AccountWithBalance, BankReconciliationResponse, ReconciliationFormulaData } from '../../shared/types';
 import type { BankN1MatchProposal } from '../../shared/types/bank-n1.types';
 import { ConciliacionArithmeticCard } from './ConciliacionArithmeticCard';
+import { ConciliacionN1Panel } from './ConciliacionN1Panel';
 import { BankStatementTable } from './BankStatementTable';
 import { BankBookMovementsTable } from './BankBookMovementsTable';
 import { AddBankStatementLineModal } from './AddBankStatementLineModal';
@@ -24,6 +25,7 @@ export interface ConciliacionBancosTabProps {
   csvInputRef: React.RefObject<HTMLInputElement | null>;
   onCsvUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   addBankModalRef: React.RefObject<HTMLDialogElement | null>;
   onAutoMatch: () => void;
   isAutoMatchPending: boolean;
@@ -55,14 +57,16 @@ export interface ConciliacionBancosTabProps {
 export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
   const {
     effectiveBankId, setSelectedBankId, bankAccounts, onOpenLedger,
-    csvInputRef, onCsvUpload, isPeriodLocked, addBankModalRef,
+    csvInputRef, onCsvUpload, isPeriodLocked, isReadOnlyClient: isReadOnlyClientProp = false, addBankModalRef,
     onAutoMatch, isAutoMatchPending, isLoadingRecon, isErrorRecon,
     errorRecon, onRetryRecon, reconData, reconFormula,
     onCreatePolizaFromBank, isCreatePolizaPending, onUnmatchBankLine,
     isUnmatchPending, activeBankLineId = null
   } = props;
 
-  const { activeCompanyId, activeCompany } = useCompany();
+  const { activeCompanyId, activeCompany, isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
+  const isWriteLocked = isPeriodLocked || isReadOnly;
   const queryClient = useQueryClient();
   const toast = useToast();
   const bankPdfModalRef = useRef<HTMLDialogElement | null>(null);
@@ -77,16 +81,35 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
   const year = reconData?.ejercicio ?? activeCompany?.currentYear;
   const period = reconData?.periodo ?? activeCompany?.currentPeriod;
 
+  const contextKey = `${companyId}::${effectiveBankId}::${year ?? ''}::${period ?? ''}`;
+  const contextKeyRef = useRef(contextKey);
+  contextKeyRef.current = contextKey;
+  const proposeReqIdRef = useRef(0);
+  const applyReqIdRef = useRef(0);
+
+  useEffect(() => {
+    proposeReqIdRef.current += 1;
+    applyReqIdRef.current += 1;
+    setN1Proposals([]);
+    setSelectedLineId(null);
+    setShowOnlyPending(false);
+    setIsSearchingN1(false);
+    setIsApplyingN1(false);
+  }, [companyId, effectiveBankId, year, period]);
+
   const selectedLine = reconData?.statementLines.find((l) => l.id === selectedLineId) || null;
   const highlightAmount = selectedLine
     ? selectedLine.cargoBanco > 0 ? selectedLine.cargoBanco : selectedLine.abonoBanco
     : null;
 
   const handleProposeN1 = async () => {
-    if (!companyId || !effectiveBankId) return;
+    if (!companyId || !effectiveBankId || isWriteLocked) return;
+    const reqId = ++proposeReqIdRef.current;
+    const reqContext = contextKeyRef.current;
     setIsSearchingN1(true);
     try {
       const res = await bankN1Client.proposeBankN1Matches(companyId, effectiveBankId, year, period);
+      if (proposeReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
       if (res.proposals.length === 0) {
         setN1Proposals([]);
         toast.info('No se detectaron grupos N-a-1 pendientes dentro de la tolerancia.');
@@ -94,24 +117,42 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
         setN1Proposals(res.proposals);
       }
     } catch (err: unknown) {
+      if (proposeReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
       toast.error(err instanceof Error ? err.message : 'Error buscando coincidencias N-a-1.');
     } finally {
-      setIsSearchingN1(false);
+      if (proposeReqIdRef.current === reqId && contextKeyRef.current === reqContext) {
+        setIsSearchingN1(false);
+      }
     }
   };
 
   const handleApplyN1 = async () => {
-    if (!companyId || !effectiveBankId || n1Proposals.length === 0) return;
+    if (!companyId || !effectiveBankId || n1Proposals.length === 0 || isWriteLocked) return;
+    const reqId = ++applyReqIdRef.current;
+    const reqContext = contextKeyRef.current;
+    const targetCompanyId = companyId;
+    const targetBankId = effectiveBankId;
+    const targetProposals = n1Proposals;
     setIsApplyingN1(true);
     try {
-      const res = await bankN1Client.applyBankN1Matches(companyId, effectiveBankId, n1Proposals, year, period);
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard']);
+      const res = await bankN1Client.applyBankN1Matches(
+        targetCompanyId,
+        targetBankId,
+        targetProposals,
+        year,
+        period
+      );
+      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], targetCompanyId);
+      if (applyReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
       setN1Proposals([]);
       toast.success(`Conciliación N-a-1 aplicada: ${res.appliedCount} partidas bancarias cruzadas.`);
     } catch (err: unknown) {
+      if (applyReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
       toast.error(err instanceof Error ? err.message : 'Error aplicando conciliación N-a-1.');
     } finally {
-      setIsApplyingN1(false);
+      if (applyReqIdRef.current === reqId && contextKeyRef.current === reqContext) {
+        setIsApplyingN1(false);
+      }
     }
   };
 
@@ -157,19 +198,19 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
 
           <label
             htmlFor="bank-csv-upload"
-            title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Importar CSV Banco'}
+            title={isWriteLocked ? (isReadOnly ? 'Modo solo lectura' : 'Periodo bloqueado ante el SAT') : 'Importar CSV Banco'}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition focus-within:outline-2 focus-within:outline-blue-600 focus-within:outline-offset-2 ${
-              isPeriodLocked ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
+              isWriteLocked ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
             }`}
           >
-            <input id="bank-csv-upload" ref={csvInputRef} type="file" accept=".csv,text/csv" disabled={isPeriodLocked} onChange={onCsvUpload} className="visually-hidden" />
+            <input id="bank-csv-upload" ref={csvInputRef} type="file" accept=".csv,text/csv" disabled={isWriteLocked} onChange={onCsvUpload} className="visually-hidden" />
             <UploadCloud className="w-4 h-4 text-slate-500" aria-hidden="true" />
             <span>Importar CSV</span>
           </label>
 
           <button
             type="button"
-            disabled={isPeriodLocked}
+            disabled={isWriteLocked}
             onClick={() => { if (bankPdfModalRef.current && !bankPdfModalRef.current.open) bankPdfModalRef.current.showModal(); }}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
           >
@@ -179,20 +220,20 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
 
           <button
             type="button"
-            disabled={isPeriodLocked}
+            disabled={isWriteLocked}
             onClick={() => { if (addBankModalRef.current && !addBankModalRef.current.open) addBankModalRef.current.showModal(); }}
-            title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Agregar Línea Manual al Estado de Cuenta'}
+            title={isWriteLocked ? (isReadOnly ? 'Modo solo lectura' : 'Periodo bloqueado ante el SAT') : 'Agregar Línea Manual al Estado de Cuenta'}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
-              isPeriodLocked ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
+              isWriteLocked ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 cursor-pointer'
             }`}
           >
-            {isPeriodLocked ? <Lock className="w-4 h-4 text-slate-500" aria-hidden="true" /> : <Plus className="w-4 h-4 text-slate-500" aria-hidden="true" />}
+            {isWriteLocked ? <Lock className="w-4 h-4 text-slate-500" aria-hidden="true" /> : <Plus className="w-4 h-4 text-slate-500" aria-hidden="true" />}
             Agregar Línea
           </button>
 
           <button
             type="button"
-            disabled={isSearchingN1 || isApplyingN1 || isPeriodLocked}
+            disabled={isSearchingN1 || isApplyingN1 || isWriteLocked}
             onClick={() => void handleProposeN1()}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition shrink-0"
           >
@@ -202,9 +243,9 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
 
           <button
             type="button"
-            disabled={isAutoMatchPending || isPeriodLocked}
+            disabled={isAutoMatchPending || isWriteLocked}
             onClick={onAutoMatch}
-            title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Emparejar automáticamente movimientos coincidentes'}
+            title={isWriteLocked ? (isReadOnly ? 'Modo solo lectura' : 'Periodo bloqueado ante el SAT') : 'Emparejar automáticamente movimientos coincidentes'}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition shrink-0"
           >
             <RefreshCw className={`w-4 h-4 ${isAutoMatchPending ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -213,48 +254,14 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
         </div>
       </div>
 
-      {n1Proposals.length > 0 && (
-        <section aria-label="Propuestas de conciliación muchos a uno" className="bg-emerald-50/70 border border-emerald-300 rounded-2xl p-4 space-y-3 shadow-2xs">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-bold text-emerald-950">Propuestas N-a-1 Detectadas ({n1Proposals.length})</h3>
-              <p className="text-xs text-emerald-800">Revisa los grupos de pólizas que suman cada movimiento bancario antes de aplicar</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setN1Proposals([])} className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 cursor-pointer">
-                Descartar
-              </button>
-              <button type="button" disabled={isApplyingN1 || isPeriodLocked} onClick={() => void handleApplyN1()} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 cursor-pointer">
-                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-                {isApplyingN1 ? 'Aplicando...' : `Aplicar N-a-1 (${n1Proposals.length})`}
-              </button>
-            </div>
-          </div>
-          <div className="space-y-2 max-h-56 overflow-y-auto">
-            {n1Proposals.map((p) => (
-              <div key={p.bankLineId} className="bg-white rounded-xl border border-emerald-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                <div className="space-y-1 min-w-0">
-                  <div className="font-semibold text-slate-900">
-                    {p.bankFecha} · {p.bankReferencia} — {p.bankDescripcion}{' '}
-                    <span className="font-mono font-bold text-emerald-800 tabular-nums">({formatCurrency(p.bankAmount)})</span>
-                  </div>
-                  <div className="text-[11px] text-slate-600 flex flex-wrap gap-1.5">
-                    {p.movements.map((m) => (
-                      <span key={m.movementId} className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 font-mono">
-                        {m.polizaFolio}: {formatCurrency(m.amount)}
-                      </span>
-                    ))}
-                    {p.diffCents > 0 && <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-mono">Dif: {(p.diffCents / 100).toFixed(2)}</span>}
-                  </div>
-                </div>
-                <button type="button" aria-label={`Quitar propuesta ${p.bankReferencia}`} onClick={() => setN1Proposals((prev) => prev.filter((item) => item.bankLineId !== p.bankLineId))} className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 self-end sm:self-center cursor-pointer">
-                  <X className="w-4 h-4" aria-hidden="true" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <ConciliacionN1Panel
+        proposals={n1Proposals}
+        isApplying={isApplyingN1}
+        isLocked={isWriteLocked}
+        onDiscardAll={() => setN1Proposals([])}
+        onRemoveProposal={(bankLineId) => setN1Proposals((prev) => prev.filter((item) => item.bankLineId !== bankLineId))}
+        onApplyAll={() => void handleApplyN1()}
+      />
 
       {isErrorRecon ? (
         <div role="alert" className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs">
@@ -278,6 +285,7 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
           <BankStatementTable
             reconData={reconData}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnly}
             isCreatePolizaPending={isCreatePolizaPending}
             onCreatePolizaFromBank={onCreatePolizaFromBank}
             isUnmatchPending={isUnmatchPending}
@@ -305,6 +313,7 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
         setBMonto={props.setBMonto}
         onAddBankLineSubmit={props.onAddBankLineSubmit}
         isAddBankLinePending={props.isAddBankLinePending}
+        isWriteLocked={isWriteLocked}
       />
 
       <BankPdfImportModal
@@ -312,7 +321,10 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
         companyId={companyId}
         accountId={effectiveBankId}
         isPeriodLocked={isPeriodLocked}
-        onImported={() => invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'])}
+        isReadOnlyClient={isReadOnly}
+        onImported={(importedCompanyId) =>
+          invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], importedCompanyId)
+        }
         onFeedback={(msg, type) => (type === 'error' ? toast.error(msg) : toast.success(msg))}
       />
     </div>

@@ -1,15 +1,22 @@
 import { AlertCircle, BookOpen, Building, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
 import { formatCurrency } from '../../lib/formatters';
 import type { AccountWithBalance, FixedAssetCategory } from '../../shared/types';
 import { ActivosFijosTable } from './ActivosFijosTable';
 import { InpcCatalogModal } from './InpcCatalogModal';
 import { useActivosFijos } from './useActivosFijos';
 
+function sanitizeNumberInput(raw: string): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 export interface ActivosFijosTabProps {
   companyId: string;
   year: number;
   accounts: AccountWithBalance[];
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -18,8 +25,13 @@ export function ActivosFijosTab({
   year,
   accounts,
   isPeriodLocked = false,
+  isReadOnlyClient: isReadOnlyClientProp = false,
   onFeedback
 }: ActivosFijosTabProps) {
+  const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
+  const isWriteLocked = isPeriodLocked || isReadOnly;
+  const lockTitle = isReadOnly ? 'Modo solo lectura' : 'Periodo fiscal bloqueado ante el SAT';
   const {
     fixedAssetsData,
     loadingAssets,
@@ -46,7 +58,14 @@ export function ActivosFijosTab({
     createAssetMutation,
     deleteAssetMutation,
     genDepPolizaMutation
-  } = useActivosFijos({ companyId, year, accounts, onFeedback });
+  } = useActivosFijos({
+    companyId,
+    year,
+    accounts,
+    isPeriodLocked,
+    isReadOnlyClient: isReadOnly,
+    onFeedback
+  });
 
   return (
     <div className="space-y-5">
@@ -140,10 +159,10 @@ export function ActivosFijosTab({
                 </button>
                 <button
                   type="button"
-                  disabled={genDepPolizaMutation.isPending || isPeriodLocked}
+                  disabled={genDepPolizaMutation.isPending || isWriteLocked}
                   title={
-                    isPeriodLocked
-                      ? 'Periodo fiscal bloqueado ante el SAT'
+                    isWriteLocked
+                      ? lockTitle
                       : 'Generar póliza mensual de depreciación contable'
                   }
                   onClick={() => genDepPolizaMutation.mutate()}
@@ -161,7 +180,7 @@ export function ActivosFijosTab({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                createAssetMutation.mutate();
+                if (!isWriteLocked) createAssetMutation.mutate();
               }}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
             >
@@ -173,9 +192,10 @@ export function ActivosFijosTab({
                   id="asset-code"
                   type="text"
                   required
+                  disabled={isWriteLocked}
                   value={assetCode}
                   onChange={(e) => setAssetCode(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
                 />
               </div>
 
@@ -187,10 +207,11 @@ export function ActivosFijosTab({
                   id="asset-name"
                   type="text"
                   required
+                  disabled={isWriteLocked}
                   value={assetName}
                   onChange={(e) => setAssetName(e.target.value)}
                   placeholder="Ej. Laptop Dell Latitude / Utilitario"
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white disabled:bg-slate-100"
                 />
               </div>
 
@@ -202,9 +223,10 @@ export function ActivosFijosTab({
                   id="asset-date"
                   type="date"
                   required
+                  disabled={isWriteLocked}
                   value={assetDate}
                   onChange={(e) => handleDateChange(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
                 />
               </div>
 
@@ -214,6 +236,7 @@ export function ActivosFijosTab({
                 </label>
                 <select
                   id="asset-category"
+                  disabled={isWriteLocked}
                   value={assetCat}
                   onChange={(e) => {
                     const cat = e.target.value as FixedAssetCategory;
@@ -223,7 +246,7 @@ export function ActivosFijosTab({
                     else if (cat === 'MOBILIARIO_10' || cat === 'MAQUINARIA_10') setAssetRate(10);
                     else setAssetRate(5);
                   }}
-                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white disabled:bg-slate-100"
                 >
                   <option value="COMPUTO_30">Cómputo (30%)</option>
                   <option value="TRANSPORTE_25">Transporte (25%)</option>
@@ -244,9 +267,10 @@ export function ActivosFijosTab({
                   min="0.01"
                   step="0.01"
                   required
+                  disabled={isWriteLocked}
                   value={assetMoi}
-                  onChange={(e) => setAssetMoi(Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                  onChange={(e) => setAssetMoi(sanitizeNumberInput(e.target.value))}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
                 />
               </div>
 
@@ -260,9 +284,10 @@ export function ActivosFijosTab({
                   inputMode="decimal"
                   min="0.001"
                   step="0.001"
+                  disabled={isWriteLocked}
                   value={assetInpcAdq}
-                  onChange={(e) => setAssetInpcAdq(Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                  onChange={(e) => setAssetInpcAdq(sanitizeNumberInput(e.target.value))}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
                 />
               </div>
 
@@ -276,17 +301,18 @@ export function ActivosFijosTab({
                   inputMode="decimal"
                   min="0.001"
                   step="0.001"
+                  disabled={isWriteLocked}
                   value={assetInpcUso}
-                  onChange={(e) => setAssetInpcUso(Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                  onChange={(e) => setAssetInpcUso(sanitizeNumberInput(e.target.value))}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
                 />
               </div>
 
               <div className="flex items-end">
                 <button
                   type="submit"
-                  disabled={createAssetMutation.isPending || isPeriodLocked}
-                  title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : undefined}
+                  disabled={createAssetMutation.isPending || isWriteLocked}
+                  title={isWriteLocked ? lockTitle : undefined}
                   className="w-full inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" aria-hidden="true" />
@@ -303,7 +329,7 @@ export function ActivosFijosTab({
 
             <ActivosFijosTable
               assets={fixedAssetsData.assets}
-              isPeriodLocked={isPeriodLocked}
+              isPeriodLocked={isWriteLocked}
               onDeleteAsset={(id) => deleteAssetMutation.mutate(id)}
               isDeleting={deleteAssetMutation.isPending}
             />

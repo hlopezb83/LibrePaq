@@ -131,7 +131,7 @@ export function CfdiTable(props: CfdiTableProps) {
                           <span>Descargar del SAT (e.firma)</span>
                         </button>
                       )}
-                      {props.onUploadXmlClick && (
+                      {props.onUploadXmlClick && !props.isReadOnlyClient && (
                         <button
                           type="button"
                           onClick={props.onUploadXmlClick}

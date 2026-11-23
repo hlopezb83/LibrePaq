@@ -65,7 +65,27 @@ export const supabaseAccountingRules = {
         ? Math.round(Number(payload.priority))
         : 10;
     const now = new Date().toISOString();
-    const id = payload.id?.trim() || `rule_${crypto.randomUUID().slice(0, 12)}`;
+    let id = payload.id?.trim() || '';
+    if (!id) {
+      let existingQuery = supabase
+        .from('accounting_rules')
+        .select('id')
+        .eq('company_id', payload.companyId)
+        .eq('direction', direction);
+      existingQuery = matchRfc
+        ? existingQuery.eq('match_rfc', matchRfc)
+        : existingQuery.is('match_rfc', null);
+      existingQuery = matchClave
+        ? existingQuery.eq('match_clave_prod_serv', matchClave)
+        : existingQuery.is('match_clave_prod_serv', null);
+      existingQuery = matchUso
+        ? existingQuery.eq('match_uso_cfdi', matchUso)
+        : existingQuery.is('match_uso_cfdi', null);
+
+      const { data: existingRule, error: findErr } = await existingQuery.limit(1).maybeSingle();
+      if (findErr) throw new Error(findErr.message);
+      id = existingRule?.id ? String(existingRule.id) : `rule_${crypto.randomUUID().slice(0, 12)}`;
+    }
     const name =
       payload.name?.trim() ||
       [matchRfc, matchClave, matchUso].filter(Boolean).join(' · ') ||

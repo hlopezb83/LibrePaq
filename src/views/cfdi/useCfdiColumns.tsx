@@ -28,6 +28,7 @@ export interface UseCfdiColumnsProps {
   onConfirmDelete: (id: string) => void;
   isDeletePending: boolean;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
 }
 
 export function useCfdiColumns({
@@ -47,7 +48,8 @@ export function useCfdiColumns({
   setConfirmDeleteCfdiId,
   onConfirmDelete,
   isDeletePending,
-  isPeriodLocked
+  isPeriodLocked,
+  isReadOnlyClient = false
 }: UseCfdiColumnsProps) {
   const navigate = useNavigate();
   const shiftKeyRef = useRef(false);
@@ -305,6 +307,7 @@ export function useCfdiColumns({
             onConfirmDelete={onConfirmDelete}
             isDeletePending={isDeletePending}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             onOpenContabilizarModal={onOpenContabilizarModal}
             onVerifySat={onVerifySat}
             isVerifySatPending={isVerifySatPending}
@@ -316,24 +319,11 @@ export function useCfdiColumns({
       })
     ]),
     [
-      copiedUuid,
-      confirmDeleteCfdiId,
-      isDeletePending,
-      isVerifySatPending,
-      verifyingCfdiId,
-      navigate,
-      selectedCfdiIds,
-      filteredCfdis,
-      isPeriodLocked,
-      handleCopyUuid,
-      onConfirmDelete,
-      onOpenContabilizarModal,
-      onOpenXmlViewer,
-      onPreviewInvoice,
-      onVerifySat,
-      setConfirmDeleteCfdiId,
-      toggleSelectAll,
-      toggleSelectOne
+      copiedUuid, confirmDeleteCfdiId, isDeletePending, isVerifySatPending,
+      verifyingCfdiId, navigate, selectedCfdiIds, filteredCfdis, isPeriodLocked,
+      isReadOnlyClient, handleCopyUuid, onConfirmDelete, onOpenContabilizarModal,
+      onOpenXmlViewer, onPreviewInvoice, onVerifySat, setConfirmDeleteCfdiId,
+      toggleSelectAll, toggleSelectOne
     ]
   );
 }

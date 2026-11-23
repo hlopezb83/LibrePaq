@@ -1,13 +1,15 @@
 import { Anchor, Calculator, CheckCircle2, DollarSign, FileText, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { Account } from '../../shared/types';
-import { usePedimentoForm } from './usePedimentoForm';
+import { parseNonNegNumber, usePedimentoForm } from './usePedimentoForm';
 
 export interface PedimentoEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentYear: number;
   currentPeriod: number;
+  isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   accounts: Account[];
   onSavePoliza: (poliza: {
     tipo: 'EGRESO' | 'DIARIO';
@@ -19,49 +21,21 @@ export interface PedimentoEditorModalProps {
 }
 
 export function PedimentoEditorModal({
-  isOpen, onClose, currentYear, currentPeriod, accounts, onSavePoliza, isSaving
+  isOpen, onClose, currentYear, currentPeriod, isPeriodLocked = false, isReadOnlyClient = false, accounts, onSavePoliza, isSaving
 }: PedimentoEditorModalProps) {
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   const {
-    dialogRef,
-    aduana,
-    setAduana,
-    patente,
-    setPatente,
-    ano,
-    setAno,
-    consecutivo,
-    setConsecutivo,
-    clave,
-    setClave,
-    fecha,
-    setFecha,
-    valorAduana,
-    setValorAduana,
-    dta,
-    setDta,
-    prv,
-    setPrv,
-    ivaPagado,
-    setIvaPagado,
-    cuentaBanco,
-    setCuentaBanco,
-    cuentaIva,
-    setCuentaIva,
-    cuentaGasto,
-    setCuentaGasto,
-    tcSugerido,
-    totalDesembolso,
-    handleAutoCalcIva,
-    handleConfirm
+    dialogRef, aduana, setAduana, patente, setPatente, ano, setAno,
+    consecutivo, setConsecutivo, clave, setClave, fecha, setFecha,
+    valorAduana, setValorAduana, dta, setDta, prv, setPrv,
+    ivaPagado, setIvaPagado, cuentaBanco, setCuentaBanco,
+    cuentaIva, setCuentaIva, cuentaGasto, setCuentaGasto,
+    tcSugerido, totalDesembolso, handleAutoCalcIva, handleConfirm
   } = usePedimentoForm({
-    isOpen,
-    onClose,
-    currentYear,
-    currentPeriod,
-    accounts,
-    onSavePoliza
+    isOpen, onClose, currentYear, currentPeriod, isPeriodLocked, isReadOnlyClient, accounts, onSavePoliza
   });
 
+  const isInvalidTotal = !Number.isFinite(totalDesembolso) || totalDesembolso <= 0;
   if (!isOpen) return null;
 
   return (
@@ -99,6 +73,7 @@ export function PedimentoEditorModal({
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (isWriteBlocked || isSaving || isInvalidTotal) return;
           handleConfirm();
         }}
         className="flex-1 min-h-0 flex flex-col overflow-hidden"
@@ -202,9 +177,10 @@ export function PedimentoEditorModal({
                   id="ped-valor-aduana"
                   type="number"
                   inputMode="decimal"
+                  min={0}
                   step="0.01"
                   value={valorAduana}
-                  onChange={(e) => setValorAduana(Number(e.target.value))}
+                  onChange={(e) => setValorAduana(parseNonNegNumber(e.target.value))}
                   className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
               </div>
@@ -214,9 +190,10 @@ export function PedimentoEditorModal({
                   id="ped-dta"
                   type="number"
                   inputMode="decimal"
+                  min={0}
                   step="0.01"
                   value={dta}
-                  onChange={(e) => setDta(Number(e.target.value))}
+                  onChange={(e) => setDta(parseNonNegNumber(e.target.value))}
                   className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
               </div>
@@ -226,9 +203,10 @@ export function PedimentoEditorModal({
                   id="ped-prv"
                   type="number"
                   inputMode="decimal"
+                  min={0}
                   step="0.01"
                   value={prv}
-                  onChange={(e) => setPrv(Number(e.target.value))}
+                  onChange={(e) => setPrv(parseNonNegNumber(e.target.value))}
                   className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white"
                 />
               </div>
@@ -238,10 +216,11 @@ export function PedimentoEditorModal({
                   id="ped-iva-pagado"
                   type="number"
                   inputMode="decimal"
+                  min={0}
                   step="0.01"
                   required
                   value={ivaPagado}
-                  onChange={(e) => setIvaPagado(Number(e.target.value))}
+                  onChange={(e) => setIvaPagado(parseNonNegNumber(e.target.value))}
                   className="w-full px-2 py-1.5 rounded-lg border border-emerald-400 bg-emerald-50/50 font-bold text-emerald-950"
                 />
               </div>
@@ -329,11 +308,11 @@ export function PedimentoEditorModal({
           </button>
           <button
             type="submit"
-            disabled={isSaving || totalDesembolso <= 0}
+            disabled={isSaving || isWriteBlocked || isInvalidTotal}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-700 hover:bg-blue-800 text-white cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-            {isSaving ? 'Guardando...' : `Generar Póliza (${formatCurrency(totalDesembolso)})`}
+            {isSaving ? 'Guardando...' : `Generar Póliza (${formatCurrency(Number.isFinite(totalDesembolso) ? totalDesembolso : 0)})`}
           </button>
         </div>
       </form>

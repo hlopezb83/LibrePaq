@@ -17,81 +17,26 @@ export function AddCfdiView() {
   const toast = useToast();
 
   const {
-    activeCompany,
-    activeCompanyId,
-    currentYear,
-    currentPeriod,
-    isPeriodLocked,
-    xmlModalRef,
-    contabilizarModalRef,
-    simModalRef,
-    fileInputRef,
-    tab,
-    setTab,
-    tipoFilter,
-    setTipoFilter,
-    metodoFilter,
-    setMetodoFilter,
-    searchQuery,
-    setSearchQuery,
-    selectedCfdi,
-    operationAccountCode,
-    setOperationAccountCode,
-    counterAccountCode,
-    setCounterAccountCode,
-    selectedCfdiIds,
-    setSelectedCfdiIds,
-    previewInvoiceCfdi,
-    setPreviewInvoiceCfdi,
-    isDragging,
-    setIsDragging,
-    isUploadingFiles,
-    copiedUuid,
-    confirmDeleteCfdiId,
-    setConfirmDeleteCfdiId,
-    hasActiveFilters,
-    resetFilters,
-    showSoapFielPanel,
-    setShowSoapFielPanel,
-    periodScope,
-    setPeriodScope,
-    cfdis,
-    countInCurrentPeriod,
-    accounts,
-    affectableAccounts,
-    pendingCfdis,
-    isLoading,
-    isError,
-    error,
-    refetch,
-    verifyingCfdiId,
-    uploadXmlMutation,
-    autoPolizaMutation,
-    deleteCfdiMutation,
-    batchContabilizarMutation,
-    batchDeleteMutation,
-    verifySatMutation,
-    verifySatBatchMutation,
-    satBatchAlert,
-    dismissSatBatchAlert,
-    handleFileUpload,
-    handleDrop,
-    openContabilizarModal,
-    openXmlViewer,
-    handleCopyUuid,
-    handleDownloadSelectedXml,
-    previewMovements,
-    filteredCfdis,
-    filteredTotals,
-    toggleSelectAll,
-    toggleSelectOne,
-    handleExportCsv,
-    handleSimulateSubmit,
-    onSoapDownloadSuccess,
-    batchProgress,
-    scopedCfdis,
-    emitidosCount,
-    recibidosCount
+    activeCompany, activeCompanyId, currentYear, currentPeriod,
+    isPeriodLocked, isReadOnlyClient,
+    xmlModalRef, contabilizarModalRef, simModalRef, fileInputRef,
+    tab, setTab, tipoFilter, setTipoFilter, metodoFilter, setMetodoFilter,
+    searchQuery, setSearchQuery, selectedCfdi,
+    operationAccountCode, setOperationAccountCode, counterAccountCode, setCounterAccountCode,
+    selectedCfdiIds, setSelectedCfdiIds, previewInvoiceCfdi, setPreviewInvoiceCfdi,
+    isDragging, setIsDragging, isUploadingFiles, copiedUuid,
+    confirmDeleteCfdiId, setConfirmDeleteCfdiId, hasActiveFilters, resetFilters,
+    showSoapFielPanel, setShowSoapFielPanel, periodScope, setPeriodScope,
+    cfdis, countInCurrentPeriod, accounts, affectableAccounts, pendingCfdis,
+    isLoading, isError, error, refetch, verifyingCfdiId,
+    uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
+    batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
+    verifySatBatchMutation, satBatchAlert, dismissSatBatchAlert,
+    handleFileUpload, handleDrop, openContabilizarModal, openXmlViewer,
+    handleCopyUuid, handleDownloadSelectedXml, previewMovements,
+    filteredCfdis, filteredTotals, toggleSelectAll, toggleSelectOne,
+    handleExportCsv, handleSimulateSubmit, onSoapDownloadSuccess, batchProgress,
+    scopedCfdis, emitidosCount, recibidosCount
   } = manager;
 
   useEffect(() => {
@@ -113,10 +58,10 @@ export function AddCfdiView() {
 
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const key = e.key.toLowerCase();
-        if (key === 'u') {
+        if (key === 'u' && !isReadOnlyClient) {
           e.preventDefault();
           fileInputRef.current?.click();
-        } else if (key === 's') {
+        } else if (key === 's' && !isReadOnlyClient) {
           e.preventDefault();
           if (simModalRef.current && !simModalRef.current.open) {
             simModalRef.current.showModal();
@@ -129,7 +74,7 @@ export function AddCfdiView() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [fileInputRef, simModalRef]);
+  }, [fileInputRef, simModalRef, isReadOnlyClient]);
 
   return (
     <div className="space-y-4">
@@ -159,6 +104,7 @@ export function AddCfdiView() {
         handleFileUpload={handleFileUpload}
         pendingCfdisCount={pendingCfdis.length}
         isPeriodLocked={isPeriodLocked}
+        isReadOnlyClient={isReadOnlyClient}
         isBatchContabilizarPending={batchContabilizarMutation.isPending}
         batchProgress={batchProgress}
         onBatchContabilizarPending={() => batchContabilizarMutation.mutate(pendingCfdis.map((c) => c.id))}
@@ -188,6 +134,7 @@ export function AddCfdiView() {
         isBatchDeletePending={batchDeleteMutation.isPending}
         onBatchDeleteSelected={() => batchDeleteMutation.mutate(Array.from(selectedCfdiIds))}
         isPeriodLocked={isPeriodLocked}
+        isReadOnlyClient={isReadOnlyClient}
       />
 
       {satBatchAlert && satBatchAlert.cancelledWithPolizaCount > 0 && (
@@ -280,6 +227,7 @@ export function AddCfdiView() {
             onConfirmDelete={(id) => deleteCfdiMutation.mutate(id)}
             isDeletePending={deleteCfdiMutation.isPending}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             filteredTotals={filteredTotals}
             hasActiveFilters={hasActiveFilters}
             onResetFilters={resetFilters}
@@ -297,6 +245,7 @@ export function AddCfdiView() {
         cfdi={previewInvoiceCfdi}
         accounts={accounts}
         isPeriodLocked={isPeriodLocked}
+        isReadOnlyClient={isReadOnlyClient}
         onClose={() => setPreviewInvoiceCfdi(null)}
         onContabilizar={(cfdi) => openContabilizarModal(cfdi)}
         onDownloadXml={(cfdi) => void downloadCfdiXmlFile(cfdi, toast)}
@@ -312,6 +261,8 @@ export function AddCfdiView() {
         affectableAccounts={affectableAccounts}
         previewMovements={previewMovements}
         isPending={autoPolizaMutation.isPending}
+        isPeriodLocked={isPeriodLocked}
+        isReadOnlyClient={isReadOnlyClient}
         onClose={() => contabilizarModalRef.current?.close()}
         onConfirm={() => {
           if (selectedCfdi) {

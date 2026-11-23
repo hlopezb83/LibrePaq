@@ -90,13 +90,31 @@ export const supabaseBankN1 = {
     await assertSupabasePeriodOpen(companyId, effY, effP);
 
     const recon = await supabaseBank.getBankReconciliation(companyId, accountId, effY, effP);
+    const existingMatches = await fetchMatches(companyId);
+    const lineById = new Map(recon.statementLines.map((l) => [l.id, l]));
+    const activeLineIds = new Set(recon.statementLines.filter((l) => l.matchedMovementId).map((l) => l.id));
+    const activeMatchedMovIds = new Set<string>([
+      ...recon.bookMovements.filter((b) => b.isMatched).map((b) => b.movementId),
+      ...existingMatches.filter((m) => activeLineIds.has(m.bankLineId)).map((m) => m.movementId)
+    ]);
     const bookById = new Map(recon.bookMovements.map((b) => [b.movementId, b]));
+    const newlyMatchedLineIds = new Set<string>();
+    const newlyMatchedMovIds = new Set<string>();
     const matchedLineIds: string[] = [];
 
     for (const item of items) {
+      const line = lineById.get(item.bankLineId);
+      if (!line || line.matchedMovementId || newlyMatchedLineIds.has(item.bankLineId)) continue;
+
       const movIds = 'movementIds' in item ? item.movementIds : item.movements.map((m) => m.movementId);
       const uniqueIds = [...new Set(movIds.filter(Boolean))];
       if (uniqueIds.length < 2) continue;
+
+      const hasAlreadyMatchedMov = uniqueIds.some((movId) => {
+        const book = bookById.get(movId);
+        return !book || book.isMatched || activeMatchedMovIds.has(movId) || newlyMatchedMovIds.has(movId);
+      });
+      if (hasAlreadyMatchedMov) continue;
 
       const rowsToInsert = uniqueIds
         .map((movId) => {
@@ -126,6 +144,8 @@ export const supabaseBankN1 = {
         .eq('company_id', companyId);
       if (updErr) throw new Error(updErr.message);
 
+      newlyMatchedLineIds.add(item.bankLineId);
+      for (const movId of uniqueIds) newlyMatchedMovIds.add(movId);
       matchedLineIds.push(item.bankLineId);
     }
 

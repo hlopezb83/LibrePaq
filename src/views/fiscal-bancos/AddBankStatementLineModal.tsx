@@ -16,6 +16,7 @@ interface AddBankStatementLineModalProps {
   setBMonto: (m: number) => void;
   onAddBankLineSubmit: (e: React.FormEvent) => void;
   isAddBankLinePending: boolean;
+  isWriteLocked?: boolean;
 }
 
 export function AddBankStatementLineModal({
@@ -31,7 +32,8 @@ export function AddBankStatementLineModal({
   bMonto,
   setBMonto,
   onAddBankLineSubmit,
-  isAddBankLinePending
+  isAddBankLinePending,
+  isWriteLocked = false
 }: AddBankStatementLineModalProps) {
   useDialogLightDismiss(addBankModalRef, () => addBankModalRef.current?.close());
 
@@ -79,9 +81,10 @@ export function AddBankStatementLineModal({
               id="bank-line-date"
               type="date"
               required
+              disabled={isWriteLocked}
               value={bFecha}
               onChange={(e) => setBFecha(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono"
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono disabled:bg-slate-100"
             />
           </div>
 
@@ -95,9 +98,10 @@ export function AddBankStatementLineModal({
               </label>
               <select
                 id="bank-line-type"
+                disabled={isWriteLocked}
                 value={bTipo}
                 onChange={(e) => setBTipo(e.target.value as 'CARGO' | 'ABONO')}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white disabled:bg-slate-100"
               >
                 <option value="CARGO">Cargo (Retiro / Salida)</option>
                 <option value="ABONO">Abono (Depósito / Entrada)</option>
@@ -118,9 +122,13 @@ export function AddBankStatementLineModal({
                 min="0.01"
                 step="0.01"
                 required
+                disabled={isWriteLocked}
                 value={bMonto}
-                onChange={(e) => setBMonto(Number(e.target.value || 0))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono"
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setBMonto(Number.isFinite(n) && n >= 0 ? n : 0);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono disabled:bg-slate-100"
               />
             </div>
           </div>
@@ -136,9 +144,10 @@ export function AddBankStatementLineModal({
               id="bank-line-ref"
               type="text"
               required
+              disabled={isWriteLocked}
               value={bRef}
               onChange={(e) => setBRef(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono uppercase"
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono uppercase disabled:bg-slate-100"
             />
           </div>
 
@@ -153,9 +162,10 @@ export function AddBankStatementLineModal({
               id="bank-line-desc"
               type="text"
               required
+              disabled={isWriteLocked}
               value={bDesc}
               onChange={(e) => setBDesc(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs disabled:bg-slate-100"
             />
           </div>
 
@@ -169,8 +179,8 @@ export function AddBankStatementLineModal({
             </button>
             <button
               type="submit"
-              disabled={isAddBankLinePending}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 cursor-pointer"
+              disabled={isAddBankLinePending || isWriteLocked}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isAddBankLinePending ? 'Registrando...' : 'Guardar Partida'}
             </button>

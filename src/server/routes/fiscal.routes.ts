@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
+import { resolveRequestActor } from '../auth-actor';
 import {
   createFixedAssetRecord,
   deleteFixedAssetRecord,
   generateExchangeFluctuationPoliza,
   generateMonthlyDepreciationPoliza,
   generateTaxProvisionPoliza,
-  getCompanyById,
   getCxcCxpAgingRepo,
   getFiscalWorkpaperReport,
   getFixedAssetsResponse,
@@ -17,7 +17,7 @@ import {
   upsertThirdPartyRecord
 } from '../db';
 import { resolveYearAndPeriod } from '../validators';
-import { assertRouteCompanyAccess, errorStatus } from './route-helpers';
+import { assertRouteCompanyAccess, errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
 import type { Efos69BStatus, FixedAssetCategory } from '../../shared/types';
 
 export const fiscalRoutes = new Hono();
@@ -25,7 +25,7 @@ export const fiscalRoutes = new Hono();
 // Period Locks
 fiscalRoutes.get('/period-locks', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -40,7 +40,7 @@ fiscalRoutes.post('/period-locks', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
     const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const ejercicio = Number(body.ejercicio ?? company.currentYear);
@@ -177,7 +177,7 @@ fiscalRoutes.post('/fixed-assets/depreciation-poliza', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
     const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const poliza = generateMonthlyDepreciationPoliza(
@@ -195,7 +195,7 @@ fiscalRoutes.post('/fixed-assets/depreciation-poliza', async (c) => {
 // Fiscal Workpaper (Día 17)
 fiscalRoutes.get('/fiscal-workpaper', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -209,7 +209,7 @@ fiscalRoutes.get('/fiscal-workpaper', (c) => {
 fiscalRoutes.get('/fiscal-workpaper/parameters', (c) => {
   try {
     const companyId = c.req.query('companyId') || 'comp_tnn_01';
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const ejercicio = Number(c.req.query('year') ?? company.currentYear);
@@ -224,7 +224,7 @@ fiscalRoutes.put('/fiscal-workpaper/parameters', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
     const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const ejercicio = Number(body.ejercicio ?? company.currentYear);
@@ -255,7 +255,7 @@ fiscalRoutes.post('/fiscal-workpaper/provision-poliza', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
     const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const poliza = generateTaxProvisionPoliza(
@@ -274,7 +274,7 @@ fiscalRoutes.post('/fiscal-workpaper/exchange-poliza', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
     const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const poliza = generateExchangeFluctuationPoliza(
@@ -295,7 +295,7 @@ fiscalRoutes.get('/companies/:companyId/cxc-cxp', (c) => {
     const companyId = c.req.param('companyId');
     const denied = assertRouteCompanyAccess(c, companyId);
     if (denied) return denied;
-    const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+    const { userId } = resolveRequestActor(c);
     const asOfIso = c.req.query('asOf') || undefined;
     return c.json(getCxcCxpAgingRepo(companyId, asOfIso, userId));
   } catch (err) {

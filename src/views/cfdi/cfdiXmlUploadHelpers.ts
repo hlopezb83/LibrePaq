@@ -71,25 +71,29 @@ export function resolveDefaultAccountsForCfdi(
   cfdi: CfdiDocument,
   accounts: AccountWithBalance[]
 ): { operationAccountCode: string; counterAccountCode: string } {
-  const plan = buildAutoPolizaPlan(cfdi, accounts);
-  const opMov = plan.movements[0];
-  const counterMov = plan.movements[plan.movements.length - 1];
-  const fallbackOperation =
-    cfdi.tipoComprobante === 'P'
-      ? cfdi.direction === 'EMITIDO'
-        ? '105-01-002'
-        : '201-01-099'
-      : cfdi.direction === 'EMITIDO'
-        ? '401-01-002'
-        : '601-01-003';
-  const fallbackCounter =
-    cfdi.metodoPago === 'PUE' || cfdi.tipoComprobante === 'P'
-      ? '102-01-001'
-      : cfdi.direction === 'EMITIDO'
-        ? '105-01-002'
-        : '201-01-099';
-  return {
-    operationAccountCode: opMov?.accountCode ?? fallbackOperation,
-    counterAccountCode: counterMov?.accountCode ?? fallbackCounter
-  };
+  try {
+    const plan = buildAutoPolizaPlan(cfdi, accounts);
+    const opMov = plan.movements[0];
+    const counterMov = plan.movements[plan.movements.length - 1];
+    const fallbackOperation =
+      cfdi.tipoComprobante === 'P'
+        ? cfdi.direction === 'EMITIDO'
+          ? '105-01-002'
+          : '201-01-099'
+        : cfdi.direction === 'EMITIDO'
+          ? '401-01-002'
+          : '601-01-003';
+    const fallbackCounter =
+      cfdi.metodoPago === 'PUE' || cfdi.tipoComprobante === 'P'
+        ? '102-01-001'
+        : cfdi.direction === 'EMITIDO'
+          ? '105-01-002'
+          : '201-01-099';
+    return {
+      operationAccountCode: opMov?.accountCode ?? fallbackOperation,
+      counterAccountCode: counterMov?.accountCode ?? fallbackCounter
+    };
+  } catch {
+    return { operationAccountCode: '', counterAccountCode: '' };
+  }
 }

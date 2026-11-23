@@ -145,12 +145,15 @@ export function PapelDia17IvaCard({ workpaper }: { workpaper: FiscalWorkpaperRes
 export function PapelDia17UsdCard({
   workpaper,
   isPeriodLocked = false,
+  isReadOnlyClient = false,
   genExchangePolizaMutation
 }: {
   workpaper: FiscalWorkpaperResponse;
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   genExchangePolizaMutation: { isPending: boolean; mutate: () => void };
 }) {
+  const isLocked = isPeriodLocked || isReadOnlyClient;
   return (
     <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-2.5">
       <div className="border-b border-slate-200 pb-2 flex items-center justify-between">
@@ -208,10 +211,10 @@ export function PapelDia17UsdCard({
 
         <button
           type="button"
-          disabled={genExchangePolizaMutation.isPending || isPeriodLocked}
+          disabled={genExchangePolizaMutation.isPending || isLocked}
           title={
-            isPeriodLocked
-              ? 'Periodo fiscal bloqueado ante el SAT'
+            isLocked
+              ? (isReadOnlyClient ? 'Modo solo lectura' : 'Periodo fiscal bloqueado ante el SAT')
               : 'Generar póliza de utilidad o pérdida cambiaria USD'
           }
           onClick={() => genExchangePolizaMutation.mutate()}

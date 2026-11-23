@@ -1,93 +1,17 @@
 import type { Account, CfdiDocument, PolizaType } from '../types';
 import { extractNominaOtrosPagos } from '../cfdi-xml';
-import { fromCents, toCents } from './invariants-and-math';
 import type { AutoPolizaMovementDraft, AutoPolizaOverrides } from './auto-poliza-types';
 import { inferExpenseAccountForCfdi, resolveFiscalAccount } from './auto-poliza-account-resolver';
 import { appendRecibidoDeductibleMovements } from './auto-poliza-deductible';
+import {
+  buildPaymentRepMovements,
+  computeNonIvaTaxCents,
+  makeDraft,
+  resolveEmployeeReceivableAccount,
+  toMxnCents
+} from './auto-poliza-helpers';
 
-export function makeDraft(
-  acc: Account,
-  referencia: string,
-  cargoCents: number,
-  abonoCents: number,
-  concepto: string
-): AutoPolizaMovementDraft {
-  return {
-    accountId: acc.id,
-    accountCode: acc.code,
-    accountName: acc.name,
-    referencia,
-    cargo: fromCents(cargoCents),
-    abono: fromCents(abonoCents),
-    concepto
-  };
-}
-
-export function toMxnCents(amount: number, cfdi: CfdiDocument): number {
-  const rate =
-    cfdi.moneda && cfdi.moneda.toUpperCase() !== 'MXN' && cfdi.tipoCambio && cfdi.tipoCambio > 0
-      ? cfdi.tipoCambio
-      : 1;
-  return Math.round(toCents(amount) * rate);
-}
-
-export function buildPaymentRepMovements(
-  cfdi: CfdiDocument,
-  accounts: readonly Account[],
-  overrides?: AutoPolizaOverrides
-): { polizaType: PolizaType; polizaConcept: string; movements: AutoPolizaMovementDraft[] } {
-  const esRecibido = cfdi.direction === 'RECIBIDO';
-  const ref = `${cfdi.serie}-${cfdi.folio}`;
-  const totalCents = toMxnCents(cfdi.total, cfdi);
-  const ivaCents = toMxnCents(cfdi.ivaTrasladado, cfdi);
-  const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;
-  const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
-
-  const accBancos = resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL', counterOverride);
-  const movements: AutoPolizaMovementDraft[] = [];
-
-  if (esRecibido) {
-    const accProveedores = resolveFiscalAccount(accounts, 'PROVEEDORES_NACIONALES', opOverride);
-    const accIvaPagado = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO');
-    const accIvaPorAcreditar = resolveFiscalAccount(accounts, 'IVA_PENDIENTE_PAGO');
-
-    movements.push(
-      makeDraft(accProveedores, ref, totalCents, 0, `Liquidación a proveedor REP ${ref} - ${cfdi.emisorNombre}`),
-      makeDraft(accBancos, ref, 0, totalCents, `Pago bancario REP ${ref}`)
-    );
-    if (ivaCents > 0) {
-      movements.push(
-        makeDraft(accIvaPagado, ref, ivaCents, 0, `IVA Efectivamente Pagado REP ${ref}`),
-        makeDraft(accIvaPorAcreditar, ref, 0, ivaCents, `Reclasificación IVA Pendiente REP ${ref}`)
-      );
-    }
-    return {
-      polizaType: overrides?.polizaType ?? 'EGRESO',
-      polizaConcept: `Complemento de Pago ${ref} - ${cfdi.emisorNombre}`,
-      movements
-    };
-  }
-
-  const accClientes = resolveFiscalAccount(accounts, 'CLIENTES_NACIONALES', opOverride);
-  const accIvaTrasCobrado = resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO');
-  const accIvaTrasNoCobrado = resolveFiscalAccount(accounts, 'IVA_TRASLADADO_NO_COBRADO');
-
-  movements.push(
-    makeDraft(accBancos, ref, totalCents, 0, `Cobro REP ${ref} - ${cfdi.receptorNombre}`),
-    makeDraft(accClientes, ref, 0, totalCents, `Liquidación factura PPD (${cfdi.uuidRelacionado || ref})`)
-  );
-  if (ivaCents > 0) {
-    movements.push(
-      makeDraft(accIvaTrasNoCobrado, ref, ivaCents, 0, `Cancelación IVA Pendiente por cobro REP ${ref}`),
-      makeDraft(accIvaTrasCobrado, ref, 0, ivaCents, `IVA Efectivamente Cobrado REP ${ref}`)
-    );
-  }
-  return {
-    polizaType: overrides?.polizaType ?? 'INGRESO',
-    polizaConcept: `Complemento de Pago ${ref} - ${cfdi.receptorNombre}`,
-    movements
-  };
-}
+export { buildPaymentRepMovements, computeNonIvaTaxCents, makeDraft, toMxnCents };
 
 export function buildPayrollNominaMovements(
   cfdi: CfdiDocument,
@@ -138,9 +62,22 @@ export function buildPayrollNominaMovements(
       makeDraft(accOtrasRet, ref, 0, imssDescuentoCents, `Cuotas Obreras IMSS / Descuentos ${ref}`)
     );
   }
-  movements.push(
-    makeDraft(accBancos, ref, 0, totalCents, `Pago neto nómina ${ref} - ${cfdi.receptorNombre}`)
-  );
+  if (totalCents < 0) {
+    const accDeudores = resolveEmployeeReceivableAccount(accounts, accBancos);
+    movements.push(
+      makeDraft(
+        accDeudores,
+        ref,
+        Math.abs(totalCents),
+        0,
+        `Saldo a cargo de empleado / Deudores diversos nómina ${ref} - ${cfdi.receptorNombre}`
+      )
+    );
+  } else {
+    movements.push(
+      makeDraft(accBancos, ref, 0, totalCents, `Pago neto nómina ${ref} - ${cfdi.receptorNombre}`)
+    );
+  }
 
   return {
     polizaType: overrides?.polizaType ?? 'EGRESO',
@@ -162,6 +99,15 @@ export function buildCreditNoteEgresoMovements(
   const isrRetCents = toMxnCents(cfdi.isrRetenido, cfdi);
   const ivaRetCents = toMxnCents(cfdi.ivaRetenido, cfdi);
   const totalCents = toMxnCents(cfdi.total, cfdi);
+  const nonIvaTaxCents = computeNonIvaTaxCents(
+    cfdi,
+    subtotalNetoCents,
+    ivaCents,
+    isrRetCents,
+    ivaRetCents,
+    totalCents
+  );
+  const effectiveSubtotalCents = subtotalNetoCents + nonIvaTaxCents;
   const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
   const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;
   const movements: AutoPolizaMovementDraft[] = [];
@@ -193,7 +139,7 @@ export function buildCreditNoteEgresoMovements(
       accIva,
       ref,
       conceptoPrincipal: cfdi.conceptoPrincipal,
-      subtotalCents: subtotalNetoCents,
+      subtotalCents: effectiveSubtotalCents,
       ivaCents,
       deductiblePct: overrides?.deductiblePct,
       isCreditNoteReversal: true
@@ -214,7 +160,7 @@ export function buildCreditNoteEgresoMovements(
     : resolveFiscalAccount(accounts, 'IVA_TRASLADADO_NO_COBRADO');
 
   movements.push(
-    makeDraft(accDevoluciones, ref, subtotalNetoCents, 0, `Nota de Crédito: ${cfdi.conceptoPrincipal}`)
+    makeDraft(accDevoluciones, ref, effectiveSubtotalCents, 0, `Nota de Crédito: ${cfdi.conceptoPrincipal}`)
   );
   if (ivaCents > 0) {
     movements.push(makeDraft(accIva, ref, ivaCents, 0, `Ajuste IVA Trasladado Nota de Crédito ${ref}`));
@@ -251,12 +197,14 @@ export function buildStandardIngresoMovements(
   const isrRetCents = toMxnCents(cfdi.isrRetenido, cfdi);
   const ivaRetCents = toMxnCents(cfdi.ivaRetenido, cfdi);
   const totalCents = toMxnCents(cfdi.total, cfdi);
-  // Diferencia por impuestos distintos de IVA (IEPS / ISH / cuotas locales) integrada al gasto o ingreso
-  const rawFiscalDiffCents = totalCents + isrRetCents + ivaRetCents - (subtotalNetoCents + ivaCents);
-  const nonIvaTaxCents =
-    rawFiscalDiffCents > 5 && rawFiscalDiffCents <= Math.round(totalCents * 0.5)
-      ? rawFiscalDiffCents
-      : 0;
+  const nonIvaTaxCents = computeNonIvaTaxCents(
+    cfdi,
+    subtotalNetoCents,
+    ivaCents,
+    isrRetCents,
+    ivaRetCents,
+    totalCents
+  );
   const effectiveSubtotalCents = subtotalNetoCents + nonIvaTaxCents;
   const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
   const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;

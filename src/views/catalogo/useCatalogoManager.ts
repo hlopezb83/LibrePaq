@@ -10,7 +10,8 @@ import { suggestNextCodeForParent } from './catalogoHierarchy';
 import { useCatalogoFilters } from './useCatalogoFilters';
 
 export function useCatalogoManager() {
-  const { activeCompany, activeCompanyId } = useCompany();
+  const { activeCompany, activeCompanyId, isReadOnlySupportMode, isReadOnlyClient: rawReadOnlyClient } = useCompany();
+  const isReadOnlyClient = Boolean(isReadOnlySupportMode || rawReadOnlyClient);
   const queryClient = useQueryClient();
   const toast = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -54,12 +55,14 @@ export function useCatalogoManager() {
     enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
   });
   const isPeriodLocked = Boolean(periodLock?.isLocked);
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   const filters = useCatalogoFilters(accounts);
 
   const getNextCode = (pCode: string) => suggestNextCodeForParent(pCode, accounts);
 
   const openCreateModal = () => {
+    if (isWriteBlocked) return;
     setFormError(null);
     setEditingAccountId(null);
     const defaultParent = '601-00-000';
@@ -75,6 +78,7 @@ export function useCatalogoManager() {
   };
 
   const openEditModal = (acc: AccountWithBalance) => {
+    if (isWriteBlocked) return;
     setFormError(null);
     setEditingAccountId(acc.id);
     setCode(acc.code);
@@ -89,6 +93,7 @@ export function useCatalogoManager() {
   };
 
   const openCreateSubaccountModal = (parentAcc: AccountWithBalance) => {
+    if (isWriteBlocked) return;
     setFormError(null);
     setEditingAccountId(null);
     setParentCode(parentAcc.code);
@@ -104,6 +109,13 @@ export function useCatalogoManager() {
 
   const saveAccountMutation = useMutation({
     mutationFn: async () => {
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no se pueden modificar cuentas contables.'
+            : 'El periodo contable está bloqueado ante el SAT.'
+        );
+      }
       if (editingAccountId) {
         return apiClient.updateAccount(editingAccountId, {
           name,
@@ -142,7 +154,16 @@ export function useCatalogoManager() {
   });
 
   const deleteAccountMutation = useMutation({
-    mutationFn: apiClient.deleteAccount,
+    mutationFn: (id: string) => {
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no se pueden eliminar cuentas contables.'
+            : 'El periodo contable está bloqueado ante el SAT.'
+        );
+      }
+      return apiClient.deleteAccount(id);
+    },
     onSuccess: () => {
       invalidateAccountingQueries(queryClient, ['accounts', 'reports', 'dashboard']);
       setConfirmDeleteId(null);
@@ -164,6 +185,10 @@ export function useCatalogoManager() {
   };
 
   const handleImportAccountsCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isWriteBlocked) {
+      e.target.value = '';
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -183,6 +208,8 @@ export function useCatalogoManager() {
     currentYear,
     currentPeriod,
     isPeriodLocked,
+    isReadOnlyClient,
+    isWriteBlocked,
     dialogRef,
     csvImportRef,
     accounts,

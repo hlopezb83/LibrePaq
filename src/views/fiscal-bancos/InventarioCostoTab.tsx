@@ -16,6 +16,7 @@ export interface InventarioCostoTabProps {
   period?: number;
   accounts?: AccountWithBalance[];
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onFeedback?: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -25,9 +26,10 @@ function parseNonNeg(val: string): number {
 }
 
 export function InventarioCostoTab({
-  companyId, year, period, accounts: accountsProp, isPeriodLocked = false, onFeedback
+  companyId, year, period, accounts: accountsProp, isPeriodLocked = false, isReadOnlyClient: isReadOnlyClientProp = false, onFeedback
 }: InventarioCostoTabProps) {
-  const { activeCompanyId, activeCompany } = useCompany();
+  const { activeCompanyId, activeCompany, isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isLocked = isPeriodLocked || Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -107,7 +109,12 @@ export function InventarioCostoTab({
   });
 
   const saveMutation = useMutation({
-    mutationFn: () => inventoryClient.saveInventoryPeriod(targetCompanyId, buildSavePayload()),
+    mutationFn: () => {
+      if (isLocked) {
+        throw new Error('Periodo bloqueado o modo solo lectura: no es posible guardar inventarios.');
+      }
+      return inventoryClient.saveInventoryPeriod(targetCompanyId, buildSavePayload());
+    },
     onSuccess: (updated) => {
       queryClient.setQueryData(['inventory-cost', targetCompanyId, targetYear, targetPeriod], updated);
       notify(`Inventario y Costo de Ventas ${periodLabel} guardado.`);
@@ -117,6 +124,9 @@ export function InventarioCostoTab({
 
   const createPolizaMutation = useMutation({
     mutationFn: async () => {
+      if (isLocked) {
+        throw new Error('Periodo bloqueado o modo solo lectura: no es posible generar pólizas.');
+      }
       if (!polizaPlan) throw new Error('No hay un borrador de póliza válido para registrar.');
       const poliza = await apiClient.createPoliza({
         companyId: polizaPlan.companyId, tipo: polizaPlan.tipo, fecha: polizaPlan.fecha,
@@ -126,11 +136,11 @@ export function InventarioCostoTab({
         }))
       });
       await inventoryClient.saveInventoryPeriod(targetCompanyId, buildSavePayload(poliza.id));
-      return poliza;
+      return { poliza, targetCompanyId, targetYear, targetPeriod };
     },
-    onSuccess: (poliza) => {
-      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'], targetCompanyId);
-      void queryClient.invalidateQueries({ queryKey: ['inventory-cost', targetCompanyId, targetYear, targetPeriod] });
+    onSuccess: ({ poliza, targetCompanyId: cid, targetYear: y, targetPeriod: p }) => {
+      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'], cid);
+      void queryClient.invalidateQueries({ queryKey: ['inventory-cost', cid, y, p] });
       notify(`Póliza de Costo de Ventas (Diario #${poliza.folio}) registrada y cuadrada.`);
     },
     onError: (err: Error) => notify(`Error al registrar póliza de costo: ${err.message}`, 'error')
@@ -194,29 +204,29 @@ export function InventarioCostoTab({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1">
             <label htmlFor="inv-method" className="block text-xs font-bold text-slate-700">Método de Registro</label>
-            <select id="inv-method" value={method} disabled={isPeriodLocked} onChange={(e) => setMethod(e.target.value as InventoryMethod)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white">
+            <select id="inv-method" value={method} disabled={isLocked} onChange={(e) => setMethod(e.target.value as InventoryMethod)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white disabled:bg-slate-100">
               <option value="ANALITICO">Analítico / Pormenorizado</option>
               <option value="PERPETUO">Inventarios Perpetuos</option>
             </select>
           </div>
           <div className="space-y-1">
             <label htmlFor="inv-initial" className="block text-xs font-bold text-slate-700">Inventario Inicial ($)</label>
-            <input id="inv-initial" type="number" min="0" step="0.01" disabled={isPeriodLocked} value={initialInput} onChange={(e) => setInitialInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-slate-900" />
+            <input id="inv-initial" type="number" min="0" step="0.01" disabled={isLocked} value={initialInput} onChange={(e) => setInitialInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-slate-900 disabled:bg-slate-100" />
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-2">
               <label htmlFor="inv-purchases" className="block text-xs font-bold text-slate-700">Compras Netas ($)</label>
               {hasOverride && (
-                <button type="button" onClick={() => setPurchasesInput('')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer">
+                <button type="button" disabled={isLocked} onClick={() => setPurchasesInput('')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                   <RotateCcw className="w-3 h-3" aria-hidden="true" /> Balanza ({formatCurrency(purchasesFromBalance)})
                 </button>
               )}
             </div>
-            <input id="inv-purchases" type="number" min="0" step="0.01" disabled={isPeriodLocked} placeholder={`Auto: ${purchasesFromBalance.toFixed(2)}`} value={purchasesInput} onChange={(e) => setPurchasesInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-slate-900" />
+            <input id="inv-purchases" type="number" min="0" step="0.01" disabled={isLocked} placeholder={`Auto: ${purchasesFromBalance.toFixed(2)}`} value={purchasesInput} onChange={(e) => setPurchasesInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-slate-900 disabled:bg-slate-100" />
           </div>
           <div className="space-y-1">
             <label htmlFor="inv-final" className="block text-xs font-bold text-slate-700">Inventario Final ($)</label>
-            <input id="inv-final" type="number" min="0" step="0.01" disabled={isPeriodLocked} value={finalInput} onChange={(e) => setFinalInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-slate-900" />
+            <input id="inv-final" type="number" min="0" step="0.01" disabled={isLocked} value={finalInput} onChange={(e) => setFinalInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-slate-900 disabled:bg-slate-100" />
           </div>
         </div>
 
@@ -238,11 +248,11 @@ export function InventarioCostoTab({
         {polizaError && <p className="text-xs text-amber-700 font-medium">{polizaError}</p>}
 
         <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
-          <button type="button" disabled={isPeriodLocked || saveMutation.isPending} onClick={() => saveMutation.mutate()} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer">
+          <button type="button" disabled={isLocked || saveMutation.isPending} onClick={() => saveMutation.mutate()} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer">
             <Save className="w-3.5 h-3.5" aria-hidden="true" />
             {saveMutation.isPending ? 'Guardando...' : 'Guardar Inventario'}
           </button>
-          <button type="button" disabled={isPeriodLocked || !polizaPlan || createPolizaMutation.isPending} onClick={() => createPolizaMutation.mutate()} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer">
+          <button type="button" disabled={isLocked || !polizaPlan || createPolizaMutation.isPending} onClick={() => createPolizaMutation.mutate()} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer">
             <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
             {createPolizaMutation.isPending ? 'Registrando...' : 'Registrar Póliza de Costo de Ventas'}
           </button>

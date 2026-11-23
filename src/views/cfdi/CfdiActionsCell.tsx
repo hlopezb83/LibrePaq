@@ -16,6 +16,7 @@ interface CfdiActionsCellProps {
   onConfirmDelete: (id: string) => void;
   isDeletePending: boolean;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   onOpenContabilizarModal: (cfdi: CfdiDocument) => void;
   onVerifySat: (id: string) => void;
   isVerifySatPending: boolean;
@@ -31,6 +32,7 @@ function CfdiActionsCellBase({
   onConfirmDelete,
   isDeletePending,
   isPeriodLocked,
+  isReadOnlyClient = false,
   onOpenContabilizarModal,
   onVerifySat,
   isVerifySatPending,
@@ -40,7 +42,8 @@ function CfdiActionsCellBase({
 }: CfdiActionsCellProps) {
   const isConfirmingDelete = confirmDeleteCfdiId === row.id;
   const isCancelledSat = row.statusSat === 'CANCELADO';
-  const isContabilizarDisabled = isPeriodLocked || isCancelledSat;
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
+  const isContabilizarDisabled = isWriteBlocked || isCancelledSat || row.tipoComprobante === 'T';
 
   if (isConfirmingDelete) {
     return (
@@ -84,10 +87,14 @@ function CfdiActionsCellBase({
           onClick={() => onOpenContabilizarModal(row)}
           aria-label={`Contabilizar ${row.serie}-${row.folio}`}
           title={
-            isPeriodLocked
+            isReadOnlyClient
+              ? 'Modo solo lectura: no se pueden generar pólizas.'
+              : isPeriodLocked
               ? 'Periodo bloqueado ante el SAT. No se pueden generar pólizas.'
               : isCancelledSat
               ? 'CFDI cancelado ante el SAT — no deducible ni contabilizable'
+              : row.tipoComprobante === 'T'
+              ? 'CFDI de Traslado (T) — sin efectos contables de ingreso/gasto'
               : 'Contabilizar CFDI y generar póliza cuadrada'
           }
           className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-2xs transition ${
@@ -96,7 +103,7 @@ function CfdiActionsCellBase({
               : 'bg-blue-700 hover:bg-blue-800 cursor-pointer'
           }`}
         >
-          {isPeriodLocked ? (
+          {isWriteBlocked ? (
             <Lock className="w-3.5 h-3.5" aria-hidden="true" />
           ) : (
             <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
@@ -106,10 +113,14 @@ function CfdiActionsCellBase({
       )}
       <button
         type="button"
-        disabled={isVerifySatPending}
+        disabled={isVerifySatPending || isReadOnlyClient}
         aria-busy={isVerifyingThisRow}
         onClick={() => onVerifySat(row.id)}
-        title="Consultar vigencia fiscal y Lista 69-B directamente en el SAT"
+        title={
+          isReadOnlyClient
+            ? 'Modo solo lectura: consulta SAT deshabilitada'
+            : 'Consultar vigencia fiscal y Lista 69-B directamente en el SAT'
+        }
         aria-label={`Verificar estatus SAT de ${row.serie}-${row.folio}`}
         className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
@@ -138,19 +149,21 @@ function CfdiActionsCellBase({
       {!row.polizaId && (
         <button
           type="button"
-          disabled={isPeriodLocked}
+          disabled={isWriteBlocked}
           onClick={() => {
-            if (isPeriodLocked) return;
+            if (isWriteBlocked) return;
             setConfirmDeleteCfdiId(row.id);
           }}
           title={
-            isPeriodLocked
+            isReadOnlyClient
+              ? 'Modo solo lectura'
+              : isPeriodLocked
               ? 'Periodo bloqueado ante el SAT'
               : 'Eliminar CFDI no contabilizado del ADD'
           }
           aria-label={`Eliminar CFDI ${row.serie}-${row.folio}`}
           className={`p-1.5 rounded-lg transition ${
-            isPeriodLocked
+            isWriteBlocked
               ? 'opacity-40 cursor-not-allowed text-slate-400'
               : 'text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer'
           }`}

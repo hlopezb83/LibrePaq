@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
@@ -8,12 +8,14 @@ import type { AccountWithBalance, Efos69BStatus, ThirdPartyRecord } from '../../
 interface UsePadronProveedoresParams {
   companyId: string;
   accounts: AccountWithBalance[];
+  isReadOnlyClient?: boolean;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
 export function usePadronProveedores({
   companyId,
   accounts,
+  isReadOnlyClient = false,
   onFeedback
 }: UsePadronProveedoresParams) {
   const queryClient = useQueryClient();
@@ -60,14 +62,20 @@ export function usePadronProveedores({
     document.getElementById('tp-nombre')?.focus();
   };
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setTpRfc('');
     setTpNombre('');
     setTpExpenseAcc('601-01-002');
     setTpIvaRate(16);
     setTpOperacion('03');
     setTpEfos('LIMPIO');
-  };
+  }, []);
+
+  useEffect(() => {
+    resetForm();
+    setSearchQuery('');
+    setIs69BModalOpen(false);
+  }, [companyId, resetForm]);
 
   const tpRfcRes = useMemo(() => {
     if (!tpRfc.trim()) return null;
@@ -86,8 +94,11 @@ export function usePadronProveedores({
   };
 
   const saveThirdPartyMutation = useMutation({
-    mutationFn: () =>
-      apiClient.saveThirdParty({
+    mutationFn: () => {
+      if (isReadOnlyClient) {
+        throw new Error('Modo solo lectura: no es posible modificar el padrón de terceros.');
+      }
+      return apiClient.saveThirdParty({
         companyId,
         rfc: tpRfc,
         nombre: tpNombre,
@@ -98,9 +109,10 @@ export function usePadronProveedores({
         tipoOperacionDiot: tpOperacion,
         tasaIvaDefault: tpIvaRate,
         estatus69B: tpEfos
-      }),
+      });
+    },
     onSuccess: (saved) => {
-      queryClient.invalidateQueries({ queryKey: ['third-parties', companyId] });
+      void queryClient.invalidateQueries({ queryKey: ['third-parties', saved.companyId || companyId] });
       setTpRfc('');
       setTpNombre('');
       setTpEfos('LIMPIO');
@@ -114,7 +126,8 @@ export function usePadronProveedores({
   });
 
   const handle69BImportComplete = (count: number) => {
-    queryClient.invalidateQueries({ queryKey: ['third-parties', companyId] });
+    if (isReadOnlyClient) return;
+    void queryClient.invalidateQueries({ queryKey: ['third-parties', companyId] });
     onFeedback(`¡Lista 69-B del SAT actualizada con éxito! (${count.toLocaleString()} RFCs procesados)`);
   };
 

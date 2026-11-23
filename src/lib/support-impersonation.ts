@@ -20,8 +20,10 @@ const BLOCKED_MUTATION_PREFIXES = [
 ] as const;
 
 const listeners = new Set<() => void>();
+const clientReadOnlyListeners = new Set<() => void>();
 let cachedRaw: string | null | undefined;
 let cachedSession: SupportImpersonationSession | null = null;
+let clientReadOnlyMode = false;
 
 function getStorage(): Storage | null {
   try {
@@ -77,6 +79,57 @@ export function endSupportSession(): void {
 
 export function isReadOnlySupportMode(): boolean {
   return getSupportSession() !== null;
+}
+
+export function setClientReadOnlyMode(readOnly: boolean): void {
+  const next = Boolean(readOnly);
+  if (clientReadOnlyMode === next) return;
+  clientReadOnlyMode = next;
+  for (const listener of clientReadOnlyListeners) listener();
+}
+
+export function isReadOnlyClientMode(): boolean {
+  return clientReadOnlyMode;
+}
+
+export function subscribeClientReadOnlyMode(listener: () => void): () => void {
+  clientReadOnlyListeners.add(listener);
+  return () => clientReadOnlyListeners.delete(listener);
+}
+
+export function useClientReadOnlyMode(): boolean {
+  return useSyncExternalStore(subscribeClientReadOnlyMode, isReadOnlyClientMode, () => false);
+}
+
+export function isReadOnlyWriteBlocked(): boolean {
+  return isReadOnlySupportMode() || isReadOnlyClientMode();
+}
+
+export function getReadOnlyWriteErrorMessage(): string {
+  return isReadOnlySupportMode()
+    ? 'Modo Soporte (solo lectura): las escrituras están bloqueadas para proteger los datos del cliente.'
+    : 'Acceso de solo lectura: tu rol de cliente no permite realizar modificaciones.';
+}
+
+/** Envuelve un cliente RPC/API bloqueando escrituras cuando el usuario está en modo solo lectura o soporte. */
+export function createReadOnlyGuardedClient<T extends object>(
+  rawClient: T,
+  writeMethods: ReadonlySet<string>
+): T {
+  return new Proxy(rawClient, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop === 'string' && typeof value === 'function') {
+        return (...args: unknown[]) => {
+          if (isReadOnlyWriteBlocked() && writeMethods.has(prop)) {
+            throw new Error(getReadOnlyWriteErrorMessage());
+          }
+          return (value as (...fnArgs: unknown[]) => unknown).apply(target, args);
+        };
+      }
+      return value;
+    }
+  });
 }
 
 export function subscribeSupportSession(listener: () => void): () => void {

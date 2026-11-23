@@ -142,9 +142,13 @@ export function applyManyToOneMatchesRepo(
     WHERE m.id = ? AND p.company_id = ?
   `);
   const insertMatchStmt = db.prepare(`
-    INSERT OR IGNORE INTO bank_statement_matches (
+    INSERT INTO bank_statement_matches (
       id, company_id, bank_line_id, movement_id, poliza_id, matched_amount
     ) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(bank_line_id, movement_id) DO UPDATE SET
+      poliza_id = excluded.poliza_id,
+      matched_amount = excluded.matched_amount,
+      created_at = datetime('now')
   `);
   const updateLineStmt = db.prepare(
     'UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ? AND company_id = ?'

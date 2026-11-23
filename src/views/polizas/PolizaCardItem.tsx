@@ -22,6 +22,7 @@ export interface PolizaCardItemProps {
   compactMode: boolean;
   isExactMatch: boolean;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   copiedPolizaId: string | null;
   confirmDeleteId: string | null;
   onToggleExpand: (id: string) => void;
@@ -40,6 +41,7 @@ function PolizaCardItemBase({
   compactMode,
   isExactMatch,
   isPeriodLocked,
+  isReadOnlyClient = false,
   copiedPolizaId,
   confirmDeleteId,
   onToggleExpand,
@@ -53,6 +55,7 @@ function PolizaCardItemBase({
 }: PolizaCardItemProps) {
   const { copiedKey, copy } = useCopyToClipboard<string>(2000);
   const copiedUuid = copiedKey;
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   function handleCopyUuid(uuid: string) {
     void copy(uuid, uuid);
@@ -174,16 +177,18 @@ function PolizaCardItemBase({
 
             <button
               type="button"
-              disabled={isPeriodLocked}
+              disabled={isWriteBlocked}
               onClick={() => onDuplicate(pol)}
               title={
-                isPeriodLocked
+                isReadOnlyClient
+                  ? 'Modo solo lectura'
+                  : isPeriodLocked
                   ? 'Periodo bloqueado ante el SAT'
                   : 'Duplicar esta póliza como plantilla para un nuevo registro'
               }
               aria-label={`Duplicar póliza ${pol.tipo} ${pol.folio}`}
               className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                isPeriodLocked
+                isWriteBlocked
                   ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
                   : 'text-blue-800 bg-blue-50 border border-blue-200 hover:bg-blue-100 cursor-pointer'
               }`}
@@ -194,12 +199,18 @@ function PolizaCardItemBase({
 
             <button
               type="button"
-              disabled={isPeriodLocked}
+              disabled={isWriteBlocked}
               onClick={() => onEdit(pol)}
-              title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Editar póliza'}
+              title={
+                isReadOnlyClient
+                  ? 'Modo solo lectura'
+                  : isPeriodLocked
+                  ? 'Periodo bloqueado ante el SAT'
+                  : 'Editar póliza'
+              }
               aria-label={`Editar póliza ${pol.tipo} ${pol.folio}`}
               className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                isPeriodLocked
+                isWriteBlocked
                   ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
                   : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 cursor-pointer'
               }`}
@@ -220,9 +231,9 @@ function PolizaCardItemBase({
               >
                 <button
                   type="button"
-                  disabled={isPeriodLocked}
+                  disabled={isWriteBlocked}
                   onClick={() => onConfirmDelete(pol.id)}
-                  className="px-2 py-0.5 rounded text-[11px] font-bold text-red-800 hover:bg-red-100 cursor-pointer"
+                  className="px-2 py-0.5 rounded text-[11px] font-bold text-red-800 hover:bg-red-100 cursor-pointer disabled:opacity-50"
                 >
                   Confirmar
                 </button>
@@ -239,12 +250,20 @@ function PolizaCardItemBase({
             ) : (
               <button
                 type="button"
-                disabled={isPeriodLocked}
-                onClick={() => onRequestDelete(pol.id)}
-                title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Eliminar póliza'}
+                disabled={isWriteBlocked}
+                onClick={() => {
+                  if (!isWriteBlocked) onRequestDelete(pol.id);
+                }}
+                title={
+                  isReadOnlyClient
+                    ? 'Modo solo lectura'
+                    : isPeriodLocked
+                    ? 'Periodo bloqueado ante el SAT'
+                    : 'Eliminar póliza'
+                }
                 aria-label={`Eliminar póliza ${pol.tipo} ${pol.folio}`}
                 className={`p-1.5 rounded-lg transition ${
-                  isPeriodLocked
+                  isWriteBlocked
                     ? 'opacity-30 cursor-not-allowed text-slate-300'
                     : 'text-slate-400 hover:text-red-700 hover:bg-red-50 cursor-pointer'
                 }`}

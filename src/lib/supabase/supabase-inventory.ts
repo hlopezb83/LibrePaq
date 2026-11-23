@@ -5,6 +5,7 @@ import { fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type { InventoryMethod, InventoryPeriodRecord, SaveInventoryPeriodPayload } from '../../shared/types/cost-of-sales.types';
 import { mapSupabaseAccount, mapSupabaseCompany } from './supabase-mappers';
 import { fetchAllRows } from './supabase-pagination';
+import { assertSupabasePeriodOpen } from './supabase-polizas';
 
 const cleanAmount = (val: unknown): number => fromCents(Math.max(0, toCents(Number(val ?? 0))));
 
@@ -72,12 +73,22 @@ export const supabaseInventory = {
 
   async saveInventoryPeriod(companyId: string, payload: SaveInventoryPeriodPayload): Promise<InventoryPeriodRecord> {
     if (!supabase) throw new Error('Supabase no disponible');
+    const ejercicio = Math.round(Number(payload.ejercicio));
+    const periodo = Math.round(Number(payload.periodo));
+    if (!Number.isFinite(ejercicio) || ejercicio < 2000 || ejercicio > 2100) {
+      throw new Error('El ejercicio debe estar entre 2000 y 2100.');
+    }
+    if (!Number.isFinite(periodo) || periodo < 1 || periodo > 13) {
+      throw new Error('El periodo debe estar entre 1 y 13.');
+    }
+    await assertSupabasePeriodOpen(companyId, ejercicio, periodo);
+
     const sb = getRequiredSupabase();
     const record: Record<string, unknown> = {
-      id: `inv_${companyId}_${payload.ejercicio}_${payload.periodo}`,
+      id: `inv_${companyId}_${ejercicio}_${periodo}`,
       company_id: companyId,
-      ejercicio: payload.ejercicio,
-      periodo: payload.periodo,
+      ejercicio,
+      periodo,
       initial_inventory: cleanAmount(payload.initialInventory),
       purchases_override:
         payload.purchasesOverride !== undefined && payload.purchasesOverride !== null
@@ -91,6 +102,6 @@ export const supabaseInventory = {
 
     const { error } = await sb.from('inventory_periods').upsert(record, { onConflict: 'company_id,ejercicio,periodo' });
     if (error) throw new Error(error.message);
-    return this.getInventoryPeriod(companyId, payload.ejercicio, payload.periodo);
+    return this.getInventoryPeriod(companyId, ejercicio, periodo);
   }
 };

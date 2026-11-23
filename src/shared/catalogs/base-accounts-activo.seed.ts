@@ -147,6 +147,30 @@ export const BASE_ACCOUNTS_ACTIVO: ReadonlyArray<Omit<Account, 'id' | 'companyId
     initialBalance: 0
   },
   {
+    code: '115-00-000',
+    name: 'Inventarios',
+    parentCode: '100-00-000',
+    type: 'ACTIVO',
+    nature: 'DEUDORA',
+    level: 2,
+    isAffectable: false,
+    satGroupCode: '115',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
+    code: '115-01-001',
+    name: 'Almacén / Inventario de Mercancías',
+    parentCode: '115-00-000',
+    type: 'ACTIVO',
+    nature: 'DEUDORA',
+    level: 3,
+    isAffectable: true,
+    satGroupCode: '115.01',
+    currency: 'MXN',
+    initialBalance: 0
+  },
+  {
     code: '118-00-000',
     name: 'Impuestos Acreditables Pagados',
     parentCode: '100-00-000',

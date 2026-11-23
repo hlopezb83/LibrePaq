@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { resolveRequestActor, resolveRequestActorAsync } from '../auth-actor';
 import {
   acceptPendingInvitesRepo,
   assignCompanyAccessRepo,
@@ -16,10 +17,16 @@ import type { DespachoRole } from '../../shared/types/despacho-rbac.types';
 
 export const workspaceMembersRoutes = new Hono();
 
-const readActor = (c: Context) => ({
-  userId: c.req.header('X-User-Id') || c.req.header('x-user-id') || null,
-  userEmail: c.req.header('X-User-Email') || c.req.header('x-user-email') || null
+workspaceMembersRoutes.use('*', async (c, next) => {
+  const actor = await resolveRequestActorAsync(c);
+  if (actor.authError) return c.json({ error: actor.authError }, 401);
+  return next();
 });
+
+const readActor = (c: Context) => {
+  const actor = resolveRequestActor(c);
+  return { userId: actor.userId, userEmail: actor.userEmail };
+};
 
 workspaceMembersRoutes.get('/workspaces/:workspaceId/members', (c) => {
   const workspaceId = c.req.param('workspaceId');

@@ -35,7 +35,7 @@ export function useSuperAdminQueries({
   const usersQueryAll = useQuery({
     queryKey: ['admin-users'],
     queryFn: () => apiClient.getAdminUsers(),
-    enabled: Boolean(hasAdminAccess && activeTab === 'ads')
+    enabled: Boolean(hasAdminAccess && (activeTab === 'ads' || activeTab === 'companies'))
   });
 
   const companiesQueryAll = useQuery({
@@ -108,7 +108,7 @@ export function useSuperAdminQueries({
   const refetchAll = async () => {
     const tasks: Array<Promise<unknown>> = [metricsQuery.refetch(), openAlertsCountQuery.refetch()];
     if (activeTab === 'users') tasks.push(usersPageQuery.refetch());
-    if (activeTab === 'companies') tasks.push(companiesPageQuery.refetch());
+    if (activeTab === 'companies') tasks.push(companiesPageQuery.refetch(), usersQueryAll.refetch());
     if (activeTab === 'ads') {
       tasks.push(usersQueryAll.refetch(), companiesQueryAll.refetch());
     }

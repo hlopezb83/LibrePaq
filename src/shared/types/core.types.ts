@@ -101,6 +101,8 @@ export interface CfdiRelatedDoc {
   impSaldoInsoluto: number;
   monedaDr?: string;
   equivalenciaDr?: number;
+  pagoMoneda?: string;
+  pagoTipoCambio?: number;
 }
 
 export interface CfdiDocument {

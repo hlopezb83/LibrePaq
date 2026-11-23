@@ -173,8 +173,6 @@ async function handlePublishBroadcast(
   }
 
   const nowIso = new Date().toISOString();
-  await supabase.from('platform_broadcasts').update({ active: false, updated_at: nowIso }).eq('active', true);
-
   const { data: inserted, error: insErr } = await supabase
     .from('platform_broadcasts')
     .insert({
@@ -194,6 +192,16 @@ async function handlePublishBroadcast(
 
   if (insErr || !inserted) {
     return jsonResponse({ ok: false, error: insErr?.message || 'No se pudo publicar el comunicado' }, 500, headers);
+  }
+
+  const { error: deactErr } = await supabase
+    .from('platform_broadcasts')
+    .update({ active: false, updated_at: nowIso })
+    .eq('active', true)
+    .neq('id', inserted.id);
+
+  if (deactErr) {
+    console.warn('[admin-ops] Error desactivando broadcasts previos:', deactErr.message);
   }
 
   await writeAudit(supabase, ctx, {

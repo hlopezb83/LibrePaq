@@ -27,8 +27,9 @@ function corsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
-const STATUS_BY_CODE: Record<CsfFailureCode | 'UNAUTHORIZED', number> = {
+const STATUS_BY_CODE: Record<CsfFailureCode | 'UNAUTHORIZED' | 'FORBIDDEN', number> = {
   UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
   INVALID_INPUT: 400,
   FILE_TOO_LARGE: 413,
   NOT_A_CSF: 422,
@@ -38,14 +39,17 @@ const STATUS_BY_CODE: Record<CsfFailureCode | 'UNAUTHORIZED', number> = {
 
 Deno.serve(async (req: Request) => {
   const headers = { ...corsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' };
-  const fail = (code: CsfFailureCode | 'UNAUTHORIZED') =>
-    new Response(JSON.stringify({ ok: false, code }), { status: STATUS_BY_CODE[code], headers });
+  const fail = (code: CsfFailureCode | 'UNAUTHORIZED' | 'FORBIDDEN', error?: string) =>
+    new Response(JSON.stringify({ ok: false, code, ...(error ? { error } : {}) }), {
+      status: STATUS_BY_CODE[code],
+      headers
+    });
 
   if (req.method === 'OPTIONS') return new Response('ok', { headers });
   if (req.method !== 'POST') return fail('INVALID_INPUT');
 
   // 1. Autorización: token JWT de sesión válido del usuario autenticado.
-  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return fail('UNAUTHORIZED');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -54,6 +58,21 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, anonKey);
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
   if (userError || !userData?.user) return fail('UNAUTHORIZED');
+
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const profileClient = serviceRoleKey
+    ? createClient(supabaseUrl, serviceRoleKey)
+    : createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+  const { data: profile } = await profileClient
+    .from('user_profiles')
+    .select('status')
+    .eq('id', userData.user.id)
+    .maybeSingle();
+  if (String(profile?.status || '').trim().toUpperCase() === 'SUSPENDIDO') {
+    return fail('FORBIDDEN', 'Acceso denegado: cuenta suspendida');
+  }
 
   // 2. Validación de entrada.
   let body: { data?: unknown; mimeType?: unknown };

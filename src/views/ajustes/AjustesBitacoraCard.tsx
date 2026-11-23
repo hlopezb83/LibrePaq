@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { History, RefreshCw } from 'lucide-react';
+import { AlertCircle, History, RefreshCw } from 'lucide-react';
 import { MEXICO_TIMEZONE } from '../../shared/date-utils';
 import type { Company } from '../../shared/types';
 import type { CompanyAuditLogRecord } from '../../shared/types/despacho-rbac.types';
@@ -10,10 +10,19 @@ const AUDIT_DATE_FMT = new Intl.DateTimeFormat('es-MX', {
   timeStyle: 'short'
 });
 
+function formatAuditDate(raw: string | Date | null | undefined): string {
+  if (!raw) return '—';
+  const date = raw instanceof Date ? raw : new Date(raw);
+  if (Number.isNaN(date.getTime())) return '—';
+  return AUDIT_DATE_FMT.format(date);
+}
+
 export interface AjustesBitacoraCardProps {
   activeCompany: Company | null;
   auditLogs: CompanyAuditLogRecord[];
   isLoading: boolean;
+  isError?: boolean;
+  error?: unknown;
   onRefresh: () => void;
 }
 
@@ -21,6 +30,8 @@ export function AjustesBitacoraCard({
   activeCompany,
   auditLogs,
   isLoading,
+  isError = false,
+  error,
   onRefresh
 }: AjustesBitacoraCardProps) {
   const [auditSearch, setAuditSearch] = useState('');
@@ -66,6 +77,21 @@ export function AjustesBitacoraCard({
 
       {!activeCompany ? (
         <p className="text-xs text-slate-500">Selecciona una empresa activa para consultar su bitácora.</p>
+      ) : isError ? (
+        <div role="alert" className="p-4 rounded-xl border border-red-200 bg-red-50/70 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-red-900">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
+            <span>{error instanceof Error ? error.message : 'Error al cargar la bitácora contable.'}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Reintentar
+          </button>
+        </div>
       ) : isLoading ? (
         <p className="text-xs text-slate-500">Cargando bitácora...</p>
       ) : filteredLogs.length === 0 ? (
@@ -85,7 +111,7 @@ export function AjustesBitacoraCard({
               {filteredLogs.map((log) => (
                 <tr key={log.id}>
                   <td className="py-2 pr-3 whitespace-nowrap text-slate-600">
-                    {AUDIT_DATE_FMT.format(new Date(log.createdAt))}
+                    {formatAuditDate(log.createdAt)}
                   </td>
                   <td className="py-2 pr-3 font-medium text-slate-800">{log.actorEmail}</td>
                   <td className="py-2 pr-3 font-mono text-[11px] text-blue-800">{log.action}</td>

@@ -11,6 +11,7 @@ import {
 
 export interface PolizasHeaderActionsProps {
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   isCloseYearPending: boolean;
   hasPolizasToExport?: boolean;
   onNewPoliza: () => void;
@@ -21,6 +22,7 @@ export interface PolizasHeaderActionsProps {
 
 export function PolizasHeaderActions({
   isPeriodLocked,
+  isReadOnlyClient = false,
   isCloseYearPending,
   hasPolizasToExport = true,
   onNewPoliza,
@@ -31,6 +33,7 @@ export function PolizasHeaderActions({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [confirmCloseYear, setConfirmCloseYear] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -90,26 +93,28 @@ export function PolizasHeaderActions({
       {/* Botón Primario: Capturar Nueva Póliza (en móvil va primero y expandido) */}
       <button
         type="button"
-        disabled={isPeriodLocked}
+        disabled={isWriteBlocked}
         onClick={onNewPoliza}
         title={
-          isPeriodLocked
+          isReadOnlyClient
+            ? 'Modo solo lectura'
+            : isPeriodLocked
             ? 'Periodo fiscal bloqueado ante el SAT'
             : 'Capturar nueva póliza contable (Atajo: Alt+N o Insert)'
         }
         className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white shadow-xs transition order-1 sm:order-3 ${
-          isPeriodLocked
+          isWriteBlocked
             ? 'bg-slate-400 cursor-not-allowed opacity-60'
             : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
         }`}
       >
-        {isPeriodLocked ? (
+        {isWriteBlocked ? (
           <Lock className="w-3.5 h-3.5" aria-hidden="true" />
         ) : (
           <Plus className="w-3.5 h-3.5 text-blue-100" aria-hidden="true" />
         )}
         <span>Capturar Nueva Póliza</span>
-        {!isPeriodLocked && (
+        {!isWriteBlocked && (
           <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 text-blue-100 px-1 py-0.5 rounded border border-blue-400/50">
             Alt+N
           </kbd>
@@ -186,12 +191,19 @@ export function PolizasHeaderActions({
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={isPeriodLocked}
+                  disabled={isWriteBlocked}
                   onClick={() => {
+                    if (isWriteBlocked) return;
                     setIsMenuOpen(false);
                     onOpenPedimentoModal();
                   }}
-                  title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Registrar Pedimento Aduanal'}
+                  title={
+                    isReadOnlyClient
+                      ? 'Modo solo lectura'
+                      : isPeriodLocked
+                      ? 'Periodo bloqueado ante el SAT'
+                      : 'Registrar Pedimento Aduanal'
+                  }
                   className="w-full text-left px-3.5 py-2 flex items-start gap-2.5 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Anchor className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
@@ -207,8 +219,9 @@ export function PolizasHeaderActions({
               <button
                 type="button"
                 role="menuitem"
-                disabled={isCloseYearPending || isPeriodLocked}
+                disabled={isCloseYearPending || isWriteBlocked}
                 onClick={() => {
+                  if (isWriteBlocked) return;
                   if (!confirmCloseYear) {
                     setConfirmCloseYear(true);
                     return;
@@ -217,7 +230,13 @@ export function PolizasHeaderActions({
                   setConfirmCloseYear(false);
                   onCloseYear();
                 }}
-                title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Generar póliza de cierre mes 13'}
+                title={
+                  isReadOnlyClient
+                    ? 'Modo solo lectura'
+                    : isPeriodLocked
+                    ? 'Periodo bloqueado ante el SAT'
+                    : 'Generar póliza de cierre mes 13'
+                }
                 className={`w-full text-left px-3.5 py-2 flex items-start gap-2.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   confirmCloseYear ? 'bg-amber-50 hover:bg-amber-100' : 'text-slate-700 hover:bg-slate-50'
                 }`}

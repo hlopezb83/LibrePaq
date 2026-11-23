@@ -40,6 +40,7 @@ export function computeDiotReportData({
       c.direction === 'RECIBIDO' &&
       c.statusSat !== 'CANCELADO' &&
       c.tipoComprobante !== 'T' &&
+      c.tipoComprobante !== 'N' &&
       c.polizaId &&
       polizaIdsInPeriod.has(c.polizaId) &&
       (c.metodoPago === 'PUE' || c.tipoComprobante === 'P' || c.tipoComprobante === 'E')
@@ -192,7 +193,9 @@ export function computeDiotReportData({
     return { ...publicRow, batchLine: cols.join('|') };
   });
 
-  const actosPagados16 = fromCents(sumCents(rows.map((r) => r.actosPagados16)));
+  const actosPagados16 = fromCents(
+    sumCents(rows.map((r) => r.actosPagados16)) + sumCents(rows.map((r) => r.actosPagados8 || 0))
+  );
   const ivaAcreditable16 = fromCents(sumCents(rows.map((r) => r.ivaAcreditable16)));
   const ivaRetenido = fromCents(sumCents(rows.map((r) => r.ivaRetenido)));
   const isrRetenido = fromCents(sumCents(rows.map((r) => r.isrRetenido)));

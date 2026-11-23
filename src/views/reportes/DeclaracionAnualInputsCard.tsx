@@ -5,6 +5,7 @@ import type { AnnualTaxInputs, SaveAnnualTaxInputsPayload } from '../../shared/t
 interface DeclaracionAnualInputsCardProps {
   inputs: AnnualTaxInputs;
   isSaving: boolean;
+  isReadOnly?: boolean;
   onSave: (payload: SaveAnnualTaxInputsPayload) => void;
 }
 
@@ -30,6 +31,7 @@ const FIELDS: ReadonlyArray<InputFieldConfig> = [
 export function DeclaracionAnualInputsCard({
   inputs,
   isSaving,
+  isReadOnly = false,
   onSave
 }: DeclaracionAnualInputsCardProps) {
   const [form, setForm] = useState<Omit<AnnualTaxInputs, 'companyId' | 'ejercicio' | 'updatedAt'>>({
@@ -60,6 +62,7 @@ export function DeclaracionAnualInputsCard({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     onSave({
       companyId: inputs.companyId,
       ejercicio: inputs.ejercicio,
@@ -83,8 +86,9 @@ export function DeclaracionAnualInputsCard({
         </div>
         <button
           type="submit"
-          disabled={isSaving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+          disabled={isSaving || isReadOnly}
+          title={isReadOnly ? 'Modo solo lectura' : undefined}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition cursor-pointer"
         >
           <Save className="w-3.5 h-3.5" aria-hidden="true" />
           <span>{isSaving ? 'Guardando...' : 'Guardar y Recalcular'}</span>
@@ -107,6 +111,7 @@ export function DeclaracionAnualInputsCard({
                 type="number"
                 min="0"
                 step={field.step}
+                disabled={isReadOnly}
                 value={form[field.key]}
                 onChange={(e) => {
                   const parsed = Number(e.target.value);
@@ -115,7 +120,7 @@ export function DeclaracionAnualInputsCard({
                     [field.key]: Number.isFinite(parsed) ? parsed : 0
                   }));
                 }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:outline-none text-xs font-mono text-slate-900"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50/50 focus:bg-white focus:border-blue-500 focus:outline-none text-xs font-mono text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
           );

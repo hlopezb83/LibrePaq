@@ -3,8 +3,8 @@ import { getCurrentFiscalPeriod } from '../../shared/date-utils';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { Account, Poliza, PolizaType } from '../../shared/types';
 import { getRequiredSupabase, supabase } from '../supabase';
+import { chunkArray, fetchAllRows } from './supabase-pagination';
 import { mapSupabaseAccount } from './supabase-mappers';
-import { fetchAllRows } from './supabase-pagination';
 
 export interface PolizaMovementInput {
   accountId: string;
@@ -175,4 +175,60 @@ export function buildPolizaMovementInsertRows(
       cfdi_uuid: cfdiUuid || null
     };
   });
+}
+
+/** Limpia conciliaciones bancarias 1-a-1 y N-a-1 (`bank_statement_matches`) ligadas a una póliza. */
+export async function clearSupabaseBankMatchesForPoliza(
+  polizaId: string,
+  movIds: readonly string[]
+): Promise<void> {
+  if (!supabase) return;
+
+  const affectedLineIds = new Set<string>();
+  const { data: byPoliza, error: byPolErr } = await supabase
+    .from('bank_statement_matches')
+    .select('bank_line_id')
+    .eq('poliza_id', polizaId);
+  if (byPolErr) throw new Error(byPolErr.message);
+  for (const row of (byPoliza || []) as Array<{ bank_line_id?: string }>) {
+    if (row.bank_line_id) affectedLineIds.add(String(row.bank_line_id));
+  }
+
+  for (const idChunk of chunkArray(movIds, 100)) {
+    const { data: byMov, error: byMovErr } = await supabase
+      .from('bank_statement_matches')
+      .select('bank_line_id')
+      .in('movement_id', idChunk);
+    if (byMovErr) throw new Error(byMovErr.message);
+    for (const row of (byMov || []) as Array<{ bank_line_id?: string }>) {
+      if (row.bank_line_id) affectedLineIds.add(String(row.bank_line_id));
+    }
+
+    const { error: unmatchMovErr } = await supabase
+      .from('bank_statement_lines')
+      .update({ matched_movement_id: null })
+      .in('matched_movement_id', idChunk);
+    if (unmatchMovErr) throw new Error(unmatchMovErr.message);
+  }
+
+  const lineIdList = Array.from(affectedLineIds);
+  for (const lineChunk of chunkArray(lineIdList, 100)) {
+    const { error: unmatchLineErr } = await supabase
+      .from('bank_statement_lines')
+      .update({ matched_movement_id: null })
+      .in('id', lineChunk);
+    if (unmatchLineErr) throw new Error(unmatchLineErr.message);
+
+    const { error: delLineMatchErr } = await supabase
+      .from('bank_statement_matches')
+      .delete()
+      .in('bank_line_id', lineChunk);
+    if (delLineMatchErr) throw new Error(delLineMatchErr.message);
+  }
+
+  const { error: delPolMatchErr } = await supabase
+    .from('bank_statement_matches')
+    .delete()
+    .eq('poliza_id', polizaId);
+  if (delPolMatchErr) throw new Error(delPolMatchErr.message);
 }

@@ -7,21 +7,20 @@ import { getCfdiDocuments } from './cfdi.repo';
 import { getPolizas } from './polizas.repo';
 import { syncThirdPartiesFromCfdis } from './third-parties.repo';
 import { getTaxParameters, saveTaxParameters } from './fiscal.repo';
+import {
+  clearOptionalSqliteBackupTables,
+  exportOptionalSqliteBackupTables,
+  restoreOptionalSqliteBackupTables
+} from './backup-restore-optional.repo';
 
-export function restoreCompanyBackupBundle(
-  bundle: CompanyBackupBundle,
-  actorUserId?: string | null
-): Company {
-  assertAccountingInvariant(
-    Boolean(bundle && bundle.company && bundle.company.rfc),
-    'INVALID_BACKUP_BUNDLE',
-    'El archivo de respaldo JSON no tiene una estructura válida de LibrePaq.'
-  );
+export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUserId?: string | null): Company {
+  assertAccountingInvariant(Boolean(bundle && bundle.company && bundle.company.rfc), 'INVALID_BACKUP_BUNDLE', 'El archivo de respaldo JSON no tiene una estructura válida de LibrePaq.');
 
   const comp = bundle.company;
   let resolvedOwner: string | null = null;
   const tx = db.transaction(() => {
     const existingCompany = db.query('SELECT user_id FROM companies WHERE id = ?').get(comp.id) as { user_id?: string } | null;
+    assertAccountingInvariant(!existingCompany || getCompanyById(comp.id, actorUserId) !== null, 'FORBIDDEN_RESTORE', 'No tienes autorización para restaurar esta empresa.');
     const resolvedUserId = actorUserId || existingCompany?.user_id || comp.userId || 'demo';
     resolvedOwner = resolvedUserId;
 
@@ -50,6 +49,7 @@ export function restoreCompanyBackupBundle(
     );
 
     // R6-CRIT-02: Limpieza atómica de registros hijos previos para evitar datos zombie combinados
+    clearOptionalSqliteBackupTables(comp.id);
     db.prepare('DELETE FROM polizas WHERE company_id = ?').run(comp.id);
     db.prepare('DELETE FROM cfdi_documents WHERE company_id = ?').run(comp.id);
     db.prepare('DELETE FROM bank_statement_lines WHERE company_id = ?').run(comp.id);
@@ -163,27 +163,16 @@ export function restoreCompanyBackupBundle(
         INSERT OR REPLACE INTO fixed_assets (
           id, company_id, codigo, nombre, categoria, fecha_adquisicion, cfdi_uuid,
           monto_original_inversion, tasa_anual_pct, meses_depreciados_previos,
-          inpc_adquisicion, inpc_medio_periodo, cuenta_activo_code, cuenta_dep_acum_code, cuenta_gasto_dep_code, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          inpc_adquisicion, inpc_medio_periodo, cuenta_activo_code, cuenta_dep_acum_code, cuenta_gasto_dep_code, estatus, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const fa of bundle.fixedAssets) {
         insertFa.run(
-          fa.id,
-          comp.id,
-          fa.codigo,
-          fa.nombre,
-          fa.categoria,
-          fa.fechaAdquisicion,
-          fa.cfdiUuid || null,
-          fa.montoOriginalInversion,
-          fa.tasaAnualPct,
-          fa.mesesDepreciadosPrevios || 0,
-          fa.inpcAdquisicion || 1,
-          fa.inpcMedioPeriodo || 1,
-          fa.cuentaActivoCode || '',
-          fa.cuentaDepAcumCode || '',
-          fa.cuentaGastoDepCode || '',
-          fa.createdAt || new Date().toISOString()
+          fa.id, comp.id, fa.codigo, fa.nombre, fa.categoria, fa.fechaAdquisicion,
+          fa.cfdiUuid || null, fa.montoOriginalInversion, fa.tasaAnualPct,
+          fa.mesesDepreciadosPrevios || 0, fa.inpcAdquisicion || 1, fa.inpcMedioPeriodo || 1,
+          fa.cuentaActivoCode || '', fa.cuentaDepAcumCode || '', fa.cuentaGastoDepCode || '',
+          fa.estatus || 'ACTIVO', fa.createdAt || new Date().toISOString()
         );
       }
     }
@@ -239,20 +228,14 @@ export function restoreCompanyBackupBundle(
       `);
       for (const b of bundle.bankStatementLines) {
         insertBsl.run(
-          b.id,
-          comp.id,
-          b.accountId,
-          b.fecha,
-          b.ejercicio || comp.currentYear,
-          b.periodo || comp.currentPeriod,
-          b.referencia || '',
-          b.descripcion || '',
-          b.cargoBanco || 0,
-          b.abonoBanco || 0,
-          b.matchedMovementId || null
+          b.id, comp.id, b.accountId, b.fecha, b.ejercicio || comp.currentYear,
+          b.periodo || comp.currentPeriod, b.referencia || '', b.descripcion || '',
+          b.cargoBanco || 0, b.abonoBanco || 0, b.matchedMovementId || null
         );
       }
     }
+
+    restoreOptionalSqliteBackupTables(comp.id, bundle);
   });
 
   tx();
@@ -283,7 +266,7 @@ export function exportCompanyBackupBundle(
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
   const accounts = getAccounts(company.id);
-  const cfdis = getCfdiDocuments(company.id);
+  const cfdis = getCfdiDocuments(company.id, { includeXml: true });
   const polizas = getPolizas(company.id);
   const thirdParties = syncThirdPartiesFromCfdis(company.id);
   const fixedAssets = (
@@ -333,6 +316,8 @@ export function exportCompanyBackupBundle(
     matchedPolizaFolio: null
   }));
 
+  const optionalTables = exportOptionalSqliteBackupTables(company.id);
+
   return {
     version: '2.0',
     exportedAt: new Date().toISOString(),
@@ -344,6 +329,7 @@ export function exportCompanyBackupBundle(
     fixedAssets,
     periodLocks,
     taxParameters,
-    bankStatementLines
+    bankStatementLines,
+    ...optionalTables
   };
 }

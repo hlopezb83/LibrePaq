@@ -2,7 +2,12 @@ import type { Context } from 'hono';
 import { z } from 'zod';
 import type { PlatformRole } from '../../shared/admin-types';
 
-export type AdminEnv = { Variables: { callerRole: PlatformRole } };
+export type AdminEnv = {
+  Variables: {
+    callerRole: PlatformRole;
+    verifiedActor?: { userId: string | null; userEmail: string | null };
+  };
+};
 
 const isoDateSchema = z.string().refine((val) => !Number.isNaN(Date.parse(val)), 'Fecha ISO inválida');
 
@@ -86,6 +91,17 @@ export function parseQuery<T>(c: Context, schema: z.ZodType<T>): { data: T } | {
  * Extrae el correo y userId del operador desde los headers de la petición administrativa.
  */
 export function getActorContext(c: Context<AdminEnv>): { actorEmail: string; actorUserId: string | null } {
+  const verified = c.get('verifiedActor');
+  if (verified) {
+    const fallbackActor =
+      c.get('callerRole') === 'SUPERADMIN'
+        ? 'hlopezb@gmail.com'
+        : verified.userId || 'platform-operator';
+    return {
+      actorEmail: verified.userEmail || fallbackActor,
+      actorUserId: verified.userId
+    };
+  }
   const email = (c.req.header('X-User-Email') || c.req.header('x-user-email') || '').trim().toLowerCase();
   const userId = (c.req.header('X-User-Id') || c.req.header('x-user-id') || '').trim();
   const fallbackActor = c.get('callerRole') === 'SUPERADMIN' ? 'hlopezb@gmail.com' : (userId || 'platform-operator');

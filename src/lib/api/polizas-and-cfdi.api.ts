@@ -110,6 +110,7 @@ export const polizasAndCfdiApi = {
     options?: {
       operationAccountCode?: string;
       counterAccountCode?: string;
+      deductiblePct?: number;
     }
   ) =>
     fetchWithTimeout(`/api/cfdis/${encodeURIComponent(cfdiId)}/auto-poliza`, {
@@ -123,6 +124,7 @@ export const polizasAndCfdiApi = {
     options?: {
       operationAccountCode?: string;
       counterAccountCode?: string;
+      deductiblePct?: number;
     },
     _onProgress?: (current: number, total: number) => void
   ) =>

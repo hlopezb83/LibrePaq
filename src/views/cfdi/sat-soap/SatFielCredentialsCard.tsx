@@ -35,6 +35,7 @@ interface SatFielCredentialsCardProps {
     passphrase: string;
   } | null;
   isDemoCompany?: boolean;
+  isReadOnlyClient?: boolean;
   onCancelChangeFiel?: () => void;
 }
 
@@ -56,6 +57,7 @@ export function SatFielCredentialsCard({
   saveFielMutation,
   generatedTestFiles,
   isDemoCompany,
+  isReadOnlyClient = false,
   onCancelChangeFiel
 }: SatFielCredentialsCardProps) {
   const [showPassword, setShowPassword] = useState(false);
@@ -110,9 +112,9 @@ export function SatFielCredentialsCard({
           {isDemoCompany && (
             <button
               type="button"
-              disabled={generateTestFielMutation.isPending}
+              disabled={generateTestFielMutation.isPending || isReadOnlyClient}
               onClick={() => generateTestFielMutation.mutate()}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
               {generateTestFielMutation.isPending
@@ -216,9 +218,9 @@ export function SatFielCredentialsCard({
 
         <button
           type="button"
-          disabled={saveFielMutation.isPending || !cerBase64 || !keyBase64 || !passphrase}
+          disabled={saveFielMutation.isPending || !cerBase64 || !keyBase64 || !passphrase || isReadOnlyClient}
           onClick={() => saveFielMutation.mutate()}
-          className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 cursor-pointer shadow-xs transition shrink-0"
+          className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs transition shrink-0"
         >
           <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
           {saveFielMutation.isPending ? 'Validando e.firma...' : 'Validar y Guardar e.firma'}

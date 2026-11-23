@@ -9,15 +9,27 @@ interface UseActivosFijosParams {
   companyId: string;
   year: number;
   accounts: AccountWithBalance[];
+  isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
+}
+
+function sanitizeFinitePositive(val: number, fallback = 0): number {
+  return Number.isFinite(val) && val >= 0 ? val : fallback;
 }
 
 export function useActivosFijos({
   companyId,
   year,
   accounts,
+  isPeriodLocked = false,
+  isReadOnlyClient = false,
   onFeedback
 }: UseActivosFijosParams) {
+  const isWriteLocked = isPeriodLocked || isReadOnlyClient;
+  const lockMsg = isReadOnlyClient
+    ? 'Modo solo lectura: no es posible modificar activos fijos.'
+    : 'Periodo bloqueado ante el SAT. No es posible modificar activos fijos.';
   const queryClient = useQueryClient();
   const affectableAccounts = accounts.filter((a) => a.isAffectable);
 
@@ -58,6 +70,14 @@ export function useActivosFijos({
 
   const createAssetMutation = useMutation({
     mutationFn: () => {
+      if (isWriteLocked) throw new Error(lockMsg);
+      const cleanMoi = sanitizeFinitePositive(assetMoi, 0);
+      const cleanRate = sanitizeFinitePositive(assetRate, 0);
+      const cleanInpcAdq = sanitizeFinitePositive(assetInpcAdq, 0);
+      const cleanInpcUso = sanitizeFinitePositive(assetInpcUso, 0);
+      if (cleanMoi <= 0) {
+        throw new Error('El MOI debe ser un importe numérico mayor a cero.');
+      }
       const assetAcc =
         affectableAccounts.find((a) => a.code === '154-01-001')?.code ??
         affectableAccounts[0]?.code ??
@@ -81,17 +101,17 @@ export function useActivosFijos({
         nombre: assetName,
         categoria: assetCat,
         fechaAdquisicion: assetDate,
-        montoOriginalInversion: assetMoi,
-        tasaAnualPct: assetRate,
-        inpcAdquisicion: assetInpcAdq,
-        inpcMedioPeriodo: assetInpcUso,
+        montoOriginalInversion: cleanMoi,
+        tasaAnualPct: cleanRate,
+        inpcAdquisicion: cleanInpcAdq,
+        inpcMedioPeriodo: cleanInpcUso,
         cuentaActivoCode: assetAcc,
         cuentaDepAcumCode: depAcumCode,
         cuentaGastoDepCode: gastoDepCode
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+    onSuccess: (_res, _vars, _ctx) => {
+      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
       setAssetName('');
       onFeedback('Activo fijo registrado con INPC oficial y factor Art. 31 LISR.');
     },
@@ -101,9 +121,12 @@ export function useActivosFijos({
   });
 
   const deleteAssetMutation = useMutation({
-    mutationFn: (id: string) => apiClient.deleteFixedAsset(id),
+    mutationFn: (id: string) => {
+      if (isWriteLocked) throw new Error(lockMsg);
+      return apiClient.deleteFixedAsset(id);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
       onFeedback('Activo fijo eliminado del catálogo.');
     },
     onError: (err: Error) => {
@@ -112,10 +135,17 @@ export function useActivosFijos({
   });
 
   const genDepPolizaMutation = useMutation({
-    mutationFn: () => apiClient.generateDepreciationPoliza(companyId),
+    mutationFn: () => {
+      if (isWriteLocked) throw new Error(lockMsg);
+      return apiClient.generateDepreciationPoliza(companyId);
+    },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['fixed-assets', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard']);
-      queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+      invalidateAccountingQueries(
+        queryClient,
+        ['fixed-assets', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        companyId
+      );
+      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
       onFeedback(
         '¡Póliza mensual de Depreciación Contable generada y aplicada en libros (Cargo 601-01-006 / Abono 171-01-001)!'
       );

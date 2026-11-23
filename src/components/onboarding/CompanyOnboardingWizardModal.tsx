@@ -16,11 +16,13 @@ import { useCompanyOnboardingWizard } from './useCompanyOnboardingWizard';
 
 interface CompanyOnboardingWizardModalProps {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
+  onClose?: () => void;
   onCompanyCreated: (companyId: string, company?: Company) => void;
 }
 
 export function CompanyOnboardingWizardModal({
   dialogRef,
+  onClose,
   onCompanyCreated
 }: CompanyOnboardingWizardModalProps) {
   const {
@@ -83,6 +85,7 @@ export function CompanyOnboardingWizardModal({
     <dialog
       ref={dialogRef}
       closedby="closerequest"
+      onClose={onClose}
       aria-labelledby="onboarding-wizard-title"
       onCancel={(e) => {
         if (step > 1) {

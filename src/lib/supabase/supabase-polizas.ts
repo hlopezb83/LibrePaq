@@ -2,10 +2,11 @@ import { getRequiredSupabase, supabase } from '../supabase';
 import type { Poliza, PolizaType } from '../../shared/types';
 import { resolvePolizaYearPeriod } from '../../shared/date-utils';
 import { validateDoubleEntryMovements } from '../../shared/accounting-engine';
-import { chunkArray, fetchAllRows } from './supabase-pagination';
+import { fetchAllRows } from './supabase-pagination';
 import {
   assertSupabasePeriodOpen,
   buildPolizaMovementInsertRows,
+  clearSupabaseBankMatchesForPoliza,
   mapSupabasePoliza,
   resolveAccountsMap,
   resolveNextSupabasePolizaFolio,
@@ -213,13 +214,7 @@ export const supabasePolizas = {
     if (polErr) throw new Error(polErr.message);
 
     const oldMovIds = ((oldMovs || []) as Array<{ id: string }>).map((m) => m.id);
-    for (const idChunk of chunkArray(oldMovIds, 100)) {
-      const { error: unmatchErr } = await supabase
-        .from('bank_statement_lines')
-        .update({ matched_movement_id: null })
-        .in('matched_movement_id', idChunk);
-      if (unmatchErr) throw new Error(unmatchErr.message);
-    }
+    await clearSupabaseBankMatchesForPoliza(polizaId, oldMovIds);
 
     const { error: delErr } = await supabase.from('poliza_movements').delete().eq('poliza_id', polizaId);
     if (delErr) throw new Error(delErr.message);
@@ -289,12 +284,7 @@ export const supabasePolizas = {
       .select('id')
       .eq('poliza_id', polizaId);
     const movIds = ((movs || []) as Array<{ id: string }>).map((m) => m.id);
-    if (movIds.length > 0) {
-      await supabase
-        .from('bank_statement_lines')
-        .update({ matched_movement_id: null })
-        .in('matched_movement_id', movIds);
-    }
+    await clearSupabaseBankMatchesForPoliza(polizaId, movIds);
 
     const { error } = await supabase.from('polizas').delete().eq('id', polizaId);
     if (error) throw new Error(error.message);

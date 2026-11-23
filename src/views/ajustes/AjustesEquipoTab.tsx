@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Building2, ShieldCheck, UserPlus, Users } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { AlertCircle, Ban, Building2, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react';
+import { checkIsSuperAdmin, useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
+import { useSupportSession } from '../../lib/support-impersonation';
 import { workspaceRbacClient } from '../../lib/workspace-rbac-client';
 import type { Company } from '../../shared/types';
 import {
@@ -26,11 +27,25 @@ const STATUS_BADGE: Record<WorkspaceMemberRecord['status'], string> = {
 };
 
 export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEquipoTabProps) {
-  const { user } = useAuth();
+  const { user, hasAdminAccess } = useAuth();
+  const supportSession = useSupportSession();
+  const isSupportImpersonation = Boolean(
+    supportSession && (hasAdminAccess || checkIsSuperAdmin(user))
+  );
   const { workspace, isReadOnlySupportMode, effectiveCompanyRole } = useCompany();
   const queryClient = useQueryClient();
-  const workspaceId = workspace?.id || (user ? `ws_${user.id.slice(0, 8)}` : 'ws_demo');
-  const canManageTeam = !isReadOnlySupportMode && (effectiveCompanyRole === 'OWNER' || effectiveCompanyRole === 'SOCIO');
+  const ownWorkspaceId = workspace?.id || (user ? `ws_${user.id.slice(0, 8)}` : 'ws_demo');
+  const isOwnWorkspace =
+    !activeCompany?.userId ||
+    activeCompany.userId === 'demo' ||
+    activeCompany.userId === user?.id;
+  const workspaceId = isOwnWorkspace
+    ? ownWorkspaceId
+    : `ws_${activeCompany.userId!.slice(0, 8)}`;
+  const canManageTeam =
+    !isReadOnlySupportMode &&
+    !isSupportImpersonation &&
+    (effectiveCompanyRole === 'OWNER' || effectiveCompanyRole === 'SOCIO');
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<DespachoRole>('CONTADOR');
@@ -38,13 +53,25 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editingCompanyIds, setEditingCompanyIds] = useState<string[]>([]);
 
-  const { data: members = [], isLoading: membersLoading } = useQuery({
+  const {
+    data: members = [],
+    isLoading: membersLoading,
+    isError: membersIsError,
+    error: membersError,
+    refetch: refetchMembers
+  } = useQuery({
     queryKey: ['workspace-members', workspaceId],
     queryFn: () => workspaceRbacClient.listWorkspaceMembers(workspaceId),
     enabled: Boolean(workspaceId)
   });
 
-  const { data: auditLogs = [], isLoading: auditLoading, refetch: refetchAudit } = useQuery({
+  const {
+    data: auditLogs = [],
+    isLoading: auditLoading,
+    isError: auditIsError,
+    error: auditError,
+    refetch: refetchAudit
+  } = useQuery({
     queryKey: ['company-audit-logs', activeCompany?.id],
     queryFn: () => workspaceRbacClient.listCompanyAuditLogs(activeCompany!.id, 60),
     enabled: Boolean(activeCompany?.id)
@@ -115,6 +142,11 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
           </span>
         </div>
 
+        {isSupportImpersonation ? (
+          <div role="status" className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+            Modo soporte de solo lectura: la invitación de colaboradores y cambios RBAC están deshabilitados.
+          </div>
+        ) : (
         <form onSubmit={handleInviteSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-200">
           <div className="md:col-span-5">
             <label htmlFor="rbac-invite-email" className="block text-xs font-semibold text-slate-700 mb-1">Correo del colaborador o cliente</label>
@@ -166,6 +198,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
             </div>
           )}
         </form>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-300/90 p-4 sm:p-5 shadow-2xs space-y-3">
@@ -173,7 +206,22 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
           <Users className="w-4 h-4 text-slate-700" aria-hidden="true" />
           <h3 className="text-sm font-bold text-slate-900">Miembros del Despacho ({members.length})</h3>
         </div>
-        {membersLoading ? (
+        {membersIsError ? (
+          <div role="alert" className="p-4 rounded-xl border border-red-200 bg-red-50/70 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-red-900">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
+              <span>{membersError instanceof Error ? membersError.message : 'Error al cargar los miembros del despacho.'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refetchMembers()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Reintentar
+            </button>
+          </div>
+        ) : membersLoading ? (
           <p className="text-xs text-slate-500">Cargando miembros...</p>
         ) : members.length === 0 ? (
           <p className="text-xs text-slate-500 py-3">Aún no hay colaboradores invitados en este despacho.</p>
@@ -222,7 +270,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
                               ))}
                             </div>
                             <div className="flex gap-2">
-                              <button type="button" onClick={() => accessMutation.mutate({ memberId: m.id, companyIds: editingCompanyIds })} className="px-2 py-0.5 rounded bg-blue-600 text-white text-[11px] font-bold cursor-pointer">Guardar</button>
+                              <button type="button" disabled={!canManageTeam || accessMutation.isPending} onClick={() => accessMutation.mutate({ memberId: m.id, companyIds: editingCompanyIds })} className="px-2 py-0.5 rounded bg-blue-600 text-white text-[11px] font-bold disabled:opacity-50 cursor-pointer">Guardar</button>
                               <button type="button" onClick={() => setEditingMemberId(null)} className="px-2 py-0.5 rounded border border-slate-300 text-[11px] cursor-pointer">Cancelar</button>
                             </div>
                           </div>
@@ -258,7 +306,14 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
         )}
       </div>
 
-      <AjustesBitacoraCard activeCompany={activeCompany} auditLogs={auditLogs} isLoading={auditLoading} onRefresh={() => void refetchAudit()} />
+      <AjustesBitacoraCard
+        activeCompany={activeCompany}
+        auditLogs={auditLogs}
+        isLoading={auditLoading}
+        isError={auditIsError}
+        error={auditError}
+        onRefresh={() => void refetchAudit()}
+      />
     </section>
   );
 }

@@ -3,18 +3,18 @@ import {
   computeMonthlyTrendFast,
   computeTrialBalance,
   getCfdiDocuments,
-  getCompanyById,
   getPolizas
 } from '../db';
 import { buildDashboardKpisFromTrialBalance } from '../../shared/engine/dashboard.engine';
 import { resolveYearAndPeriod } from '../validators';
+import { getAuthorizedCompanyForRoute } from './route-helpers';
 import type { DashboardSummary } from '../../shared/types';
 
 export const dashboardRoutes = new Hono();
 
 dashboardRoutes.get('/dashboard', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(

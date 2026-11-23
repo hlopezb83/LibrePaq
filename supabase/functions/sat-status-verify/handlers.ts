@@ -31,6 +31,7 @@ export type ThirdParty69BStatus = 'LIMPIO' | 'PRESUNTO_EFOS' | 'DEFINITIVO_EFOS'
 const SAT_CONSULTA_URL = 'https://consultaqr.facturaelectronica.sat.gob.mx/ConsultaCFDIService.svc';
 const SAT_CONSULTA_ACTION = 'http://tempuri.org/IConsultaCFDIService/Consulta';
 const MAX_VERIFY_BATCH_ITEMS = 50;
+export const MAX_CHECK_69B_RFCS = 500;
 const SAT_REQUEST_TIMEOUT_MS = 7000;
 const SAT_BATCH_CONCURRENCY = 5;
 
@@ -424,6 +425,17 @@ export async function handleCheck69B(
     new Set(payload.rfcs.map(normalizeRfc).filter((rfc) => rfc.length > 0))
   );
 
+  if (normalizedRfcs.length > MAX_CHECK_69B_RFCS) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `Máximo ${MAX_CHECK_69B_RFCS} RFCs por llamada en CHECK_69B (recibidos: ${normalizedRfcs.length})`
+      },
+      400,
+      headers
+    );
+  }
+
   if (normalizedRfcs.length === 0) {
     return jsonResponse(
       {
@@ -482,7 +494,7 @@ export async function handleCheck69B(
       situacion,
       estatus69b,
       fechaOficio: (row.fecha_oficio ?? row.numero_oficio ?? null) as string | null,
-      publicacionDof: (row.publicacion_dof ?? row.fecha_publicacion_dof ?? null) as string | null
+      publicacionDof: (row.fecha_publicacion ?? row.publicacion_dof ?? row.fecha_publicacion_dof ?? null) as string | null
     });
 
     const list = rfcsByThirdPartyStatus.get(estatus69b) ?? [];

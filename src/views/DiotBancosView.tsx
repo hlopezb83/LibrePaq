@@ -48,6 +48,7 @@ export function DiotBancosView() {
     isErrorDiot,
     refetchDiot,
     isPeriodLocked,
+    isReadOnlyClient,
     autoMatchMutation,
     createPolizaFromBankMutation,
     unmatchBankLineMutation,
@@ -96,6 +97,7 @@ export function DiotBancosView() {
             csvInputRef={csvInputRef}
             onCsvUpload={handleCsvUpload}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             addBankModalRef={addBankModalRef}
             onAutoMatch={() => autoMatchMutation.mutate()}
             isAutoMatchPending={autoMatchMutation.isPending}
@@ -148,6 +150,7 @@ export function DiotBancosView() {
           <PadronProveedoresTab
             companyId={activeCompanyId}
             accounts={accounts}
+            isReadOnlyClient={isReadOnlyClient}
             onFeedback={handleFeedback}
           />
         </div>
@@ -161,6 +164,7 @@ export function DiotBancosView() {
             year={currentYear ?? 2026}
             accounts={accounts}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             onFeedback={handleFeedback}
           />
         </div>
@@ -174,6 +178,7 @@ export function DiotBancosView() {
             year={currentYear ?? 2026}
             period={currentPeriod ?? 10}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             onFeedback={handleFeedback}
             onOpenDeliverable={(tab) => openDeliverables(tab)}
           />
@@ -195,6 +200,7 @@ export function DiotBancosView() {
             currentYear={currentYear ?? 2026}
             currentPeriod={currentPeriod ?? 10}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             accounts={accounts}
             onFeedback={handleFeedback}
           />
@@ -210,6 +216,7 @@ export function DiotBancosView() {
             period={currentPeriod ?? 10}
             accounts={accounts}
             isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
             onFeedback={handleFeedback}
           />
         </div>

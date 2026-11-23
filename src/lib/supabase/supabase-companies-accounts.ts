@@ -16,9 +16,7 @@ export const supabaseCompaniesAndAccounts = {
     const currentUser = authData?.user;
 
     let query = supabase.from('companies').select('*').order('created_at', { ascending: true });
-    if (currentUser?.id) {
-      query = query.eq('user_id', currentUser.id);
-    } else {
+    if (!currentUser?.id) {
       query = query.or('user_id.is.null,user_id.eq.demo');
     }
 
@@ -143,6 +141,11 @@ export const supabaseCompaniesAndAccounts = {
       if (movErr) throw new Error(movErr.message);
     }
     const childTables = [
+      'bank_statement_matches',
+      'inventory_periods',
+      'accounting_rules',
+      'annual_tax_snapshots',
+      'company_audit_logs',
       'bank_statement_lines',
       'cfdi_documents',
       'polizas',

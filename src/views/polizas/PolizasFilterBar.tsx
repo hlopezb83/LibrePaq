@@ -22,6 +22,7 @@ export interface PolizasFilterBarProps {
   setCompactMode: (updater: (prev: boolean) => boolean) => void;
   filteredTotals: { cargos: number; abonos: number };
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   hasPolizasToExport?: boolean;
   onNewPoliza: () => void;
   onOpenPedimentoModal?: () => void;
@@ -43,6 +44,7 @@ export function PolizasFilterBar({
   setCompactMode,
   filteredTotals,
   isPeriodLocked,
+  isReadOnlyClient = false,
   hasPolizasToExport = true,
   onNewPoliza,
   onOpenPedimentoModal,
@@ -70,6 +72,7 @@ export function PolizasFilterBar({
 
         <PolizasHeaderActions
           isPeriodLocked={isPeriodLocked}
+          isReadOnlyClient={isReadOnlyClient}
           isCloseYearPending={isCloseYearPending}
           hasPolizasToExport={hasPolizasToExport}
           onNewPoliza={onNewPoliza}

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Building2, Calculator, CheckCircle2, RefreshCw, Sparkles, Users } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency, getLastDateForPeriod } from '../../lib/formatters';
@@ -18,6 +19,7 @@ export interface NominaImssTabProps {
   currentYear?: number;
   currentPeriod?: number;
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   accounts?: readonly AccountWithBalance[];
   onFeedback?: (msg: string, type?: 'success' | 'error') => void;
 }
@@ -33,9 +35,12 @@ export function NominaImssTab({
   currentYear,
   currentPeriod,
   isPeriodLocked = false,
+  isReadOnlyClient: isReadOnlyClientProp = false,
   accounts: accountsProp,
   onFeedback
 }: NominaImssTabProps) {
+  const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isLocked = isPeriodLocked || Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
   const toast = useToast();
   const queryClient = useQueryClient();
   const effectiveYear = currentYear ?? company?.currentYear ?? 2026;
@@ -72,6 +77,15 @@ export function NominaImssTab({
   const [imssInput, setImssInput] = useState<string>('0');
   const [rcvInput, setRcvInput] = useState<string>('0');
   const [infonavitInput, setInfonavitInput] = useState<string>('0');
+
+  useEffect(() => {
+    setStateCode('CMX');
+    setBaseInput('');
+    setImssInput('0');
+    setRcvInput('0');
+    setInfonavitInput('0');
+  }, [activeCompanyId, effectiveYear, effectivePeriod]);
+
   const resolvedBase = baseInput === '' ? summary.totalPercepciones : parseNonNeg(baseInput);
 
   const { provision, provisionError } = useMemo<{
@@ -99,9 +113,12 @@ export function NominaImssTab({
   }, [accounts, effectiveYear, effectivePeriod, stateCode, resolvedBase, imssInput, rcvInput, infonavitInput]);
 
   const createPolizaMutation = useMutation({
-    mutationFn: (prov: SuaAndIsnProvisionResult) =>
-      apiClient.createPoliza({
-        companyId: activeCompanyId,
+    mutationFn: ({ prov, targetCompanyId }: { prov: SuaAndIsnProvisionResult; targetCompanyId: string }) => {
+      if (isLocked) {
+        throw new Error('Periodo bloqueado o modo solo lectura: no es posible generar pólizas.');
+      }
+      return apiClient.createPoliza({
+        companyId: targetCompanyId,
         tipo: prov.polizaTipo,
         fecha: getLastDateForPeriod(effectiveYear, effectivePeriod),
         concepto: prov.polizaConcept,
@@ -109,9 +126,14 @@ export function NominaImssTab({
         movements: prov.polizaMovements.map((m) => ({
           accountId: m.accountId, referencia: m.referencia, concepto: m.concepto, cargo: m.cargo, abono: m.abono
         }))
-      }),
-    onSuccess: (poliza) => {
-      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'], activeCompanyId);
+      });
+    },
+    onSuccess: (poliza, variables) => {
+      invalidateAccountingQueries(
+        queryClient,
+        ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        variables.targetCompanyId
+      );
       notify(`Póliza de Provisión SUA + ISN (#${poliza.folio}) registrada y cuadrada.`);
     },
     onError: (err: Error) => notify(`Error al registrar póliza SUA + ISN: ${err.message}`, 'error')
@@ -206,9 +228,9 @@ export function NominaImssTab({
           </div>
           <button
             type="button"
-            disabled={isPeriodLocked || !provision || createPolizaMutation.isPending}
-            onClick={() => provision && createPolizaMutation.mutate(provision)}
-            title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : 'Registrar póliza de diario en contabilidad'}
+            disabled={isLocked || !provision || createPolizaMutation.isPending}
+            onClick={() => provision && createPolizaMutation.mutate({ prov: provision, targetCompanyId: activeCompanyId })}
+            title={isLocked ? (isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : 'Modo solo lectura') : 'Registrar póliza de diario en contabilidad'}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <Sparkles className="w-4 h-4" aria-hidden="true" />
@@ -219,7 +241,7 @@ export function NominaImssTab({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           <div>
             <label htmlFor="isn-state-select" className="block font-semibold text-slate-700 mb-1">Estado ISN (32 Entidades)</label>
-            <select id="isn-state-select" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900">
+            <select id="isn-state-select" disabled={isLocked} value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 disabled:bg-slate-100">
               {MEXICO_ISN_RATES.map((s) => (
                 <option key={s.code} value={s.code}>{s.name} ({s.ratePct.toFixed(2)}%)</option>
               ))}
@@ -228,24 +250,24 @@ export function NominaImssTab({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="isn-base-input" className="font-semibold text-slate-700">Base Gravable ISN ($)</label>
-              <button type="button" onClick={() => setBaseInput(String(summary.totalPercepciones))} className="text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer">Usar nómina</button>
+              <button type="button" disabled={isLocked} onClick={() => setBaseInput(String(summary.totalPercepciones))} className="text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">Usar nómina</button>
             </div>
-            <input id="isn-base-input" type="number" min="0" step="0.01" value={baseInput === '' ? String(summary.totalPercepciones) : baseInput} onChange={(e) => setBaseInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900" />
+            <input id="isn-base-input" type="number" min="0" step="0.01" disabled={isLocked} value={baseInput === '' ? String(summary.totalPercepciones) : baseInput} onChange={(e) => setBaseInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
           </div>
           <div>
             <label htmlFor="sua-imss-input" className="block font-semibold text-slate-700 mb-1">IMSS Patronal ($)</label>
-            <input id="sua-imss-input" type="number" min="0" step="0.01" value={imssInput} onChange={(e) => setImssInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900" />
+            <input id="sua-imss-input" type="number" min="0" step="0.01" disabled={isLocked} value={imssInput} onChange={(e) => setImssInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
           </div>
           <div>
             <label htmlFor="sua-rcv-input" className="block font-semibold text-slate-700 mb-1">RCV Patronal ($)</label>
-            <input id="sua-rcv-input" type="number" min="0" step="0.01" value={rcvInput} onChange={(e) => setRcvInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900" />
+            <input id="sua-rcv-input" type="number" min="0" step="0.01" disabled={isLocked} value={rcvInput} onChange={(e) => setRcvInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="sua-infonavit-input" className="font-semibold text-slate-700">INFONAVIT 5% ($)</label>
-              <button type="button" onClick={() => setInfonavitInput((resolvedBase * 0.05).toFixed(2))} className="text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer">Estimar 5%</button>
+              <button type="button" disabled={isLocked} onClick={() => setInfonavitInput((resolvedBase * 0.05).toFixed(2))} className="text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">Estimar 5%</button>
             </div>
-            <input id="sua-infonavit-input" type="number" min="0" step="0.01" value={infonavitInput} onChange={(e) => setInfonavitInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900" />
+            <input id="sua-infonavit-input" type="number" min="0" step="0.01" disabled={isLocked} value={infonavitInput} onChange={(e) => setInfonavitInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 disabled:bg-slate-100" />
           </div>
         </div>
 

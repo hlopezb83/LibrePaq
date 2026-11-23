@@ -18,6 +18,7 @@ import {
   setAdminUserRoleRepo, updateAdminPlatformAlertStatusRepo, upsertWorkspaceQuotaRepo
 } from '../repositories/admin-enterprise.repo';
 import { resolveCallerPlatformRoleRepo } from '../repositories/admin-enterprise.helpers';
+import { resolveRequestActorAsync } from '../auth-actor';
 import {
   type AdminEnv, alertQuerySchema, alertStatusSchema, auditLogSchema, auditLogsPageQuerySchema,
   broadcastSchema, companiesPageQuerySchema, getActorContext, parseJsonBody, parseQuery,
@@ -44,14 +45,18 @@ adminRoutes.use('/admin/*', async (c, next) => {
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
   const hasSecret = Boolean(adminSecret && bearerToken === adminSecret);
-  const userEmail = (c.req.header('X-User-Email') || c.req.header('x-user-email') || '').toLowerCase().trim();
-  const userId = (c.req.header('X-User-Id') || c.req.header('x-user-id') || '').trim();
+  let callerRole: PlatformRole = 'NONE';
 
-  const callerRole: PlatformRole = hasSecret
-    ? 'SUPERADMIN'
-    : isProd
-      ? 'NONE'
-      : resolveCallerPlatformRoleRepo(userId, userEmail);
+  if (hasSecret) {
+    callerRole = 'SUPERADMIN';
+  } else {
+    const actor = await resolveRequestActorAsync(c);
+    if (actor.authError) {
+      return c.json({ error: actor.authError }, 401);
+    }
+    c.set('verifiedActor', { userId: actor.userId, userEmail: actor.userEmail });
+    callerRole = resolveCallerPlatformRoleRepo(actor.userId || '', actor.userEmail || '');
+  }
 
   if (!hasPlatformAdminAccess(callerRole)) {
     return c.json({ error: 'UNAUTHORIZED: Requiere autorización válida de plataforma administrativa' }, 403);

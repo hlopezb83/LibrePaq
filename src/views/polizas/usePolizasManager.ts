@@ -7,16 +7,19 @@ import { apiClient } from '../../lib/api-client';
 import { getDefaultDateForPeriod } from '../../lib/formatters';
 import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
 import type { Poliza, PolizaType } from '../../shared/types';
+import { isCfdiPendingForPoliza } from '../cfdi/filterCfdis';
 import { exportPolizasCsv } from './exportPolizasCsv';
 import { computePolizasTotals, filterPolizas } from './filterPolizas';
 import { useDraftPolizaMovements } from './useDraftPolizaMovements';
 import { usePolizasMutations } from './usePolizasMutations';
 
 export function usePolizasManager() {
-  const { activeCompany, activeCompanyId } = useCompany();
+  const { activeCompany, activeCompanyId, isReadOnlySupportMode, isReadOnlyClient: rawReadOnlyClient } = useCompany();
+  const isReadOnlyClient = Boolean(isReadOnlySupportMode || rawReadOnlyClient);
   const routerState = useRouterState();
   const toast = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const hasAutoOpenedNewRef = useRef(false);
 
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
@@ -80,7 +83,7 @@ export function usePolizasManager() {
     enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
   });
 
-  const { data: accounts = [] } = useQuery({
+  const { data: accounts = [], isLoading: isLoadingAccounts } = useQuery({
     queryKey: ['accounts', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getAccounts(activeCompanyId, currentYear ?? 2026, currentPeriod ?? 10),
     enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
@@ -92,27 +95,16 @@ export function usePolizasManager() {
     enabled: Boolean(activeCompanyId)
   });
 
-  const { data: periodLock } = useQuery({
+  const { data: periodLock, isLoading: isLoadingPeriodLock } = useQuery({
     queryKey: ['period-lock', activeCompanyId, currentYear, currentPeriod],
-    queryFn: () =>
-      apiClient.getPeriodLock(
-        activeCompanyId,
-        currentYear ?? 2026,
-        currentPeriod ?? 10
-      ),
+    queryFn: () => apiClient.getPeriodLock(activeCompanyId, currentYear ?? 2026, currentPeriod ?? 10),
     enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
   });
   const isPeriodLocked = Boolean(periodLock?.isLocked);
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
-  const affectableAccounts = useMemo(
-    () => accounts.filter((a) => a.isAffectable),
-    [accounts]
-  );
-
-  const pendingCfdis = useMemo(
-    () => cfdis.filter((c) => !c.polizaId),
-    [cfdis]
-  );
+  const affectableAccounts = useMemo(() => accounts.filter((a) => a.isAffectable), [accounts]);
+  const pendingCfdis = useMemo(() => cfdis.filter(isCfdiPendingForPoliza), [cfdis]);
 
   const predictedNextFolio = useMemo(() => {
     const existingSameType = polizas.filter((p) => p.tipo === tipo);
@@ -142,6 +134,7 @@ export function usePolizasManager() {
     currentYear,
     currentPeriod,
     isPeriodLocked,
+    isReadOnlyClient,
     editingPolizaId,
     tipo,
     fecha,
@@ -166,6 +159,7 @@ export function usePolizasManager() {
   );
 
   const openNewPolizaModal = useCallback(() => {
+    if (isWriteBlocked) return;
     setEditingPolizaId(null);
     setTipo('DIARIO');
     setFecha(defaultPeriodDate);
@@ -180,9 +174,10 @@ export function usePolizasManager() {
     ]);
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
-  }, [defaultPeriodDate, affectableAccounts]);
+  }, [isWriteBlocked, defaultPeriodDate, affectableAccounts, setMovements]);
 
   const openEditPolizaModal = useCallback((pol: Poliza) => {
+    if (isWriteBlocked) return;
     setEditingPolizaId(pol.id);
     setTipo(pol.tipo);
     setFecha(pol.fecha);
@@ -201,9 +196,10 @@ export function usePolizasManager() {
     );
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
-  }, []);
+  }, [isWriteBlocked, setMovements]);
 
   const openDuplicatePolizaModal = (pol: Poliza) => {
+    if (isWriteBlocked) return;
     setEditingPolizaId(null);
     setTipo(pol.tipo);
     setFecha(defaultPeriodDate);
@@ -250,21 +246,28 @@ export function usePolizasManager() {
     if (!uuid) return;
     const target = cfdis.find((c) => c.uuid === uuid);
     if (!target) return;
-    const plan = buildAutoPolizaPlan(target, accounts);
-    setTipo(plan.polizaType);
-    setFecha(target.fecha);
-    setConcepto(plan.polizaConcept);
-    setMovements(
-      plan.movements.map((m) => ({
-        _rowId: crypto.randomUUID(),
-        accountId: m.accountId,
-        referencia: m.referencia,
-        concepto: m.concepto,
-        cargo: m.cargo,
-        abono: m.abono
-      }))
-    );
-    toast.info('Asiento Pre-Llenado desde CFDI', 'Cuentas e IVA sugeridos por el ADD.');
+    try {
+      const plan = buildAutoPolizaPlan(target, accounts);
+      setTipo(plan.polizaType);
+      setFecha(target.fecha);
+      setConcepto(plan.polizaConcept);
+      setMovements(
+        plan.movements.map((m) => ({
+          _rowId: crypto.randomUUID(),
+          accountId: m.accountId,
+          referencia: m.referencia,
+          concepto: m.concepto,
+          cargo: m.cargo,
+          abono: m.abono
+        }))
+      );
+      setFormError(null);
+      toast.info('Asiento Pre-Llenado desde CFDI', 'Cuentas e IVA sugeridos por el ADD.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'No fue posible pre-llenar el asiento desde el CFDI.';
+      setFormError(msg);
+      toast.error('No se pudo pre-llenar CFDI', msg);
+    }
   };
 
   const handleExportPolizasCsv = () => {
@@ -291,15 +294,22 @@ export function usePolizasManager() {
   }, [fecha, currentYear, currentPeriod]);
 
   useEffect(() => {
-    if (isNewRequested && !isPeriodLocked) {
+    if (!isNewRequested) {
+      hasAutoOpenedNewRef.current = false;
+      return;
+    }
+    if (isLoadingAccounts || isLoadingPeriodLock) return;
+    if (hasAutoOpenedNewRef.current) return;
+    hasAutoOpenedNewRef.current = true;
+    if (!isWriteBlocked && accounts.length > 0) {
       openNewPolizaModal();
     }
-  }, [isNewRequested, isPeriodLocked]);
+  }, [isNewRequested, isLoadingAccounts, isLoadingPeriodLock, isWriteBlocked, accounts.length, openNewPolizaModal]);
 
   useEffect(() => {
     function handleGlobalKeyDown(e: KeyboardEvent) {
       if ((e.altKey && (e.key === 'n' || e.key === 'N')) || e.key === 'Insert') {
-        if (!isPeriodLocked && !dialogRef.current?.open) {
+        if (!isWriteBlocked && !dialogRef.current?.open) {
           e.preventDefault();
           openNewPolizaModal();
         }
@@ -307,10 +317,11 @@ export function usePolizasManager() {
     }
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isPeriodLocked, openNewPolizaModal]);
+  }, [isWriteBlocked, openNewPolizaModal]);
 
   return {
-    activeCompany, activeCompanyId, currentYear, currentPeriod, isPeriodLocked, dialogRef,
+    activeCompany, activeCompanyId, currentYear, currentPeriod,
+    isPeriodLocked, isReadOnlyClient, isWriteBlocked, dialogRef,
     polizas, filteredPolizas, filteredPolizasTotals, isLoading, isError, error, refetch,
     filterTipo, setFilterTipo, originFilter, setOriginFilter,
     searchQuery, setSearchQuery, compactMode, setCompactMode,

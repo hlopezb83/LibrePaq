@@ -6,9 +6,8 @@ import {
   applyManyToOneMatchesRepo,
   proposeManyToOneMatchesRepo
 } from '../repositories/bank-n1.repo';
-import { getCompanyById } from '../repositories/companies.repo';
 import { resolveYearAndPeriod } from '../validators';
-import { assertRouteCompanyAccess, errorStatus } from './route-helpers';
+import { assertRouteCompanyAccess, errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
 
 export const bankN1Routes = new Hono();
 
@@ -17,7 +16,7 @@ bankN1Routes.get('/companies/:companyId/bank-reconciliation/n-to-1', (c) => {
   const accessErr = assertRouteCompanyAccess(c, companyId);
   if (accessErr) return accessErr;
 
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(c.req.query('year'), c.req.query('period'), company);
@@ -33,10 +32,10 @@ bankN1Routes.get('/companies/:companyId/bank-reconciliation/n-to-1', (c) => {
 bankN1Routes.post('/companies/:companyId/bank-reconciliation/n-to-1', async (c) => {
   try {
     const companyId = c.req.param('companyId');
-    const accessErr = assertRouteCompanyAccess(c, companyId);
+    const accessErr = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
     if (accessErr) return accessErr;
 
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const body = (await c.req.json().catch(() => ({}))) as {
@@ -62,10 +61,10 @@ bankN1Routes.post('/companies/:companyId/bank-reconciliation/n-to-1', async (c) 
 bankN1Routes.post('/companies/:companyId/bank-reconciliation/import-pdf-lines', async (c) => {
   try {
     const companyId = c.req.param('companyId');
-    const accessErr = assertRouteCompanyAccess(c, companyId);
+    const accessErr = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
     if (accessErr) return accessErr;
 
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const body = (await c.req.json()) as {
@@ -93,7 +92,7 @@ bankN1Routes.post('/companies/:companyId/bank-reconciliation/import-pdf-lines', 
 
 bankN1Routes.post('/companies/:companyId/bank-reconciliation/extract-pdf', async (c) => {
   const companyId = c.req.param('companyId');
-  const accessErr = assertRouteCompanyAccess(c, companyId);
+  const accessErr = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
   if (accessErr) return accessErr;
 
   const body = (await c.req.json().catch(() => ({}))) as { data?: unknown; mimeType?: unknown };

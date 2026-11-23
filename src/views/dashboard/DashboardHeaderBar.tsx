@@ -18,9 +18,16 @@ export function DashboardHeaderBar({
   isPeriodLocked = false,
   onOpenDeliverables
 }: DashboardHeaderBarProps) {
+  const isAnnualAdjustment = company.currentPeriod === 13;
   const nextMonthPeriod = company.currentPeriod === 12 ? 1 : company.currentPeriod + 1;
   const nextMonthName =
     MESES_SAT.find((m) => m.periodo === nextMonthPeriod)?.nombre || 'Siguiente Mes';
+  const satDeadlineLabel = isAnnualAdjustment
+    ? 'Cierre Anual (P13)'
+    : `Límite SAT: 17 de ${nextMonthName}`;
+  const satDeadlineTitle = isAnnualAdjustment
+    ? `Periodo de ajuste y cierre anual del ejercicio ${company.currentYear} ante el SAT (Declaración Anual Art. 9 / 150 LISR)`
+    : `Fecha legal límite para presentación de Pagos Provisionales (ISR, IVA) y DIOT del periodo ${mesActualNombre} ante el SAT (Art. 12 CFF / Art. 14 LISR)`;
 
   return (
     <div className="bg-[#0A1120] border border-[#1E293B] rounded-2xl p-4 sm:p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3.5">
@@ -31,11 +38,11 @@ export function DashboardHeaderBar({
             Tablero Fiscal • {mesActualNombre} {company.currentYear}
           </div>
           <div
-            title={`Fecha legal límite para presentación de Pagos Provisionales (ISR, IVA) y DIOT del periodo ${mesActualNombre} ante el SAT (Art. 12 CFF / Art. 14 LISR)`}
+            title={satDeadlineTitle}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 bg-amber-950/60 border border-amber-600/40 px-2.5 py-0.5 rounded-full"
           >
             <Clock className="w-3 h-3 text-amber-400" aria-hidden="true" />
-            <span>Límite SAT: 17 de {nextMonthName}</span>
+            <span>{satDeadlineLabel}</span>
           </div>
           {isPeriodLocked && (
             <div

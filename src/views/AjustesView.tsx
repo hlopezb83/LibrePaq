@@ -36,6 +36,7 @@ export function AjustesView() {
   const state = useAjustesState();
   const {
     companies,
+    companiesLoading,
     activeCompany,
     setActiveCompanyId,
     activeTab,
@@ -128,6 +129,12 @@ export function AjustesView() {
     }
   };
 
+  const needsActiveCompany =
+    activeTab === 'empresa' ||
+    activeTab === 'efirma' ||
+    activeTab === 'fiscal' ||
+    activeTab === 'respaldos';
+
   return (
     <div className="space-y-4">
       {/* Encabezado con Tabs */}
@@ -201,6 +208,29 @@ export function AjustesView() {
         id={`ajustes-panel-${activeTab}`}
         aria-labelledby={`ajustes-tab-${activeTab}`}
       >
+        {needsActiveCompany && companiesLoading && (
+          <div role="status" aria-live="polite" aria-busy="true" className="bg-white rounded-2xl border border-slate-300 p-10 text-center text-xs text-slate-600">
+            Cargando información de la empresa seleccionada...
+          </div>
+        )}
+
+        {needsActiveCompany && !companiesLoading && !activeCompany && (
+          <div role="status" className="bg-white rounded-2xl border border-slate-300 p-8 text-center space-y-3">
+            <Building2 className="w-8 h-8 text-slate-400 mx-auto" aria-hidden="true" />
+            <p className="text-sm font-bold text-slate-900">No hay empresa activa seleccionada</p>
+            <p className="text-xs text-slate-600">
+              Selecciona o registra una empresa en el Directorio para configurar esta sección.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('directorio')}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
+            >
+              Ir al Directorio
+            </button>
+          </div>
+        )}
+
         {activeTab === 'directorio' && (
         <AjustesDirectorioTab
           companies={companies}

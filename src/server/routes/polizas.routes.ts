@@ -3,19 +3,18 @@ import {
   closeYearPolizaTransaction,
   createPolizaTransaction,
   deletePolizaTransaction,
-  getCompanyById,
   getPolizas,
   updatePolizaTransaction
 } from '../db';
 import { resolveYearAndPeriod, validatePolizaPayload } from '../validators';
 import { parseCalendarDate } from '../../shared/date-utils';
-import { errorStatus } from './route-helpers';
+import { errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
 
 export const polizasRoutes = new Hono();
 
 polizasRoutes.get('/polizas', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json([]);
 
   const { year, period } = resolveYearAndPeriod(
@@ -29,7 +28,7 @@ polizasRoutes.get('/polizas', (c) => {
 polizasRoutes.post('/polizas', async (c) => {
   try {
     const payload = validatePolizaPayload(await c.req.json());
-    const company = getCompanyById(payload.companyId);
+    const company = getAuthorizedCompanyForRoute(c, payload.companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const { year: pYear, month: pPeriod } = parseCalendarDate(
@@ -80,7 +79,7 @@ polizasRoutes.post('/polizas/close-year', async (c) => {
     const companyId = String(body.companyId ?? 'comp_tnn_01');
     const switchToPeriod13 =
       body.switchToPeriod13 !== undefined ? Boolean(body.switchToPeriod13) : true;
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const res = closeYearPolizaTransaction(company.id, company.currentYear, switchToPeriod13);

@@ -4,7 +4,9 @@
 // ============================================================================
 
 import { Hono } from 'hono';
-import { companyExistsById, db, getCompanyById, initDatabase } from './db';
+import { resolveRequestActorAsync } from './auth-actor';
+import { companyExistsById, db, initDatabase } from './db';
+import { getEffectiveCompanyRoleRepo } from './repositories/workspace-members.repo';
 import { companiesRoutes } from './routes/companies.routes';
 import { dashboardRoutes } from './routes/dashboard.routes';
 import { accountsRoutes } from './routes/accounts.routes';
@@ -26,22 +28,30 @@ initDatabase();
 
 export const api = new Hono().basePath('/api');
 
-const ENTITY_TABLE_PREFIXES: Array<[RegExp, string]> = [
-  [/^\/api\/accounts\/([^/]+)$/, 'accounts'],
-  [/^\/api\/polizas\/([^/]+)$/, 'polizas'],
-  [/^\/api\/cfdi\/([^/]+)/, 'cfdi_documents'],
-  [/^\/api\/bank\/lines\/([^/]+)/, 'bank_statement_lines'],
-  [/^\/api\/fiscal\/fixed-assets\/([^/]+)$/, 'fixed_assets']
+const ENTITY_TABLE_PREFIXES: Array<[RegExp, string, Set<string>?]> = [
+  [/^\/api\/accounts\/([^/]+)/, 'accounts', new Set(['batch-import'])],
+  [/^\/api\/polizas\/([^/]+)/, 'polizas', new Set(['close-year'])],
+  [/^\/api\/cfdis\/([^/]+)/, 'cfdi_documents', new Set(['upload', 'batch-upload', 'batch-auto-poliza'])],
+  [/^\/api\/bank-reconciliation\/([^/]+)/, 'bank_statement_lines', new Set(['lines', 'auto-match'])],
+  [/^\/api\/fixed-assets\/([^/]+)/, 'fixed_assets', new Set(['depreciation-poliza'])]
 ];
 
-// Aislamiento Multi-Tenant en rutas de dominio: verifica propiedad cuando el recurso pertenece a un tenant privado
+// Aislamiento Multi-Tenant en rutas de dominio: verifica JWT, membresía RBAC y permisos de escritura
 api.use('*', async (c, next) => {
   const path = c.req.path;
-  if (path.startsWith('/api/companies') || path.startsWith('/api/admin') || path.startsWith('/api/workspaces')) {
+  if (path.startsWith('/api/admin')) {
     return next();
   }
 
-  const userId = c.req.header('X-User-Id') || c.req.header('x-user-id') || null;
+  const actor = await resolveRequestActorAsync(c);
+  if (actor.authError) {
+    return c.json({ error: actor.authError }, 401);
+  }
+
+  if (path.startsWith('/api/companies') || path.startsWith('/api/workspaces')) {
+    return next();
+  }
+
   let targetCompanyId = c.req.query('companyId') || c.req.query('company_id') || '';
 
   if (!targetCompanyId && (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH')) {
@@ -57,9 +67,9 @@ api.use('*', async (c, next) => {
   }
 
   if (!targetCompanyId) {
-    for (const [regex, table] of ENTITY_TABLE_PREFIXES) {
+    for (const [regex, table, excluded] of ENTITY_TABLE_PREFIXES) {
       const m = regex.exec(path);
-      if (m?.[1]) {
+      if (m?.[1] && !excluded?.has(m[1])) {
         const row = db
           .query(`SELECT company_id FROM ${table} WHERE id = ?`)
           .get(m[1]) as { company_id?: string } | null;
@@ -71,8 +81,22 @@ api.use('*', async (c, next) => {
     }
   }
 
-  if (targetCompanyId && companyExistsById(targetCompanyId) && !getCompanyById(targetCompanyId, userId)) {
-    return c.json({ error: 'No tienes autorización sobre esta empresa' }, 403);
+  if (targetCompanyId && companyExistsById(targetCompanyId)) {
+    const eff = getEffectiveCompanyRoleRepo(targetCompanyId, actor.userId, actor.userEmail);
+    if (!eff.role) {
+      return c.json({ error: 'No tienes autorización sobre esta empresa' }, 403);
+    }
+    const isWrite =
+      c.req.method === 'POST' ||
+      c.req.method === 'PUT' ||
+      c.req.method === 'PATCH' ||
+      c.req.method === 'DELETE';
+    if (isWrite && !eff.canWrite) {
+      return c.json(
+        { error: `Tu rol (${eff.role}) es de solo lectura y no permite modificar datos de esta empresa.` },
+        403
+      );
+    }
   }
 
   return next();

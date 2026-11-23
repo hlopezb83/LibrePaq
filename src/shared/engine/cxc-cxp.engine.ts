@@ -1,5 +1,6 @@
 import type {
   CfdiDocument,
+  CfdiRelatedDoc,
   CxcCxpAgingBucket,
   CxcCxpAgingResponse,
   CxcCxpDocumentRow
@@ -42,26 +43,41 @@ function emptyBuckets(): Record<CxcCxpAgingBucket, number> {
 
 function resolveDrPaidMxn(
   paymentDoc: CfdiDocument,
-  impPagado: number,
-  monedaDr: string | undefined,
-  equivalenciaDr: number | undefined,
+  dr: CfdiRelatedDoc,
   targetDoc: CfdiDocument | undefined,
   singleRelatedDoc: boolean
 ): number {
-  const pTc = resolveCurrencyRate(paymentDoc);
-  const pCurrency = (paymentDoc.moneda || 'MXN').toUpperCase();
-  const drCurrency = (monedaDr || pCurrency).toUpperCase();
+  const pCurrency = (dr.pagoMoneda || paymentDoc.moneda || 'MXN').toUpperCase();
+  const pTc = dr.pagoMoneda
+    ? pCurrency !== 'MXN' && (dr.pagoTipoCambio || 1) > 0
+      ? dr.pagoTipoCambio!
+      : 1
+    : resolveCurrencyRate(paymentDoc);
+  const drCurrency = (dr.monedaDr || pCurrency).toUpperCase();
 
-  if (drCurrency === 'MXN') return impPagado * pTc;
-  if (drCurrency === pCurrency) return impPagado * pTc;
+  // Anexo SAT Pagos 2.0: ImpPagado está expresado en MonedaDR (moneda del documento relacionado)
+  if (drCurrency === 'MXN') return dr.impPagado;
+
+  if (drCurrency === pCurrency) {
+    const effectiveTc =
+      pTc > 1
+        ? pTc
+        : targetDoc && (targetDoc.moneda || '').toUpperCase() === drCurrency
+          ? resolveCurrencyRate(targetDoc)
+          : pTc;
+    return dr.impPagado * effectiveTc;
+  }
+
   if (singleRelatedDoc && paymentDoc.total > 0 && pCurrency === 'MXN') {
     return paymentDoc.total;
   }
-  if (equivalenciaDr && equivalenciaDr > 0) {
-    return equivalenciaDr < 1 ? (impPagado / equivalenciaDr) * pTc : impPagado * equivalenciaDr * pTc;
+  if (dr.equivalenciaDr && dr.equivalenciaDr > 0) {
+    return dr.equivalenciaDr < 1
+      ? (dr.impPagado / dr.equivalenciaDr) * pTc
+      : dr.impPagado * dr.equivalenciaDr * pTc;
   }
   const invTc = targetDoc ? resolveCurrencyRate(targetDoc) : 1;
-  return impPagado * invTc;
+  return dr.impPagado * invTc;
 }
 
 export function computeCxcCxpAging(params: {
@@ -101,9 +117,7 @@ export function computeCxcCxpAging(params: {
           if (!targetUuid) continue;
           const paidMxn = resolveDrPaidMxn(
             doc,
-            dr.impPagado,
-            dr.monedaDr,
-            dr.equivalenciaDr,
+            dr,
             ppdByUuid.get(targetUuid),
             singleDoc
           );

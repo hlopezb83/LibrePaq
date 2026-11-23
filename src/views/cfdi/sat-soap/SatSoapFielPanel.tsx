@@ -15,6 +15,8 @@ interface SatSoapFielPanelProps {
   pendingCfdisCount?: number;
   onBatchAutoPoliza?: () => void;
   isBatchAutoPolizaPending?: boolean;
+  isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
 }
 
 export function SatSoapFielPanel({
@@ -28,7 +30,9 @@ export function SatSoapFielPanel({
   currentPeriod,
   pendingCfdisCount,
   onBatchAutoPoliza,
-  isBatchAutoPolizaPending
+  isBatchAutoPolizaPending,
+  isPeriodLocked = false,
+  isReadOnlyClient = false
 }: SatSoapFielPanelProps) {
   const {
     cerInputRef,
@@ -71,6 +75,7 @@ export function SatSoapFielPanel({
     defaultStartDate,
     defaultEndDate,
     isDemoCompany,
+    isReadOnlyClient,
     onDownloadSuccess
   });
 
@@ -107,7 +112,7 @@ export function SatSoapFielPanel({
                   (Vigente hasta {fielStatus?.validTo?.slice(0, 10)})
                 </span>
               </span>
-              {!showChangeFiel && (
+              {!showChangeFiel && !isReadOnlyClient && (
                 <button
                   type="button"
                   onClick={() => setShowChangeFiel(true)}
@@ -185,6 +190,7 @@ export function SatSoapFielPanel({
             saveFielMutation={saveFielMutation}
             generatedTestFiles={generatedTestFiles}
             isDemoCompany={isDemoCompany}
+            isReadOnlyClient={isReadOnlyClient}
             onCancelChangeFiel={hasCredentials ? () => setShowChangeFiel(false) : undefined}
           />
         )}
@@ -208,6 +214,8 @@ export function SatSoapFielPanel({
           pendingCfdisCount={pendingCfdisCount}
           onBatchAutoPoliza={onBatchAutoPoliza}
           isBatchAutoPolizaPending={isBatchAutoPolizaPending}
+          isPeriodLocked={isPeriodLocked}
+          isReadOnlyClient={isReadOnlyClient}
           onVerifyPending={handleVerifyPending}
           isVerifyingPending={verifyPendingMutation.isPending}
         />

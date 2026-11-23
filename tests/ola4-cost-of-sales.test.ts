@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { Hono } from 'hono';
 import {
-  createAccountRecord,
   createCompanyRecord,
   createPolizaTransaction,
   deleteCompanyRecord,
@@ -105,19 +104,31 @@ describe('Ola 4A — Costo de Ventas e Inventarios Básicos (PyME Comercial)', (
     expect(validated.totalCargo).toBe(43210.67);
     expect(validated.totalAbono).toBe(43210.67);
 
-    // Fallback cuando no existe 115-01-001 en el catálogo
+    // Fallback cuando no existe 115-01-001 en el catálogo pero existe otra cuenta 501 de compras
+    const accPurchases501 = makeAccount('acc_501_comp', '501-02-001', 'Compras Netas', 'COSTOS', 'DEUDORA', '501.02');
     const planFallback = buildCostOfSalesPolizaPlan({
       companyId: 'comp_test_4a',
       year: 2026,
       period: 10,
       costOfSales: 12500.33,
-      accounts: [accCost]
+      accounts: [accCost, accPurchases501]
     });
     expect(planFallback.fecha).toBe('2026-10-31');
     expect(planFallback.movements[0]?.accountCode).toBe('501-01-001');
-    expect(planFallback.movements[1]?.accountCode).toBe('501-01-001');
+    expect(planFallback.movements[1]?.accountCode).toBe('501-02-001');
     expect(planFallback.totalCargo).toBe(12500.33);
     expect(planFallback.totalAbono).toBe(12500.33);
+
+    // Sin cuenta de Inventarios ni Compras distinta a Costo de Ventas debe lanzar error (BUG-29)
+    expect(() =>
+      buildCostOfSalesPolizaPlan({
+        companyId: 'comp_test_4a',
+        year: 2026,
+        period: 10,
+        costOfSales: 12500.33,
+        accounts: [accCost]
+      })
+    ).toThrow(/INVENTORY_ACCOUNT_NOT_FOUND|Inventarios/);
 
     expect(() =>
       buildCostOfSalesPolizaPlan({
@@ -142,20 +153,8 @@ describe('Ola 4A — Costo de Ventas e Inventarios Básicos (PyME Comercial)', (
     });
     createdCompanyIds.push(company.id);
 
-    const invAcc = createAccountRecord({
-      companyId: company.id,
-      code: '115-01-001',
-      name: 'Almacén de Mercancías',
-      parentCode: '100-00-000',
-      type: 'ACTIVO',
-      nature: 'DEUDORA',
-      level: 2,
-      isAffectable: true,
-      satGroupCode: '115.01',
-      initialBalance: 0
-    });
-
     const accounts = getAccounts(company.id);
+    const invAcc = accounts.find((a) => a.code === '115-01-001')!;
     const accCosto = accounts.find((a) => a.code === '501-01-001')!;
     const accBanco = accounts.find((a) => a.code === '102-01-001')!;
 

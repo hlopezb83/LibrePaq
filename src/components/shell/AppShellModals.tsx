@@ -144,6 +144,7 @@ export function AppShellModals({
       {hasOpenedWizard && (
         <CompanyOnboardingWizardModal
           dialogRef={wizardDialogRef}
+          onClose={() => closeModal('COMPANY_WIZARD')}
           onCompanyCreated={(newId, createdComp) => {
             setLastSwitchedCompany(createdComp || null);
             setActiveCompanyId(newId, createdComp);
@@ -186,6 +187,7 @@ export function AppShellModals({
       {/* Modal Centralizado de Entregables Contables y Fiscales */}
       {activeCompany && isModalOpen('DELIVERABLES') && (
         <ExecutiveDeliverablePackageModal
+          key={activeCompany.id}
           isOpen={true}
           onClose={() => closeModal('DELIVERABLES')}
           company={activeCompany}

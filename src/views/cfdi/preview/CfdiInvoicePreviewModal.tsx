@@ -28,6 +28,7 @@ interface CfdiInvoicePreviewModalProps {
   cfdi: CfdiDocument | null;
   accounts?: readonly Account[];
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onClose: () => void;
   onContabilizar?: (cfdi: CfdiDocument) => void;
   onDownloadXml?: (cfdi: CfdiDocument) => void;
@@ -43,10 +44,12 @@ export function CfdiInvoicePreviewModal({
   cfdi,
   accounts = [],
   isPeriodLocked = false,
+  isReadOnlyClient = false,
   onClose,
   onContabilizar,
   onDownloadXml
 }: CfdiInvoicePreviewModalProps) {
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [activeTab, setActiveTab] = useState<'FACTURA' | 'POLIZA' | 'XML'>('FACTURA');
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -210,22 +213,38 @@ export function CfdiInvoicePreviewModal({
                 <Printer className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
 
-              {!cfdi.polizaId && onContabilizar && (
-                <button
-                  type="button"
-                  disabled={isPeriodLocked}
-                  title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : 'Generar póliza para comprobante'}
-                  onClick={() => {
-                    dialogRef.current?.close();
-                    onContabilizar(cfdi);
-                  }}
-                  aria-label="Generar póliza para comprobante"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs transition cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                  Contabilizar
-                </button>
-              )}
+              {!cfdi.polizaId && onContabilizar && (() => {
+                const isNonContabilizable =
+                  cfdi.statusSat === 'CANCELADO' || cfdi.tipoComprobante === 'T';
+                const isContabilizarDisabled = isWriteBlocked || isNonContabilizable;
+                return (
+                  <button
+                    type="button"
+                    disabled={isContabilizarDisabled}
+                    title={
+                      isReadOnlyClient
+                        ? 'Modo solo lectura'
+                        : isPeriodLocked
+                        ? 'Periodo fiscal bloqueado ante el SAT'
+                        : cfdi.statusSat === 'CANCELADO'
+                        ? 'CFDI cancelado ante el SAT'
+                        : cfdi.tipoComprobante === 'T'
+                        ? 'CFDI de Traslado (T) no contabilizable'
+                        : 'Generar póliza para comprobante'
+                    }
+                    onClick={() => {
+                      if (isContabilizarDisabled) return;
+                      dialogRef.current?.close();
+                      onContabilizar(cfdi);
+                    }}
+                    aria-label="Generar póliza para comprobante"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs transition cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                    Contabilizar
+                  </button>
+                );
+              })()}
 
               <button
                 type="button"
@@ -257,7 +276,8 @@ export function CfdiInvoicePreviewModal({
             <CfdiPolizaTab
               cfdi={cfdi}
               autoPlan={autoPlan}
-              onContabilizar={isPeriodLocked ? undefined : onContabilizar}
+              isWriteBlocked={isWriteBlocked}
+              onContabilizar={isWriteBlocked ? undefined : onContabilizar}
               onClose={() => dialogRef.current?.close()}
             />
           </div>

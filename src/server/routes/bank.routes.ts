@@ -4,17 +4,16 @@ import {
   autoMatchBankLinesTransaction,
   createPolizaFromBankLineTransaction,
   getBankReconciliation,
-  getCompanyById,
   unmatchBankLineTransaction
 } from '../db';
 import { resolveYearAndPeriod } from '../validators';
-import { errorStatus } from './route-helpers';
+import { errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
 
 export const bankRoutes = new Hono();
 
 bankRoutes.get('/bank-reconciliation', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getCompanyById(companyId);
+  const company = getAuthorizedCompanyForRoute(c, companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -32,7 +31,7 @@ bankRoutes.post('/bank-reconciliation/lines', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
     const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const accountId = String(body.accountId ?? `${company.id}_102-01-001`);
@@ -52,7 +51,7 @@ bankRoutes.post('/bank-reconciliation/auto-match', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
     const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const company = getCompanyById(companyId);
+    const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const accountId = String(body.accountId ?? `${company.id}_102-01-001`);

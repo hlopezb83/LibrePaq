@@ -105,7 +105,7 @@ export const supabaseWorkspaceMembers = {
         isReadOnlyClient: Boolean(res.isReadOnlyClient)
       };
     } catch {
-      return { companyId, role: 'OWNER', canWrite: true, isReadOnlyClient: false };
+      return { companyId, role: null, canWrite: false, isReadOnlyClient: true };
     }
   },
 

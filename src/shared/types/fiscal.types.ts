@@ -5,6 +5,10 @@ import type {
   Company,
   Poliza
 } from './core.types';
+import type { AccountingRuleRecord } from './accounting-rules.types';
+import type { AnnualTaxInputs } from './annual-tax.types';
+import type { BankN1MatchRecord } from './bank-n1.types';
+import type { InventoryPeriodRecord } from './cost-of-sales.types';
 
 export interface DiotSupplierRow {
   rfc: string;
@@ -309,4 +313,8 @@ export interface CompanyBackupBundle {
   periodLocks: PeriodLock[];
   taxParameters: TaxParametersRecord[];
   bankStatementLines?: BankStatementLine[];
+  accountingRules?: AccountingRuleRecord[];
+  annualTaxSnapshots?: AnnualTaxInputs[];
+  inventoryPeriods?: InventoryPeriodRecord[];
+  bankStatementMatches?: BankN1MatchRecord[];
 }

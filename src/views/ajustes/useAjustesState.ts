@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
@@ -9,32 +10,51 @@ import { useAjustesEfirma } from './useAjustesEfirma';
 
 export type AjustesTab = 'directorio' | 'empresa' | 'efirma' | 'fiscal' | 'respaldos' | 'atajos' | 'equipo';
 
+const VALID_AJUSTES_TABS: readonly AjustesTab[] = [
+  'directorio',
+  'empresa',
+  'efirma',
+  'fiscal',
+  'respaldos',
+  'atajos',
+  'equipo'
+];
+
+function resolveAjustesTab(raw: unknown): AjustesTab | null {
+  if (typeof raw !== 'string') return null;
+  const tab = raw.toLowerCase() as AjustesTab;
+  return VALID_AJUSTES_TABS.includes(tab) ? tab : null;
+}
+
 export function useAjustesState() {
   const {
     companies,
     activeCompany,
     activeCompanyId,
-    setActiveCompanyId
+    setActiveCompanyId,
+    isLoading: companiesLoading
   } = useCompany();
   const queryClient = useQueryClient();
   const toast = useToast();
 
+  const urlTab = useRouterState({
+    select: (s) => (s.location.search as Record<string, unknown>)?.tab
+  });
+
   const [activeTab, setActiveTab] = useState<AjustesTab>(() => {
+    const fromRouter = resolveAjustesTab(urlTab);
+    if (fromRouter) return fromRouter;
     if (typeof window !== 'undefined' && window.location.search) {
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      if (
-        tabParam === 'efirma' ||
-        tabParam === 'empresa' ||
-        tabParam === 'fiscal' ||
-        tabParam === 'respaldos' ||
-        tabParam === 'atajos' ||
-        tabParam === 'equipo'
-      ) {
-        return tabParam;
-      }
+      const fromUrl = resolveAjustesTab(new URLSearchParams(window.location.search).get('tab'));
+      if (fromUrl) return fromUrl;
     }
     return 'directorio';
   });
+
+  React.useEffect(() => {
+    const next = resolveAjustesTab(urlTab);
+    if (next) setActiveTab(next);
+  }, [urlTab]);
 
   // Tab 1: Empresa
   const [compName, setCompName] = useState(activeCompany?.name ?? '');
@@ -261,6 +281,7 @@ export function useAjustesState() {
 
   return {
     companies,
+    companiesLoading,
     activeCompany,
     activeCompanyId,
     setActiveCompanyId,

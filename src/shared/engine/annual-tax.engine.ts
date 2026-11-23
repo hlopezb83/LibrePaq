@@ -141,6 +141,7 @@ function computeAnnualInflation(
 function summarizeLedgerAndReconcile(params: {
   trialBalance: readonly AccountWithBalance[];
   inflation: AnnualInflationResult;
+  applyInflationAdjustment: boolean;
   fixedAssetsFiscalDeduction: number;
   ptuPagadaAnterior: number;
   noDeduciblesManual: number;
@@ -172,8 +173,8 @@ function summarizeLedgerAndReconcile(params: {
   }
 
   const utilidadContableCents = ingresosContablesCents - costosCents - gastosOpCents - isrContableCents;
-  const ajusteAcumCents = toCents(params.inflation.ajusteAcumulable);
-  const ajusteDedCents = toCents(params.inflation.ajusteDeducible);
+  const ajusteAcumCents = params.applyInflationAdjustment ? toCents(params.inflation.ajusteAcumulable) : 0;
+  const ajusteDedCents = params.applyInflationAdjustment ? toCents(params.inflation.ajusteDeducible) : 0;
   const depFiscalCents = Math.max(0, toCents(params.fixedAssetsFiscalDeduction));
   const noDedManualCents = Math.max(0, toCents(params.noDeduciblesManual));
   const ptuPagadaCents = Math.max(0, toCents(params.ptuPagadaAnterior));
@@ -230,7 +231,17 @@ function buildResolvedInputs(companyId: string, ejercicio: number, inflation: An
 
 export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualTaxSummaryResponse {
   const { company, ejercicio, trialBalance, monthlyBalancesByPeriod, fixedAssetsFiscalDeduction, paymentsProvisioned, inputs } = params;
-  const inflation = computeAnnualInflation(ejercicio, monthlyBalancesByPeriod, trialBalance, inputs.inpcCierreAnterior, inputs.inpcCierreActual);
+  const regimenClave = (company.regimenFiscal || '601').slice(0, 3);
+  const esResico = regimenClave === '626';
+  const isPf = company.rfc.trim().length === 13;
+  const tipoRegimenAnual: AnnualTaxRegimeType = esResico && isPf ? 'PF_RESICO' : esResico ? 'PM_RESICO' : isPf ? 'PF_ART152' : 'PM_GENERAL';
+  const applyInflationAdjustment = tipoRegimenAnual === 'PM_GENERAL';
+
+  const rawInflation = computeAnnualInflation(ejercicio, monthlyBalancesByPeriod, trialBalance, inputs.inpcCierreAnterior, inputs.inpcCierreActual);
+  const inflation: AnnualInflationResult = applyInflationAdjustment
+    ? rawInflation
+    : { ...rawInflation, tipo: 'NEUTRO', ajusteAcumulable: 0, ajusteDeducible: 0 };
+
   const rawUpdateFactor = inflation.inpcCierreAnterior > 0 && inflation.inpcCierreActual >= inflation.inpcCierreAnterior
     ? inflation.inpcCierreActual / inflation.inpcCierreAnterior
     : 1;
@@ -238,17 +249,12 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
   const resolvedInputs = buildResolvedInputs(company.id, ejercicio, inflation, inputs);
 
   const { ingresosContablesCents, noDeduciblesManualCents, reconciliation } = summarizeLedgerAndReconcile({
-    trialBalance, inflation, fixedAssetsFiscalDeduction,
+    trialBalance, inflation, applyInflationAdjustment, fixedAssetsFiscalDeduction,
     ptuPagadaAnterior: resolvedInputs.ptuPagadaAnterior,
     noDeduciblesManual: resolvedInputs.noDeduciblesManual,
     perdidasPendientes: params.perdidasFiscalesPendientes ?? 0,
     factorActualizacionInpc
   });
-
-  const regimenClave = (company.regimenFiscal || '601').slice(0, 3);
-  const esResico = regimenClave === '626';
-  const isPf = company.rfc.trim().length === 13;
-  const tipoRegimenAnual: AnnualTaxRegimeType = esResico && isPf ? 'PF_RESICO' : esResico ? 'PM_RESICO' : isPf ? 'PF_ART152' : 'PM_GENERAL';
 
   const resultadoFiscalCents = toCents(reconciliation.resultadoFiscal);
   const ingresosNominalesCents = Math.max(0, ingresosContablesCents);

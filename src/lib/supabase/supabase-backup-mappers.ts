@@ -2,6 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentFiscalPeriod } from '../../shared/date-utils';
 import type { CompanyBackupBundle } from '../../shared/types';
 import { chunkArray } from './supabase-pagination';
+import {
+  clearOptionalBackupTables,
+  restoreOptionalBackupTables
+} from './supabase-backup-optional';
 
 type UpsertRow = Record<string, unknown>;
 
@@ -19,6 +23,7 @@ export async function clearCompanyChildTables(
   client: SupabaseClient,
   companyId: string
 ): Promise<void> {
+  await clearOptionalBackupTables(client, companyId);
   const tables = [
     'bank_statement_lines',
     'cfdi_documents',
@@ -134,6 +139,8 @@ export async function restoreBackupChildTables(
       uuid_relacionado: c.uuidRelacionado || null,
       status_sat: c.statusSat || 'VIGENTE',
       poliza_id: c.polizaId || null,
+      tax_breakdown: c.taxBreakdown ?? null,
+      related_docs: c.relatedDocs ?? null,
       xml_raw: c.xmlRaw || ''
     }));
     for (const chunk of chunkArray(cfdisToUpsert, 100)) {
@@ -211,4 +218,6 @@ export async function restoreBackupChildTables(
     }));
     await assertTableUpsert(client, 'bank_statement_lines', bLinesToUpsert, { onConflict: 'id' });
   }
+
+  await restoreOptionalBackupTables(client, companyId, bundle);
 }

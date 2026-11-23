@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FileText, Loader2, Sparkles, Trash2, UploadCloud, X } from 'lucide-react';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { bankN1Client } from '../../lib/bank-n1-client';
@@ -10,7 +10,8 @@ interface BankPdfImportModalProps {
   companyId: string;
   accountId: string;
   isPeriodLocked: boolean;
-  onImported: () => void;
+  isReadOnlyClient?: boolean;
+  onImported: (importedCompanyId: string) => void;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -29,37 +30,52 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export function BankPdfImportModal({
-  dialogRef, companyId, accountId, isPeriodLocked, onImported, onFeedback
+  dialogRef, companyId, accountId, isPeriodLocked, isReadOnlyClient = false, onImported, onFeedback
 }: BankPdfImportModalProps) {
+  const isLocked = isPeriodLocked || isReadOnlyClient;
   const [rows, setRows] = useState<ExtractedBankPdfMovement[]>([]);
   const [meta, setMeta] = useState<PdfMetaInfo | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
 
-  const resetAndClose = () => {
+  const activeKey = `${companyId}::${accountId}`;
+  const activeKeyRef = useRef(activeKey);
+  activeKeyRef.current = activeKey;
+
+  const resetAndClose = useCallback(() => {
     setRows([]);
     setMeta(null);
     setExtractError(null);
-    dialogRef.current?.close();
-  };
+    setIsExtracting(false);
+    setIsImporting(false);
+    if (dialogRef.current?.open) dialogRef.current.close();
+  }, [dialogRef]);
+
+  useEffect(() => {
+    resetAndClose();
+  }, [companyId, accountId, resetAndClose]);
 
   useDialogLightDismiss(dialogRef, resetAndClose);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || isLocked) return;
     if (file.size > 7.5 * 1024 * 1024) {
       setExtractError(ERROR_MESSAGES.FILE_TOO_LARGE ?? 'Archivo demasiado grande.');
       return;
     }
 
+    const reqKey = activeKeyRef.current;
+    const reqCompanyId = companyId;
     setIsExtracting(true);
     setExtractError(null);
     try {
       const base64 = bufferToBase64(await file.arrayBuffer());
-      const res = await bankN1Client.extractBankPdfStatement(companyId, base64, file.type || 'application/pdf');
+      if (activeKeyRef.current !== reqKey) return;
+      const res = await bankN1Client.extractBankPdfStatement(reqCompanyId, base64, file.type || 'application/pdf');
+      if (activeKeyRef.current !== reqKey) return;
       if (!res.ok || !res.movimientos) {
         setExtractError((res.code && ERROR_MESSAGES[res.code]) || res.error || 'No se pudo extraer el PDF.');
         return;
@@ -73,9 +89,12 @@ export function BankPdfImportModal({
       setRows(res.movimientos);
       if (res.movimientos.length === 0) setExtractError('Gemini no detectó movimientos bancarios en el PDF.');
     } catch (err: unknown) {
+      if (activeKeyRef.current !== reqKey) return;
       setExtractError(err instanceof Error ? err.message : 'Error leyendo el estado de cuenta PDF.');
     } finally {
-      setIsExtracting(false);
+      if (activeKeyRef.current === reqKey) {
+        setIsExtracting(false);
+      }
     }
   };
 
@@ -84,12 +103,15 @@ export function BankPdfImportModal({
   };
 
   const handleConfirmImport = async () => {
-    if (isPeriodLocked || rows.length === 0) return;
+    if (isLocked || rows.length === 0) return;
+    const reqKey = activeKeyRef.current;
+    const targetCompanyId = companyId;
+    const targetAccountId = accountId;
     setIsImporting(true);
     try {
       await bankN1Client.importBankPdfLines(
-        companyId,
-        accountId,
+        targetCompanyId,
+        targetAccountId,
         rows.map((r) => ({
           fecha: r.fecha,
           referencia: r.referencia,
@@ -98,13 +120,17 @@ export function BankPdfImportModal({
           abonoBanco: Number(r.abono || 0)
         }))
       );
+      onImported(targetCompanyId);
+      if (activeKeyRef.current !== reqKey) return;
       onFeedback(`Se importaron ${rows.length} movimientos desde PDF bancario con IA.`);
-      onImported();
       resetAndClose();
     } catch (err: unknown) {
+      if (activeKeyRef.current !== reqKey) return;
       onFeedback(err instanceof Error ? err.message : 'Error al guardar los movimientos importados.', 'error');
     } finally {
-      setIsImporting(false);
+      if (activeKeyRef.current === reqKey) {
+        setIsImporting(false);
+      }
     }
   };
 
@@ -112,6 +138,7 @@ export function BankPdfImportModal({
     <dialog
       ref={dialogRef}
       closedby="any"
+      onClose={resetAndClose}
       aria-labelledby="modal-bank-pdf-title"
       className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-4xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
@@ -140,12 +167,12 @@ export function BankPdfImportModal({
           <label
             htmlFor="bank-pdf-file-input"
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition ${
-              isExtracting || isPeriodLocked
+              isExtracting || isLocked
                 ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200'
                 : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 cursor-pointer shadow-xs'
             }`}
           >
-            <input id="bank-pdf-file-input" type="file" accept="application/pdf,.pdf" disabled={isExtracting || isPeriodLocked} onChange={(e) => void handleFileChange(e)} className="visually-hidden" />
+            <input id="bank-pdf-file-input" type="file" accept="application/pdf,.pdf" disabled={isExtracting || isLocked} onChange={(e) => void handleFileChange(e)} className="visually-hidden" />
             {isExtracting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <UploadCloud className="w-4 h-4" aria-hidden="true" />}
             <span>{isExtracting ? 'Analizando PDF con IA...' : 'Seleccionar PDF Bancario'}</span>
           </label>
@@ -212,7 +239,7 @@ export function BankPdfImportModal({
           <button type="button" onClick={resetAndClose} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancelar</button>
           <button
             type="button"
-            disabled={isImporting || isPeriodLocked || rows.length === 0}
+            disabled={isImporting || isLocked || rows.length === 0}
             onClick={() => void handleConfirmImport()}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >

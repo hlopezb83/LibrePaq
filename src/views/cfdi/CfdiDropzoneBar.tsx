@@ -22,6 +22,7 @@ export interface CfdiDropzoneBarProps {
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   pendingCfdisCount: number;
   isPeriodLocked: boolean;
+  isReadOnlyClient?: boolean;
   isBatchContabilizarPending: boolean;
   batchProgress?: { current: number; total: number } | null;
   onBatchContabilizarPending: () => void;
@@ -45,6 +46,7 @@ export function CfdiDropzoneBar({
   handleFileUpload,
   pendingCfdisCount,
   isPeriodLocked,
+  isReadOnlyClient = false,
   isBatchContabilizarPending,
   batchProgress,
   onBatchContabilizarPending,
@@ -58,16 +60,25 @@ export function CfdiDropzoneBar({
   currentPeriod,
   onSoapDownloadSuccess
 }: CfdiDropzoneBarProps) {
+  const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   return (
     <>
       {/* Encabezado del ADD + Zona Drag & Drop */}
       <div
         onDragOver={(e) => {
+          if (isReadOnlyClient) return;
           e.preventDefault();
           setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
+        onDrop={(e) => {
+          if (isReadOnlyClient) {
+            e.preventDefault();
+            setIsDragging(false);
+            return;
+          }
+          handleDrop(e);
+        }}
         className={`flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border transition shadow-2xs ${
           isDragging
             ? 'border-2 border-dashed border-blue-600 bg-blue-50/40'
@@ -94,20 +105,22 @@ export function CfdiDropzoneBar({
           {pendingCfdisCount > 0 && (
             <button
               type="button"
-              disabled={isBatchContabilizarPending || isPeriodLocked}
+              disabled={isBatchContabilizarPending || isWriteBlocked}
               onClick={onBatchContabilizarPending}
               title={
-                isPeriodLocked
+                isReadOnlyClient
+                  ? 'Modo solo lectura'
+                  : isPeriodLocked
                   ? 'Periodo bloqueado ante el SAT'
                   : 'Contabilizar comprobantes pendientes en lote'
               }
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition ${
-                isPeriodLocked
+                isWriteBlocked
                   ? 'bg-slate-400 cursor-not-allowed opacity-60'
                   : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer ring-1 ring-emerald-500'
               }`}
             >
-              {isPeriodLocked ? (
+              {isWriteBlocked ? (
                 <Lock className="w-3.5 h-3.5" aria-hidden="true" />
               ) : isBatchContabilizarPending ? (
                 <Sparkles className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
@@ -118,6 +131,8 @@ export function CfdiDropzoneBar({
                 ? batchProgress
                   ? `Contabilizando (${batchProgress.current}/${batchProgress.total})...`
                   : 'Contabilizando...'
+                : isReadOnlyClient
+                ? 'Solo Lectura'
                 : isPeriodLocked
                 ? 'Periodo Bloqueado'
                 : `Contabilizar (${pendingCfdisCount})`}
@@ -151,16 +166,22 @@ export function CfdiDropzoneBar({
           <label
             htmlFor="cfdi-dropzone-upload"
             aria-busy={isUploadingFiles}
-            title="Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)"
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 text-xs font-semibold text-white shadow-2xs transition cursor-pointer ${
-              isUploadingFiles ? 'opacity-75 pointer-events-none' : ''
+            title={
+              isReadOnlyClient
+                ? 'Modo solo lectura: carga de XML deshabilitada'
+                : 'Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)'
+            }
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 text-xs font-semibold text-white shadow-2xs transition ${
+              isUploadingFiles || isReadOnlyClient
+                ? 'opacity-50 pointer-events-none cursor-not-allowed'
+                : 'cursor-pointer'
             }`}
           >
             <input
               id="cfdi-dropzone-upload"
               ref={fileInputRef}
               type="file"
-              disabled={isUploadingFiles}
+              disabled={isUploadingFiles || isReadOnlyClient}
               accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
               multiple
               onChange={handleFileUpload}
@@ -176,9 +197,14 @@ export function CfdiDropzoneBar({
           {/* 3. Botón Secundario: Captura Manual CFDI */}
           <button
             type="button"
+            disabled={isReadOnlyClient}
             onClick={onOpenSimulator}
-            title="Registrar comprobante o retención manual (Alt+S)"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold transition cursor-pointer"
+            title={
+              isReadOnlyClient
+                ? 'Modo solo lectura: captura manual deshabilitada'
+                : 'Registrar comprobante o retención manual (Alt+S)'
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 border border-slate-300 text-xs font-semibold transition cursor-pointer"
           >
             <FilePlus2 className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
             <span>Captura Manual</span>
@@ -249,6 +275,8 @@ export function CfdiDropzoneBar({
             pendingCfdisCount={pendingCfdisCount}
             onBatchAutoPoliza={onBatchContabilizarPending}
             isBatchAutoPolizaPending={isBatchContabilizarPending}
+            isPeriodLocked={isPeriodLocked}
+            isReadOnlyClient={isReadOnlyClient}
           />
         </div>
       )}
