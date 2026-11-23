@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ClipboardList, RefreshCw, Search, X } from 'lucide-react';
+import { ClipboardList, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import type { AdminAuditLogEntry, AdminAuditLogsPageQuery } from '../../shared/admin-types';
 import { AdminPaginationBar } from './AdminPaginationBar';
 
@@ -47,9 +47,38 @@ function formatMetadataValue(value: unknown): string {
   try { return JSON.stringify(value); } catch { return '[Objeto]'; }
 }
 
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  company: 'Empresa',
+  user: 'Usuario',
+  workspace: 'Despacho',
+  broadcast: 'Comunicado',
+  platform_alert: 'Alerta',
+  platform: 'Plataforma'
+};
+
+const METADATA_KEY_LABELS: Record<string, string> = {
+  actorRole: 'Rol',
+  companyRfc: 'RFC',
+  companyName: 'Empresa',
+  planTier: 'Plan',
+  maxCompanies: 'Máx. empresas',
+  maxCfdisPerMonth: 'Máx. CFDIs/mes',
+  maxStorageMb: 'Almacenamiento MB',
+  platformRole: 'Nuevo rol',
+  status: 'Estatus',
+  title: 'Título',
+  code: 'Código',
+  ownerEmail: 'Titular'
+};
+
 function formatMetadataSummary(metadata: Record<string, unknown>): string {
   const entries = Object.entries(metadata || {}).filter(([, v]) => v !== undefined && v !== null && v !== '');
-  return entries.length === 0 ? 'Sin detalles adicionales' : entries.slice(0, 4).map(([k, v]) => `${k}: ${formatMetadataValue(v)}`).join(' · ');
+  return entries.length === 0
+    ? 'Sin detalles adicionales'
+    : entries
+        .slice(0, 4)
+        .map(([k, v]) => `${METADATA_KEY_LABELS[k] ?? k}: ${formatMetadataValue(v)}`)
+        .join(' · ');
 }
 
 export function SuperAdminAuditTab({
@@ -74,7 +103,7 @@ export function SuperAdminAuditTab({
             <ClipboardList className="w-5 h-5 text-blue-600" aria-hidden="true" />
             Bitácora de Auditoría Administrativa
           </h2>
-          <p className="text-xs text-slate-600 mt-0.5">Registro inmutable paginado en servidor de acciones RBAC, cuotas, soporte y bajas</p>
+          <p className="text-xs text-slate-600 mt-0.5">Registro inmutable de cambios de acceso, cuotas, soporte y bajas de empresas</p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
@@ -97,13 +126,21 @@ export function SuperAdminAuditTab({
 
           <search className="relative w-full sm:w-64">
             <label htmlFor="admin-audit-search" className="visually-hidden">Buscar en bitácora por actor, acción u objetivo</label>
-            <Search className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            {isFetching ? (
+              <Loader2 className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none animate-spin" aria-hidden="true" />
+            ) : (
+              <Search className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            )}
             <input
               id="admin-audit-search"
               type="search"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape' && searchInput) { e.preventDefault(); setSearchInput(''); onQueryChange({ ...query, page: 1, search: '' }); } }}
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              enterKeyHint="search"
               placeholder="Filtrar por actor, acción u objetivo..."
               className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -145,7 +182,25 @@ export function SuperAdminAuditTab({
             {isLoading && logs.length === 0 ? (
               <tr><td colSpan={5} className="py-8 text-center text-slate-600">Cargando eventos de auditoría administrativa...</td></tr>
             ) : logs.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-slate-600">No se encontraron eventos de auditoría con estos filtros.</td></tr>
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-slate-600">
+                  <div className="flex flex-col items-center gap-2">
+                    <span>No se encontraron eventos de auditoría con estos filtros.</span>
+                    {(query.search || query.targetType) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchInput('');
+                          onQueryChange({ ...query, page: 1, search: '', targetType: '' });
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                      >
+                        Restablecer filtros
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
             ) : (
               logs.map((entry) => {
                 const badge = getActionBadge(entry.action);
@@ -161,7 +216,7 @@ export function SuperAdminAuditTab({
                       <span title={entry.action} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.className}`}>{badge.label}</span>
                     </td>
                     <td className="py-2.5 px-3.5">
-                      <span className="font-semibold text-slate-800">{entry.targetType}</span>
+                      <span className="font-semibold text-slate-800">{TARGET_TYPE_LABELS[entry.targetType] ?? entry.targetType}</span>
                       {entry.targetId && <p className="font-mono text-[10px] text-slate-600">{entry.targetId}</p>}
                     </td>
                     <td className="py-2.5 px-3.5 max-w-md"><p className="text-[11px] text-slate-700 line-clamp-2" title={summary}>{summary}</p></td>

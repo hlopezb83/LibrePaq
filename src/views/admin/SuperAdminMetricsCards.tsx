@@ -6,7 +6,6 @@ import {
   FileCode2,
   ShieldCheck,
   ExternalLink,
-  RefreshCw,
   Activity,
   FileKey2,
   AlertTriangle,
@@ -26,6 +25,7 @@ export interface SuperAdminMetricsCardsProps {
   isRefreshing?: boolean;
   isError?: boolean;
   onNavigateTab?: (tab: AdminNavTab) => void;
+  onNavigateFielCompanies?: () => void;
 }
 
 interface KpiCardItem {
@@ -34,7 +34,7 @@ interface KpiCardItem {
   subtitle: string;
   icon: ComponentType<{ className?: string }>;
   accentClass: string;
-  navigateTo?: AdminNavTab;
+  onAction?: () => void;
   actionHint?: string;
 }
 
@@ -68,9 +68,9 @@ export function SuperAdminMetricsCards({
   companiesCount,
   isLoading,
   onRefresh,
-  isRefreshing = false,
   isError = false,
-  onNavigateTab
+  onNavigateTab,
+  onNavigateFielCompanies
 }: SuperAdminMetricsCardsProps) {
   const finalUsers = usersCount ?? metrics?.totalUsers;
   const finalCompanies = companiesCount ?? metrics?.totalCompanies;
@@ -92,7 +92,8 @@ export function SuperAdminMetricsCards({
       subtitle: metrics?.newUsers7d != null ? `+${metrics.newUsers7d.toLocaleString('es-MX')} últimos 7d` : 'Cuentas registradas en Supabase Auth',
       icon: Users,
       accentClass: 'bg-blue-50 border-blue-200 text-blue-700',
-      navigateTo: onNavigateTab ? 'users' : undefined
+      onAction: onNavigateTab ? () => onNavigateTab('users') : undefined,
+      actionHint: onNavigateTab ? 'Ver usuarios' : undefined
     },
     {
       title: 'Empresas',
@@ -100,7 +101,8 @@ export function SuperAdminMetricsCards({
       subtitle: metrics?.activeCompaniesCount != null ? `${metrics.activeCompaniesCount.toLocaleString('es-MX')} activas` : 'Empresas fiscales multi-tenant',
       icon: Building2,
       accentClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-      navigateTo: onNavigateTab ? 'companies' : undefined
+      onAction: onNavigateTab ? () => onNavigateTab('companies') : undefined,
+      actionHint: onNavigateTab ? 'Ver empresas' : undefined
     },
     {
       title: 'Pólizas',
@@ -134,7 +136,9 @@ export function SuperAdminMetricsCards({
       value: formatMetric(metrics?.companiesWithFielCount),
       subtitle: 'Certificados FIEL vigentes o cargados',
       icon: FileKey2,
-      accentClass: 'bg-teal-50 border-teal-200 text-teal-700'
+      accentClass: 'bg-teal-50 border-teal-200 text-teal-700',
+      onAction: onNavigateFielCompanies,
+      actionHint: onNavigateFielCompanies ? 'Ver con e.firma' : undefined
     },
     {
       title: 'Errores SAT 7d',
@@ -142,7 +146,7 @@ export function SuperAdminMetricsCards({
       subtitle: satErrors > 0 ? 'Solicitudes SAT con incidencia reciente' : 'Descargas masivas sin fallos críticos',
       icon: AlertTriangle,
       accentClass: satErrors > 0 ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-slate-50 border-slate-200 text-slate-700',
-      navigateTo: onNavigateTab ? 'sat' : undefined,
+      onAction: onNavigateTab ? () => onNavigateTab('sat') : undefined,
       actionHint: onNavigateTab ? 'Ver Salud SAT' : undefined
     },
     {
@@ -160,7 +164,7 @@ export function SuperAdminMetricsCards({
       <>
         <div className="min-w-0 text-left">
           <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{card.title}</p>
-          <p className="text-2xl font-black text-slate-900 mt-1">{card.value}</p>
+          <p className="text-2xl font-black text-slate-900 mt-1 tabular-nums">{card.value}</p>
           <p className="text-[11px] text-slate-600 mt-0.5">{card.subtitle}</p>
           {card.actionHint && (
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 mt-1.5">
@@ -175,13 +179,12 @@ export function SuperAdminMetricsCards({
       </>
     );
 
-    if (card.navigateTo && onNavigateTab) {
-      const targetTab = card.navigateTo;
+    if (card.onAction) {
       return (
         <button
           key={card.title}
           type="button"
-          onClick={() => onNavigateTab(targetTab)}
+          onClick={card.onAction}
           aria-label={`${card.title}: ${card.value}. ${card.actionHint || 'Ir a la pestaña correspondiente'}`}
           className="w-full bg-white border border-slate-300/80 hover:border-blue-400 hover:shadow-sm rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
@@ -219,23 +222,14 @@ export function SuperAdminMetricsCards({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={isRefreshing || isLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white border border-blue-400/40 transition cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-              {isRefreshing ? 'Actualizando...' : 'Actualizar ahora'}
-            </button>
-          )}
           <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-slate-100 border border-white/15 transition cursor-pointer">
             Supabase Console
+            <span className="visually-hidden"> (abre en nueva pestaña)</span>
             <ExternalLink className="w-3 h-3 text-slate-200" aria-hidden="true" />
           </a>
           <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-slate-100 border border-white/15 transition cursor-pointer">
             Firebase Console
+            <span className="visually-hidden"> (abre en nueva pestaña)</span>
             <ExternalLink className="w-3 h-3 text-slate-200" aria-hidden="true" />
           </a>
         </div>

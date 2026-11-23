@@ -167,7 +167,7 @@ export function AppShellSidebar({
             <div className="px-2.5 py-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               <span>{isOwner ? 'Consola de Propietario' : 'Módulos Contables'}</span>
               <span className="font-mono text-[9px] text-slate-400">
-                {isOwner ? 'Alt+1..5' : 'Alt+1..7'}
+                Alt+1..7
               </span>
             </div>
           )}

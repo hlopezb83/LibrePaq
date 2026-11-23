@@ -210,18 +210,51 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
         <form onSubmit={handleSaveBroadcast} className="space-y-3.5 pt-2 border-t border-slate-200">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
           <div className="md:col-span-2">
-            <label htmlFor="broadcast-title" className="block text-xs font-bold text-slate-700 mb-1">Título del Comunicado</label>
-            <input id="broadcast-title" name="broadcastTitle" type="text" required disabled={isPending} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible" className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100" />
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label htmlFor="broadcast-title" className="block text-xs font-bold text-slate-700">Título del Comunicado</label>
+              <span className="text-[11px] font-mono tabular-nums text-slate-600" aria-live="polite">{title.length}/200</span>
+            </div>
+            <input id="broadcast-title" name="broadcastTitle" type="text" maxLength={200} required disabled={isPending} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible" className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100" />
           </div>
           <div>
             <label htmlFor="broadcast-expires-at" className="block text-xs font-bold text-slate-700 mb-1">Expiración automática (opcional)</label>
             <input id="broadcast-expires-at" name="broadcastExpiresAt" type="datetime-local" disabled={isPending} value={expiresAtInput} onChange={(e) => setExpiresAtInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100" />
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+              {([
+                { label: '+2 h', hours: 2 },
+                { label: '+24 h', hours: 24 },
+                { label: '+7 días', hours: 24 * 7 }
+              ] as const).map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => setExpiresAtInput(toDatetimeLocalValue(new Date(Date.now() + preset.hours * 3_600_000).toISOString()))}
+                  className="px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold border border-slate-200 transition cursor-pointer disabled:opacity-50"
+                >
+                  {preset.label}
+                </button>
+              ))}
+              {expiresAtInput && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => setExpiresAtInput('')}
+                  className="px-2 py-0.5 rounded-full bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-300 transition cursor-pointer disabled:opacity-50"
+                >
+                  Sin expiración
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         <div>
-          <label htmlFor="broadcast-message" className="block text-xs font-bold text-slate-700 mb-1">Mensaje Completo</label>
-          <textarea id="broadcast-message" name="broadcastMessage" required disabled={isPending} value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:bg-slate-100" />
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <label htmlFor="broadcast-message" className="block text-xs font-bold text-slate-700">Mensaje Completo</label>
+            <span className="text-[11px] font-mono tabular-nums text-slate-600" aria-live="polite">{message.length}/1000</span>
+          </div>
+          <textarea id="broadcast-message" name="broadcastMessage" maxLength={1000} required disabled={isPending} value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:bg-slate-100" />
         </div>
 
         {(title.trim() || message.trim()) && (

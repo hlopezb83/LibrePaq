@@ -79,10 +79,10 @@ export function SuperAdminAlertsPanel({
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <Bell className="w-4 h-4 text-amber-600" aria-hidden="true" />
             Alertas Proactivas de Plataforma
-          </h3>
+          </h2>
           <p className="text-xs text-slate-600 mt-0.5">
             Detección temprana de certificados e.firma por vencer, picos de rechazo SAT y saturación de cuotas
           </p>
@@ -93,7 +93,7 @@ export function SuperAdminAlertsPanel({
           onClick={onScan}
           disabled={isScanning}
           aria-busy={isScanning}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold transition cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />
           {isScanning ? 'Escaneando...' : 'Escanear Ahora'}
@@ -126,8 +126,28 @@ export function SuperAdminAlertsPanel({
           Cargando alertas operativas de la plataforma...
         </p>
       ) : visibleAlerts.length === 0 ? (
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-          No hay alertas registradas para el filtro seleccionado.
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p>No hay alertas registradas para el filtro seleccionado.</p>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {statusFilter !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => onStatusFilterChange('ALL')}
+                className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              >
+                Ver todas las alertas
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onScan}
+              disabled={isScanning}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />
+              Escanear plataforma
+            </button>
+          </div>
         </div>
       ) : (
         <ul className="space-y-2.5">
@@ -152,12 +172,12 @@ export function SuperAdminAlertsPanel({
                     <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] font-semibold text-slate-700">
                       {CATEGORY_LABELS[alert.category]}
                     </span>
-                    <span className="font-mono text-[11px] text-slate-500">{alert.code}</span>
+                    <span className="font-mono text-[11px] text-slate-600">{alert.code}</span>
                   </div>
 
                   <p className="text-xs font-bold text-slate-900">{alert.title}</p>
                   <p className="text-xs text-slate-700">{alert.message}</p>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-600">
                     Detectada: {formatDateTimeEsMx(alert.detectedAt)}
                     {alert.resolvedAt ? ` · Resuelta: ${formatDateTimeEsMx(alert.resolvedAt)}` : ''}
                   </p>
@@ -169,9 +189,9 @@ export function SuperAdminAlertsPanel({
                       type="button"
                       disabled={isBusy}
                       onClick={() => onUpdateStatus(alert.id, 'acknowledged')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 disabled:opacity-50 text-amber-950 border border-amber-300 text-xs font-bold transition cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-amber-950 border border-amber-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
-                      Reconocer
+                      Reconocer<span className="visually-hidden"> alerta {alert.title}</span>
                     </button>
                   )}
 
@@ -180,10 +200,10 @@ export function SuperAdminAlertsPanel({
                       type="button"
                       disabled={isBusy}
                       onClick={() => onUpdateStatus(alert.id, 'resolved')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 text-emerald-950 border border-emerald-300 text-xs font-bold transition cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-950 border border-emerald-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      Resolver
+                      Resolver<span className="visually-hidden"> alerta {alert.title}</span>
                     </button>
                   )}
 
@@ -192,10 +212,10 @@ export function SuperAdminAlertsPanel({
                       type="button"
                       disabled={isBusy}
                       onClick={() => onUpdateStatus(alert.id, 'open')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
                       <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                      Reabrir
+                      Reabrir<span className="visually-hidden"> alerta {alert.title}</span>
                     </button>
                   )}
                 </div>

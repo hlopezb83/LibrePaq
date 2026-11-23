@@ -105,7 +105,7 @@ export function SuperAdminView() {
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
-                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span> · Rol RBAC: <span className="font-mono font-semibold">{m.platformRole}</span>
+                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span> · Nivel de acceso: <span className="font-mono font-semibold">{m.platformRole}</span>
               </p>
             </div>
           </div>
@@ -133,12 +133,13 @@ export function SuperAdminView() {
                 type="button"
                 role="tab"
                 aria-selected={isSelected}
-                aria-controls={`admin-panel-${tab.id}`}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => m.setActiveTab(tab.id)}
                 onKeyDown={(e) => handleTablistKeyDown(e, adminTabs, m.activeTab, m.setActiveTab, 'admin-tab-')}
-                className={`snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  isSelected ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                className={`snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                  isSelected
+                    ? 'bg-blue-600 text-white border-blue-900 shadow-xs'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -172,6 +173,10 @@ export function SuperAdminView() {
             isRefreshing={m.isRefreshing}
             isError={m.metricsError}
             onNavigateTab={m.setActiveTab}
+            onNavigateFielCompanies={() => {
+              m.setCompaniesQuery((prev) => ({ ...prev, page: 1, ownerType: 'ALL', fielFilter: 'WITH_FIEL' }));
+              m.setActiveTab('companies');
+            }}
           />
         )}
 
@@ -227,6 +232,7 @@ export function SuperAdminView() {
             mutatingAlertId={m.updateAlertStatusMutation.isPending ? (m.updateAlertStatusMutation.variables?.alertId ?? null) : null}
             onScanAlerts={() => m.scanAlertsMutation.mutate()}
             onUpdateAlertStatus={(alertId, status) => m.updateAlertStatusMutation.mutate({ alertId, status })}
+            onInspectCompanyRfc={(rfc: string) => m.setActiveTab('companies', rfc)}
           />
         )}
 

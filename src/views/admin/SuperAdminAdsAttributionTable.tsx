@@ -144,6 +144,7 @@ export function SuperAdminAdsAttributionTable({ users, companies }: SuperAdminAd
           type="button"
           onClick={handleExportOfflineCsv}
           disabled={gclidLeads.length === 0}
+          title={gclidLeads.length === 0 ? 'Sin registros con GCLID para exportar' : undefined}
           aria-label={`Exportar CSV de conversiones offline con GCLID (${gclidLeads.length} registros)`}
           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-600 text-white text-xs font-bold shadow-xs transition cursor-pointer disabled:cursor-not-allowed shrink-0"
         >
@@ -163,7 +164,7 @@ export function SuperAdminAdsAttributionTable({ users, companies }: SuperAdminAd
               <span className="text-xs font-mono font-bold text-slate-700">{stage.sharePct}% del total</span>
             </div>
             <div className="flex items-baseline justify-between">
-              <p className="text-2xl font-black text-slate-900">{stage.count.toLocaleString('es-MX')}</p>
+              <p className="text-2xl font-black text-slate-900 tabular-nums">{stage.count.toLocaleString('es-MX')}</p>
               <p className="text-xs font-semibold text-slate-700">
                 {stage.activated.toLocaleString('es-MX')} activados ({stage.activationPct}%)
               </p>

@@ -52,6 +52,7 @@ export function SuperAdminUsersTab({
 }: SuperAdminUsersTabProps) {
   const [searchInput, setSearchInput] = useState(query.search || '');
   const [pendingUser, setPendingUser] = useState<{ id: string; nextStatus: 'ACTIVO' | 'SUSPENDIDO' } | null>(null);
+  const [pendingRole, setPendingRole] = useState<{ id: string; fullName: string; nextRole: PlatformRole } | null>(null);
 
   useEffect(() => {
     setSearchInput(query.search || '');
@@ -66,6 +67,8 @@ export function SuperAdminUsersTab({
     return () => clearTimeout(t);
   }, [searchInput, query, onQueryChange]);
 
+  const hasActiveFilters = Boolean(searchInput || (query.status && query.status !== 'ALL') || (query.role && query.role !== 'ALL'));
+
   return (
     <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -75,7 +78,7 @@ export function SuperAdminUsersTab({
             Directorio de Usuarios y Roles de Plataforma
           </h2>
           <p className="text-xs text-slate-600 mt-0.5">
-            Paginación server-side, asignación granular de permisos RBAC y control de suspensión
+            Consulta en tiempo real, niveles de acceso a consola y control de cuentas
           </p>
         </div>
 
@@ -107,13 +110,23 @@ export function SuperAdminUsersTab({
             {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
 
-          <button type="button" disabled={users.length === 0} onClick={() => exportUsersCsv(users)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 text-xs font-bold text-slate-700 transition cursor-pointer">
+          <button
+            type="button"
+            disabled={users.length === 0}
+            title={users.length === 0 ? 'No hay usuarios en la página actual para exportar' : undefined}
+            onClick={() => exportUsersCsv(users)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition cursor-pointer"
+          >
             <Download className="w-3.5 h-3.5" aria-hidden="true" /> Exportar CSV
           </button>
 
           <search className="relative w-full sm:w-56">
             <label htmlFor="admin-users-search" className="visually-hidden">Buscar usuario por correo, nombre o campaña</label>
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            {isFetching ? (
+              <Loader2 className="w-4 h-4 text-blue-600 animate-spin absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            ) : (
+              <Search className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            )}
             <input
               id="admin-users-search"
               type="search"
@@ -126,18 +139,19 @@ export function SuperAdminUsersTab({
                   onQueryChange({ ...query, page: 1, search: '' });
                 }
               }}
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              enterKeyHint="search"
               placeholder="Buscar correo o nombre..."
-              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-8 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {searchInput && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchInput('');
-                  onQueryChange({ ...query, page: 1, search: '' });
-                }}
+                onClick={() => { setSearchInput(''); onQueryChange({ ...query, page: 1, search: '' }); }}
                 aria-label="Limpiar búsqueda de usuarios"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-slate-700 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-600 hover:text-slate-800 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
@@ -148,11 +162,11 @@ export function SuperAdminUsersTab({
 
       <div tabIndex={0} role="region" aria-label="Tabla de usuarios registrados" className="overflow-x-auto max-h-[68vh] border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
-          <caption className="visually-hidden">Directorio paginado de usuarios registrados y roles RBAC</caption>
+          <caption className="visually-hidden">Directorio paginado de usuarios registrados y niveles de acceso</caption>
           <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
             <tr>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Usuario / Correo</th>
-              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Workspace / Rol RBAC</th>
+              <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Despacho / Nivel de acceso</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Canal / Acceso</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Empresas</th>
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Registro</th>
@@ -164,14 +178,27 @@ export function SuperAdminUsersTab({
             {isLoading ? (
               <tr><td colSpan={7} className="py-8 text-center text-slate-600">Cargando directorio de usuarios...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-slate-600">No se encontraron usuarios con estos criterios.</td></tr>
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-slate-600 space-y-2">
+                  <p>No se encontraron usuarios con estos criterios.</p>
+                  {hasActiveFilters && (
+                    <button type="button" onClick={() => { setSearchInput(''); onQueryChange({ ...query, page: 1, search: '', status: 'ALL', role: 'ALL' }); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer">
+                      Restablecer filtros
+                    </button>
+                  )}
+                </td>
+              </tr>
             ) : (
               users.map((u) => {
                 const isMutating = mutatingUserId === u.id;
                 const isConfirming = pendingUser?.id === u.id;
+                const isConfirmingRole = pendingRole?.id === u.id;
                 const isSuspended = u.status === 'SUSPENDIDO';
                 const nextStatus: 'ACTIVO' | 'SUSPENDIDO' = isSuspended ? 'ACTIVO' : 'SUSPENDIDO';
                 const currentRole: PlatformRole = u.platformRole || (u.isSuperAdmin ? 'SUPERADMIN' : 'NONE');
+                const pendingRoleLabel = isConfirmingRole && pendingRole
+                  ? ROLE_OPTIONS.find((opt) => opt.value === pendingRole.nextRole)?.label ?? pendingRole.nextRole
+                  : '';
 
                 return (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition">
@@ -182,7 +209,7 @@ export function SuperAdminUsersTab({
                         </div>
                         <div>
                           <p className="font-bold text-slate-900">{u.fullName}</p>
-                          <p className="text-[11px] text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-500" aria-hidden="true" /> {u.email}</p>
+                          <p className="text-[11px] text-slate-600 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-600" aria-hidden="true" /> {u.email}</p>
                         </div>
                       </div>
                     </th>
@@ -194,23 +221,37 @@ export function SuperAdminUsersTab({
                       ) : (
                         <div>
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                            {u.workspaceName || `Workspace — ${u.fullName}`}
+                            {u.workspaceName || `Despacho — ${u.fullName}`}
                           </span>
                           {u.workspaceId && <p className="text-[10px] font-mono text-slate-600 mt-0.5">{u.workspaceId}</p>}
                         </div>
                       )}
                       {onChangeUserRole && (
-                        <div>
-                          <label htmlFor={`role-select-${u.id}`} className="visually-hidden">Rol de plataforma para {u.email}</label>
+                        <div className="space-y-1.5">
+                          <label htmlFor={`role-select-${u.id}`} className="visually-hidden">Nivel de acceso para {u.email}</label>
                           <select
                             id={`role-select-${u.id}`}
                             disabled={isMutating}
-                            value={currentRole}
-                            onChange={(e) => onChangeUserRole(u.id, e.target.value as PlatformRole)}
+                            value={isConfirmingRole && pendingRole ? pendingRole.nextRole : currentRole}
+                            onChange={(e) => {
+                              const nextRole = e.target.value as PlatformRole;
+                              if (nextRole === currentRole) {
+                                setPendingRole(null);
+                                return;
+                              }
+                              setPendingRole({ id: u.id, fullName: u.fullName, nextRole });
+                            }}
                             className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-800 cursor-pointer disabled:opacity-60"
                           >
                             {ROLE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
+                          {isConfirmingRole && pendingRole && (
+                            <div role="alertdialog" aria-modal="false" aria-label={`Confirmar cambio de rol para ${pendingRole.fullName}`} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setPendingRole(null); } }} className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg bg-amber-50 border border-amber-300 text-[11px]">
+                              <span className="font-bold text-amber-950">¿Asignar rol {pendingRoleLabel}?</span>
+                              <button type="button" autoFocus onClick={() => setPendingRole(null)} className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer">Cancelar</button>
+                              <button type="button" disabled={isMutating} onClick={() => { onChangeUserRole(u.id, pendingRole.nextRole); setPendingRole(null); }} className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 font-bold text-white cursor-pointer disabled:opacity-50">Confirmar</button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>
@@ -248,7 +289,7 @@ export function SuperAdminUsersTab({
                         {currentRole !== 'SUPERADMIN' && onToggleUserStatus && !isConfirming && (
                           <button type="button" disabled={isMutating} onClick={() => setPendingUser({ id: u.id, nextStatus })} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border transition cursor-pointer disabled:opacity-50 ${isSuspended ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-white hover:bg-red-50 text-red-700 border-red-200'}`}>
                             {isMutating ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> : isSuspended ? <RotateCcw className="w-3 h-3" aria-hidden="true" /> : <Ban className="w-3 h-3" aria-hidden="true" />}
-                            {isSuspended ? 'Reactivar' : 'Suspender'}
+                            {isSuspended ? 'Reactivar' : 'Suspender'}<span className="visually-hidden"> a {u.fullName}</span>
                           </button>
                         )}
                         {isConfirming && pendingUser && onToggleUserStatus && (

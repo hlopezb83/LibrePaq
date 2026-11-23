@@ -59,10 +59,10 @@ export function SuperAdminAdsTab({ users = [], companies = [] }: SuperAdminAdsTa
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-700">Objetivo de Campaña</span>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">
-                Smart Bidding
+                Puja inteligente
               </span>
             </div>
-            <p className="text-xs font-bold text-slate-900">Sign up for product or service</p>
+            <p className="text-xs font-bold text-slate-900">Registro de nueva cuenta</p>
             <p className="text-[11px] text-slate-600 mt-1">
               Optimizado para registros gratuitos en software contable en México.
             </p>
@@ -86,7 +86,10 @@ export function SuperAdminAdsTab({ users = [], companies = [] }: SuperAdminAdsTa
                   GAds
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700">Google Ads</p>
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                    Google Ads
+                    <span className="visually-hidden"> (abre en nueva pestaña)</span>
+                  </p>
                   <p className="text-[10px] text-slate-600">Campañas, palabras clave y presupuesto</p>
                 </div>
               </div>
@@ -104,7 +107,10 @@ export function SuperAdminAdsTab({ users = [], companies = [] }: SuperAdminAdsTa
                   GA4
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700">Google Analytics 4</p>
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700">
+                    Google Analytics 4
+                    <span className="visually-hidden"> (abre en nueva pestaña)</span>
+                  </p>
                   <p className="text-[10px] text-slate-600">Métricas en tiempo real y embudo</p>
                 </div>
               </div>
@@ -122,7 +128,10 @@ export function SuperAdminAdsTab({ users = [], companies = [] }: SuperAdminAdsTa
                   FB
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-orange-700">Firebase Hosting</p>
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-orange-700">
+                    Firebase Hosting
+                    <span className="visually-hidden"> (abre en nueva pestaña)</span>
+                  </p>
                   <p className="text-[10px] text-slate-600">Dominio librepaq.com y SSL</p>
                 </div>
               </div>

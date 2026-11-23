@@ -41,9 +41,8 @@ export function BroadcastBanner() {
   };
 
   return (
-    <aside
-      role="status"
-      aria-live="polite"
+    <div
+      role="region"
       aria-label="Aviso oficial de la plataforma"
       className={`px-4 py-2.5 border-b text-xs flex items-center justify-between gap-3 transition-colors ${
         broadcast.type === 'warning'
@@ -75,6 +74,6 @@ export function BroadcastBanner() {
       >
         <X className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
-    </aside>
+    </div>
   );
 }

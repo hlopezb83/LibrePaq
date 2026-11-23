@@ -1,18 +1,6 @@
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  FileKey2,
-  RefreshCw,
-  ShieldAlert,
-  XCircle
-} from 'lucide-react';
-import type {
-  AdminPlatformAlert,
-  AdminSatHealthResponse,
-  PlatformAlertStatus
-} from '../../shared/admin-types';
+import { Activity, AlertTriangle, Check, CheckCircle2, Clock, Copy, FileKey2, RefreshCw, ShieldAlert, XCircle } from 'lucide-react';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import type { AdminPlatformAlert, AdminSatHealthResponse, PlatformAlertStatus } from '../../shared/admin-types';
 import { SuperAdminAlertsPanel } from './SuperAdminAlertsPanel';
 
 export interface SuperAdminSatHealthTabProps {
@@ -28,6 +16,7 @@ export interface SuperAdminSatHealthTabProps {
   mutatingAlertId?: string | null;
   onScanAlerts?: () => void;
   onUpdateAlertStatus?: (alertId: string, status: PlatformAlertStatus) => void;
+  onInspectCompanyRfc?: (rfc: string) => void;
 }
 
 const SAT_CODE_HINTS: Record<string, string> = {
@@ -44,33 +33,44 @@ const SAT_CODE_HINTS: Record<string, string> = {
 function formatDateTimeEsMx(iso?: string | null): string {
   if (!iso) return '—';
   const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function getFielExpiryBadge(daysRemaining: number): { label: string; className: string } {
-  if (daysRemaining <= 0) {
-    return { label: `Vencida (${Math.abs(daysRemaining)}d)`, className: 'bg-red-100 text-red-900 border-red-300' };
-  }
-  if (daysRemaining <= 15) {
-    return { label: `Crítico: ${daysRemaining}d`, className: 'bg-red-100 text-red-900 border-red-300' };
-  }
-  if (daysRemaining <= 30) {
-    return { label: `Por vencer: ${daysRemaining}d`, className: 'bg-amber-100 text-amber-950 border-amber-300' };
-  }
+  if (daysRemaining <= 0) return { label: `Vencida (${Math.abs(daysRemaining)}d)`, className: 'bg-red-100 text-red-900 border-red-300' };
+  if (daysRemaining <= 15) return { label: `Crítico: ${daysRemaining}d`, className: 'bg-red-100 text-red-900 border-red-300' };
+  if (daysRemaining <= 30) return { label: `Por vencer: ${daysRemaining}d`, className: 'bg-amber-100 text-amber-950 border-amber-300' };
   return { label: `${daysRemaining}d restantes`, className: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
 }
 
 function getRequestStatusBadge(estado: string): string {
   const lower = estado.toLowerCase();
-  if (lower.includes('termin') || lower.includes('complet') || lower === '3') {
-    return 'bg-emerald-100 text-emerald-900 border-emerald-300';
-  }
+  if (lower.includes('termin') || lower.includes('complet') || lower === '3') return 'bg-emerald-100 text-emerald-900 border-emerald-300';
   if (lower.includes('error') || lower.includes('rechaz') || lower.includes('fall') || lower === '4' || lower === '5') {
     return 'bg-red-100 text-red-900 border-red-300';
   }
   return 'bg-amber-100 text-amber-950 border-amber-300';
+}
+
+function CompanyRfcCell({ companyName, companyRfc, onInspectCompanyRfc }: { companyName: string; companyRfc?: string | null; onInspectCompanyRfc?: (rfc: string) => void }) {
+  return (
+    <th scope="row" className="py-2.5 px-3.5 text-left font-normal">
+      <p className="font-bold text-slate-900">{companyName}</p>
+      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+        <span className="font-mono text-[11px] text-slate-600">{companyRfc}</span>
+        {onInspectCompanyRfc && companyRfc && (
+          <button
+            type="button"
+            onClick={() => onInspectCompanyRfc(companyRfc)}
+            aria-label={`Ver empresa ${companyRfc} en directorio`}
+            className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600 rounded"
+          >
+            Ver empresa
+          </button>
+        )}
+      </div>
+    </th>
+  );
 }
 
 export function SuperAdminSatHealthTab({
@@ -85,8 +85,10 @@ export function SuperAdminSatHealthTab({
   scanningAlerts = false,
   mutatingAlertId = null,
   onScanAlerts,
-  onUpdateAlertStatus
+  onUpdateAlertStatus,
+  onInspectCompanyRfc
 }: SuperAdminSatHealthTabProps) {
+  const { copiedKey: copiedSerie, copy: copySerie } = useCopyToClipboard<string>(1800);
   const formatCount = (value?: number) =>
     isLoading && value == null ? '...' : value != null ? value.toLocaleString('es-MX') : '—';
 
@@ -226,14 +228,28 @@ export function SuperAdminSatHealthTab({
               <tbody className="divide-y divide-slate-100 text-slate-800">
                 {satHealth.expiringFiels.map((fiel) => {
                   const badge = getFielExpiryBadge(fiel.daysRemaining);
+                  const copyKey = `${fiel.companyId}-${fiel.numeroSerie}`;
+                  const isCopied = copiedSerie === copyKey;
                   return (
-                    <tr key={`${fiel.companyId}-${fiel.numeroSerie}`} className="hover:bg-slate-50/80">
-                      <th scope="row" className="py-2.5 px-3.5 text-left font-normal">
-                        <p className="font-bold text-slate-900">{fiel.companyName}</p>
-                        <p className="font-mono text-[11px] text-slate-600">{fiel.companyRfc}</p>
-                      </th>
+                    <tr key={copyKey} className="hover:bg-slate-50/80">
+                      <CompanyRfcCell companyName={fiel.companyName} companyRfc={fiel.companyRfc} onInspectCompanyRfc={onInspectCompanyRfc} />
                       <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-700">{fiel.rfcTitular}</td>
-                      <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-700">{fiel.numeroSerie}</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-700">
+                        <div className="inline-flex items-center gap-1.5">
+                          <span>{fiel.numeroSerie}</span>
+                          {fiel.numeroSerie && (
+                            <button
+                              type="button"
+                              onClick={() => void copySerie(fiel.numeroSerie, copyKey)}
+                              aria-label={`Copiar número de serie ${fiel.numeroSerie}`}
+                              title={isCopied ? 'Copiado' : 'Copiar número de serie'}
+                              className="p-1 rounded hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
+                            >
+                              {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-2.5 px-3.5 text-slate-700">{formatDateTimeEsMx(fiel.validTo)}</td>
                       <td className="py-2.5 px-3.5 text-right">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.className}`}>{badge.label}</span>
@@ -245,6 +261,9 @@ export function SuperAdminSatHealthTab({
             </table>
           </div>
         )}
+        <span className="visually-hidden" aria-live="polite">
+          {copiedSerie ? 'Número de serie copiado al portapapeles' : ''}
+        </span>
       </div>
 
       <div className="bg-white border border-slate-300/80 rounded-2xl p-5 shadow-2xs space-y-3">
@@ -276,10 +295,7 @@ export function SuperAdminSatHealthTab({
               ) : (
                 satHealth.recentRequests.map((req) => (
                   <tr key={req.id} className="hover:bg-slate-50/80">
-                    <th scope="row" className="py-2.5 px-3.5 text-left font-normal">
-                      <p className="font-bold text-slate-900">{req.companyName}</p>
-                      <p className="font-mono text-[11px] text-slate-600">{req.companyRfc}</p>
-                    </th>
+                    <CompanyRfcCell companyName={req.companyName} companyRfc={req.companyRfc} onInspectCompanyRfc={onInspectCompanyRfc} />
                     <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-700">{req.tipoSolicitud}</td>
                     <td className="py-2.5 px-3.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${getRequestStatusBadge(req.estadoSolicitud)}`}>

@@ -1,4 +1,6 @@
 import {
+  Activity,
+  ClipboardList,
   FileCode2,
   FileSpreadsheet,
   FolderTree,
@@ -43,11 +45,25 @@ export const SUPERADMIN_NAV_ITEMS: CommandPaletteNavItem[] = [
     shortcut: 'Alt+4'
   },
   {
+    to: '/admin?tab=sat',
+    label: 'Salud SAT & Alertas',
+    sublabel: 'Descargas XML, FIEL y Alertas',
+    icon: Activity,
+    shortcut: 'Alt+5'
+  },
+  {
     to: '/admin?tab=broadcast',
     label: 'Comunicados Globales',
     sublabel: 'Avisos en Vivo a Usuarios',
     icon: Megaphone,
-    shortcut: 'Alt+5'
+    shortcut: 'Alt+6'
+  },
+  {
+    to: '/admin?tab=audit',
+    label: 'Bitácora de Auditoría',
+    sublabel: 'Eventos RBAC, Cuotas y Soporte',
+    icon: ClipboardList,
+    shortcut: 'Alt+7'
   }
 ];
 
