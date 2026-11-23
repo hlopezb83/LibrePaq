@@ -199,6 +199,40 @@ export const CREATE_TABLES_DDL = `
   CREATE INDEX IF NOT EXISTS idx_cfdi_poliza_id ON cfdi_documents(poliza_id);
   CREATE INDEX IF NOT EXISTS idx_bank_lines_period ON bank_statement_lines(company_id, account_id, ejercicio, periodo);
   CREATE INDEX IF NOT EXISTS idx_accounts_company_parent ON accounts(company_id, parent_code);
+
+  CREATE TABLE IF NOT EXISTS platform_broadcasts (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'info',
+    active INTEGER NOT NULL DEFAULT 1,
+    starts_at TEXT,
+    expires_at TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id TEXT PRIMARY KEY,
+    actor_user_id TEXT,
+    actor_email TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_user_overrides (
+    user_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'ACTIVO',
+    updated_at TEXT NOT NULL,
+    updated_by TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_platform_broadcasts_active ON platform_broadcasts(active, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
 `;
 
 export function ensureBaseTables(database: { exec: (sql: string) => void }): void {

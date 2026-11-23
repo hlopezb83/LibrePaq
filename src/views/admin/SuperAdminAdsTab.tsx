@@ -1,7 +1,14 @@
 import { ExternalLink, Target, CheckCircle2 } from 'lucide-react';
 import { DEFAULT_WHATSAPP_PHONE } from '../../components/WhatsAppSupportButton';
+import type { AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
+import { SuperAdminAdsAttributionTable } from './SuperAdminAdsAttributionTable';
 
-export function SuperAdminAdsTab() {
+export interface SuperAdminAdsTabProps {
+  users?: AdminUserSummary[];
+  companies?: AdminCompanySummary[];
+}
+
+export function SuperAdminAdsTab({ users = [], companies = [] }: SuperAdminAdsTabProps) {
   const measurementId =
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID) ||
     'G-QQFGNPNYNZ';
@@ -23,8 +30,8 @@ export function SuperAdminAdsTab() {
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-700">Google Ads Tag</span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3 h-3 text-emerald-700" aria-hidden="true" />
                 Vinculado
               </span>
             </div>
@@ -37,8 +44,8 @@ export function SuperAdminAdsTab() {
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-700">Atención WhatsApp</span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3 h-3 text-emerald-700" aria-hidden="true" />
                 En Línea
               </span>
             </div>
@@ -51,7 +58,7 @@ export function SuperAdminAdsTab() {
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-700">Objetivo de Campaña</span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">
                 Smart Bidding
               </span>
             </div>
@@ -75,15 +82,15 @@ export function SuperAdminAdsTab() {
               className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 transition group cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs">
                   GAds
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700">Google Ads</p>
-                  <p className="text-[10px] text-slate-500">Campañas, palabras clave y presupuesto</p>
+                  <p className="text-[10px] text-slate-600">Campañas, palabras clave y presupuesto</p>
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-blue-600" aria-hidden="true" />
+              <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-blue-600" aria-hidden="true" />
             </a>
 
             <a
@@ -93,15 +100,15 @@ export function SuperAdminAdsTab() {
               className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/40 transition group cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs">
                   GA4
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 group-hover:text-amber-700">Google Analytics 4</p>
-                  <p className="text-[10px] text-slate-500">Métricas en tiempo real y embudo</p>
+                  <p className="text-[10px] text-slate-600">Métricas en tiempo real y embudo</p>
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-amber-600" aria-hidden="true" />
+              <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-amber-600" aria-hidden="true" />
             </a>
 
             <a
@@ -111,19 +118,21 @@ export function SuperAdminAdsTab() {
               className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-orange-400 hover:bg-orange-50/40 transition group cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-xs">
+                <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-800 flex items-center justify-center font-bold text-xs">
                   FB
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900 group-hover:text-orange-700">Firebase Hosting</p>
-                  <p className="text-[10px] text-slate-500">Dominio librepaq.com y SSL</p>
+                  <p className="text-[10px] text-slate-600">Dominio librepaq.com y SSL</p>
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-orange-600" aria-hidden="true" />
+              <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-orange-600" aria-hidden="true" />
             </a>
           </div>
         </div>
       </div>
+
+      <SuperAdminAdsAttributionTable users={users} companies={companies} />
     </div>
   );
 }

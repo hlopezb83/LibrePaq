@@ -9,6 +9,7 @@ import { supabaseFiscalAndAssets } from './supabase-fiscal-assets';
 import { supabaseFiscalWorkpaper } from './supabase-fiscal-workpaper';
 import { supabaseFielAndSoap } from './supabase-fiel-soap';
 import { supabaseAdminApi } from './supabase-admin';
+import { supabaseAdminOpsApi } from './supabase-admin-ops';
 import { supabaseBackupRestore } from './supabase-backup-restore';
 import { supabaseClosingAndVerification } from './supabase-closing-verification';
 
@@ -24,6 +25,7 @@ export const supabaseCloudApi = {
   ...supabaseFiscalWorkpaper,
   ...supabaseFielAndSoap,
   ...supabaseAdminApi,
+  ...supabaseAdminOpsApi,
   ...supabaseBackupRestore,
   ...supabaseClosingAndVerification
 };

@@ -7,9 +7,9 @@ import {
 } from '../src/shared/sat-cfdi-status';
 
 describe('Supabase Cloud Facade & SAT CFDI Soap Parity', () => {
-  test('supabaseCloudApi exports all 60 methods matching localApiClient with 100% parity', () => {
+  test('supabaseCloudApi exports all 69 methods matching localApiClient with 100% parity', () => {
     const localKeys = Object.keys(localApiClient) as Array<keyof typeof localApiClient>;
-    expect(localKeys.length).toBe(60);
+    expect(localKeys.length).toBe(69);
 
     const missingInCloud: string[] = [];
     for (const key of localKeys) {

@@ -1,277 +1,222 @@
 import { supabase } from '../supabase';
-import type {
-  AdminPlatformMetrics,
-  AdminCompanySummary,
-  AdminUserSummary
-} from '../../shared/admin-types';
+import type { AdminPlatformMetrics, AdminCompanySummary, AdminUserSummary } from '../../shared/admin-types';
 import { adminApi } from '../api/admin.api';
 import { isSuperAdminEmail } from '../../shared/superadmin';
 
-function inferNameFromCompany(companyName: string): string | undefined {
-  const match = /^Despacho Contable\s*-\s*(.+)$/i.exec(companyName.trim());
-  return match?.[1]?.trim() || undefined;
+type Row = Record<string, unknown>;
+
+const inferName = (name: string): string | undefined =>
+  /^Despacho Contable\s*-\s*(.+)$/i.exec(name.trim())?.[1]?.trim() || undefined;
+
+const isRealCompany = (c: Row): boolean =>
+  String(c.rfc || '').toUpperCase() !== 'CEJ2106158A0' &&
+  !String(c.name || '').toUpperCase().startsWith('[DEMO]');
+
+function countByCompany(rows: Array<{ company_id?: unknown }> | null | undefined): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const r of rows || []) {
+    const cid = r.company_id ? String(r.company_id) : '';
+    if (cid) map.set(cid, (map.get(cid) || 0) + 1);
+  }
+  return map;
+}
+
+function mapUserProfileRow(p: Row, compList: Row[]): AdminUserSummary {
+  const uid = String(p.id);
+  const email = String(p.email || '').toLowerCase();
+  const isSuper = isSuperAdminEmail(email) || Boolean(p.is_superadmin);
+  const meta = (p.raw_user_meta_data as Row | undefined) || {};
+  const displayName = String(p.full_name || email.split('@')[0] || 'Contador');
+  const gclid = p.gclid ? String(p.gclid) : meta.gclid ? String(meta.gclid) : undefined;
+  const rawSrc = String(p.acquisition_source || meta.acquisition_source || '');
+  const acquisitionSource: AdminUserSummary['acquisitionSource'] =
+    rawSrc === 'google_ads' || gclid ? 'google_ads' : rawSrc === 'utm' ? 'utm' : rawSrc ? 'organic_or_direct' : undefined;
+
+  return {
+    id: uid,
+    email: String(p.email || ''),
+    fullName: displayName,
+    workspaceId: isSuper ? undefined : String(p.workspace_id || meta.workspace_id || `ws_${uid.slice(0, 8)}`),
+    workspaceName: isSuper ? undefined : String(p.workspace_name || meta.workspace_name || `Workspace — ${displayName}`),
+    provider: (p.provider as 'google' | 'email') || 'email',
+    acquisitionSource,
+    gclid,
+    utmCampaign: p.utm_campaign ? String(p.utm_campaign) : meta.utm_campaign ? String(meta.utm_campaign) : undefined,
+    utmTerm: p.utm_term ? String(p.utm_term) : meta.utm_term ? String(meta.utm_term) : undefined,
+    isSuperAdmin: isSuper,
+    createdAt: String(p.created_at || new Date().toISOString()),
+    lastSignInAt: p.last_sign_in_at ? String(p.last_sign_in_at) : undefined,
+    companiesCount: compList.filter((c) => String(c.user_id || '') === uid).length,
+    status: (p.status as 'ACTIVO' | 'SUSPENDIDO') || 'ACTIVO'
+  };
 }
 
 export const supabaseAdminApi = {
   async getAdminCompanies(): Promise<AdminCompanySummary[]> {
     if (!supabase) return [];
-
     const [compRes, profRes, authRes] = await Promise.all([
       supabase.from('companies').select('*').order('created_at', { ascending: false }),
       supabase.from('user_profiles').select('*'),
       supabase.auth.getUser()
     ]);
-
     if (compRes.error || !compRes.data) {
       console.warn('Error al consultar empresas en Supabase Cloud:', compRes.error?.message);
       return [];
     }
 
-    const profilesById = new Map<string, Record<string, unknown>>();
-    for (const p of (profRes.data || []) as Array<Record<string, unknown>>) {
-      if (p.id) profilesById.set(String(p.id), p);
-    }
+    const profilesById = new Map<string, Row>();
+    for (const p of (profRes.data || []) as Row[]) if (p.id) profilesById.set(String(p.id), p);
     const currentUser = authRes.data?.user;
+    const isSuperCaller =
+      isSuperAdminEmail(currentUser?.email) || Boolean(currentUser?.id && profilesById.get(currentUser.id)?.is_superadmin);
 
-    return compRes.data.map((c: Record<string, unknown>) => {
+    let polMap = new Map<string, number>();
+    let cfdiMap = new Map<string, number>();
+    const fielMap = new Map<string, string | null>();
+    if (isSuperCaller && compRes.data.length > 0) {
+      const [polRes, cfdiRes, fielRes] = await Promise.all([
+        supabase.from('polizas').select('company_id'),
+        supabase.from('cfdi_documents').select('company_id'),
+        supabase.from('fiel_credentials').select('company_id, valid_to')
+      ]);
+      if (!polRes.error) polMap = countByCompany(polRes.data);
+      if (!cfdiRes.error) cfdiMap = countByCompany(cfdiRes.data);
+      if (!fielRes.error) {
+        for (const f of fielRes.data || []) if (f.company_id) fielMap.set(String(f.company_id), f.valid_to ? String(f.valid_to) : null);
+      }
+    }
+
+    return compRes.data.map((c: Row) => {
+      const id = String(c.id);
       const rawUserId = c.user_id ? String(c.user_id) : undefined;
-      const companyName = String(c.name || '');
-
-      const isDemo =
-        !rawUserId ||
-        rawUserId === 'demo' ||
-        String(c.rfc || '').toUpperCase() === 'CEJ2106158A0' ||
-        companyName.toUpperCase().startsWith('[DEMO]');
-
-      if (isDemo) {
-        return {
-          id: String(c.id),
-          name: companyName,
-          rfc: String(c.rfc),
-          regimenFiscal: String(c.regimen_fiscal || '601 - General de Ley Personas Morales'),
-          codigoPostal: String(c.codigo_postal || '64000'),
-          currentYear: Number(c.current_year || 2026),
-          currentPeriod: Number(c.current_period || 10),
-          ownerType: 'demo',
-          createdAt: String(c.created_at || new Date().toISOString())
-        };
-      }
-
-      const profile = profilesById.get(rawUserId);
-      if (profile) {
-        const email = String(profile.email || '');
-        const isSuper = isSuperAdminEmail(email) || Boolean(profile.is_superadmin);
-        return {
-          id: String(c.id),
-          name: companyName,
-          rfc: String(c.rfc),
-          regimenFiscal: String(c.regimen_fiscal || '601 - General de Ley Personas Morales'),
-          codigoPostal: String(c.codigo_postal || '64000'),
-          currentYear: Number(c.current_year || 2026),
-          currentPeriod: Number(c.current_period || 10),
-          userId: rawUserId,
-          userEmail: email || undefined,
-          userFullName: String(profile.full_name || email.split('@')[0] || 'Usuario Registrado'),
-          userProvider: (profile.provider as 'google' | 'email') || 'email',
-          userIsSuperAdmin: isSuper,
-          ownerType: isSuper ? 'superadmin' : 'user',
-          createdAt: String(c.created_at || new Date().toISOString())
-        };
-      }
-
-      if (currentUser && currentUser.id === rawUserId) {
-        const email = currentUser.email || 'hlopezb@gmail.com';
-        const isSuper = isSuperAdminEmail(email);
-        return {
-          id: String(c.id),
-          name: companyName,
-          rfc: String(c.rfc),
-          regimenFiscal: String(c.regimen_fiscal || '601 - General de Ley Personas Morales'),
-          codigoPostal: String(c.codigo_postal || '64000'),
-          currentYear: Number(c.current_year || 2026),
-          currentPeriod: Number(c.current_period || 10),
-          userId: rawUserId,
-          userEmail: email,
-          userFullName: String(currentUser.user_metadata?.full_name || 'Hector Lopez'),
-          userProvider: (currentUser.app_metadata?.provider as 'google' | 'email') || 'email',
-          userIsSuperAdmin: isSuper,
-          ownerType: isSuper ? 'superadmin' : 'user',
-          createdAt: String(c.created_at || new Date().toISOString())
-        };
-      }
-
-      return {
-        id: String(c.id),
-        name: companyName,
-        rfc: String(c.rfc),
+      const name = String(c.name || '');
+      const isDemo = !rawUserId || rawUserId === 'demo' || !isRealCompany(c);
+      const base: AdminCompanySummary = {
+        id, name, rfc: String(c.rfc),
         regimenFiscal: String(c.regimen_fiscal || '601 - General de Ley Personas Morales'),
         codigoPostal: String(c.codigo_postal || '64000'),
         currentYear: Number(c.current_year || 2026),
         currentPeriod: Number(c.current_period || 10),
-        userId: rawUserId,
-        userFullName: inferNameFromCompany(companyName) || 'Usuario Registrado',
-        ownerType: 'user',
-        createdAt: String(c.created_at || new Date().toISOString())
+        ownerType: isDemo ? 'demo' : 'user',
+        createdAt: String(c.created_at || new Date().toISOString()),
+        ...(isSuperCaller ? { polizasCount: polMap.get(id) ?? 0, cfdisCount: cfdiMap.get(id) ?? 0, hasFiel: fielMap.has(id), fielValidTo: fielMap.get(id) ?? null } : {})
       };
+      if (isDemo) return base;
+
+      const profile = rawUserId ? profilesById.get(rawUserId) : undefined;
+      if (profile) {
+        const email = String(profile.email || '');
+        const isSuper = isSuperAdminEmail(email) || Boolean(profile.is_superadmin);
+        return {
+          ...base, userId: rawUserId, userEmail: email || undefined,
+          userFullName: String(profile.full_name || email.split('@')[0] || 'Usuario Registrado'),
+          userProvider: (profile.provider as 'google' | 'email') || 'email',
+          userIsSuperAdmin: isSuper, ownerType: isSuper ? 'superadmin' : 'user'
+        };
+      }
+      if (currentUser && currentUser.id === rawUserId) {
+        const email = currentUser.email || 'hlopezb@gmail.com';
+        const isSuper = isSuperAdminEmail(email);
+        return {
+          ...base, userId: rawUserId, userEmail: email,
+          userFullName: String(currentUser.user_metadata?.full_name || 'Hector Lopez'),
+          userProvider: (currentUser.app_metadata?.provider as 'google' | 'email') || 'email',
+          userIsSuperAdmin: isSuper, ownerType: isSuper ? 'superadmin' : 'user'
+        };
+      }
+      return { ...base, userId: rawUserId, userFullName: inferName(name) || 'Usuario Registrado' };
     });
   },
 
   async getAdminUsers(): Promise<AdminUserSummary[]> {
     if (!supabase) return [];
-
-    const { data: profiles, error: profErr } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    const { data: allCompanies } = await supabase.from('companies').select('*');
-    const compList = (allCompanies || []) as Array<Record<string, unknown>>;
-
-    if (!profErr && profiles && profiles.length > 0) {
-      return profiles.map((p: Record<string, unknown>) => {
-        const uid = String(p.id);
-        const email = String(p.email || '').toLowerCase();
-        const isSuper = isSuperAdminEmail(email) || Boolean(p.is_superadmin);
-        const userCompCount = compList.filter((c) => String(c.user_id || '') === uid).length;
-        const meta = (p.raw_user_meta_data as Record<string, unknown> | undefined) || {};
-
-        const displayName = String(p.full_name || email.split('@')[0] || 'Contador');
-        const gclid = p.gclid ? String(p.gclid) : meta.gclid ? String(meta.gclid) : undefined;
-        const rawSource = String(p.acquisition_source || meta.acquisition_source || '');
-        const acquisitionSource: AdminUserSummary['acquisitionSource'] =
-          rawSource === 'google_ads' || gclid
-            ? 'google_ads'
-            : rawSource === 'utm'
-            ? 'utm'
-            : rawSource
-            ? 'organic_or_direct'
-            : undefined;
-
-        return {
-          id: uid,
-          email: String(p.email || ''),
-          fullName: displayName,
-          workspaceId: isSuper
-            ? undefined
-            : String(p.workspace_id || meta.workspace_id || `ws_${uid.slice(0, 8)}`),
-          workspaceName: isSuper
-            ? undefined
-            : String(p.workspace_name || meta.workspace_name || `Workspace — ${displayName}`),
-          provider: (p.provider as 'google' | 'email') || 'email',
-          acquisitionSource,
-          gclid,
-          utmCampaign: p.utm_campaign
-            ? String(p.utm_campaign)
-            : meta.utm_campaign
-            ? String(meta.utm_campaign)
-            : undefined,
-          utmTerm: p.utm_term
-            ? String(p.utm_term)
-            : meta.utm_term
-            ? String(meta.utm_term)
-            : undefined,
-          isSuperAdmin: isSuper,
-          createdAt: String(p.created_at || new Date().toISOString()),
-          lastSignInAt: p.last_sign_in_at ? String(p.last_sign_in_at) : undefined,
-          companiesCount: userCompCount,
-          status: (p.status as 'ACTIVO' | 'SUSPENDIDO') || 'ACTIVO'
-        };
-      });
-    }
+    const [{ data: profiles, error: profErr }, { data: allCompanies }] = await Promise.all([
+      supabase.from('user_profiles').select('*').order('created_at', { ascending: false }),
+      supabase.from('companies').select('*')
+    ]);
+    const compList = (allCompanies || []) as Row[];
+    if (!profErr && profiles && profiles.length > 0) return (profiles as Row[]).map((p) => mapUserProfileRow(p, compList));
 
     const { data: authData } = await supabase.auth.getUser();
-    const currentUser = authData?.user;
-    const ownerId = currentUser?.id || 'usr_owner_hlopez';
-    const ownerEmail = currentUser?.email || 'hlopezb@gmail.com';
-    const ownerName = currentUser?.user_metadata?.full_name || 'Hector Lopez';
+    const u = authData?.user;
+    const ownerId = u?.id || 'usr_owner_hlopez';
+    const fallbackUsers: AdminUserSummary[] = [{
+      id: ownerId, email: u?.email || 'hlopezb@gmail.com', fullName: u?.user_metadata?.full_name || 'Hector Lopez',
+      provider: (u?.app_metadata?.provider as 'google' | 'email') || 'email', isSuperAdmin: true,
+      createdAt: u?.created_at || '2026-10-23T00:11:55.952Z', lastSignInAt: u?.last_sign_in_at || new Date().toISOString(),
+      companiesCount: compList.filter((c) => String(c.user_id || '') === ownerId).length, status: 'ACTIVO'
+    }];
 
-    const fallbackUsers: AdminUserSummary[] = [
-      {
-        id: ownerId,
-        email: ownerEmail,
-        fullName: ownerName,
-        provider: (currentUser?.app_metadata?.provider as 'google' | 'email') || 'email',
-        isSuperAdmin: true,
-        createdAt: currentUser?.created_at || '2026-10-23T00:11:55.952Z',
-        lastSignInAt: currentUser?.last_sign_in_at || new Date().toISOString(),
-        companiesCount: compList.filter((c) => String(c.user_id || '') === ownerId).length,
-        status: 'ACTIVO'
-      }
-    ];
-
-    const seenIds = new Set<string>([ownerId]);
+    const seen = new Set<string>([ownerId]);
     for (const c of compList) {
       const uid = c.user_id ? String(c.user_id) : '';
-      if (!uid || uid === 'demo' || seenIds.has(uid)) continue;
-      seenIds.add(uid);
-      const inferredName = inferNameFromCompany(String(c.name || '')) || 'Usuario Registrado';
+      if (!uid || uid === 'demo' || seen.has(uid)) continue;
+      seen.add(uid);
       fallbackUsers.push({
-        id: uid,
-        email: `UID ${uid.slice(0, 8)}… (habilitar política RLS)`,
-        fullName: inferredName,
-        provider: 'google',
-        isSuperAdmin: false,
+        id: uid, email: `UID ${uid.slice(0, 8)}… (habilitar política RLS)`,
+        fullName: inferName(String(c.name || '')) || 'Usuario Registrado', provider: 'google', isSuperAdmin: false,
         createdAt: String(c.created_at || new Date().toISOString()),
-        companiesCount: compList.filter((row) => String(row.user_id || '') === uid).length,
-        status: 'ACTIVO'
+        companiesCount: compList.filter((r) => String(r.user_id || '') === uid).length, status: 'ACTIVO'
       });
     }
-
     return fallbackUsers;
   },
 
   async getAdminMetrics(): Promise<AdminPlatformMetrics> {
+    const flags = { supabaseConnected: Boolean(supabase), googleAdsActive: true, satSoapOnline: true, lastSyncIso: new Date().toISOString() };
     if (!supabase) {
+      return { totalUsers: 1, newUsers7d: 0, newUsers30d: 0, totalCompanies: 0, activeCompaniesCount: 0, companiesWithFielCount: 0, totalPolizas: 0, totalCfdis: 0, satErrors7d: 0, ...flags };
+    }
+
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_get_platform_summary');
+    if (!rpcErr && rpcData && typeof rpcData === 'object') {
+      const s = rpcData as Row;
       return {
-        totalUsers: 1,
-        totalCompanies: 0,
-        totalPolizas: 0,
-        totalCfdis: 0,
-        supabaseConnected: false,
-        googleAdsActive: true,
-        satSoapOnline: true,
-        lastSyncIso: new Date().toISOString()
+        totalUsers: Number(s.totalUsers ?? 1), newUsers7d: Number(s.newUsers7d ?? 0), newUsers30d: Number(s.newUsers30d ?? 0),
+        totalCompanies: Number(s.totalCompanies ?? 0), activeCompaniesCount: Number(s.activeCompaniesCount ?? 0),
+        companiesWithFielCount: Number(s.companiesWithFielCount ?? 0), totalPolizas: Number(s.totalPolizas ?? 0),
+        totalCfdis: Number(s.totalCfdis ?? 0), satErrors7d: Number(s.satErrors7d ?? 0), ...flags
       };
     }
 
-    const [usrRes, compRes] = await Promise.all([
-      supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('companies').select('id, name, rfc, user_id')
+    const since7d = Date.now() - 7 * 86400000;
+    const since30d = Date.now() - 30 * 86400000;
+    const [usrRes, compRes, satRes] = await Promise.all([
+      supabase.from('user_profiles').select('id, created_at'),
+      supabase.from('companies').select('id, name, rfc, user_id'),
+      supabase.from('sat_download_requests').select('estado_solicitud, codigo_estado_sat').gte('created_at', new Date(since7d).toISOString())
     ]);
+    const usrRows = (usrRes.data || []) as Row[];
+    const realCompanies = ((compRes.data || []) as Row[]).filter(isRealCompany);
+    const realIds = realCompanies.map((c) => String(c.id));
 
-    const compRows = (compRes.data || []) as Array<Record<string, unknown>>;
-    const realCompanies = compRows.filter(
-      (c) =>
-        String(c.rfc || '').toUpperCase() !== 'CEJ2106158A0' &&
-        !String(c.name || '').toUpperCase().startsWith('[DEMO]')
-    );
-    const realCompanyIds = realCompanies.map((c) => String(c.id));
-
-    let polCount = 0;
-    let cfdiCount = 0;
-    if (realCompanyIds.length > 0) {
-      const [polRes, cfdiRes] = await Promise.all([
-        supabase.from('polizas').select('*', { count: 'exact', head: true }).in('company_id', realCompanyIds),
-        supabase.from('cfdi_documents').select('*', { count: 'exact', head: true }).in('company_id', realCompanyIds)
+    let totalPolizas = 0, totalCfdis = 0, activeCompaniesCount = 0, companiesWithFielCount = 0;
+    if (realIds.length > 0) {
+      const [polRes, cfdiRes, fielRes] = await Promise.all([
+        supabase.from('polizas').select('company_id').in('company_id', realIds),
+        supabase.from('cfdi_documents').select('company_id').in('company_id', realIds),
+        supabase.from('fiel_credentials').select('company_id').in('company_id', realIds)
       ]);
-      polCount = polRes.count ?? 0;
-      cfdiCount = cfdiRes.count ?? 0;
+      const polRows = polRes.data || [], cfdiRows = cfdiRes.data || [];
+      totalPolizas = polRows.length;
+      totalCfdis = cfdiRows.length;
+      activeCompaniesCount = new Set([...polRows, ...cfdiRows].map((r) => String(r.company_id))).size;
+      companiesWithFielCount = new Set((fielRes.data || []).map((f) => String(f.company_id))).size;
     }
 
-    const distinctTenantUsers = new Set(
-      realCompanies.map((c) => (c.user_id ? String(c.user_id) : '')).filter((id) => id && id !== 'demo')
-    );
-    const inferredMinUsers = Math.max(1, distinctTenantUsers.size);
+    const satErrors7d = (satRes.data || []).filter((r) => {
+      const st = String(r.estado_solicitud || '').toUpperCase();
+      const code = String(r.codigo_estado_sat || '');
+      return st === 'ERROR' || st === 'RECHAZADA' || st === 'VENCIDA' || (code !== '' && code !== '5000');
+    }).length;
+    const distinctUsers = new Set(realCompanies.map((c) => String(c.user_id || '')).filter((id) => id && id !== 'demo'));
 
     return {
-      totalUsers: Math.max(inferredMinUsers, usrRes.count ?? 0),
-      totalCompanies: realCompanies.length,
-      totalPolizas: polCount,
-      totalCfdis: cfdiCount,
-      supabaseConnected: true,
-      googleAdsActive: true,
-      satSoapOnline: true,
-      lastSyncIso: new Date().toISOString()
+      totalUsers: Math.max(1, distinctUsers.size, usrRows.length),
+      newUsers7d: usrRows.filter((u) => new Date(String(u.created_at || 0)).getTime() >= since7d).length,
+      newUsers30d: usrRows.filter((u) => new Date(String(u.created_at || 0)).getTime() >= since30d).length,
+      totalCompanies: realCompanies.length, activeCompaniesCount, companiesWithFielCount,
+      totalPolizas, totalCfdis, satErrors7d, ...flags
     };
   },
 
@@ -279,38 +224,18 @@ export const supabaseAdminApi = {
   setBroadcastMessage: adminApi.setBroadcastMessage,
 
   async updateUserProfileWorkspace(payload: {
-    userId: string;
-    workspaceId: string;
-    workspaceName: string;
-    acquisitionSource?: string;
-    gclid?: string | null;
-    utmCampaign?: string | null;
-    utmTerm?: string | null;
+    userId: string; workspaceId: string; workspaceName: string; acquisitionSource?: string;
+    gclid?: string | null; utmCampaign?: string | null; utmTerm?: string | null;
   }): Promise<void> {
     if (!supabase) return;
     try {
-      await supabase.auth.updateUser({
-        data: {
-          workspace_id: payload.workspaceId,
-          workspace_name: payload.workspaceName,
-          workspace_created_at: new Date().toISOString(),
-          acquisition_source: payload.acquisitionSource || 'organic_or_direct',
-          gclid: payload.gclid || null,
-          utm_campaign: payload.utmCampaign || null,
-          utm_term: payload.utmTerm || null
-        }
-      });
-      await supabase
-        .from('user_profiles')
-        .update({
-          workspace_id: payload.workspaceId,
-          workspace_name: payload.workspaceName,
-          acquisition_source: payload.acquisitionSource || 'organic_or_direct',
-          gclid: payload.gclid || null,
-          utm_campaign: payload.utmCampaign || null,
-          utm_term: payload.utmTerm || null
-        })
-        .eq('id', payload.userId);
+      const attrs = {
+        workspace_id: payload.workspaceId, workspace_name: payload.workspaceName,
+        acquisition_source: payload.acquisitionSource || 'organic_or_direct',
+        gclid: payload.gclid || null, utm_campaign: payload.utmCampaign || null, utm_term: payload.utmTerm || null
+      };
+      await supabase.auth.updateUser({ data: { ...attrs, workspace_created_at: new Date().toISOString() } });
+      await supabase.from('user_profiles').update(attrs).eq('id', payload.userId);
     } catch {
       // best-effort update
     }
