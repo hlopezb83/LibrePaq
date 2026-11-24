@@ -40,8 +40,8 @@ export function PageHeader({
     <header
       className={`bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 sm:p-5 ${className}`.trim()}
     >
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5">
-        <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+      <div className="flex flex-wrap items-start lg:items-center justify-between gap-3.5">
+        <div className="flex items-start sm:items-center gap-3 min-w-[min(100%,18rem)] flex-1">
           {icon && (
             <div
               className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${ICON_TONE_CLASSES[iconTone]}`}
@@ -64,7 +64,7 @@ export function PageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>
+          <div className="flex flex-wrap items-center gap-2 max-w-full">{actions}</div>
         )}
       </div>
 

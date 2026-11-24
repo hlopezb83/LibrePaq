@@ -23,7 +23,7 @@ export function CfdiDropzoneSecondaryActions({
 
   return (
     <>
-      <div className="hidden lg:inline-flex items-center gap-2">
+      <div className="hidden lg:contents">
         {!isReadOnlyClient && (
           <Button
             variant="secondary"
