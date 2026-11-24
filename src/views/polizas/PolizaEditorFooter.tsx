@@ -57,7 +57,7 @@ export function PolizaEditorFooter({
         role="status"
         aria-live="polite"
         aria-atomic="true"
-        className="flex items-center gap-2.5 min-w-0"
+        className="flex-1 flex items-center gap-2.5 min-w-0"
       >
         {isBalanced ? (
           <>
@@ -186,23 +186,28 @@ export function PolizaEditorFooter({
                   ? 'Guardar cambios de la póliza'
                   : 'Guardar y aplicar póliza'
               }
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md transition whitespace-nowrap shrink-0"
             >
               {isPendingSave ? (
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
               ) : isPeriodLocked ? (
-                <Lock className="w-4 h-4" aria-hidden="true" />
+                <Lock className="w-4 h-4 shrink-0" aria-hidden="true" />
               ) : (
-                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
               )}
               <span>
-                {isPendingSave
-                  ? 'Guardando...'
-                  : isPeriodLocked
-                  ? 'Periodo Bloqueado'
-                  : editingPolizaId
-                  ? 'Guardar Cambios'
-                  : 'Guardar y Aplicar (Ctrl+Enter)'}
+                {isPendingSave ? (
+                  'Guardando...'
+                ) : isPeriodLocked ? (
+                  'Periodo Bloqueado'
+                ) : editingPolizaId ? (
+                  'Guardar Cambios'
+                ) : (
+                  <>
+                    Guardar y Aplicar{' '}
+                    <span className="hidden md:inline font-normal opacity-90">(Ctrl+Enter)</span>
+                  </>
+                )}
               </span>
             </button>
           </>

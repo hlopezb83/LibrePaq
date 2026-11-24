@@ -37,12 +37,22 @@ export function PolizasHeaderActions({
   onCloseYear
 }: PolizasHeaderActionsProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
   const [confirmCloseYear, setConfirmCloseYear] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const popoverMenuRef = useRef<HTMLDivElement>(null);
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   const isCloseYearBlocked = isPeriod13Locked || isReadOnlyClient;
+
+  const updateMenuAlignment = () => {
+    const rect = menuButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const menuWidth = 256;
+    const overflowsRight = rect.left + menuWidth > window.innerWidth - 12;
+    const fitsRightAligned = rect.right - menuWidth >= 12;
+    setAlignRight(overflowsRight && fitsRightAligned);
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -102,11 +112,7 @@ export function PolizasHeaderActions({
           type="button"
           disabled={!hasPolizasToExport}
           onClick={onExportCsv}
-          title={
-            hasPolizasToExport
-              ? 'Exportar pólizas visibles a CSV'
-              : 'No hay pólizas visibles para exportar'
-          }
+          title={hasPolizasToExport ? 'Exportar pólizas visibles a CSV' : 'No hay pólizas visibles para exportar'}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           <Download className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
@@ -164,12 +170,14 @@ export function PolizasHeaderActions({
             aria-expanded={isMenuOpen}
             aria-label="Más acciones y herramientas fiscales de pólizas"
             onClick={() => {
+              if (!isMenuOpen) updateMenuAlignment();
               setIsMenuOpen((prev) => !prev);
               setConfirmCloseYear(false);
             }}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown' && !isMenuOpen) {
                 e.preventDefault();
+                updateMenuAlignment();
                 setIsMenuOpen(true);
                 requestAnimationFrame(() => {
                   const first = popoverMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)');
@@ -197,7 +205,7 @@ export function PolizasHeaderActions({
               ref={popoverMenuRef}
               role="menu"
               aria-orientation="vertical"
-              className="absolute right-0 sm:left-0 sm:right-auto 2xl:left-auto 2xl:right-0 top-full mt-1.5 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30 divide-y divide-slate-100 text-xs animate-in fade-in slide-in-from-top-1 duration-150"
+              className={`absolute ${alignRight ? 'right-0 left-auto' : 'left-0 right-auto'} top-full mt-1.5 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30 divide-y divide-slate-100 text-xs animate-in fade-in slide-in-from-top-1 duration-150`}
             >
               <div className="sm:hidden py-1">
                 <button

@@ -132,7 +132,7 @@ export function PolizaEditorModal({
             }
           }
         }}
-        className="flex-1 min-h-0 flex flex-col overflow-hidden"
+        className="w-full max-h-[92dvh] min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
       >
         <PolizaEditorTitleBar
           editingPolizaId={editingPolizaId}
