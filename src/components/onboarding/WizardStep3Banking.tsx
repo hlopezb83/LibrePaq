@@ -105,11 +105,17 @@ export function WizardStep3Banking({
           </label>
           <input
             id="wizard-bank-account"
+            name="bank_account_number_no_autofill"
             type="text"
+            autoComplete="off"
             disabled={isBankingOmitted}
             value={initialBankAccount}
             onChange={(e) => setInitialBankAccount(e.target.value)}
-            placeholder={isBankingOmitted ? 'Selecciona un banco primero' : 'Ej. 01948271'}
+            placeholder={
+              isBankingOmitted
+                ? 'Selecciona un banco primero'
+                : 'Ej. últimos 4 dígitos o cuenta (opcional)'
+            }
             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono focus:border-blue-700 disabled:bg-slate-100 disabled:text-slate-500"
           />
         </div>
@@ -129,6 +135,7 @@ export function WizardStep3Banking({
                 id="wizard-bank-balance"
                 type="number"
                 inputMode="decimal"
+                autoComplete="off"
                 step="any"
                 min="0"
                 placeholder="0.00"
