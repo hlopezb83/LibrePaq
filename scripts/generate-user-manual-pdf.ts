@@ -578,7 +578,7 @@ function buildManualHtml(logoDataUri: string): string {
         <div class="pillar-text">Crea empresas en segundos desde tu CSF (PDF) o CFDI 4.0 con catálogo SAT o RESICO, e invita a tu equipo o clientes por rol.</div>
       </div>
       <div class="pillar">
-        <div class="pillar-title">2. Bóveda ADD, 69-B y Reglas IA</div>
+        <div class="pillar-title">2. Bóveda ADD, 69-B y Reglas Contables</div>
         <div class="pillar-text">Descarga Emitidos + Recibidos del SAT, valida estatus en lote y Padrón 69-B en la nube, y automatiza pólizas por RFC y No Deducibles (801).</div>
       </div>
       <div class="pillar">
@@ -600,7 +600,7 @@ function buildManualHtml(logoDataUri: string): string {
       </div>
       <div style="text-align: right;">
         <strong>librepaq.com</strong><br />
-        Horario oficial: América / Ciudad de México (CDMX)
+        Horario Oficial del Centro de México (CDMX)
       </div>
     </div>
   </div>
@@ -621,7 +621,7 @@ function buildManualHtml(logoDataUri: string): string {
   <div class="toc-card">
     <div class="toc-num">Capítulo 1</div>
     <div class="toc-title">Registro, Acceso y Navegación</div>
-    <div class="toc-desc">Creación de cuenta, espacios multi-RFC, periodos contables (P01–P13), candado SAT y Paleta de Comandos.</div>
+    <div class="toc-desc">Creación de cuenta, espacios multi-RFC, periodos contables (P01–P13), candado SAT y Buscador Rápido.</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 2</div>
@@ -631,7 +631,7 @@ function buildManualHtml(logoDataUri: string): string {
   <div class="toc-card">
     <div class="toc-num">Capítulo 3</div>
     <div class="toc-title">Tablero Fiscal y Ciclo de Cierre</div>
-    <div class="toc-desc">Lectura de indicadores clave del mes, alertas de pendientes, checklist de cierre y Dossier Ejecutivo.</div>
+    <div class="toc-desc">Lectura de indicadores clave del mes, alertas de pendientes, lista de verificación de cierre y Dossier Ejecutivo.</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 4</div>
@@ -665,8 +665,8 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 10</div>
-    <div class="toc-title">Atajos de Teclado y Checklist</div>
-    <div class="toc-desc">Tabla maestra imprimible de atajos, lista de arranque rápido, cierre mensual y soporte técnico.</div>
+    <div class="toc-title">Atajos de Teclado y Lista de Verificación</div>
+    <div class="toc-desc">Tabla maestra imprimible de atajos, guía de arranque rápido, cierre mensual y soporte técnico.</div>
   </div>
 </div>
 
@@ -737,7 +737,7 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="info-card">
     <div class="info-card-title">Horario Oficial CDMX</div>
-    <p>Todas las fechas calendario, vencimientos del Día 17 y límites de descarga SAT operan sobre el <strong>Horario Oficial del Centro de México (CDMX)</strong>, evitando desfases tras las 18:00 h.</p>
+    <p>Todas las fechas calendario, vencimientos del Día 17 y rangos de descarga SAT operan sobre el <strong>Horario Oficial del Centro de México (CDMX)</strong>.</p>
   </div>
 </div>
 
@@ -790,7 +790,7 @@ function buildManualHtml(logoDataUri: string): string {
 </table>
 
 <div class="callout callout-blue" style="margin: 5px 0 0 0; padding: 7px 11px;">
-  <div class="callout-title">Tip de Productividad: Paleta de Comandos (<kbd>Ctrl</kbd>+<kbd>K</kbd>), Candado y Modo Cliente (Solo Lectura)</div>
+  <div class="callout-title">Consejo de Productividad: Buscador Rápido (<kbd>Ctrl</kbd>+<kbd>K</kbd>), Candado y Modo Cliente (Solo Lectura)</div>
   Presiona <kbd>Ctrl</kbd>+<kbd>K</kbd> en cualquier pantalla para buscar cuentas, saltar entre módulos o ejecutar acciones sin soltar el teclado. Activa el <strong>Candado de Periodo</strong> desde la cabecera o en <em>Configuración y Empresa</em> al cerrar un mes ante el SAT. Si ingresas con rol <strong>Cliente (Solo lectura)</strong>, verás el aviso superior informativo y podrás navegar por todos los periodos, pólizas, XML y reportes en consulta sin riesgo de alterar la contabilidad.
 </div>
 
@@ -802,7 +802,7 @@ function buildManualHtml(logoDataUri: string): string {
 </div>
 
 <p>
-  Al ingresar por primera vez con tu cuenta nueva, verás la pantalla de bienvenida para registrar tu primera empresa fiscal. También puedes agregar más empresas en cualquier momento desde el selector de empresa (<kbd>Ctrl</kbd>+<kbd>E</kbd>) o desde <strong>Configuración → 1. Directorio</strong>.
+  Al ingresar por primera vez con tu cuenta nueva, verás la pantalla de bienvenida para registrar tu primera empresa fiscal. También puedes agregar más empresas en cualquier momento desde el selector de empresa (<kbd>Ctrl</kbd>+<kbd>E</kbd>) o desde <strong>Configuración y Empresa → 1. Directorio</strong>.
 </p>
 
 <ol class="step-list">
@@ -832,7 +832,7 @@ function buildManualHtml(logoDataUri: string): string {
     <div class="step-num">4</div>
     <div class="step-body">
       <strong>Paso 4 — Vinculación de e.firma / FIEL (Opcional):</strong><br />
-      Sube tus archivos <code>.cer</code>, <code>.key</code> y contraseña para habilitar la <strong>Descarga Masiva directa del SAT</strong>. El sistema verifica matemáticamente que el certificado y la llave coincidan y resguarda la llave cifrada. Si no tienes los archivos a la mano, selecciona omitir y cárgala después en <em>Configuración y Empresa → 3. e.Firma / SAT</em>.
+      Sube tus archivos <code>.cer</code>, <code>.key</code> y contraseña para habilitar la <strong>Descarga Masiva directa del SAT</strong>. El sistema verifica matemáticamente que el certificado y la llave coincidan y resguarda tu contraseña y llave de forma cifrada y segura. Si no tienes los archivos a la mano, selecciona omitir y cárgala después en <em>Configuración y Empresa → 3. e.Firma / SAT</em>.
     </div>
   </li>
   <li>
@@ -846,7 +846,7 @@ function buildManualHtml(logoDataUri: string): string {
 
 <div class="callout callout-amber">
   <div class="callout-title">Validación de RFC y Régimen Fiscal</div>
-  Seleccionar correctamente si la empresa es <strong>Persona Moral (ej. 601 General de Ley, 626 RESICO PM)</strong> o <strong>Persona Física (ej. 612 Actividades Empresariales, 626 RESICO PF)</strong> determina el motor de cálculo automático del ISR provisional en la Cédula del Día 17.
+  Seleccionar correctamente si la empresa es <strong>Persona Moral (ej. 601 General de Ley, 626 RESICO PM)</strong> o <strong>Persona Física (ej. 612 Actividades Empresariales, 626 RESICO PF)</strong> determina el cálculo automático del ISR provisional en la Cédula del Día 17.
 </div>
 
 <!-- ==================== CAPÍTULO 3 ==================== -->
@@ -937,26 +937,26 @@ function buildManualHtml(logoDataUri: string): string {
 </div>
 
 <div class="callout callout-emerald">
-  <div class="callout-title">Protección Automática contra Error 301 del SAT</div>
-  El SAT rechaza solicitudes cuya fecha final sea posterior al día de hoy. LibrePaq ajusta automáticamente los rangos usando el <strong>horario oficial de la Ciudad de México</strong> para evitar rechazos incluso al trabajar por la noche después de las 18:00 horas.
+  <div class="callout-title">Tiempos de Descarga del Portal SAT</div>
+  Al enviar una solicitud masiva, el SAT prepara los paquetes en segundo plano (<em>Aceptada → En proceso → Terminada</em>). Puedes seguir trabajando en otros módulos y pulsar <strong>Verificar</strong> cuando esté lista para integrar automáticamente todos tus comprobantes sin duplicados.
 </div>
 
 <h2>4.2 Validación de Estatus SAT en Lote, Padrón 69-B y Visor CFDI 4.0</h2>
 <ul>
   <li><strong>Validación de estatus SAT en lote:</strong> selecciona varios comprobantes (o todo el mes) y haz clic en <strong>Validar SAT en Lote</strong>. LibrePaq consulta la vigencia oficial (<em>Vigente</em> o <em>Cancelado</em>) y, si detecta facturas canceladas con póliza activa, muestra una alerta con el botón <strong>Localizar cancelado</strong> para ubicarlas al instante. Los CFDIs cancelados (<code>CANCELADO</code>) o de Traslado (<code>T</code>) quedan protegidos contra contabilización accidental.</li>
   <li><strong>Padrón 69-B completo en la nube:</strong> cada RFC emisor o receptor se cruza automáticamente contra el padrón oficial del <strong>Artículo 69-B del CFF (EFOS)</strong>, mostrando alertas preventivas en la tabla, en la vista previa y al contabilizar.</li>
-  <li><strong>Visor CFDI 4.0 y verificación directa en el SAT:</strong> abre la vista previa desde cualquier comprobante para revisar la validación del dígito verificador del RFC (<em>RFC Válido / Revisar</em>), inspeccionar nodos XML (con aviso explícito si es reconstruido), consultar el <strong>Sello Digital real</strong> o abrir el portal del SAT. Filtra por periodo, tipo o método (<code>PUE</code>/<code>PPD</code>) y busca con <kbd>/</kbd> o <kbd>Alt</kbd>+<kbd>F</kbd>.</li>
+  <li><strong>Visor CFDI 4.0 y verificación directa en el SAT:</strong> abre la vista previa desde cualquier comprobante para revisar la validación del dígito verificador del RFC (<em>RFC Válido / Revisar</em>), revisar el detalle del XML (con aviso cuando solo se cuenta con el resumen fiscal), consultar el <strong>Sello Digital real</strong> o abrir el portal del SAT. Filtra por periodo, tipo o método (<code>PUE</code>/<code>PPD</code>) y busca con <kbd>/</kbd> o <kbd>Alt</kbd>+<kbd>F</kbd>.</li>
 </ul>
 
 <h2>4.3 Auto-Póliza en 1 Clic o en Lote</h2>
 <ol class="step-list">
   <li>
     <div class="step-num">1</div>
-    <div class="step-body"><strong>Contabilización individual (<kbd>C</kbd>):</strong> haz clic en <em>Contabilizar</em> en cualquier CFDI pendiente. La vista previa valida <strong>Sumas Iguales Verificadas</strong> en tiempo real, te permite ajustar cuentas y porcentaje deducible (<code>801</code>) y aplica los cambios de inmediato al confirmar.</div>
+    <div class="step-body"><strong>Contabilización individual:</strong> haz clic en <em>Contabilizar</em> en cualquier CFDI pendiente. La vista previa valida <strong>Sumas Iguales Verificadas</strong> en tiempo real, te permite ajustar cuentas y porcentaje deducible (<code>801</code>) y aplica los cambios de inmediato al confirmar.</div>
   </li>
   <li>
     <div class="step-num">2</div>
-    <div class="step-body"><strong>Contabilización masiva en lote:</strong> marca múltiples comprobantes pendientes y ejecútalos en lote aplicando automáticamente tus <strong>reglas contables y % deducible (801)</strong>. El motor resuelve <strong>moneda extranjera (USD/EUR)</strong>, <strong>Nómina 1.2</strong> y <strong>Complementos de Pago 2.0</strong> (incluyendo tasas exentas mixtas e IEPS en notas de crédito).</div>
+    <div class="step-body"><strong>Contabilización masiva en lote:</strong> marca múltiples comprobantes pendientes y ejecútalos en lote aplicando automáticamente tus <strong>reglas contables y % deducible (801)</strong>. LibrePaq procesa automáticamente <strong>moneda extranjera (USD/EUR)</strong>, <strong>Nómina 1.2</strong> y <strong>Complementos de Pago 2.0</strong> (incluyendo tasas exentas mixtas e IEPS en notas de crédito).</div>
   </li>
 </ol>
 
@@ -975,7 +975,7 @@ function buildManualHtml(logoDataUri: string): string {
 <div class="card-grid-2">
   <div class="info-card">
     <div class="info-card-title">Reglas Recordadas por RFC y ClaveProdServ</div>
-    <p>Al contabilizar un CFDI en la Bóveda ADD, activa la casilla <strong>Recordar regla contable para este RFC</strong>. En futuras facturas del mismo RFC o <code>ClaveProdServ</code>, LibrePaq aplicará la cuenta contable aprendida de forma automática. También puedes crear y priorizar reglas desde <em>Configuración → 2. Empresa</em>.</p>
+    <p>Al contabilizar un CFDI en la Bóveda ADD, activa la casilla <strong>Recordar regla contable para este RFC</strong>. En futuras facturas del mismo RFC o <code>ClaveProdServ</code>, LibrePaq aplicará la cuenta contable aprendida de forma automática. También puedes crear y priorizar reglas desde <em>Configuración y Empresa → 2. Empresa</em>.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">División Automática a No Deducibles (801)</div>
@@ -991,7 +991,7 @@ function buildManualHtml(logoDataUri: string): string {
   </li>
   <li>
     <div class="step-num">2</div>
-    <div class="step-body"><strong>Asientos Tipo y captura rápida:</strong> presiona <kbd>Alt</kbd>+<kbd>1</kbd> (Cobro), <kbd>Alt</kbd>+<kbd>2</kbd> (Pago) o <kbd>Alt</kbd>+<kbd>3</kbd> (Nómina) para precargar cuentas. Navega con <kbd>Tab</kbd>, busca cuentas con <kbd>F2</kbd>, copia el concepto superior con <kbd>"</kbd>/<kbd>F3</kbd>, desglosa <strong>IVA 16%</strong> con <kbd>F4</kbd> y auto-cuadra con <kbd>=</kbd>.</div>
+    <div class="step-body"><strong>Asientos Tipo y captura rápida:</strong> dentro del editor de nueva póliza, presiona <kbd>Alt</kbd>+<kbd>1</kbd> (Gasto), <kbd>Alt</kbd>+<kbd>2</kbd> (Venta) o <kbd>Alt</kbd>+<kbd>3</kbd> (Provisión) para precargar cuentas. Navega con <kbd>Tab</kbd>, busca cuentas con <kbd>F2</kbd>, copia el concepto superior con <kbd>"</kbd>/<kbd>F3</kbd>, desglosa <strong>IVA 16%</strong> con <kbd>F4</kbd> y auto-cuadra con <kbd>=</kbd>.</div>
   </li>
   <li>
     <div class="step-num">3</div>
@@ -1045,7 +1045,7 @@ function buildManualHtml(logoDataUri: string): string {
 <div class="card-grid-2">
   <div class="info-card">
     <div class="info-card-title">Alta y Subcuentas Consecutivas (<kbd>Insert</kbd>)</div>
-    <p>Selecciona cualquier cuenta acumuladora y presiona <kbd>Insert</kbd> (o <kbd>Alt</kbd>+<kbd>N</kbd> para cuenta nueva) y el sistema sugiere automáticamente el siguiente código consecutivo respetando la máscara de la empresa (ej. <code>105-01-002</code>) heredando tipo y naturaleza.</p>
+    <p>Selecciona cualquier cuenta acumuladora y presiona <kbd>Insert</kbd> (o <kbd>Alt</kbd>+<kbd>N</kbd> para cuenta nueva) y el sistema sugiere automáticamente el siguiente código consecutivo respetando el formato de dígitos de tu catálogo (ej. <code>105-01-002</code>) heredando tipo y naturaleza.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">Navegación en Árbol y Filtros</div>
@@ -1100,7 +1100,7 @@ function buildManualHtml(logoDataUri: string): string {
 </table>
 
 <div class="callout callout-blue">
-  <div class="callout-title">Integridad Referencial, Inventarios (115) y Confirmación Segura</div>
+  <div class="callout-title">Protección de Cuentas con Movimientos, Inventarios (115) y Confirmación Segura</div>
   Las cuentas con movimientos quedan protegidas contra eliminación accidental, los catálogos incluyen cuentas base de <strong>Almacén / Inventarios (<code>115-00-000</code> y <code>115-01-001</code>)</strong> para Costo de Ventas, y toda eliminación de cuenta en el árbol solicita confirmación en línea antes de ejecutarse.
 </div>
 
@@ -1127,7 +1127,7 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><strong>1. Conciliación Bancos</strong></td>
       <td>
-        Importa estados de cuenta en <strong>CSV</strong> o mediante <strong>Importar PDF Bancario</strong> (hasta <code>7.5 MB</code>), con edición en línea, sumas de control (<em>Total Cargos / Abonos</em>) y alertas por fila. Ejecuta <strong>Conciliar Automáticamente</strong> (1-a-1) o <strong>Conciliar Múltiples Pólizas</strong> (<em>Varios a 1</em>) con confirmación segura y creación rápida de pólizas faltantes.
+        Importa estados de cuenta en <strong>CSV</strong> o mediante <strong>Importar PDF Bancario</strong> (hasta <code>7.5 MB</code>), con edición en línea, sumas de control (<em>Total Cargos / Abonos</em>) y alertas por fila. Ejecuta <strong>Conciliar Automáticamente</strong> (movimiento por movimiento) o <strong>Conciliar Múltiples Pólizas</strong> (<em>Varios a 1</em>, varias pólizas en un mismo cargo/abono) con confirmación segura y creación rápida de pólizas faltantes.
       </td>
     </tr>
     <tr>
@@ -1139,7 +1139,7 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><strong>4. Activos Fijos (INPC)</strong></td>
       <td>
-        Calcula depreciación contable y deducción fiscal actualizada con INPC aplicando automáticamente los <strong>topes del Art. 36 LISR</strong> (<code>$175,000</code> MOI combustión y <code>$250,000</code> eléctricos/híbridos) y genera la póliza mensual.
+        Calcula depreciación contable y deducción fiscal actualizada con INPC aplicando automáticamente los <strong>topes del Art. 36 LISR</strong> (<code>$175,000</code> de Monto Original de la Inversión (MOI) en combustión y <code>$250,000</code> en eléctricos/híbridos) y genera la póliza mensual.
       </td>
     </tr>
     <tr>
@@ -1173,7 +1173,7 @@ function buildManualHtml(logoDataUri: string): string {
 <div class="card-grid-2">
   <div class="info-card">
     <div class="info-card-title">Base Devengada vs. Flujo de Efectivo RESICO</div>
-    <p>Para contribuyentes RESICO (PF 626 / PM 626), compara la <strong>Base Contable Devengada</strong> frente al <strong>Flujo de Efectivo</strong> (ingresos cobrados <code>PUE + Pago 2.0</code> sin duplicar notas de crédito <code>E</code> sobre <code>PPD</code>), acreditando la <strong>retención de ISR 1.25%</strong> (Art. 113-J LISR). El <em>Coeficiente de Utilidad</em> se marca como <em>No aplica en RESICO</em>.</p>
+    <p>Para contribuyentes RESICO (PF 626 / PM 626), compara la <strong>Base Contable Devengada</strong> frente al <strong>Flujo de Efectivo</strong> (ingresos cobrados <code>PUE + Pago 2.0</code> sin duplicar notas de crédito sobre facturas <code>PPD</code>), acreditando la <strong>retención de ISR 1.25%</strong> (Art. 113-J LISR). El <em>Coeficiente de Utilidad</em> se marca como <em>No aplica en RESICO</em>.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">Semáforo de Topes RESICO ($3.5M / $35M)</div>
@@ -1205,7 +1205,7 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="info-card">
     <div class="info-card-title">2. Estado de Resultados (NIF B-3)</div>
-    <p>Ingresos, Costo de Ventas, Utilidad Bruta, Gastos de Operación, RIF y Utilidad Neta del periodo y acumulada con <strong>análisis vertical (%)</strong> sobre ventas.</p>
+    <p>Ingresos, Costo de Ventas, Utilidad Bruta, Gastos de Operación, Resultado Integral de Financiamiento (RIF) y Utilidad Neta del periodo y acumulada con <strong>análisis vertical (%)</strong> sobre ventas.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">3. Balance General (NIF B-1 / B-6)</div>
@@ -1230,7 +1230,7 @@ function buildManualHtml(logoDataUri: string): string {
 <h2>8.3 Anexo 24 en .zip Oficial SAT, Dossier de Cierre y Entregables</h2>
 <div class="callout callout-blue">
   <div class="callout-title">Anexo 24 v1.3 en .zip Oficial SAT y Dossier Ejecutivo (.xlsx / Paquete .ZIP / PDF)</div>
-  En <strong>XML SAT Anexo 24</strong> descarga directamente el paquete comprimido <strong><code>.zip</code> oficial SAT</strong> (Regla 2.8.1.5 RMF) para <em>Catálogo (CT)</em>, <em>Balanza (BN Normal/Complementaria)</em> y <em>Pólizas (PL)</em> —recordando sustituir el número de orden o trámite de ejemplo en el archivo de Pólizas (<code>PL</code>) por el folio oficial del requerimiento SAT—. Desde la pestaña <strong>Dossier de Cierre</strong> o el botón <strong>Entregables Ejecutivos</strong> exporta el libro <strong>Excel (<code>.xlsx</code>)</strong>, el <strong>Paquete .ZIP (CSV)</strong> identificado por periodo (<code>_P01.._P13</code>) o el PDF (con alerta si siguen activas las firmas o cédula de ejemplo en <em>Firmas y Membrete</em>).
+  En <strong>XML SAT Anexo 24</strong> descarga directamente el paquete comprimido <strong><code>.zip</code> oficial SAT</strong> (Regla 2.8.1.5 RMF) para <em>Catálogo (CT)</em>, <em>Balanza (BN Normal/Complementaria)</em> y <em>Pólizas (PL)</em> —recordando sustituir el número de orden o trámite de ejemplo en el archivo de Pólizas (<code>PL</code>) por el folio oficial del requerimiento SAT—. Desde la pestaña <strong>Dossier de Cierre</strong> o el botón <strong>Entregables Ejecutivos</strong> exporta el libro <strong>Excel (<code>.xlsx</code>)</strong>, el <strong>Paquete .ZIP (CSV)</strong> identificado por mes o periodo o el PDF (con alerta si siguen activas las firmas o cédula de ejemplo en <em>Firmas y Membrete</em>).
 </div>
 
 <!-- ==================== CAPÍTULO 9 ==================== -->
@@ -1286,7 +1286,7 @@ function buildManualHtml(logoDataUri: string): string {
 <h2>9.1 Equipo del Despacho, Permisos por Empresa y Bitácora</h2>
 <div class="card-grid-2">
   <div class="info-card">
-    <div class="info-card-title">Roles Granulares e Invitación Directa</div>
+    <div class="info-card-title">Permisos por Rol e Invitación Directa</div>
     <p>En <strong>7. Equipo y Bitácora</strong> autoriza por correo uno de 4 roles (con guía descriptiva): <strong>Socio</strong>, <strong>Contador</strong>, <strong>Auxiliar</strong> o <strong>Cliente (Solo lectura)</strong>. Al autorizar un correo, usa el botón <strong>Copiar enlace e instrucciones</strong> y compártelo con el usuario: su acceso se activará al iniciar sesión en <code>librepaq.com</code> con ese mismo correo. Revocar accesos incluye confirmación en línea.</p>
   </div>
   <div class="info-card">
@@ -1299,7 +1299,7 @@ function buildManualHtml(logoDataUri: string): string {
 <div class="page-break"></div>
 <div class="chapter-header">
   <div class="chapter-kicker">Capítulo 10</div>
-  <h1 class="chapter-title">Referencia Rápida de Atajos y Checklist Operativo</h1>
+  <h1 class="chapter-title">Referencia Rápida de Atajos y Lista de Verificación Operativa</h1>
 </div>
 
 <h2>10.1 Tabla Maestra de Atajos de Teclado</h2>
@@ -1315,7 +1315,7 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><span class="badge badge-slate">Global</span></td>
       <td><kbd>Ctrl</kbd>+<kbd>K</kbd></td>
-      <td>Abrir Paleta de Comandos / Buscador Universal.</td>
+      <td>Abrir Buscador Rápido Universal.</td>
     </tr>
     <tr>
       <td><span class="badge badge-slate">Global</span></td>
@@ -1355,7 +1355,7 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><span class="badge badge-emerald">Pólizas</span></td>
       <td><kbd>Alt</kbd>+<kbd>1..3</kbd> / <kbd>Ctrl</kbd>+<kbd>Enter</kbd></td>
-      <td>Plantilla Asiento Tipo (Cobro, Pago, Nómina) / Guardar póliza cuadrada.</td>
+      <td>Plantilla Asiento Tipo dentro del editor de nueva póliza (Gasto, Venta, Provisión) / Guardar póliza cuadrada.</td>
     </tr>
     <tr>
       <td><span class="badge badge-amber">Catálogo</span></td>
@@ -1365,7 +1365,7 @@ function buildManualHtml(logoDataUri: string): string {
   </tbody>
 </table>
 
-<h2 style="margin: 8px 0 3px 0;">10.2 Checklist de Arranque (Tus Primeros 15 Minutos)</h2>
+<h2 style="margin: 8px 0 3px 0;">10.2 Lista de Verificación de Arranque (Tus Primeros 15 Minutos)</h2>
 <ul class="checklist" style="margin: 2px 0 6px 0;">
   <li><span class="chk-box"></span><span><strong>Crea tu cuenta</strong> en <code>librepaq.com</code> (con Google o correo/contraseña) y verifica tu acceso.</span></li>
   <li><span class="chk-box"></span><span><strong>Registra tu primera empresa</strong> usando el Asistente de 5 Pasos (CSF PDF o XML CFDI 4.0 y catálogo General SAT o RESICO).</span></li>
@@ -1373,10 +1373,10 @@ function buildManualHtml(logoDataUri: string): string {
   <li><span class="chk-box"></span><span><strong>Descarga Emitidos + Recibidos del SAT</strong> en la <em>Bóveda Digital (ADD)</em>, ejecuta <em>Validar SAT en Lote</em> y contabiliza con <em>Reglas Aprendidas</em>.</span></li>
 </ul>
 
-<h2 style="margin: 8px 0 3px 0;">10.3 Checklist de Cierre Contable y Fiscal Mensual</h2>
+<h2 style="margin: 8px 0 3px 0;">10.3 Lista de Verificación de Cierre Contable y Fiscal Mensual</h2>
 <ul class="checklist" style="margin: 2px 0 6px 0;">
   <li><span class="chk-box"></span><span><strong>Bóveda ADD y 69-B al 100%:</strong> estatus SAT validado en lote (cero canceladas con póliza activa), sin alertas 69-B y 0 CFDIs pendientes.</span></li>
-  <li><span class="chk-box"></span><span><strong>Bancos Varios a 1, CxC/CxP y Nómina:</strong> estado de cuenta CSV o PDF (IA) conciliado (1-a-1 y múltiple), cartera PPD y Nómina 1.2 + SUA/ISN.</span></li>
+  <li><span class="chk-box"></span><span><strong>Bancos Varios a 1, CxC/CxP y Nómina:</strong> estado de cuenta CSV o PDF (IA) conciliado de forma individual o múltiple, cartera PPD y Nómina 1.2 + SUA/ISN.</span></li>
   <li><span class="chk-box"></span><span><strong>Cédula Día 17 y Provisiones:</strong> flujo de efectivo / semáforo RESICO, prorrateo IVA Art. 5, depreciación LISR e inventario; pólizas de provisión.</span></li>
   <li><span class="chk-box"></span><span><strong>DIOT, 4 Estados NIF y Anexo 24 .zip:</strong> archivo <code>.txt</code> oficial DIOT, Estados Financieros NIF (Flujos B-2 y Capital B-4) y paquete <code>.zip</code> Anexo 24.</span></li>
   <li><span class="chk-box"></span><span><strong>Dossier, Bitácora y Candado:</strong> <em>Paquete .ZIP (CSV)</em> / Excel <code>.xlsx</code> con firmas reales exportado, respaldo integral guardado, bitácora revisada y <strong>Candado de Periodo activado</strong>.</span></li>
