@@ -9,6 +9,7 @@ import { getAccounts } from './accounts.repo';
 import { createPolizaTransaction, getPolizas } from './polizas.repo';
 import { assertPeriodOpen } from './period-locks.repo';
 import { getFiscalWorkpaperReport } from './fiscal.repo';
+import { computeTrialBalance } from './trial-balance.repo';
 
 export function generateExchangeFluctuationPoliza(
   companyId: string,
@@ -73,7 +74,7 @@ export function generateTaxProvisionPoliza(
   );
 
   const wp = getFiscalWorkpaperReport(companyId, ejercicio, periodo);
-  const accounts = getAccounts(companyId);
+  const accounts = computeTrialBalance(companyId, ejercicio, periodo);
   const movements = buildTaxProvisionMovements(wp, accounts, periodo, ejercicio);
   const fecha = getDefaultDateForPeriod(ejercicio, periodo);
 

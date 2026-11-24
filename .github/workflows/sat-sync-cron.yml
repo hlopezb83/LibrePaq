@@ -1,8 +1,10 @@
 name: LibrePaq Pro — SAT Background Sync Worker
 
 on:
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch:
-    # Ejecución manual bajo demanda desde GitHub Actions (la sincronización principal corre en la Edge Function sat-soap-sync)
+    # Ejecución manual bajo demanda o programada cada 30 min desde GitHub Actions
 
 permissions:
   contents: read

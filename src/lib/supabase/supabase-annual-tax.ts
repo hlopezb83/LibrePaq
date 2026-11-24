@@ -34,7 +34,8 @@ function mapSnapshot(row: Record<string, unknown> | null, companyId: string, eje
       cufinInicial: 0,
       dividendosPagados: 0,
       ptuPagadaAnterior: 0,
-      noDeduciblesManual: 0
+      noDeduciblesManual: 0,
+      deduccionesPersonales: 0
     };
   }
   return {
@@ -49,6 +50,7 @@ function mapSnapshot(row: Record<string, unknown> | null, companyId: string, eje
     dividendosPagados: Number(row.dividendos_pagados ?? 0),
     ptuPagadaAnterior: Number(row.ptu_pagada_anterior ?? 0),
     noDeduciblesManual: Number(row.no_deducibles_manual ?? 0),
+    deduccionesPersonales: Number(row.deducciones_personales ?? 0),
     updatedAt: row.updated_at ? String(row.updated_at) : undefined
   };
 }
@@ -75,6 +77,9 @@ function mapAsset(row: Record<string, unknown>): FixedAssetRecord {
   };
 }
 
+const CFDI_ANNUAL_PROJECTION =
+  'id, company_id, uuid, fecha, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
+
 export const supabaseAnnualTax = {
   async getAnnualTaxSummary(companyId: string, ejercicio?: number): Promise<AnnualTaxSummaryResponse> {
     if (!supabase) throw new Error('Supabase no disponible');
@@ -86,7 +91,13 @@ export const supabaseAnnualTax = {
 
     const [rawAccounts, movs, snapRes, taxRes, assetsRes, rawCfdis] = await Promise.all([
       fetchAllRows(async (from, to) =>
-        sb.from('accounts').select('*').eq('company_id', company.id).order('code', { ascending: true }).range(from, to)
+        sb
+          .from('accounts')
+          .select('*')
+          .eq('company_id', company.id)
+          .order('code', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to)
       ),
       fetchAllRows(async (from, to) =>
         sb.from('poliza_movements')
@@ -100,7 +111,13 @@ export const supabaseAnnualTax = {
       sb.from('tax_parameters').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).order('periodo', { ascending: false }),
       sb.from('fixed_assets').select('*').eq('company_id', company.id),
       fetchAllRows(async (from, to) =>
-        sb.from('cfdi_documents').select('*').eq('company_id', company.id).order('fecha', { ascending: false }).range(from, to)
+        sb
+          .from('cfdi_documents')
+          .select(CFDI_ANNUAL_PROJECTION)
+          .eq('company_id', company.id)
+          .order('fecha', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, to)
       )
     ]);
 
@@ -147,24 +164,30 @@ export const supabaseAnnualTax = {
     const sb = getRequiredSupabase();
     const clean = (v: number) => fromCents(Math.max(0, toCents(v)));
     const id = `ats_${companyId}_${payload.ejercicio}`;
-    const { error } = await sb.from('annual_tax_snapshots').upsert(
-      {
-        id,
-        company_id: companyId,
-        ejercicio: payload.ejercicio,
-        inpc_cierre_anterior: Number(payload.inpcCierreAnterior) > 0 ? Number(payload.inpcCierreAnterior) : 139.38,
-        inpc_cierre_actual: Number(payload.inpcCierreActual) > 0 ? Number(payload.inpcCierreActual) : 145.4,
-        cuca_inicial: clean(payload.cucaInicial),
-        aportaciones_capital: clean(payload.aportacionesCapital),
-        reducciones_capital: clean(payload.reduccionesCapital),
-        cufin_inicial: clean(payload.cufinInicial),
-        dividendos_pagados: clean(payload.dividendosPagados),
-        ptu_pagada_anterior: clean(payload.ptuPagadaAnterior),
-        no_deducibles_manual: clean(payload.noDeduciblesManual),
-        updated_at: new Date().toISOString()
-      },
-      { onConflict: 'company_id,ejercicio' }
-    );
+    const defaults = resolveAnnualInpcPair(payload.ejercicio);
+    const baseRow = {
+      id,
+      company_id: companyId,
+      ejercicio: payload.ejercicio,
+      inpc_cierre_anterior: Number(payload.inpcCierreAnterior) > 0 ? Number(payload.inpcCierreAnterior) : defaults.inpcCierreAnterior,
+      inpc_cierre_actual: Number(payload.inpcCierreActual) > 0 ? Number(payload.inpcCierreActual) : defaults.inpcCierreActual,
+      cuca_inicial: clean(payload.cucaInicial),
+      aportaciones_capital: clean(payload.aportacionesCapital),
+      reducciones_capital: clean(payload.reduccionesCapital),
+      cufin_inicial: clean(payload.cufinInicial),
+      dividendos_pagados: clean(payload.dividendosPagados),
+      ptu_pagada_anterior: clean(payload.ptuPagadaAnterior),
+      no_deducibles_manual: clean(payload.noDeduciblesManual),
+      updated_at: new Date().toISOString()
+    };
+    const withPersonal =
+      payload.deduccionesPersonales !== undefined
+        ? { ...baseRow, deducciones_personales: clean(payload.deduccionesPersonales) }
+        : baseRow;
+    let { error } = await sb.from('annual_tax_snapshots').upsert(withPersonal, { onConflict: 'company_id,ejercicio' });
+    if (error && /deducciones_personales/i.test(error.message)) {
+      ({ error } = await sb.from('annual_tax_snapshots').upsert(baseRow, { onConflict: 'company_id,ejercicio' }));
+    }
     if (error) throw new Error(error.message);
     return this.getAnnualTaxSummary(companyId, payload.ejercicio);
   }

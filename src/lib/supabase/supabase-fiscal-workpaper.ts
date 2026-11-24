@@ -15,6 +15,7 @@ import type {
 import { logCompanyAuditEvent } from './audit-logger';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { supabaseCfdi } from './supabase-cfdi';
+import { supabaseFiscalAndAssets } from './supabase-fiscal-assets';
 import { supabasePolizas } from './supabase-polizas';
 
 export const supabaseFiscalWorkpaper = {
@@ -31,7 +32,8 @@ export const supabaseFiscalWorkpaper = {
       perdidasFiscalesPendientes: 0,
       pagosProvisionalesAnteriores: 0,
       saldoFavorIvaAnterior: 0,
-      tipoCambioDofCierre: 0
+      tipoCambioDofCierre: 0,
+      ptuPagadaEjercicio: 0
     };
     if (!supabase) return emptyDefaults;
 
@@ -44,6 +46,18 @@ export const supabaseFiscalWorkpaper = {
       .maybeSingle();
 
     let row = exact;
+    if (!row && periodo > 0) {
+      const { data: priorRows } = await supabase
+        .from('tax_parameters')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('ejercicio', ejercicio)
+        .gt('periodo', 0)
+        .lt('periodo', periodo)
+        .order('periodo', { ascending: false })
+        .limit(1);
+      row = priorRows?.[0] ?? null;
+    }
     if (!row && periodo !== 0) {
       const { data: fallback } = await supabase
         .from('tax_parameters')
@@ -63,7 +77,8 @@ export const supabaseFiscalWorkpaper = {
       perdidasFiscalesPendientes: Number(row?.perdidas_fiscales_pendientes ?? 0),
       pagosProvisionalesAnteriores: Number(row?.pagos_provisionales_anteriores ?? 0),
       saldoFavorIvaAnterior: Number(row?.saldo_favor_iva_anterior ?? 0),
-      tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0)
+      tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0),
+      ptuPagadaEjercicio: Number(row?.ptu_pagada_ejercicio ?? 0)
     };
   },
 
@@ -76,6 +91,7 @@ export const supabaseFiscalWorkpaper = {
     pagosProvisionalesAnteriores?: number;
     saldoFavorIvaAnterior?: number;
     tipoCambioDofCierre?: number;
+    ptuPagadaEjercicio?: number;
   }): Promise<TaxParametersRecord> {
     if (!supabase) throw new Error('Supabase no disponible');
     const targetPeriod = payload.periodo ?? 0;
@@ -92,7 +108,9 @@ export const supabaseFiscalWorkpaper = {
       saldoFavorIvaAnterior:
         payload.saldoFavorIvaAnterior ?? current.saldoFavorIvaAnterior,
       tipoCambioDofCierre:
-        payload.tipoCambioDofCierre ?? current.tipoCambioDofCierre
+        payload.tipoCambioDofCierre ?? current.tipoCambioDofCierre,
+      ptuPagadaEjercicio:
+        payload.ptuPagadaEjercicio ?? current.ptuPagadaEjercicio ?? 0
     };
 
     const { error } = await supabase.from('tax_parameters').upsert(
@@ -104,7 +122,8 @@ export const supabaseFiscalWorkpaper = {
         perdidas_fiscales_pendientes: fromCents(toCents(next.perdidasFiscalesPendientes)),
         pagos_provisionales_anteriores: fromCents(toCents(next.pagosProvisionalesAnteriores)),
         saldo_favor_iva_anterior: fromCents(toCents(next.saldoFavorIvaAnterior)),
-        tipo_cambio_dof_cierre: next.tipoCambioDofCierre
+        tipo_cambio_dof_cierre: next.tipoCambioDofCierre,
+        ptu_pagada_ejercicio: fromCents(toCents(next.ptuPagadaEjercicio ?? 0))
       },
       { onConflict: 'company_id,ejercicio,periodo' }
     );
@@ -132,9 +151,12 @@ export const supabaseFiscalWorkpaper = {
     const ejercicio = year || company.currentYear || 2026;
     const periodo = period || company.currentPeriod || 10;
 
-    const parameters = await this.getTaxParameters(company.id, ejercicio, periodo);
-    const trialBalance = await supabaseCompaniesAndAccounts.getAccounts(company.id, ejercicio, periodo);
-    const cfdis = await supabaseCfdi.getCfdis(company.id);
+    const [parameters, trialBalance, cfdis, thirdParties] = await Promise.all([
+      this.getTaxParameters(company.id, ejercicio, periodo),
+      supabaseCompaniesAndAccounts.getAccounts(company.id, ejercicio, periodo),
+      supabaseCfdi.getCfdis(company.id),
+      supabaseFiscalAndAssets.getThirdParties(company.id)
+    ]);
 
     return computeFiscalWorkpaperFromTrialBalance({
       company,
@@ -142,7 +164,8 @@ export const supabaseFiscalWorkpaper = {
       periodo,
       parameters,
       trialBalance,
-      cfdis
+      cfdis,
+      thirdParties
     });
   },
 

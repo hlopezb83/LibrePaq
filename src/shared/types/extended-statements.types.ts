@@ -73,6 +73,7 @@ export interface ExtendedFinancialStatementsResponse {
   periodo: number;
   hasPreviousComparative: boolean;
   previousEjercicioLabel: string;
+  cashFlowWindowLabel?: string;
   cashFlow: CashFlowStatementData;
   equityChanges: EquityChangesStatementData;
   comparative: ComparativeAccountRow[];

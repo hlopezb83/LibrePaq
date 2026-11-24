@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from 'react';
+import QRCode from 'qrcode';
 import { CreditCard, QrCode } from 'lucide-react';
 import { formatCurrency } from '../../../lib/formatters';
 import type { CfdiPreviewData } from '../../../shared/cfdi-preview-parser';
@@ -27,13 +29,41 @@ interface CfdiFacturaStampFooterProps {
 
 export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooterProps) {
   const unavailable = 'No disponible sin XML original';
-  const selloDisplay =
-    preview.timbre.selloCfd ||
-    preview.comprobante.sello ||
-    unavailable;
-  const cadenaOriginal = preview.hasXmlRaw && preview.timbre.fechaTimbrado
-    ? `||${preview.timbre.version}|${preview.timbre.uuid}|${preview.timbre.fechaTimbrado}|${preview.timbre.rfcProvCertif || 'N/D'}||`
-    : unavailable;
+  const selloDisplay = preview.timbre.selloCfd || preview.comprobante.sello || unavailable;
+  const selloSatDisplay = preview.timbre.selloSat || unavailable;
+  const cadenaOriginal =
+    preview.hasXmlRaw && preview.timbre.fechaTimbrado
+      ? `||${preview.timbre.version}|${preview.timbre.uuid}|${preview.timbre.fechaTimbrado}|${preview.timbre.rfcProvCertif || 'N/D'}|${preview.timbre.selloCfd || preview.comprobante.sello || 'N/D'}|${preview.timbre.noCertificadoSat || 'N/D'}||`
+      : unavailable;
+
+  const satVerifUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      id: preview.timbre.uuid || cfdi.uuid,
+      re: preview.emisor.rfc || cfdi.emisorRfc,
+      rr: preview.receptor.rfc || cfdi.receptorRfc,
+      tt: cfdi.tipoComprobante === 'P' ? '0' : String(preview.comprobante.total)
+    });
+    const fe = (preview.timbre.selloCfd || preview.comprobante.sello || '').slice(-8);
+    if (fe) params.set('fe', fe);
+    return `https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?${params.toString()}`;
+  }, [cfdi.emisorRfc, cfdi.receptorRfc, cfdi.tipoComprobante, cfdi.uuid, preview]);
+
+  const [qrSvgSrc, setQrSvgSrc] = useState<string>('');
+  useEffect(() => {
+    let active = true;
+    QRCode.toString(satVerifUrl, { type: 'svg', margin: 1, width: 120, errorCorrectionLevel: 'M' })
+      .then((svg) => {
+        if (active) setQrSvgSrc(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+      })
+      .catch(() => {
+        if (active) setQrSvgSrc('');
+      });
+    return () => {
+      active = false;
+    };
+  }, [satVerifUrl]);
+
+  const locales = preview.impuestos.locales ?? [];
 
   return (
     <>
@@ -59,9 +89,7 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
             {preview.comprobante.noCertificado && (
               <>
                 <span className="text-slate-300" aria-hidden="true">•</span>
-                <span className="text-slate-600">
-                  CSD: {preview.comprobante.noCertificado}
-                </span>
+                <span className="text-slate-600">CSD: {preview.comprobante.noCertificado}</span>
               </>
             )}
           </div>
@@ -106,6 +134,21 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
               <span className="tabular-nums">-{formatCurrency(r.importe)}</span>
             </div>
           ))}
+          {locales.map((loc, idx) => (
+            <div
+              key={`loc-${loc.tipo}-${loc.impuesto}-${idx}`}
+              className={`flex justify-between ${loc.tipo === 'Retencion' ? 'text-red-700' : 'text-slate-700'}`}
+            >
+              <span className="font-sans">
+                ({loc.tipo === 'Retencion' ? '-' : '+'}) {loc.impuesto}
+                {loc.tasa ? ` (${loc.tasa}%)` : ''}:
+              </span>
+              <span className="tabular-nums">
+                {loc.tipo === 'Retencion' ? '-' : ''}
+                {formatCurrency(loc.importe)}
+              </span>
+            </div>
+          ))}
           <div className="pt-2 border-t border-slate-300 flex justify-between text-base font-bold text-blue-950 font-sans">
             <span>TOTAL FACTURA:</span>
             <span className="font-mono text-blue-900 tabular-nums">
@@ -115,21 +158,34 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
         </div>
       </div>
 
-      <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center gap-4 text-[11px] text-slate-600 font-mono">
-        <div className="w-20 h-20 bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-center shrink-0">
-          <QrCode className="w-12 h-12 text-slate-700" aria-hidden="true" />
-        </div>
-        <div className="space-y-1 w-full sm:flex-1 min-w-0">
-          <div className="truncate" title={selloDisplay}>
-            <strong>Sello Digital del Emisor:</strong> {selloDisplay}
+      <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-start gap-4 text-[11px] text-slate-600 font-mono">
+        <a
+          href={satVerifUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Verificar CFDI en el portal del SAT"
+          className="w-24 h-24 bg-white border border-slate-300 rounded-xl flex items-center justify-center shrink-0 p-1 hover:border-blue-500 transition"
+        >
+          {qrSvgSrc ? (
+            <img src={qrSvgSrc} alt="Código QR de verificación SAT" className="w-full h-full object-contain" />
+          ) : (
+            <QrCode className="w-12 h-12 text-slate-700" aria-hidden="true" />
+          )}
+        </a>
+        <div className="space-y-1.5 w-full sm:flex-1 min-w-0">
+          <div className="break-all">
+            <strong>Sello Digital del Emisor (SelloCFD):</strong> {selloDisplay}
           </div>
-          <div className="truncate" title={cadenaOriginal}>
-            <strong>Cadena Original del Timbre SAT:</strong> {cadenaOriginal}
+          <div className="break-all">
+            <strong>Sello Digital del SAT (SelloSAT):</strong> {selloSatDisplay}
+          </div>
+          <div className="break-all">
+            <strong>Cadena Original del Complemento de Certificación Digital del SAT:</strong> {cadenaOriginal}
           </div>
           <div className="text-slate-600 break-words">
-            Certificado SAT: {preview.timbre.noCertificadoSat || unavailable}{' '}
-            <span aria-hidden="true">•</span> RFC Proveedor Autorizado (PAC):{' '}
-            {preview.timbre.rfcProvCertif || unavailable}
+            No. Serie Certificado SAT: {preview.timbre.noCertificadoSat || unavailable}{' '}
+            <span aria-hidden="true">•</span> Fecha Timbrado: {preview.timbre.fechaTimbrado || unavailable}{' '}
+            <span aria-hidden="true">•</span> RFC PAC: {preview.timbre.rfcProvCertif || unavailable}
           </div>
         </div>
       </div>

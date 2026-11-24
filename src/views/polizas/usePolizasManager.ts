@@ -19,6 +19,7 @@ import { useDraftPolizaMovements } from './useDraftPolizaMovements';
 import { usePolizasDataQueries } from './usePolizasDataQueries';
 import { usePolizasKeyboardShortcuts } from './usePolizasKeyboardShortcuts';
 import { usePolizasMutations } from './usePolizasMutations';
+import { usePolizasSearchFilters } from './usePolizasSearchFilters';
 
 export function usePolizasManager() {
   const { activeCompany, activeCompanyId, isReadOnlySupportMode, isReadOnlyClient: rawReadOnlyClient } = useCompany();
@@ -36,9 +37,11 @@ export function usePolizasManager() {
     [routerState.location.search]
   );
 
-  const [filterTipo, setFilterTipo] = useState<'ALL' | PolizaType>('ALL');
-  const [originFilter, setOriginFilter] = useState<'ALL' | 'WITH_CFDI' | 'MANUAL'>('ALL');
-  const [searchQuery, setSearchQuery] = useState(() => urlSearchParam);
+  const searchFilters = usePolizasSearchFilters(urlSearchParam, currentPeriod);
+  const {
+    filterTipo, originFilter, searchQuery,
+    periodScope, periodFrom, periodTo, parsedMin, parsedMax
+  } = searchFilters;
   const [formError, setFormError] = useState<string | null>(null);
   const [compactMode, setCompactMode] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
@@ -46,12 +49,6 @@ export function usePolizasManager() {
   const [ledgerAccountId, setLedgerAccountId] = useState<string | null>(null);
   const [copiedPolizaId, setCopiedPolizaId] = useState<string | null>(null);
   const [isPedimentoModalOpen, setIsPedimentoModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (urlSearchParam) {
-      setSearchQuery(urlSearchParam);
-    }
-  }, [urlSearchParam]);
 
   useEffect(() => {
     setEditingPolizaId(null);
@@ -78,7 +75,14 @@ export function usePolizasManager() {
   const [cfdiUuids, setCfdiUuids] = useState<string[]>([]);
   const cfdiUuid = cfdiUuids[0] || '';
 
-  const queries = usePolizasDataQueries(activeCompanyId, currentYear, currentPeriod);
+  const queries = usePolizasDataQueries(
+    activeCompanyId,
+    currentYear,
+    currentPeriod,
+    periodScope,
+    periodFrom,
+    periodTo
+  );
   const {
     polizas, accounts, cfdis, isLoadingAccounts, isLoadingPeriodLock,
     isPeriodLocked, isPeriod13Locked, affectableAccounts
@@ -107,7 +111,8 @@ export function usePolizasManager() {
     savePolizaMutation,
     deletePolizaMutation,
     closeYearMutation,
-    createPedimentoMutation
+    createPedimentoMutation,
+    reversePolizaMutation
   } = usePolizasMutations({
     activeCompanyId,
     currentYear,
@@ -130,8 +135,12 @@ export function usePolizasManager() {
   });
 
   const filteredPolizas = useMemo(
-    () => filterPolizas(polizas, filterTipo, originFilter, searchQuery),
-    [polizas, filterTipo, originFilter, searchQuery]
+    () =>
+      filterPolizas(polizas, filterTipo, originFilter, searchQuery, {
+        minAmount: parsedMin,
+        maxAmount: parsedMax
+      }),
+    [polizas, filterTipo, originFilter, searchQuery, parsedMin, parsedMax]
   );
 
   const filteredPolizasTotals = useMemo(
@@ -321,15 +330,15 @@ export function usePolizasManager() {
     activeCompany, activeCompanyId, currentYear, currentPeriod,
     ...queries, isReadOnlyClient, isWriteBlocked, dialogRef,
     filteredPolizas, filteredPolizasTotals,
-    filterTipo, setFilterTipo, originFilter, setOriginFilter,
-    searchQuery, setSearchQuery, compactMode, setCompactMode,
+    ...searchFilters, compactMode, setCompactMode,
     expandedIds, setExpandedIds, confirmDeleteId, setConfirmDeleteId,
     ledgerAccountId, setLedgerAccountId, copiedPolizaId, editingPolizaId,
     editorSessionId, initialSnapshot, handleUseActivePeriodDate,
     tipo, setTipo, fecha, setFecha, concepto, setConcepto,
     cfdiUuid, cfdiUuids, formError, setFormError,
     predictedNextFolio, isDateDifferentPeriod, savePolizaMutation, deletePolizaMutation,
-    closeYearMutation, createPedimentoMutation, isPedimentoModalOpen, setIsPedimentoModalOpen,
+    closeYearMutation, createPedimentoMutation, reversePolizaMutation,
+    isPedimentoModalOpen, setIsPedimentoModalOpen,
     openNewPolizaModal, openEditPolizaModal, openDuplicatePolizaModal,
     handleCopyPoliza, handleSelectCfdiForForm, handleAddCfdiUuid, handleRemoveCfdiUuid,
     handleExportPolizasCsv,

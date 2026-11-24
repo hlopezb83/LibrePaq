@@ -132,7 +132,7 @@ describe('Ola 2 — P0-1 DIOT 54 campos & Pagos 2.0', () => {
     expect(extCols[3]).toBe('DE143593636');
     expect(extCols[4]).toBe('SAP SE');
     expect(extCols[5]).toBe('DEU');
-    expect(extCols[6]).toBe('ALEMANA');
+    expect(extCols[6]).toBe('');
     expect(extCols[49]).toBe('4000');
     expect(extCols[53]).toBe('01');
 
@@ -400,7 +400,8 @@ describe('Ola 2 — P0-3 Anexo 24 v1.3 (BC, NumOrden/NumTramite, XF.xml, XC.xml)
   ];
 
   test('valida NumOrden/NumTramite y genera BC.xml, PL.xml con folio real, XF.xml y XC.xml + .zip', () => {
-    expect(isValidSatNumOrden('XYZ7654321/02')).toBe(true);
+    expect(isValidSatNumOrden('XYZ6654321/02')).toBe(true);
+    expect(isValidSatNumOrden('XYZ7654321/02')).toBe(false);
     expect(isValidSatNumOrden('INVALIDO')).toBe(false);
     expect(isValidSatNumTramite('DE202600000001')).toBe(true);
     expect(isValidSatNumTramite('123')).toBe(false);
@@ -422,11 +423,11 @@ describe('Ola 2 — P0-3 Anexo 24 v1.3 (BC, NumOrden/NumTramite, XF.xml, XC.xml)
 
     const xf = buildSatAnexo24Xml(mockCompany, 2026, 10, 'auxiliar_folios', accounts, polizas, {
       tipoSolicitud: 'AF',
-      numOrden: 'XYZ7654321/02'
+      numOrden: 'XYZ6654321/02'
     });
     expect(xf.filename).toBe('COL260101AB1202610XF.xml');
     expect(xf.xml).toContain('AuxiliarFolios_1_3.xsd');
-    expect(xf.xml).toContain('NumOrden="XYZ7654321/02"');
+    expect(xf.xml).toContain('NumOrden="XYZ6654321/02"');
     expect(xf.xml).toContain('<RepAux:ComprNal UUID_CFDI="11111111-2222-4333-8444-555555555555"');
 
     const xfZip = buildSatAnexo24Zip({

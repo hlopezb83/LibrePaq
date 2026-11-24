@@ -5,6 +5,7 @@ import {
   Loader2,
   Pencil,
   Printer,
+  RotateCcw,
   Trash2
 } from 'lucide-react';
 import type { Poliza } from '../../shared/types';
@@ -15,11 +16,13 @@ interface PolizaCardActionsProps {
   isReadOnlyClient: boolean;
   isPeriodLocked: boolean;
   isDeleting?: boolean;
+  isReversing?: boolean;
   copiedPolizaId: string | null;
   confirmDeleteId: string | null;
   onCopyPoliza: (pol: Poliza) => void;
   onPrintPoliza?: (pol: Poliza) => void;
   onDuplicate: (pol: Poliza) => void;
+  onReverse?: (pol: Poliza) => void;
   onEdit: (pol: Poliza) => void;
   onConfirmDelete: (id: string) => void;
   onCancelDelete: () => void;
@@ -32,11 +35,13 @@ export function PolizaCardActions({
   isReadOnlyClient,
   isPeriodLocked,
   isDeleting = false,
+  isReversing = false,
   copiedPolizaId,
   confirmDeleteId,
   onCopyPoliza,
   onPrintPoliza,
   onDuplicate,
+  onReverse,
   onEdit,
   onConfirmDelete,
   onCancelDelete,
@@ -98,6 +103,34 @@ export function PolizaCardActions({
         <CopyPlus className="w-3.5 h-3.5" aria-hidden="true" />
         <span className="hidden sm:inline">Duplicar</span>
       </button>
+
+      {onReverse && (
+        <button
+          type="button"
+          disabled={isWriteBlocked || isReversing}
+          onClick={() => onReverse(pol)}
+          title={
+            isReadOnlyClient
+              ? 'Tu rol Cliente (Solo lectura) no permite generar pólizas inversas'
+              : isPeriodLocked
+              ? 'Periodo bloqueado ante el SAT'
+              : 'Generar Póliza Inversa (Reversión)'
+          }
+          aria-label={`Generar Póliza Inversa (Reversión) de ${pol.tipo} #${pol.folio}`}
+          className={`min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+            isWriteBlocked || isReversing
+              ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+              : 'text-amber-900 bg-amber-50 border border-amber-200 hover:bg-amber-100 cursor-pointer'
+          }`}
+        >
+          {isReversing ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+          )}
+          <span className="hidden sm:inline">Revertir</span>
+        </button>
+      )}
 
       <button
         type="button"

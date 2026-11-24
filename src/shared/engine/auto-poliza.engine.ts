@@ -17,6 +17,7 @@ import {
   resolveMatchingAccountingRule,
   resolveNonDeductibleAccount
 } from './auto-poliza-account-resolver';
+import { isNonCashCreditNote } from './auto-poliza-helpers';
 import type {
   AutoPolizaMovementDraft,
   AutoPolizaOverrides,
@@ -71,10 +72,11 @@ export function buildAutoPolizaPlan(
   const isRep = cfdi.tipoComprobante === 'P';
 
   const ruleCounterRaw = matchedRule?.counterAccountCode?.trim() || undefined;
+  const nonCashNc = isNonCashCreditNote(cfdi, overrides);
   const safeRuleCounter =
     ruleCounterRaw &&
-    !(cfdi.metodoPago === 'PPD' && /^(101|102)/.test(ruleCounterRaw)) &&
-    !(cfdi.metodoPago === 'PUE' && /^(105|107|201|205)/.test(ruleCounterRaw))
+    !((cfdi.metodoPago === 'PPD' || nonCashNc) && /^(101|102)/.test(ruleCounterRaw)) &&
+    !(cfdi.metodoPago === 'PUE' && !nonCashNc && /^(105|107|201|205)/.test(ruleCounterRaw))
       ? ruleCounterRaw
       : undefined;
 
@@ -91,7 +93,7 @@ export function buildAutoPolizaPlan(
             ? manualCounter
             : manualCounter ??
               safeRuleCounter ??
-              (cfdi.metodoPago === 'PPD'
+              (cfdi.metodoPago === 'PPD' || nonCashNc
                 ? overrides?.thirdParty?.cuentaContrapartidaCode
                 : undefined),
           deductiblePct: isRep

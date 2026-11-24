@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, Copy, Download, FileSpreadsheet, ShieldAlert, ShieldCheck, Upload } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { formatCurrency } from '../../lib/formatters';
-import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
+import { checkRfcsAgainstCloud69B } from '../../lib/supabase/supabase-cxc-sat';
 import { checkRfc69BStatus, getLoaded69BDatabase, getLoaded69BMeta } from '../../shared/sat-69b';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { DiotReportResponse } from '../../shared/types';
+import { DiotStatusBanners } from './DiotStatusBanners';
 import { DiotSuppliersTable, type DiotSupplierRowWithEfos } from './DiotSuppliersTable';
 import { Importar69BModal } from './Importar69BModal';
 
@@ -38,8 +39,27 @@ export function DiotDeclaracionTab({
   const isReadOnly = isReadOnlyClient || isReadOnlySupportMode;
   const toast = useToast();
   const [is69BModalOpen, setIs69BModalOpen] = useState(false);
+  const [cloudSyncTick, setCloudSyncTick] = useState(0);
+  const checkedCloudKeyRef = useRef<string>('');
   const { copiedKey, copy: copyDiotText } = useCopyToClipboard<'diot'>(2000);
   const isCopied = copiedBatch || copiedKey === 'diot';
+
+  useEffect(() => {
+    const companyId = diotData?.company.id;
+    const rows = diotData?.rows ?? [];
+    if (!companyId || rows.length === 0) return;
+    const rfcs = Array.from(new Set(rows.map((r) => r.rfc.trim().toUpperCase()).filter((r) => r.length >= 12)));
+    const key = `${companyId}::${rfcs.join(',')}`;
+    if (rfcs.length === 0 || checkedCloudKeyRef.current === key) return;
+    checkedCloudKeyRef.current = key;
+    void checkRfcsAgainstCloud69B(rfcs, companyId)
+      .then((res) => {
+        if (res.matches.length > 0 || res.checkedCount > 0) {
+          setCloudSyncTick((t) => t + 1);
+        }
+      })
+      .catch(() => undefined);
+  }, [diotData?.company.id, diotData?.rows]);
 
   if (isErrorDiot) {
     return (
@@ -73,8 +93,10 @@ export function DiotDeclaracionTab({
   }
 
   const mesName = MESES_SAT.find((m) => m.periodo === diotData.periodo)?.nombre || `Mes ${diotData.periodo}`;
-  const db69BCount = Math.max(getLoaded69BDatabase().size, getLoaded69BMeta()?.totalCount ?? 0);
+  const meta69B = getLoaded69BMeta();
+  const db69BCount = Math.max(getLoaded69BDatabase().size, meta69B?.totalCount ?? 0);
   const isSampleOnly69B = db69BCount <= 4;
+  const isTruncatedLocal69B = Boolean(meta69B?.isTruncated && !meta69B.cloudSynced);
 
   const rowsWithEfos = diotData.rows.map((r) => {
     const efosCheck = checkRfc69BStatus(r.rfc);
@@ -84,6 +106,7 @@ export function DiotDeclaracionTab({
       efosStatus: efosCheck.status
     };
   });
+  void cloudSyncTick;
   const efosCount = rowsWithEfos.filter((r) => r.isEfos).length;
   const hasRows = diotData.rows.length > 0;
   const noRowsTitle = 'No hay operaciones pagadas con terceros en este periodo para exportar';
@@ -221,22 +244,14 @@ export function DiotDeclaracionTab({
           </div>
         </div>
 
-        {efosCount > 0 && (
-          <div
-            role="alert"
-            className="mx-5 mt-4 p-3.5 rounded-xl bg-red-50 border border-red-300 flex items-start gap-2.5 text-xs text-red-950"
-          >
-            <ShieldAlert className="w-4 h-4 text-red-700 shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <strong className="block font-bold text-red-900">
-                Alerta Art. 69-B CFF: {efosCount} proveedor(es) listado(s) como EFOS en esta DIOT
-              </strong>
-              <span className="text-[11px] text-red-800">
-                Verifica materialidad y estatus en el padrón oficial del SAT antes de acreditar este IVA en tu declaración mensual.
-              </span>
-            </div>
-          </div>
-        )}
+        <DiotStatusBanners
+          efosCount={efosCount}
+          unpostedPaidCfdisCount={diotData.unpostedPaidCfdisCount ?? 0}
+          regimenFiscal={diotData.company.regimenFiscal}
+          isTruncatedLocal69B={isTruncatedLocal69B}
+          cachedCount69B={meta69B?.cachedCount ?? getLoaded69BDatabase().size}
+          totalCount69B={meta69B?.totalCount ?? db69BCount}
+        />
 
         <DiotSuppliersTable
           rows={rowsWithEfos}
@@ -244,7 +259,6 @@ export function DiotDeclaracionTab({
           ejercicio={diotData.ejercicio}
           totals={{
             actosPagados16: diotData.totals.actosPagados16,
-            actosPagados8: fromCents(sumCents(rowsWithEfos.map((r) => r.actosPagados8 ?? 0))),
             ivaAcreditable16: diotData.totals.ivaAcreditable16,
             ivaRetenido: diotData.totals.ivaRetenido,
             isrRetenido: diotData.totals.isrRetenido

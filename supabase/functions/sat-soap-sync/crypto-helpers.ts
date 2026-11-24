@@ -33,12 +33,25 @@ function getFielEncryptionKeySecret(): string {
   return '';
 }
 
+async function deriveFielAesGcmKey(secret: string, usages: KeyUsage[]): Promise<CryptoKey> {
+  const trimmed = secret.trim();
+  if (!trimmed) {
+    throw new Error('FIEL_ENCRYPTION_KEY es requerida y no puede estar vacía.');
+  }
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(trimmed));
+  return globalThis.crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, usages);
+}
+
 export async function encryptPrivateKeyIfConfigured(pem: string): Promise<string> {
-  if (!pem || pem.startsWith('ENC:v1:')) return pem;
+  if (!pem) {
+    throw new Error('La llave privada (PEM) es requerida para cifrar.');
+  }
+  if (pem.startsWith('ENC:v1:')) return pem;
   const secret = getFielEncryptionKeySecret();
-  if (!secret) return pem;
-  const keyBytes = new TextEncoder().encode(secret.padEnd(32, '0').slice(0, 32));
-  const cryptoKey = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  if (!secret || !secret.trim()) {
+    throw new Error('FIEL_ENCRYPTION_KEY es requerida para cifrar y almacenar llaves privadas de e.firma.');
+  }
+  const cryptoKey = await deriveFielAesGcmKey(secret, ['encrypt']);
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await globalThis.crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
@@ -53,16 +66,23 @@ export async function encryptPrivateKeyIfConfigured(pem: string): Promise<string
 export async function decryptPrivateKeyIfNeeded(rawPem: string): Promise<string> {
   if (!rawPem || !rawPem.startsWith('ENC:v1:')) return rawPem;
   const secret = getFielEncryptionKeySecret();
-  if (!secret) {
+  if (!secret || !secret.trim()) {
     throw new Error('FIEL_ENCRYPTION_KEY es requerida para desencriptar llaves privadas ENC:v1:.');
   }
   const parts = rawPem.split(':');
   const iv = Uint8Array.from(Buffer.from(parts[2] || '', 'base64'));
   const ciphertext = Uint8Array.from(Buffer.from(parts[3] || '', 'base64'));
-  const keyBytes = new TextEncoder().encode(secret.padEnd(32, '0').slice(0, 32));
-  const cryptoKey = await globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
-  const decrypted = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
-  return new TextDecoder().decode(decrypted);
+  const cryptoKey = await deriveFielAesGcmKey(secret, ['decrypt']);
+  try {
+    const decrypted = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
+    return new TextDecoder().decode(decrypted);
+  } catch {
+    // Compatibilidad retroactiva para registros cifrados con derivación ASCII truncada a 32 bytes
+    const legacyKeyBytes = new TextEncoder().encode(secret.padEnd(32, '0').slice(0, 32));
+    const legacyKey = await globalThis.crypto.subtle.importKey('raw', legacyKeyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+    const decrypted = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, legacyKey, ciphertext);
+    return new TextDecoder().decode(decrypted);
+  }
 }
 
 export function computeSha1Base64(content: string): string {

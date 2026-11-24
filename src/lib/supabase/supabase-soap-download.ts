@@ -209,7 +209,15 @@ export const supabaseSoapDownload = {
       const { data, error } = await supabase.functions.invoke<{
         ok: boolean;
         message?: string;
-        results?: Array<{ estadoSolicitud: string; numeroCfdis?: number; estadoSat?: string }>;
+        results?: Array<{
+          id?: string;
+          estadoSolicitud: string;
+          numeroCfdis?: number;
+          estadoSat?: string;
+          codigoEstadoSat?: string;
+          mensajeSat?: string;
+          truncatedAtLimit?: boolean;
+        }>;
       }>('sat-soap-sync', {
         body: {
           action: 'verifica-descarga',
@@ -233,21 +241,30 @@ export const supabaseSoapDownload = {
         for (const r of data.results || []) {
           if (r.estadoSat === '0' || r.estadoSat === '4' || r.estadoSat === '5' || r.estadoSat === '6') {
             r.estadoSolicitud = 'ERROR';
-            const rId = (r as { id?: string }).id;
-            if (rId) {
+            const resolvedSatCode = r.codigoEstadoSat || r.estadoSat;
+            const resolvedMsg =
+              r.mensajeSat ||
+              (r.estadoSat === '0'
+                ? `SAT ${resolvedSatCode}: Token de sesión inválido o expirado ante el SAT (EstadoSolicitud 0). Reintenta la verificación con tu e.firma.`
+                : `SAT ${resolvedSatCode}: Solicitud rechazada, con error o vencida en servidores del SAT.`);
+            if (r.id) {
               await supabase
                 .from('sat_download_requests')
                 .update({
                   estado_solicitud: 'ERROR',
-                  mensaje_sat: r.estadoSat === '0'
-                    ? 'SAT 5004: Solicitud rechazada por el SAT (Fecha final posterior al día de hoy). Solicita nuevamente con fecha límite de hoy.'
-                    : `SAT Código ${r.estadoSat}: Solicitud rechazada o vencida.`
+                  codigo_estado_sat: resolvedSatCode,
+                  mensaje_sat: resolvedMsg
                 })
-                .eq('id', rId);
+                .eq('id', r.id);
             }
           }
         }
-        const finished = (data.results || []).filter((r) => r.estadoSolicitud === 'TERMINADA');
+        const finished = (data.results || []).filter(
+          (r) => r.estadoSolicitud === 'TERMINADA' || r.estadoSolicitud === 'PARCIAL'
+        );
+        const partialCount = (data.results || []).filter(
+          (r) => r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE' || r.truncatedAtLimit
+        ).length;
         const rejected = (data.results || []).filter((r) => r.estadoSolicitud === 'ERROR');
         const pending = (data.results || []).filter(
           (r) => r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO'
@@ -261,10 +278,13 @@ export const supabaseSoapDownload = {
           rejectedCount: rejected.length,
           pendingCount: pending.length,
           message:
-            numTotal > 0
+            partialCount > 0
+              ? `Descarga parcial: ${numTotal} comprobante(s) integrados, pero se alcanzó el límite de XML/tamaño por paquete. Divide el periodo para obtener el resto.`
+              : numTotal > 0
               ? `¡Sincronización completada! ${numTotal} comprobante(s) descargados del SAT.`
               : rejected.length > 0
-              ? 'El SAT reportó solicitud rechazada o con error (Código 5: posible duplicidad o periodo ya descargado).'
+              ? data.results?.find((r) => r.estadoSolicitud === 'ERROR')?.mensajeSat ||
+                'El SAT reportó solicitud rechazada o con error.'
               : pending.length > 0
               ? 'El SAT sigue preparando y empaquetando tus facturas en sus servidores.'
               : data.message || `Verificación completada para ${companyId}`

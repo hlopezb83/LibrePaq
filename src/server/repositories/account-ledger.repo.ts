@@ -71,7 +71,7 @@ export function getAccountLedger(
       INNER JOIN polizas p ON m.poliza_id = p.id
       WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo BETWEEN ? AND ?
         AND m.account_id IN (${placeholders})
-      ORDER BY p.fecha ASC, p.folio ASC, m.id ASC
+      ORDER BY p.fecha ASC, p.periodo ASC, p.folio ASC, m.id ASC
     `)
     .all(companyId, ejercicio, effectiveFrom, effectiveTo, ...idsArray) as Array<{
     movement_id: string;
@@ -88,6 +88,15 @@ export function getAccountLedger(
     cargo: number;
     abono: number;
   }>;
+
+  rows.sort((a, b) => {
+    const dateCmp = String(a.fecha).localeCompare(String(b.fecha));
+    if (dateCmp !== 0) return dateCmp;
+    const perCmp = Number(a.periodo) - Number(b.periodo);
+    if (perCmp !== 0) return perCmp;
+    const folioCmp = Number(a.folio_poliza) - Number(b.folio_poliza);
+    return folioCmp !== 0 ? folioCmp : String(a.movement_id).localeCompare(String(b.movement_id));
+  });
 
   let runningCents = toCents(targetAcc.initialBalanceComputed);
   let sumChargesCents = 0;

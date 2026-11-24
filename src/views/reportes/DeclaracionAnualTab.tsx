@@ -105,7 +105,7 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
 
   const inflationRows: ReadonlyArray<{ label: string; value: string; bold?: boolean }> = [
     { label: 'Promedio Anual de Créditos (102, 103, 105, 106, 107*, 113)', value: formatCurrency(inflation.promedioCreditos) },
-    { label: 'Promedio Anual de Deudas (201, 202, 205, 206, 210–216, 251–253)', value: formatCurrency(inflation.promedioDeudas) },
+    { label: 'Promedio Anual de Deudas (201, 202, 205, 206, 213*, 216, 251–253)', value: formatCurrency(inflation.promedioDeudas) },
     { label: 'Diferencia Promedios', value: formatCurrency(inflation.diferenciaPromedios), bold: true },
     { label: `Factor Ajuste (${inflation.inpcCierreActual.toFixed(3)} / ${inflation.inpcCierreAnterior.toFixed(3)} - 1)`, value: inflation.factorAjuste.toFixed(4) }
   ];
@@ -172,6 +172,14 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
                         {formatCurrency(-reconciliation.perdidasFiscalesAplicadas)}
                       </td>
                     </tr>
+                    <tr>
+                      <th scope="row" className="py-1.5 px-2 text-left font-normal text-slate-700">
+                        (-) Deducciones Personales Art. 151 (Tope: {formatCurrency(reconciliation.deduccionesPersonalesTope ?? 0)})
+                      </th>
+                      <td className="py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap text-emerald-700">
+                        {formatCurrency(-(reconciliation.deduccionesPersonalesAplicadas ?? 0))}
+                      </td>
+                    </tr>
                   </>
                 )}
                 <tr className="bg-blue-50/70 font-extrabold text-blue-950">
@@ -185,6 +193,11 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
               </tbody>
             </table>
           </div>
+          {determination.tipoRegimenAnual === 'PF_RESICO' && (
+            <p role="note" className="text-[11px] bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-blue-900">
+              <strong>Regla 3.13.7 RMF y Art. 113-G LISR:</strong> Las Personas Físicas en RESICO determinan su ISR anual sobre ingresos efectivamente cobrados (sin deducciones); no obstante, si realizaron pagos exclusivamente mediante transferencia/cheque o cuentan con CFDI, pueden quedar relevadas de presentar declaración anual conforme a RMF 3.13.7, y su base de PTU (10%) descuenta las erogaciones estrictamente indispensables pagadas ({formatCurrency(determination.ptuBase)}).
+            </p>
+          )}
         </section>
       )}
 

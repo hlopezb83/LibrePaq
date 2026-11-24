@@ -12,8 +12,12 @@ import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 import {
   assertMovementNotAlreadyMatched,
+  buildBankReconciliationViewRows,
+  deduplicateBankLinesByOccurrence,
   fetchActiveN1MatchedMovementIds,
-  mapBankStatementLine
+  fetchBankClosureBalance,
+  mapBankStatementLine,
+  upsertBankClosureBalance
 } from './supabase-bank-helpers';
 
 export const supabaseBank = {
@@ -47,51 +51,32 @@ export const supabaseBank = {
         .from('bank_statement_lines')
         .select('*')
         .eq('company_id', companyId)
-        .eq('ejercicio', currentYear)
-        .eq('periodo', currentPeriod);
+        .lte('ejercicio', currentYear);
 
       if (accountId) query = query.eq('account_id', accountId);
       return query.order('fecha', { ascending: true }).order('id', { ascending: true }).range(from, to);
     });
 
-    const statementLines = lines.map((l) => mapBankStatementLine(l as Record<string, unknown>, effectiveAcc.id));
-    const activeLineIds = new Set(statementLines.filter((l) => Boolean(l.matchedMovementId)).map((l) => l.id));
-    const n1MatchedIds = await fetchActiveN1MatchedMovementIds(companyId, activeLineIds);
-    const matchedMovementIds = new Set<string>([
-      ...(statementLines.map((l) => l.matchedMovementId).filter(Boolean) as string[]),
-      ...n1MatchedIds
+    const allMappedLines = lines
+      .map((l) => mapBankStatementLine(l as Record<string, unknown>, effectiveAcc.id))
+      .filter((l) => l.ejercicio < currentYear! || (l.ejercicio === currentYear && l.periodo <= currentPeriod!));
+
+    const allLineIds = new Set(allMappedLines.filter((l) => Boolean(l.matchedMovementId)).map((l) => l.id));
+    const [n1MatchedIds, allPolizas, saldoBancoCierre] = await Promise.all([
+      fetchActiveN1MatchedMovementIds(companyId, allLineIds),
+      supabasePolizas.getPolizas(companyId),
+      fetchBankClosureBalance(companyId, effectiveAcc.id, currentYear, currentPeriod).catch(() => null)
     ]);
 
-    const polizas = await supabasePolizas.getPolizas(companyId, currentYear, currentPeriod);
-    const bookMovements: BankReconciliationResponse['bookMovements'] = [];
-    const movementFolioMap = new Map<string, string>();
-
-    for (const p of polizas) {
-      const pFolio = `${p.tipo} #${p.folio}`;
-      for (const m of p.movements) {
-        movementFolioMap.set(m.id, pFolio);
-        if (m.accountId === effectiveAcc.id || m.accountCode === effectiveAcc.code) {
-          bookMovements.push({
-            movementId: m.id,
-            polizaId: p.id,
-            polizaFolio: pFolio,
-            fecha: p.fecha,
-            referencia: m.referencia || '',
-            concepto: m.concepto || p.concepto,
-            cargoContable: Number(m.cargo || 0),
-            abonoContable: Number(m.abono || 0),
-            isMatched: matchedMovementIds.has(m.id)
-          });
-        }
-      }
-    }
-
-    for (const line of statementLines) {
-      if (line.matchedMovementId && !line.matchedPolizaFolio) {
-        line.matchedPolizaFolio = movementFolioMap.get(line.matchedMovementId) ?? null;
-      }
-    }
-
+    const { statementLines, bookMovements } = buildBankReconciliationViewRows({
+      allMappedLines,
+      allPolizas,
+      n1MatchedIds,
+      accountId: effectiveAcc.id,
+      accountCode: effectiveAcc.code,
+      currentYear,
+      currentPeriod
+    });
     const totalDepositosBanco = fromCents(sumCents(statementLines.map((l) => l.abonoBanco)));
     const totalRetirosBanco = fromCents(sumCents(statementLines.map((l) => l.cargoBanco)));
 
@@ -108,7 +93,8 @@ export const supabaseBank = {
         totalRetirosBanco,
         movimientosConciliados: statementLines.filter((s) => s.matchedMovementId).length,
         movimientosPendientesBanco: statementLines.filter((s) => !s.matchedMovementId).length,
-        movimientosPendientesLibros: bookMovements.filter((b) => !b.isMatched).length
+        movimientosPendientesLibros: bookMovements.filter((b) => !b.isMatched).length,
+        saldoBancoCierre
       }
     };
   },
@@ -146,30 +132,22 @@ export const supabaseBank = {
         .range(from, to)
     );
 
-    const existingSet = new Set(
-      existingLines.map(
-        (e) =>
-          `${e.fecha}|${e.referencia}|${e.descripcion}|${Number(e.cargo_banco).toFixed(2)}|${Number(e.abono_banco).toFixed(2)}`
-      )
-    );
-
-    const toInsert = payload.lines
-      .filter((l) => !existingSet.has(`${l.fecha}|${l.referencia}|${l.descripcion}|${Number(l.cargoBanco || 0).toFixed(2)}|${Number(l.abonoBanco || 0).toFixed(2)}`))
-      .map((l) => {
-        const { year, month } = parseCalendarDate(l.fecha);
-        return {
-          id: `bank_${crypto.randomUUID().slice(0, 12)}`,
-          company_id: payload.companyId,
-          account_id: payload.accountId,
-          fecha: l.fecha,
-          ejercicio: year,
-          periodo: month,
-          referencia: l.referencia,
-          descripcion: l.descripcion,
-          cargo_banco: l.cargoBanco,
-          abono_banco: l.abonoBanco
-        };
-      });
+    const dedupedLines = deduplicateBankLinesByOccurrence(payload.lines, existingLines);
+    const toInsert = dedupedLines.map((l) => {
+      const { year, month } = parseCalendarDate(l.fecha);
+      return {
+        id: `bank_${crypto.randomUUID().slice(0, 12)}`,
+        company_id: payload.companyId,
+        account_id: payload.accountId,
+        fecha: l.fecha,
+        ejercicio: year,
+        periodo: month,
+        referencia: l.referencia,
+        descripcion: l.descripcion,
+        cargo_banco: l.cargoBanco,
+        abono_banco: l.abonoBanco
+      };
+    });
 
     if (toInsert.length > 0) {
       const { error: insErr } = await supabase.from('bank_statement_lines').insert(toInsert);
@@ -344,5 +322,16 @@ export const supabaseBank = {
 
     const reconciliation = await this.getBankReconciliation(companyId, accountId, ejercicio, periodo);
     return { createdPolizaId: poliza.id, reconciliation };
+  },
+
+  async saveBankClosureBalance(
+    companyId: string,
+    accountId: string,
+    ejercicio: number,
+    periodo: number,
+    saldoBancoCierre: number
+  ): Promise<void> {
+    if (!supabase) return;
+    await upsertBankClosureBalance(companyId, accountId, ejercicio, periodo, saldoBancoCierre);
   }
 };

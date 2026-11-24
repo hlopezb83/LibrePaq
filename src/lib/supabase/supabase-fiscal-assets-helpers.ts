@@ -24,12 +24,15 @@ export function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyWit
     rol: (t.rol as 'PROVEEDOR' | 'CLIENTE' | 'AMBOS') || 'PROVEEDOR',
     cuentaOperacionCode: String(t.cuenta_operacion_code || '201-01-001'),
     cuentaContrapartidaCode: String(t.cuenta_contrapartida_code || '601-01-001'),
-    tipoTerceroDiot: (t.tipo_tercero_diot as '04' | '05') || '04',
+    tipoTerceroDiot: ((t.tipo_tercero_diot as '04' | '05' | '15') || '04'),
     tipoOperacionDiot: (t.tipo_operacion_diot as '03' | '06' | '85') || '85',
     tasaIvaDefault: (t.tasa_iva_default === 8 ? 8 : t.tasa_iva_default === 0 ? 0 : 16) as 16 | 8 | 0,
     deductiblePct: Number(t.deductible_pct ?? t.deductiblePct ?? 100),
     estatus69B: estatus,
     estatus69b: estatus,
+    idFiscal: t.id_fiscal ? String(t.id_fiscal) : (t.idFiscal ? String(t.idFiscal) : null),
+    pais: t.pais ? String(t.pais) : null,
+    jurisdiccionFiscal: t.jurisdiccion_fiscal ? String(t.jurisdiccion_fiscal) : (t.jurisdiccionFiscal ? String(t.jurisdiccionFiscal) : null),
     updatedAt: String(t.updated_at || new Date().toISOString())
   };
 }
@@ -90,6 +93,12 @@ export async function saveThirdPartyWithClient(
         tasa_iva_default: payload.tasaIvaDefault,
         deductible_pct: resolvedDeductiblePct,
         estatus_69b: resolvedEstatus69B,
+        id_fiscal: payload.idFiscal?.trim() || null,
+        pais: payload.pais?.trim().toUpperCase() || null,
+        jurisdiccion_fiscal:
+          payload.pais?.trim().toUpperCase() === 'ZZZ'
+            ? (payload.jurisdiccionFiscal?.trim() || null)
+            : null,
         updated_at: now
       },
       { onConflict: 'company_id,rfc' }

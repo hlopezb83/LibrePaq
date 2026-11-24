@@ -105,7 +105,7 @@ export function CfdiFacturaTab({
         <div className="space-y-1.5 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-              CFDI Versión 4.0
+              CFDI Versión {preview.comprobante.version}
             </span>
             <span className="text-xs font-mono font-bold text-slate-700">
               {cfdi.direction === 'EMITIDO' ? 'FACTURA EMITIDA' : 'FACTURA RECIBIDA'}
@@ -178,13 +178,17 @@ export function CfdiFacturaTab({
             </span>
             <RfcCheckBadge rfcCheck={receptorRfcCheck} />
           </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-mono text-slate-600 mt-1">
+            <span>CP Receptor: <strong className="text-slate-800">{preview.receptor.domicilioFiscalReceptor || 'N/D'}</strong></span>
+            <span>Régimen Receptor: <strong className="text-slate-800">{preview.receptor.regimenFiscalReceptor || 'N/D'}</strong></span>
+          </div>
         </div>
         <div className="sm:text-right space-y-0.5 min-w-0">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
             Uso del CFDI y Método de Pago
           </span>
           <div className="font-mono text-slate-800">
-            Uso CFDI: <strong>{cfdi.usoCfdi}</strong>
+            Uso CFDI: <strong>{cfdi.usoCfdi}</strong> • Exportación: <strong>{preview.comprobante.exportacion || '01'}</strong>
           </div>
           <div className="font-mono text-slate-800">
             Método de Pago: <strong>{cfdi.metodoPago}</strong> (Forma {cfdi.formaPago})

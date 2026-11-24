@@ -1,6 +1,13 @@
-import { buildAutoPolizaPlan, fromCents, sumCents } from '../../shared/accounting-engine';
+import { buildAutoPolizaPlan, fromCents, sumCents, toCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance, CfdiDocument, Poliza, PolizaType } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
+
+export type PolizaPeriodScope = 'CURRENT' | 'YTD' | 'RANGE';
+
+export interface PolizaAmountFilter {
+  minAmount?: number | null;
+  maxAmount?: number | null;
+}
 
 export function buildPlanDraftsFromCfdi(
   cfdi: CfdiDocument,
@@ -61,13 +68,26 @@ export function filterPolizas(
   polizas: Poliza[],
   filterTipo: 'ALL' | PolizaType,
   originFilter: 'ALL' | 'WITH_CFDI' | 'MANUAL',
-  searchQuery: string
+  searchQuery: string,
+  amountFilter?: PolizaAmountFilter
 ): Poliza[] {
+  const minCents =
+    amountFilter?.minAmount !== undefined && amountFilter.minAmount !== null && Number.isFinite(amountFilter.minAmount)
+      ? toCents(amountFilter.minAmount)
+      : null;
+  const maxCents =
+    amountFilter?.maxAmount !== undefined && amountFilter.maxAmount !== null && Number.isFinite(amountFilter.maxAmount)
+      ? toCents(amountFilter.maxAmount)
+      : null;
+
   return polizas.filter((p) => {
     if (filterTipo !== 'ALL' && p.tipo !== filterTipo) return false;
     const hasCfdi = hasPolizaCfdi(p);
     if (originFilter === 'WITH_CFDI' && !hasCfdi) return false;
     if (originFilter === 'MANUAL' && hasCfdi) return false;
+    const totalCents = toCents(p.totalCargos);
+    if (minCents !== null && totalCents < minCents) return false;
+    if (maxCents !== null && totalCents > maxCents) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const fullFolio = `${p.tipo} #${p.folio}`.toLowerCase();

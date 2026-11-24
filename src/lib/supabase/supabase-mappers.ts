@@ -1,5 +1,6 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import type { AccountNature, AccountType, AccountWithBalance, Company } from '../../shared/types';
+import { fetchAllRows } from './supabase-pagination';
 
 export function mapSupabaseCompany(row: Record<string, unknown>): Company {
   return {
@@ -12,7 +13,8 @@ export function mapSupabaseCompany(row: Record<string, unknown>): Company {
     currentYear: Number(row.current_year || 2026),
     currentPeriod: Number(row.current_period || 10),
     createdAt: String(row.created_at || new Date().toISOString()),
-    userId: row.user_id ? String(row.user_id) : null
+    userId: row.user_id ? String(row.user_id) : null,
+    organizationId: row.organization_id ? String(row.organization_id) : null
   };
 }
 
@@ -41,14 +43,14 @@ export function mapSupabaseAccount(row: Record<string, unknown>): AccountWithBal
 
 export async function fetchCompanyAccountsFromDb(companyId: string): Promise<AccountWithBalance[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('accounts')
-    .select('*')
-    .eq('company_id', companyId)
-    .order('code', { ascending: true });
-  if (error) {
-    console.error('[Supabase] Error al consultar cuentas:', error);
-    return [];
-  }
-  return (data || []).map(mapSupabaseAccount);
+  const data = await fetchAllRows(async (from, to) =>
+    getRequiredSupabase()
+      .from('accounts')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('code', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  return data.map(mapSupabaseAccount);
 }

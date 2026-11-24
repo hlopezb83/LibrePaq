@@ -148,7 +148,16 @@ Deno.serve(async (req: Request) => {
       if (!email.includes('@') || !VALID_ROLES.has(role)) {
         return jsonResponse({ ok: false, error: 'Correo válido y rol válido son requeridos' }, 400, headers);
       }
-      const cids = Array.isArray(body.companyIds) ? Array.from(new Set(body.companyIds.filter((c) => typeof c === 'string' && c))) : [];
+      const cids = Array.isArray(body.companyIds)
+        ? Array.from(new Set(body.companyIds.filter((c) => typeof c === 'string' && c.trim().length > 0).map((c) => c.trim())))
+        : [];
+      if (role === 'CLIENTE_LECTURA' && cids.length === 0) {
+        return jsonResponse(
+          { ok: false, error: 'Debes asignar al menos una empresa explícita al invitar a un usuario CLIENTE_LECTURA' },
+          400,
+          headers
+        );
+      }
       const companyAuthErr = await assertCompaniesBelongToWorkspace(supabase, wsId, cids, ctx);
       if (companyAuthErr) return jsonResponse({ ok: false, error: companyAuthErr }, 403, headers);
 
@@ -249,7 +258,16 @@ Deno.serve(async (req: Request) => {
         .eq('workspace_id', wsId)
         .maybeSingle();
       if (!member) return jsonResponse({ ok: false, error: 'Miembro no encontrado en el despacho' }, 404, headers);
-      const cids = Array.isArray(body.companyIds) ? Array.from(new Set(body.companyIds.filter((c) => typeof c === 'string' && c))) : [];
+      const cids = Array.isArray(body.companyIds)
+        ? Array.from(new Set(body.companyIds.filter((c) => typeof c === 'string' && c.trim().length > 0).map((c) => c.trim())))
+        : [];
+      if (String(member.role || '').toUpperCase() === 'CLIENTE_LECTURA' && cids.length === 0) {
+        return jsonResponse(
+          { ok: false, error: 'Un usuario CLIENTE_LECTURA requiere al menos una empresa asignada' },
+          400,
+          headers
+        );
+      }
       const companyAuthErr = await assertCompaniesBelongToWorkspace(supabase, wsId, cids, ctx);
       if (companyAuthErr) return jsonResponse({ ok: false, error: companyAuthErr }, 403, headers);
 

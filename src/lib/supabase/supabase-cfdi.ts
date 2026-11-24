@@ -1,6 +1,7 @@
 import { supabase, getRequiredSupabase } from '../supabase';
 import { parseCfdiXmlString } from '../../shared/cfdi-xml';
 import { parseCalendarDate, getTodayLocalIso } from '../../shared/date-utils';
+import { isCfdiBelongingToCompany } from '../../shared/xml-utils';
 import type { CfdiDocument, Poliza } from '../../shared/types';
 import { assertSupabasePeriodOpen } from './supabase-polizas';
 import { chunkArray, fetchAllRows } from './supabase-pagination';
@@ -9,7 +10,12 @@ import {
   fetchCfdiPolizaLookup,
   mapSupabaseCfdi
 } from './supabase-cfdi-mappers';
-import { runSupabaseAutoPolizaFromCfdi, type AutoPolizaClientOptions } from './supabase-cfdi-poliza';
+import {
+  runSupabaseAutoPolizaFromCfdi,
+  type AutoPolizaBatchContext,
+  type AutoPolizaClientOptions
+} from './supabase-cfdi-poliza';
+import { runSupabaseBatchAutoPoliza } from './supabase-cfdi-poliza-batch';
 
 export { mapSupabaseCfdi };
 
@@ -19,7 +25,7 @@ export const supabaseCfdi = {
     try {
       const projection = opts?.includeXml
         ? '*'
-        : 'id, company_id, uuid, fecha, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
+        : 'id, company_id, uuid, fecha, fecha_pago, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
 
       const data = await fetchAllRows(async (from, to) => {
         return getRequiredSupabase()
@@ -110,6 +116,11 @@ export const supabaseCfdi = {
       .eq('id', payload.companyId)
       .maybeSingle();
     const companyRfc = (comp?.rfc || '').toUpperCase();
+    if (parsed && companyRfc && !isCfdiBelongingToCompany(parsed, companyRfc)) {
+      throw new Error(
+        `CFDI_RFC_MISMATCH: El comprobante ${uuid} (${parsed.emisorRfc} → ${parsed.receptorRfc}) no pertenece al RFC de esta empresa (${companyRfc}).`
+      );
+    }
     const direction: 'EMITIDO' | 'RECIBIDO' =
       parsed && companyRfc
         ? parsed.emisorRfc.toUpperCase() === companyRfc
@@ -130,6 +141,7 @@ export const supabaseCfdi = {
         company_id: payload.companyId,
         uuid,
         fecha: parsed?.fecha || payload.fecha || getTodayLocalIso(),
+        fecha_pago: parsed?.fechaPago ?? null,
         tipo_comprobante: parsed?.tipoComprobante || payload.tipoComprobante || 'I',
         direction,
         serie: parsed?.serie || '',
@@ -167,10 +179,17 @@ export const supabaseCfdi = {
   async batchUploadCfdiXmls(
     companyId: string,
     xmlList: string[]
-  ): Promise<{ uploaded: CfdiDocument[]; skippedDuplicates: number }> {
-    if (!supabase) return { uploaded: [], skippedDuplicates: 0 };
+  ): Promise<{
+    uploaded: CfdiDocument[];
+    skippedDuplicates: number;
+    rejectedForeign: number;
+    rejectedErrors: string[];
+  }> {
+    if (!supabase) return { uploaded: [], skippedDuplicates: 0, rejectedForeign: 0, rejectedErrors: [] };
     const uploaded: CfdiDocument[] = [];
     let skippedDuplicates = 0;
+    let rejectedForeign = 0;
+    const rejectedErrors: string[] = [];
 
     const { data: comp } = await supabase
       .from('companies')
@@ -183,12 +202,20 @@ export const supabaseCfdi = {
     for (const xmlRaw of xmlList) {
       try {
         const parsed = parseCfdiXmlString(xmlRaw, { requireStamp: true });
-        if (parsed?.uuid) parsedItems.push({ parsed, xmlRaw });
-      } catch {
-        // Skip invalid XML strings
+        if (!parsed?.uuid) continue;
+        if (companyRfc && !isCfdiBelongingToCompany(parsed, companyRfc)) {
+          rejectedForeign += 1;
+          rejectedErrors.push(`RFC ajeno (${parsed.emisorRfc} → ${parsed.receptorRfc}) para UUID ${parsed.uuid}`);
+          continue;
+        }
+        parsedItems.push({ parsed, xmlRaw });
+      } catch (err) {
+        rejectedErrors.push(err instanceof Error ? err.message : String(err));
       }
     }
-    if (parsedItems.length === 0) return { uploaded: [], skippedDuplicates: 0 };
+    if (parsedItems.length === 0) {
+      return { uploaded: [], skippedDuplicates: 0, rejectedForeign, rejectedErrors };
+    }
 
     const uuids = Array.from(new Set(parsedItems.map((p) => p.parsed.uuid)));
     const existingSet = new Set<string>();
@@ -220,22 +247,27 @@ export const supabaseCfdi = {
     for (const insertChunk of chunkArray(toInsert, 100)) {
       const { data: insertedRows, error } = await supabase
         .from('cfdi_documents')
-        .insert(insertChunk)
+        .upsert(insertChunk, { onConflict: 'company_id,uuid', ignoreDuplicates: true })
         .select();
       if (error) throw new Error(error.message);
-      if (insertedRows) {
-        uploaded.push(...insertedRows.map((r) => mapSupabaseCfdi(r)));
+      const rows = insertedRows ?? [];
+      if (rows.length < insertChunk.length) {
+        skippedDuplicates += insertChunk.length - rows.length;
+      }
+      if (rows.length > 0) {
+        uploaded.push(...rows.map((r) => mapSupabaseCfdi(r)));
       }
     }
 
-    return { uploaded, skippedDuplicates };
+    return { uploaded, skippedDuplicates, rejectedForeign, rejectedErrors };
   },
 
   async autoPolizaFromCfdi(
     cfdiId: string,
-    options?: AutoPolizaClientOptions
+    options?: AutoPolizaClientOptions,
+    batchContext?: AutoPolizaBatchContext
   ): Promise<Poliza> {
-    return runSupabaseAutoPolizaFromCfdi(cfdiId, options);
+    return runSupabaseAutoPolizaFromCfdi(cfdiId, options, batchContext);
   },
 
   async batchAutoPolizaFromCfdis(
@@ -248,40 +280,7 @@ export const supabaseCfdi = {
     failedCount: number;
     errors: Array<{ cfdiId: string; uuid?: string; error: string }>;
   }> {
-    const createdPolizas: Poliza[] = [];
-    const errors: Array<{ cfdiId: string; uuid?: string; error: string }> = [];
-    const uuidById = new Map<string, string>();
-
-    if (supabase && cfdiIds.length > 0) {
-      for (const idChunk of chunkArray(cfdiIds, 100)) {
-        const { data: metaRows } = await supabase
-          .from('cfdi_documents')
-          .select('id, uuid')
-          .in('id', idChunk);
-        for (const r of (metaRows || []) as Array<{ id: string; uuid?: string | null }>) {
-          if (r.uuid) uuidById.set(String(r.id), String(r.uuid));
-        }
-      }
-    }
-
-    for (let i = 0; i < cfdiIds.length; i++) {
-      const id = cfdiIds[i]!;
-      try {
-        const pol = await this.autoPolizaFromCfdi(id, options);
-        createdPolizas.push(pol);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        errors.push({ cfdiId: id, uuid: uuidById.get(id), error: msg });
-        console.warn(`[Supabase AutoPoliza] Error al contabilizar CFDI ${id} (${uuidById.get(id) ?? 'sin UUID'}):`, msg);
-      }
-      onProgress?.(i + 1, cfdiIds.length);
-    }
-    return {
-      createdPolizas,
-      count: createdPolizas.length,
-      failedCount: errors.length,
-      errors
-    };
+    return runSupabaseBatchAutoPoliza(cfdiIds, options, onProgress);
   },
 
   async deleteCfdi(cfdiId: string): Promise<{ deleted: boolean }> {

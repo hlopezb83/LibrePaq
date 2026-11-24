@@ -2,9 +2,11 @@ import { createPortal } from 'react-dom';
 import { AlertCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { Company } from '../../shared/types';
 import { DeliverableConfigTab } from './DeliverableConfigTab';
+import { DeliverableCoverAndRatiosDoc } from './DeliverableCoverAndRatiosDoc';
 import { DeliverableBalanzaDoc } from './DeliverableBalanzaDoc';
 import { DeliverableResultadosDoc } from './DeliverableResultadosDoc';
 import { DeliverableBalanceDoc } from './DeliverableBalanceDoc';
+import { DeliverableNifSummaryDoc } from './DeliverableNifSummaryDoc';
 import { DeliverableDia17Doc } from './DeliverableDia17Doc';
 import { DeliverableModalHeader } from './DeliverableModalHeader';
 import { useExecutiveDeliverables } from './useExecutiveDeliverables';
@@ -19,65 +21,35 @@ export interface ExecutiveDeliverablePackageModalProps {
 }
 
 export function ExecutiveDeliverablePackageModal({
-  company,
-  year,
-  period,
-  isOpen,
-  onClose,
-  initialTab = 'DOSSIER'
+  company, year, period, isOpen, onClose, initialTab = 'DOSSIER'
 }: ExecutiveDeliverablePackageModalProps) {
-  const {
-    dialogRef,
-    activeTab,
-    setActiveTab,
-    isExporting,
-    firmName,
-    setFirmName,
-    auditorName,
-    setAuditorName,
-    auditorCedula,
-    setAuditorCedula,
-    legalRepName,
-    setLegalRepName,
-    legalRepTitle,
-    setLegalRepTitle,
-    issuanceCity,
-    setIssuanceCity,
-    issuanceDate,
-    setIssuanceDate,
-    includeBalanza,
-    setIncludeBalanza,
-    includeResultados,
-    setIncludeResultados,
-    includeBalance,
-    setIncludeBalance,
-    includeDia17,
-    setIncludeDia17,
-    hideZeroAccounts,
-    setHideZeroAccounts,
-    selectedDocsCount,
-    copiedSummary,
-    reportsData,
-    fiscalData,
-    isLoadingData,
-    isErrorData,
-    dataError,
-    refetchData,
-    mesNombre,
-    isrSaldoNoAplicado,
-    fechaVencimientoDia17,
-    isUsingDefaultSignatures,
-    handlePrint,
-    handleExportAllCsv,
-    handleExportAllXlsx,
-    handleCopyExecutiveSummary
-  } = useExecutiveDeliverables({ company, year, period, isOpen, onClose, initialTab });
-
+  const d = useExecutiveDeliverables({ company, year, period, isOpen, onClose, initialTab });
   if (!isOpen) return null;
+
+  const sigProps = {
+    firmName: d.firmName,
+    preparerName: d.preparerName,
+    logoDataUrl: d.logoDataUrl,
+    issuanceCity: d.issuanceCity,
+    issuanceDate: d.issuanceDate,
+    auditorName: d.auditorName,
+    auditorCedula: d.auditorCedula,
+    legalRepName: d.legalRepName,
+    legalRepTitle: d.legalRepTitle
+  };
+
+  const quickToggles = [
+    { id: 'quick-cover', label: 'Portada/Ratios', checked: d.includeCoverRatios, set: d.setIncludeCoverRatios },
+    { id: 'quick-balanza', label: 'Balanza', checked: d.includeBalanza, set: d.setIncludeBalanza },
+    { id: 'quick-resultados', label: 'Resultados', checked: d.includeResultados, set: d.setIncludeResultados },
+    { id: 'quick-balance', label: 'Balance', checked: d.includeBalance, set: d.setIncludeBalance },
+    { id: 'quick-nif', label: 'NIF B-2/B-4 & Aging', checked: d.includeNifAging, set: d.setIncludeNifAging },
+    { id: 'quick-dia17', label: 'Día 17', checked: d.includeDia17, set: d.setIncludeDia17 }
+  ];
 
   return createPortal(
     <dialog
-      ref={dialogRef}
+      ref={d.dialogRef}
       id="executive-deliverable-modal"
       closedby="any"
       onClose={onClose}
@@ -86,93 +58,63 @@ export function ExecutiveDeliverablePackageModal({
     >
       <DeliverableModalHeader
         company={company}
-        mesNombre={mesNombre}
+        mesNombre={d.mesNombre}
         year={year}
-        copiedSummary={copiedSummary}
-        isDataReady={Boolean(reportsData)}
-        selectedDocsCount={selectedDocsCount}
-        onCopySummary={handleCopyExecutiveSummary}
-        onExportXlsx={handleExportAllXlsx}
-        isExporting={isExporting}
-        onExportCsv={handleExportAllCsv}
-        onPrint={handlePrint}
+        copiedSummary={d.copiedSummary}
+        isDataReady={Boolean(d.reportsData)}
+        selectedDocsCount={d.selectedDocsCount}
+        onCopySummary={d.handleCopyExecutiveSummary}
+        onExportXlsx={d.handleExportAllXlsx}
+        isExporting={d.isExporting}
+        onExportCsv={d.handleExportAllCsv}
+        onPrint={d.handlePrint}
         onClose={onClose}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        activeTab={d.activeTab}
+        setActiveTab={d.setActiveTab}
       />
 
       <div
         role="tabpanel"
-        id={`deliv-panel-${activeTab}`}
-        aria-labelledby={`deliv-tab-${activeTab}`}
+        id={`deliv-panel-${d.activeTab}`}
+        aria-labelledby={`deliv-tab-${d.activeTab}`}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 bg-slate-100/60 scrollable-panel printable-dossier"
       >
-        {isUsingDefaultSignatures && activeTab !== 'CONFIG' && (
-          <div
-            role="status"
-            className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-950 shadow-2xs no-print"
-          >
+        {d.isUsingDefaultSignatures && d.activeTab !== 'CONFIG' && (
+          <div role="status" className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-950 shadow-2xs no-print">
             <div className="flex items-center gap-2 min-w-0">
               <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
               <span>
-                Los entregables muestran firmas y cédula profesional de ejemplo (
-                <strong>{auditorName}</strong>). Personalízalas antes de imprimir o enviar al cliente.
+                Los entregables muestran firmas de ejemplo (<strong>{d.auditorName}</strong>). Personalízalas antes de imprimir o enviar al cliente.
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab('CONFIG')}
-              className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold transition cursor-pointer shrink-0"
-            >
+            <button type="button" onClick={() => d.setActiveTab('CONFIG')} className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold transition cursor-pointer shrink-0">
               Personalizar firmas
             </button>
           </div>
         )}
 
-        {isErrorData && activeTab !== 'CONFIG' && (
-          <div
-            role="alert"
-            className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-xs"
-          >
+        {d.isErrorData && d.activeTab !== 'CONFIG' && (
+          <div role="alert" className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-xs">
             <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-            <h2 className="text-sm font-bold text-slate-900">
-              No se pudieron calcular los entregables del periodo
-            </h2>
-            <p className="text-xs text-slate-600">
-              {dataError instanceof Error ? dataError.message : 'Error de conexión al servidor contable.'}
-            </p>
-            <button
-              type="button"
-              onClick={refetchData}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-              Reintentar
+            <h2 className="text-sm font-bold text-slate-900">No se pudieron calcular los entregables del periodo</h2>
+            <p className="text-xs text-slate-600">{d.dataError instanceof Error ? d.dataError.message : 'Error de conexión al servidor contable.'}</p>
+            <button type="button" onClick={d.refetchData} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer">
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" /> Reintentar
             </button>
           </div>
         )}
 
-        {!isErrorData && isLoadingData && activeTab !== 'CONFIG' && (
-          <div
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-            className="max-w-lg mx-auto my-8 p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500 shadow-xs"
-          >
+        {!d.isErrorData && d.isLoadingData && d.activeTab !== 'CONFIG' && (
+          <div role="status" aria-live="polite" aria-busy="true" className="max-w-lg mx-auto my-8 p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500 shadow-xs">
             Calculando estados financieros y cédula Día 17 para impresión...
           </div>
         )}
 
-        {activeTab === 'DOSSIER' && !isErrorData && !isLoadingData && (
+        {d.activeTab === 'DOSSIER' && !d.isErrorData && !d.isLoadingData && (
           <div className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs shadow-2xs no-print">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="font-bold text-slate-800">Documentos ({selectedDocsCount}/4):</span>
-              {[
-                { id: 'quick-balanza', label: 'Balanza', checked: includeBalanza, set: setIncludeBalanza },
-                { id: 'quick-resultados', label: 'Resultados', checked: includeResultados, set: setIncludeResultados },
-                { id: 'quick-balance', label: 'Balance', checked: includeBalance, set: setIncludeBalance },
-                { id: 'quick-dia17', label: 'Día 17', checked: includeDia17, set: setIncludeDia17 }
-              ].map((doc) => (
+              <span className="font-bold text-slate-800">Secciones ({d.selectedDocsCount}/6):</span>
+              {quickToggles.map((doc) => (
                 <label key={doc.id} htmlFor={doc.id} className="inline-flex items-center gap-1.5 cursor-pointer select-none text-slate-700">
                   <input id={doc.id} type="checkbox" checked={doc.checked} onChange={(e) => doc.set(e.target.checked)} className="rounded text-blue-700" />
                   <span>{doc.label}</span>
@@ -180,133 +122,99 @@ export function ExecutiveDeliverablePackageModal({
               ))}
             </div>
             <label htmlFor="quick-hide-zero" className="inline-flex items-center gap-1.5 cursor-pointer select-none text-slate-700 font-medium">
-              <input id="quick-hide-zero" type="checkbox" checked={hideZeroAccounts} onChange={(e) => setHideZeroAccounts(e.target.checked)} className="rounded text-blue-700" />
+              <input id="quick-hide-zero" type="checkbox" checked={d.hideZeroAccounts} onChange={(e) => d.setHideZeroAccounts(e.target.checked)} className="rounded text-blue-700" />
               <span>Ocultar $0.00</span>
             </label>
           </div>
         )}
 
-        {activeTab === 'DOSSIER' &&
-          !isErrorData &&
-          !isLoadingData &&
-          selectedDocsCount === 0 && (
-            <div className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-slate-200 text-center space-y-3 shadow-xs">
-              <p className="text-xs text-slate-600">
-                No hay documentos seleccionados para el dossier de cierre.
-              </p>
-              <button
-                type="button"
-                onClick={() => setActiveTab('CONFIG')}
-                className="inline-flex items-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
-              >
-                Ir a Firmas y Membrete
-              </button>
-            </div>
-          )}
-          {activeTab === 'CONFIG' && (
-            <DeliverableConfigTab
-              firmName={firmName}
-              setFirmName={setFirmName}
-              issuanceCity={issuanceCity}
-              setIssuanceCity={setIssuanceCity}
-              issuanceDate={issuanceDate}
-              setIssuanceDate={setIssuanceDate}
-              auditorName={auditorName}
-              setAuditorName={setAuditorName}
-              auditorCedula={auditorCedula}
-              setAuditorCedula={setAuditorCedula}
-              legalRepName={legalRepName}
-              setLegalRepName={setLegalRepName}
-              legalRepTitle={legalRepTitle}
-              setLegalRepTitle={setLegalRepTitle}
-              includeBalanza={includeBalanza}
-              setIncludeBalanza={setIncludeBalanza}
-              includeResultados={includeResultados}
-              setIncludeResultados={setIncludeResultados}
-              includeBalance={includeBalance}
-              setIncludeBalance={setIncludeBalance}
-              includeDia17={includeDia17}
-              setIncludeDia17={setIncludeDia17}
-              hideZeroAccounts={hideZeroAccounts}
-              setHideZeroAccounts={setHideZeroAccounts}
-              onPreviewDossier={() => setActiveTab('DOSSIER')}
-            />
-          )}
+        {d.activeTab === 'DOSSIER' && !d.isErrorData && !d.isLoadingData && d.selectedDocsCount === 0 && (
+          <div className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-slate-200 text-center space-y-3 shadow-xs">
+            <p className="text-xs text-slate-600">No hay documentos seleccionados para el dossier de cierre.</p>
+            <button type="button" onClick={() => d.setActiveTab('CONFIG')} className="inline-flex items-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer">
+              Ir a Firmas y Membrete
+            </button>
+          </div>
+        )}
 
-          {((activeTab === 'DOSSIER' && includeBalanza) || activeTab === 'BALANZA') && reportsData && (
-            <DeliverableBalanzaDoc
-              company={company}
-              year={year}
-              period={period}
-              mesNombre={mesNombre}
-              firmName={firmName}
-              issuanceCity={issuanceCity}
-              issuanceDate={issuanceDate}
-              hideZeroAccounts={hideZeroAccounts}
-              trialBalance={reportsData.trialBalance}
-              totals={reportsData.totals}
-              auditorName={auditorName}
-              auditorCedula={auditorCedula}
-              legalRepName={legalRepName}
-              legalRepTitle={legalRepTitle}
-            />
-          )}
+        {d.activeTab === 'CONFIG' && (
+          <DeliverableConfigTab
+            firmName={d.firmName} setFirmName={d.setFirmName}
+            preparerName={d.preparerName} setPreparerName={d.setPreparerName}
+            issuanceCity={d.issuanceCity} setIssuanceCity={d.setIssuanceCity}
+            issuanceDate={d.issuanceDate} setIssuanceDate={d.setIssuanceDate}
+            auditorName={d.auditorName} setAuditorName={d.setAuditorName}
+            auditorCedula={d.auditorCedula} setAuditorCedula={d.setAuditorCedula}
+            legalRepName={d.legalRepName} setLegalRepName={d.setLegalRepName}
+            legalRepTitle={d.legalRepTitle} setLegalRepTitle={d.setLegalRepTitle}
+            logoDataUrl={d.logoDataUrl} setLogoDataUrl={d.setLogoDataUrl}
+            accountantNotes={d.accountantNotes} setAccountantNotes={d.setAccountantNotes}
+            includeCoverRatios={d.includeCoverRatios} setIncludeCoverRatios={d.setIncludeCoverRatios}
+            includeBalanza={d.includeBalanza} setIncludeBalanza={d.setIncludeBalanza}
+            includeResultados={d.includeResultados} setIncludeResultados={d.setIncludeResultados}
+            includeBalance={d.includeBalance} setIncludeBalance={d.setIncludeBalance}
+            includeNifAging={d.includeNifAging} setIncludeNifAging={d.setIncludeNifAging}
+            includeDia17={d.includeDia17} setIncludeDia17={d.setIncludeDia17}
+            hideZeroAccounts={d.hideZeroAccounts} setHideZeroAccounts={d.setHideZeroAccounts}
+            isReadOnly={d.isReadOnly} isSavingBranding={d.isSavingBranding}
+            onSaveBranding={d.handleSaveBranding}
+            onPreviewDossier={() => d.setActiveTab('DOSSIER')}
+          />
+        )}
 
-          {((activeTab === 'DOSSIER' && includeResultados) || activeTab === 'RESULTADOS') && reportsData && (
-            <DeliverableResultadosDoc
-              company={company}
-              year={year}
-              period={period}
-              mesNombre={mesNombre}
-              firmName={firmName}
-              issuanceCity={issuanceCity}
-              issuanceDate={issuanceDate}
-              hideZeroAccounts={hideZeroAccounts}
-              incomeStatement={reportsData.incomeStatement}
-              auditorName={auditorName}
-              auditorCedula={auditorCedula}
-              legalRepName={legalRepName}
-              legalRepTitle={legalRepTitle}
-            />
-          )}
+        {d.activeTab === 'DOSSIER' && d.includeCoverRatios && d.reportsData && (
+          <DeliverableCoverAndRatiosDoc
+            company={company} year={year} period={period} mesNombre={d.mesNombre}
+            accountantNotes={d.accountantNotes}
+            reportsData={d.reportsData} fiscalData={d.fiscalData}
+            {...sigProps}
+          />
+        )}
 
-          {((activeTab === 'DOSSIER' && includeBalance) || activeTab === 'BALANCE') && reportsData && (
-            <DeliverableBalanceDoc
-              company={company}
-              year={year}
-              period={period}
-              mesNombre={mesNombre}
-              firmName={firmName}
-              issuanceCity={issuanceCity}
-              issuanceDate={issuanceDate}
-              hideZeroAccounts={hideZeroAccounts}
-              balanceSheet={reportsData.balanceSheet}
-              auditorName={auditorName}
-              auditorCedula={auditorCedula}
-              legalRepName={legalRepName}
-              legalRepTitle={legalRepTitle}
-            />
-          )}
+        {((d.activeTab === 'DOSSIER' && d.includeBalanza) || d.activeTab === 'BALANZA') && d.reportsData && (
+          <DeliverableBalanzaDoc
+            company={company} year={year} period={period} mesNombre={d.mesNombre}
+            hideZeroAccounts={d.hideZeroAccounts}
+            trialBalance={d.reportsData.trialBalance} totals={d.reportsData.totals}
+            {...sigProps}
+          />
+        )}
 
-          {((activeTab === 'DOSSIER' && includeDia17) || activeTab === 'DIA17') && fiscalData && (
-            <DeliverableDia17Doc
-              company={company}
-              year={year}
-              period={period}
-              mesNombre={mesNombre}
-              firmName={firmName}
-              issuanceCity={issuanceCity}
-              issuanceDate={issuanceDate}
-              fechaVencimientoDia17={fechaVencimientoDia17}
-              fiscalData={fiscalData}
-              isrSaldoNoAplicado={isrSaldoNoAplicado}
-              auditorName={auditorName}
-              auditorCedula={auditorCedula}
-              legalRepName={legalRepName}
-              legalRepTitle={legalRepTitle}
-            />
-          )}
-        </div>
+        {((d.activeTab === 'DOSSIER' && d.includeResultados) || d.activeTab === 'RESULTADOS') && d.reportsData && (
+          <DeliverableResultadosDoc
+            company={company} year={year} period={period} mesNombre={d.mesNombre}
+            hideZeroAccounts={d.hideZeroAccounts}
+            incomeStatement={d.reportsData.incomeStatement}
+            {...sigProps}
+          />
+        )}
+
+        {((d.activeTab === 'DOSSIER' && d.includeBalance) || d.activeTab === 'BALANCE') && d.reportsData && (
+          <DeliverableBalanceDoc
+            company={company} year={year} period={period} mesNombre={d.mesNombre}
+            hideZeroAccounts={d.hideZeroAccounts}
+            balanceSheet={d.reportsData.balanceSheet}
+            {...sigProps}
+          />
+        )}
+
+        {d.activeTab === 'DOSSIER' && d.includeNifAging && d.extendedStatements && (
+          <DeliverableNifSummaryDoc
+            company={company} year={year} period={period} mesNombre={d.mesNombre}
+            extendedStatements={d.extendedStatements} agingData={d.agingData}
+            {...sigProps}
+          />
+        )}
+
+        {((d.activeTab === 'DOSSIER' && d.includeDia17) || d.activeTab === 'DIA17') && d.fiscalData && (
+          <DeliverableDia17Doc
+            company={company} year={year} period={period} mesNombre={d.mesNombre}
+            fechaVencimientoDia17={d.fechaVencimientoDia17}
+            fiscalData={d.fiscalData} isrSaldoNoAplicado={d.isrSaldoNoAplicado}
+            {...sigProps}
+          />
+        )}
+      </div>
     </dialog>,
     document.body
   );

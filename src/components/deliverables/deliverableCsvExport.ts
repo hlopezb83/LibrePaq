@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { downloadBlobFile } from '../../lib/formatters';
 import { sanitizeSpreadsheetText } from '../../shared/date-utils';
-import type { Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../../shared/types';
+import type { AccountWithBalance, Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../../shared/types';
 
 function buildCsvContent(
   headers: string[],
@@ -19,13 +19,16 @@ function buildCsvContent(
   return '\uFEFF' + lines.join('\r\n');
 }
 
+const isNonZeroRow = (a: AccountWithBalance) =>
+  Math.abs(a.initialBalanceComputed) >= 0.01 ||
+  Math.abs(a.periodCharges) >= 0.01 ||
+  Math.abs(a.periodCredits) >= 0.01 ||
+  Math.abs(a.finalBalance) >= 0.01;
+
 export function exportAllDeliverablesCsv({
-  reportsData,
-  fiscalData,
-  company,
-  year,
-  period,
-  formatVerticalPct
+  reportsData, fiscalData, company, year, period, formatVerticalPct,
+  hideZeroAccounts = false, includeBalanza = true, includeResultados = true,
+  includeBalance = true, includeDia17 = true
 }: {
   reportsData: FinancialStatementsResponse | null | undefined;
   fiscalData: FiscalWorkpaperResponse | null | undefined;
@@ -33,107 +36,95 @@ export function exportAllDeliverablesCsv({
   year: number;
   period: number;
   formatVerticalPct: (amount: number, base: number) => string;
+  hideZeroAccounts?: boolean;
+  includeBalanza?: boolean;
+  includeResultados?: boolean;
+  includeBalance?: boolean;
+  includeDia17?: boolean;
 }) {
   if (!reportsData) return;
+  const files: Record<string, Uint8Array> = {};
 
-  // 1. Balanza de Comprobación
-  const balanzaHeaders = [
-    'Código Cuenta',
-    'Nombre de la Cuenta',
-    'Agrupador SAT',
-    'Naturaleza',
-    'Nivel',
-    'Saldo Inicial',
-    'Cargos (Debe)',
-    'Abonos (Haber)',
-    'Saldo Final'
-  ];
-  const balanzaRows = reportsData.trialBalance.map((r) => [
-    r.code,
-    r.name,
-    r.satGroupCode,
-    r.nature,
-    r.level,
-    r.initialBalanceComputed,
-    r.periodCharges,
-    r.periodCredits,
-    r.finalBalance
-  ]);
+  if (includeBalanza) {
+    const balanzaHeaders = [
+      'Código Cuenta', 'Nombre de la Cuenta', 'Agrupador SAT', 'Naturaleza',
+      'Nivel', 'Saldo Inicial', 'Cargos (Debe)', 'Abonos (Haber)', 'Saldo Final'
+    ];
+    const tbRows = hideZeroAccounts
+      ? reportsData.trialBalance.filter(isNonZeroRow)
+      : reportsData.trialBalance;
+    const balanzaRows = tbRows.map((r) => [
+      r.code, r.name, r.satGroupCode, r.nature, r.level,
+      r.initialBalanceComputed, r.periodCharges, r.periodCredits, r.finalBalance
+    ]);
+    files['Balanza_Comprobacion.csv'] = strToU8(buildCsvContent(balanzaHeaders, balanzaRows));
+  }
 
-  // 2. Estado de Resultados
-  const signedBal = (
-    a: FinancialStatementsResponse['trialBalance'][number],
-    expectedNature: 'DEUDORA' | 'ACREEDORA'
-  ) => (a.nature === expectedNature ? a.finalBalance : -a.finalBalance);
+  const signedBal = (a: AccountWithBalance, expected: 'DEUDORA' | 'ACREEDORA') =>
+    a.nature === expected ? a.finalBalance : -a.finalBalance;
+  const signedMes = (a: AccountWithBalance, expected: 'DEUDORA' | 'ACREEDORA') =>
+    expected === 'ACREEDORA' ? a.periodCredits - a.periodCharges : a.periodCharges - a.periodCredits;
 
-  const er = reportsData.incomeStatement;
-  const totalIsr = er.totalIsr ?? 0;
-  const isrRows: Array<Array<string | number>> =
-    totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
-      ? [
-          ...(er.isrEjercicio ?? []).map((a) => {
-            const val = signedBal(a, 'DEUDORA');
-            return [
-              'ISR EJERCICIO',
-              a.code,
-              a.name,
-              val,
-              formatVerticalPct(val, er.totalIngresos)
-            ];
-          }),
-          [
-            'IMPUESTOS A LA UTILIDAD (ISR)',
-            '',
-            'Provisión ISR del Ejercicio (NIF D-4)',
-            totalIsr,
-            formatVerticalPct(totalIsr, er.totalIngresos)
-          ]
-        ]
-      : [];
+  if (includeResultados) {
+    const er = reportsData.incomeStatement;
+    const p = er.periodTotals;
+    const utilOp = er.utilidadOperativa ?? er.utilidadBruta - er.totalGastos;
+    const rifNeto = er.rifNeto ?? 0;
+    const uai = er.utilidadAntesImpuestos ?? utilOp + rifNeto;
+    const totalIsr = er.totalIsr ?? 0;
+    const filterEr = (list: AccountWithBalance[], expected: 'DEUDORA' | 'ACREEDORA') =>
+      hideZeroAccounts ? list.filter((a) => Math.abs(a.finalBalance) >= 0.01 || Math.abs(signedMes(a, expected)) >= 0.01) : list;
+    const mapEr = (rubro: string, a: AccountWithBalance, expected: 'DEUDORA' | 'ACREEDORA') => {
+      const ytd = signedBal(a, expected);
+      return [rubro, a.code, a.name, signedMes(a, expected), ytd, formatVerticalPct(ytd, er.totalIngresos)];
+    };
 
-  const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Importe MXN', '% s/Ventas'];
-  const erRows: Array<Array<string | number>> = [
-    ...er.ingresos.map((a) => {
-      const val = signedBal(a, 'ACREEDORA');
-      return ['INGRESOS', a.code, a.name, val, formatVerticalPct(val, er.totalIngresos)];
-    }),
-    ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', er.totalIngresos, '100.0%'],
-    ...er.costos.map((a) => {
-      const val = signedBal(a, 'DEUDORA');
-      return ['COSTOS', a.code, a.name, val, formatVerticalPct(val, er.totalIngresos)];
-    }),
-    ['TOTAL COSTOS', '', 'Costo de Ventas', er.totalCostos, formatVerticalPct(er.totalCostos, er.totalIngresos)],
-    ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', er.utilidadBruta, formatVerticalPct(er.utilidadBruta, er.totalIngresos)],
-    ...er.gastos.map((a) => {
-      const val = signedBal(a, 'DEUDORA');
-      return ['GASTOS', a.code, a.name, val, formatVerticalPct(val, er.totalIngresos)];
-    }),
-    ['TOTAL GASTOS', '', 'Gastos Generales de Operación', er.totalGastos, formatVerticalPct(er.totalGastos, er.totalIngresos)],
-    ...isrRows,
-    ['UTILIDAD NETA', '', 'Resultado Neto del Periodo', er.utilidadNeta, formatVerticalPct(er.utilidadNeta, er.totalIngresos)]
-  ];
+    const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Del Mes MXN', 'Acumulado YTD MXN', '% s/Ventas'];
+    const erRows: Array<Array<string | number>> = [
+      ...filterEr(er.ingresos, 'ACREEDORA').map((a) => mapEr('INGRESOS', a, 'ACREEDORA')),
+      ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos, '100.0%'],
+      ...filterEr(er.costos, 'DEUDORA').map((a) => mapEr('COSTOS', a, 'DEUDORA')),
+      ['TOTAL COSTOS', '', 'Costo de Ventas', p?.totalCostos ?? 0, er.totalCostos, formatVerticalPct(er.totalCostos, er.totalIngresos)],
+      ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, er.utilidadBruta, formatVerticalPct(er.utilidadBruta, er.totalIngresos)],
+      ...filterEr(er.gastos, 'DEUDORA').map((a) => mapEr('GASTOS', a, 'DEUDORA')),
+      ['TOTAL GASTOS', '', 'Gastos Generales de Operación', p?.totalGastos ?? 0, er.totalGastos, formatVerticalPct(er.totalGastos, er.totalIngresos)],
+      ['UTILIDAD OPERACION', '', 'Utilidad de Operación (NIF B-3)', p?.utilidadOperativa ?? 0, utilOp, formatVerticalPct(utilOp, er.totalIngresos)],
+      ...filterEr(er.rifProductos ?? [], 'ACREEDORA').map((a) => mapEr('RIF PRODUCTOS', a, 'ACREEDORA')),
+      ...filterEr(er.rifGastos ?? [], 'DEUDORA').map((a) => mapEr('RIF GASTOS', a, 'DEUDORA')),
+      ['RIF NETO', '', 'Resultado Integral de Financiamiento', p?.rifNeto ?? 0, rifNeto, formatVerticalPct(rifNeto, er.totalIngresos)],
+      ['UAI', '', 'Utilidad antes de Impuestos', p?.utilidadAntesImpuestos ?? 0, uai, formatVerticalPct(uai, er.totalIngresos)],
+      ...filterEr(er.isrEjercicio ?? [], 'DEUDORA').map((a) => mapEr('ISR EJERCICIO', a, 'DEUDORA')),
+      ...(totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
+        ? [['PROVISION ISR', '', 'Provisión ISR del Ejercicio (NIF D-4)', p?.totalIsr ?? 0, totalIsr, formatVerticalPct(totalIsr, er.totalIngresos)]]
+        : []),
+      ['UTILIDAD NETA', '', 'Utilidad Neta del Ejercicio (NIF B-3)', p?.utilidadNeta ?? 0, er.utilidadNeta, formatVerticalPct(er.utilidadNeta, er.totalIngresos)]
+    ];
+    files['Estado_Resultados.csv'] = strToU8(buildCsvContent(erHeaders, erRows));
+  }
 
-  // 3. Balance General
+  if (includeBalance) {
+    const bs = reportsData.balanceSheet;
+    const nif = bs.nifB6;
+    const fZero = (list: AccountWithBalance[]) =>
+      hideZeroAccounts ? list.filter((a) => Math.abs(a.finalBalance) >= 0.01) : list;
+    const bgHeaders = ['Clasificación', 'Código', 'Nombre Cuenta', 'Saldo Final MXN'];
+    const bgRows: Array<Array<string | number>> = [
+      ...fZero(nif?.activoCirculante ?? bs.activos).map((a) => ['ACTIVO CIRCULANTE', a.code, a.name, signedBal(a, 'DEUDORA')]),
+      ...fZero(nif?.activoNoCirculante ?? []).map((a) => ['ACTIVO NO CIRCULANTE', a.code, a.name, signedBal(a, 'DEUDORA')]),
+      ['TOTAL ACTIVO', '100', 'Total Activo (NIF B-6)', bs.totalActivo],
+      ...fZero(nif?.pasivoCortoPlazo ?? bs.pasivos).map((a) => ['PASIVO CORTO PLAZO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
+      ...fZero(nif?.pasivoLargoPlazo ?? []).map((a) => ['PASIVO LARGO PLAZO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
+      ['TOTAL PASIVO', '200', 'Total Pasivo', bs.totalPasivo],
+      ...fZero(nif?.capitalContribuido ?? bs.capital).map((a) => ['CAPITAL CONTRIBUIDO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
+      ...fZero(nif?.capitalGanado ?? []).map((a) => ['CAPITAL GANADO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
+      ['UTILIDAD EJERCICIO', '305-01-001', 'Resultado del Ejercicio Actual', bs.utilidadEjercicio],
+      ['TOTAL CAPITAL', '300', 'Total Capital Contable', bs.totalPasivoMasCapital - bs.totalPasivo],
+      ['PASIVO + CAPITAL', '', 'Suma Pasivo y Capital Contable', bs.totalPasivoMasCapital]
+    ];
+    files['Balance_General.csv'] = strToU8(buildCsvContent(bgHeaders, bgRows));
+  }
 
-  const bgHeaders = ['Clasificación', 'Código', 'Nombre Cuenta', 'Saldo Final MXN'];
-  const bgRows: Array<Array<string | number>> = [
-    ...reportsData.balanceSheet.activos.map((a) => ['ACTIVO', a.code, a.name, signedBal(a, 'DEUDORA')]),
-    ['TOTAL ACTIVO', '100', 'Total Activo Circulante y No Circulante', reportsData.balanceSheet.totalActivo],
-    ...reportsData.balanceSheet.pasivos.map((a) => ['PASIVO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
-    ['TOTAL PASIVO', '200', 'Total Pasivo Corto y Largo Plazo', reportsData.balanceSheet.totalPasivo],
-    ...reportsData.balanceSheet.capital.map((a) => ['CAPITAL', a.code, a.name, signedBal(a, 'ACREEDORA')]),
-    ['UTILIDAD EJERCICIO', '305', 'Resultado del Ejercicio Actual', reportsData.balanceSheet.utilidadEjercicio],
-    ['PASIVO + CAPITAL', '', 'Suma Pasivo y Capital Contable (Ecuación Cuadrada)', reportsData.balanceSheet.totalPasivoMasCapital]
-  ];
-
-  const files: Record<string, Uint8Array> = {
-    'Balanza_Comprobacion.csv': strToU8(buildCsvContent(balanzaHeaders, balanzaRows)),
-    'Estado_Resultados.csv': strToU8(buildCsvContent(erHeaders, erRows)),
-    'Balance_General.csv': strToU8(buildCsvContent(bgHeaders, bgRows))
-  };
-
-  // 4. Papel Fiscal / Cédula Día 17 (si está disponible)
-  if (fiscalData) {
+  if (includeDia17 && fiscalData) {
     const d17Headers = ['Concepto Fiscal', 'Fundamento Legal / Base', 'Importe Determinado MXN'];
     const d17Rows = buildPapelFiscalCsvRows(company, fiscalData);
     files['Papel_Fiscal.csv'] = strToU8(buildCsvContent(d17Headers, d17Rows));
@@ -158,20 +149,18 @@ export function buildPapelFiscalCsvRows(
   const isResicoPf = isResico && isPersonaFisica;
   const isResicoPm = isResico && !isPersonaFisica;
   const isPfGeneral = isPersonaFisica && !isResico;
+  const dedAcum = isr.deduccionesAcumuladasEjercicio ?? isr.deduccionesAutorizadasPeriodo;
 
   const isrRows: Array<Array<string | number>> = [
     ['Régimen Fiscal', company.regimenFiscal, ''],
-    [
-      'Ingresos Cobrados / Nominales Periodo',
-      isResico ? 'Flujo de Efectivo RESICO' : isPfGeneral ? 'Art. 106 LISR' : 'Art. 16 / 17 LISR',
-      isr.ingresosPeriodo
-    ],
+    ['Ingresos Cobrados / Nominales Periodo', isResico ? 'Flujo de Efectivo RESICO' : isPfGeneral ? 'Art. 106 LISR' : 'Art. 16 / 17 LISR', isr.ingresosPeriodo],
     ['Ingresos Acumulados del Ejercicio', 'Acumulado Anual', isr.ingresosAcumuladosEjercicio]
   ];
 
   if (isResicoPm || isPfGeneral) {
     isrRows.push(
       ['(-) Deducciones Autorizadas Periodo', 'Flujo de Efectivo', -isr.deduccionesAutorizadasPeriodo],
+      ['(-) Deducciones Acumuladas Ejercicio', 'Acumulado Anual', -dedAcum],
       ['(=) Utilidad Fiscal (Ingresos - Deducciones)', 'Base Gravable', isr.utilidadFiscalEstimada]
     );
   } else if (!isResicoPf) {
@@ -181,9 +170,7 @@ export function buildPapelFiscalCsvRows(
     );
   }
 
-  if (!isResicoPf) {
-    isrRows.push(['(-) Pérdidas Fiscales Aplicadas', 'Art. 57 LISR', -isr.perdidasFiscalesAplicadas]);
-  }
+  if (!isResicoPf) isrRows.push(['(-) Pérdidas Fiscales Aplicadas', 'Art. 57 LISR', -isr.perdidasFiscalesAplicadas]);
 
   isrRows.push([
     'ISR Causado Periodo',
@@ -191,9 +178,7 @@ export function buildPapelFiscalCsvRows(
     isr.isrCausado
   ]);
 
-  if (!isResicoPf) {
-    isrRows.push(['(-) Pagos Provisionales Previos', 'Acreditamiento', -isr.pagosProvisionalesPrevios]);
-  }
+  if (!isResicoPf) isrRows.push(['(-) Pagos Provisionales Previos', 'Acreditamiento', -isr.pagosProvisionalesPrevios]);
 
   isrRows.push(
     ['(-) ISR Retenido por Terceros', 'Acreditamiento', -isr.isrRetenidoPeriodo],

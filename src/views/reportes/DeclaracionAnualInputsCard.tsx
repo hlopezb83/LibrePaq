@@ -19,6 +19,7 @@ interface InputFieldConfig {
   unit: 'Índice' | 'MXN $';
   hint: string;
   pmOnly?: boolean;
+  pfOnly?: boolean;
 }
 
 const FIELDS: ReadonlyArray<InputFieldConfig> = [
@@ -26,6 +27,7 @@ const FIELDS: ReadonlyArray<InputFieldConfig> = [
   { key: 'inpcCierreActual', label: 'INPC Dic. Ejercicio', step: '0.001', unit: 'Índice', hint: 'INEGI DOF', pmOnly: true },
   { key: 'ptuPagadaAnterior', label: 'PTU Pagada en Ejercicio', step: '0.01', unit: 'MXN $', hint: 'Art. 9 Fracc. I' },
   { key: 'noDeduciblesManual', label: 'No Deducibles Manuales', step: '0.01', unit: 'MXN $', hint: 'Art. 28 LISR' },
+  { key: 'deduccionesPersonales', label: 'Deducciones Personales', step: '0.01', unit: 'MXN $', hint: 'Art. 151 LISR (Tope 5 UMA / 15%)', pfOnly: true },
   { key: 'cucaInicial', label: 'CUCA Inicial', step: '0.01', unit: 'MXN $', hint: 'Art. 78 LISR', pmOnly: true },
   { key: 'aportacionesCapital', label: 'Aportaciones de Capital', step: '0.01', unit: 'MXN $', hint: 'Incrementa CUCA', pmOnly: true },
   { key: 'reduccionesCapital', label: 'Reducciones de Capital', step: '0.01', unit: 'MXN $', hint: 'Disminuye CUCA', pmOnly: true },
@@ -43,7 +45,8 @@ function buildDrafts(inputs: AnnualTaxInputs): Record<InputFieldKey, string> {
     cufinInicial: String(inputs.cufinInicial),
     dividendosPagados: String(inputs.dividendosPagados),
     ptuPagadaAnterior: String(inputs.ptuPagadaAnterior),
-    noDeduciblesManual: String(inputs.noDeduciblesManual)
+    noDeduciblesManual: String(inputs.noDeduciblesManual),
+    deduccionesPersonales: String(inputs.deduccionesPersonales ?? 0)
   };
 }
 
@@ -74,7 +77,12 @@ export function DeclaracionAnualInputsCard({
   const isPersonaFisica = tipoRegimenAnual === 'PF_RESICO' || tipoRegimenAnual === 'PF_ART152';
   const isPfResico = tipoRegimenAnual === 'PF_RESICO';
   const visibleFields = useMemo(
-    () => (isPfResico ? [] : isPersonaFisica ? FIELDS.filter((f) => !f.pmOnly) : FIELDS),
+    () =>
+      isPfResico
+        ? []
+        : isPersonaFisica
+          ? FIELDS.filter((f) => !f.pmOnly)
+          : FIELDS.filter((f) => !f.pfOnly),
     [isPfResico, isPersonaFisica]
   );
 
@@ -84,7 +92,7 @@ export function DeclaracionAnualInputsCard({
   }, [inputs]);
 
   const isDirty = useMemo(
-    () => visibleFields.some((field) => parseDraftNumber(drafts[field.key]) !== inputs[field.key]),
+    () => visibleFields.some((field) => parseDraftNumber(drafts[field.key]) !== (inputs[field.key] ?? 0)),
     [drafts, inputs, visibleFields]
   );
 
@@ -120,7 +128,8 @@ export function DeclaracionAnualInputsCard({
       cufinInicial: parseDraftNumber(drafts.cufinInicial),
       dividendosPagados: parseDraftNumber(drafts.dividendosPagados),
       ptuPagadaAnterior: parseDraftNumber(drafts.ptuPagadaAnterior),
-      noDeduciblesManual: parseDraftNumber(drafts.noDeduciblesManual)
+      noDeduciblesManual: parseDraftNumber(drafts.noDeduciblesManual),
+      deduccionesPersonales: parseDraftNumber(drafts.deduccionesPersonales)
     });
   };
 

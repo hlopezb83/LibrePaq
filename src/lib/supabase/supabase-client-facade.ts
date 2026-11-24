@@ -1,6 +1,7 @@
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { supabaseAccountLedger } from './supabase-account-ledger';
 import { supabasePolizas } from './supabase-polizas';
+import { supabasePolizasReclassify } from './supabase-polizas-reclassify';
 import { supabaseCfdi } from './supabase-cfdi';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
 import { supabaseDiot } from './supabase-diot';
@@ -19,6 +20,7 @@ export const supabaseCloudApi = {
   ...supabaseCompaniesAndAccounts,
   ...supabaseAccountLedger,
   ...supabasePolizas,
+  ...supabasePolizasReclassify,
   ...supabaseCfdi,
   ...supabaseReportsAndDashboard,
   ...supabaseDiot,

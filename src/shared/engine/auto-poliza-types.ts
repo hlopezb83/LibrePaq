@@ -27,6 +27,10 @@ export interface AutoPolizaOverrides {
   deductiblePct?: number;
   relatedOriginalTipoCambio?: number;
   relatedOriginalTipoCambioByUuid?: Readonly<Record<string, number>>;
+  relatedIsPpd?: boolean;
+  relatedPpdIsrRetenido?: number;
+  relatedPpdIvaRetenido?: number;
+  relatedPpdTotal?: number;
 }
 
 export interface AutoPolizaPlan {

@@ -1,10 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, X } from 'lucide-react';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
+import { formatCurrency } from '../../lib/formatters';
 import {
   downloadCatalogoTemplateCsv,
   type CatalogoCsvImportPreview
 } from './catalogoCsvIo';
+
+const FORMAT_LABELS: Record<NonNullable<CatalogoCsvImportPreview['fileFormat']>, string> = {
+  CSV: 'CSV / Excel',
+  CONTPAQI_TXT: 'CONTPAQi® TXT (C ...)',
+  ANEXO24_CT_XML: 'Anexo 24 CT.xml (Catálogo SAT)',
+  ANEXO24_BN_XML: 'Anexo 24 BN.xml (Balanza / Saldos Iniciales)'
+};
 
 interface CatalogoCsvImportPreviewModalProps {
   preview: CatalogoCsvImportPreview | null;
@@ -20,7 +28,12 @@ export function CatalogoCsvImportPreviewModal({
   onConfirm
 }: CatalogoCsvImportPreviewModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [fechaInicioOp, setFechaInicioOp] = useState(preview?.fechaInicioOperaciones ?? '');
   useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(preview) });
+
+  useEffect(() => {
+    setFechaInicioOp(preview?.fechaInicioOperaciones ?? '');
+  }, [preview]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -50,9 +63,16 @@ export function CatalogoCsvImportPreviewModal({
             <FileSpreadsheet className="w-5 h-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h2 id="csv-preview-title" className="text-sm font-bold text-slate-900 truncate">
-              Vista Previa de Importación de Catálogo
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 id="csv-preview-title" className="text-sm font-bold text-slate-900 truncate">
+                Vista Previa de Importación de Catálogo
+              </h2>
+              {preview.fileFormat && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                  {FORMAT_LABELS[preview.fileFormat]}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 truncate">{preview.fileName}</p>
           </div>
         </div>
@@ -82,6 +102,48 @@ export function CatalogoCsvImportPreviewModal({
             <span className="text-lg font-mono font-bold text-amber-950">{preview.skipped.length}</span>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+          <label htmlFor="mig-fecha-inicio" className="text-[11px] font-semibold text-slate-700">
+            Fecha de inicio de operaciones (opcional, ej. AAAA-MM):
+          </label>
+          <input
+            id="mig-fecha-inicio"
+            type="month"
+            value={fechaInicioOp}
+            onChange={(e) => setFechaInicioOp(e.target.value)}
+            className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-mono text-slate-800"
+          />
+        </div>
+
+        {preview.balanzaValidation && (
+          <div
+            className={`p-3 rounded-xl border space-y-1.5 ${
+              preview.balanzaValidation.isBalanced
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                : 'bg-red-50 border-red-300 text-red-950'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 font-bold">
+              <span>
+                {preview.balanzaValidation.isBalanced
+                  ? 'Validación Balanza BN.xml: Deudor === Acreedor (Cuadrada)'
+                  : `Descuadre detectado en BN.xml (${formatCurrency(preview.balanzaValidation.difference)})`}
+              </span>
+              {preview.balanzaValidation.anio && preview.balanzaValidation.mes && (
+                <span className="font-mono text-[11px]">
+                  P{preview.balanzaValidation.mes}/{preview.balanzaValidation.anio}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px]">
+              <div>Saldo Ini Deudor: <strong>{formatCurrency(preview.balanzaValidation.totalDeudor)}</strong></div>
+              <div>Saldo Ini Acreedor: <strong>{formatCurrency(preview.balanzaValidation.totalAcreedor)}</strong></div>
+              <div>Debe: <strong>{formatCurrency(preview.balanzaValidation.totalDebe)}</strong></div>
+              <div>Haber: <strong>{formatCurrency(preview.balanzaValidation.totalHaber)}</strong></div>
+            </div>
+          </div>
+        )}
 
         {preview.skipped.length > 0 && (
           <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-300 space-y-1.5">

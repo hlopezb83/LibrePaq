@@ -147,7 +147,9 @@ export function CxcCxpTable({
                             {row.parcialidades.map((p) => (
                               <div key={`${p.paymentUuid}-${p.numParcialidad}`} className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2 text-xs min-w-0">
                                 <div className="min-w-0">
-                                  <span className="font-bold text-slate-900 block">Pago 2.0 · Parcialidad #{p.numParcialidad}</span>
+                                  <span className="font-bold text-slate-900 block">
+                                    {p.numParcialidad === 0 ? 'Nota de Crédito' : `Pago 2.0 · Parcialidad #${p.numParcialidad}`}
+                                  </span>
                                   <span className="text-[11px] text-slate-600 block">Fecha pago: {formatShortDate(p.fechaPago)}</span>
                                   <span className="font-mono text-[11px] text-slate-600 block truncate" title={p.paymentUuid}>UUID: {p.paymentUuid.slice(0, 8)}…</span>
                                 </div>

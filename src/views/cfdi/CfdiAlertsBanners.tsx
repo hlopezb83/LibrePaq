@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, Lock, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Loader2, Lock, RotateCcw, X } from 'lucide-react';
 
 export interface SatBatchAlertData {
   cancelledWithPolizaCount: number;
@@ -18,6 +18,9 @@ interface CfdiAlertsBannersProps {
   currentPeriod: number;
   currentYear: number;
   satBatchAlert: SatBatchAlertData | null;
+  cancelledWithPolizaCount?: number;
+  isReversingCancelled?: boolean;
+  onReverseCancelledPoliza?: () => void;
   onLocateCancelled: (alert: SatBatchAlertData) => void;
   onDismissSatBatchAlert: () => void;
   batchPartialAlert: BatchPartialAlertData | null;
@@ -30,6 +33,9 @@ export function CfdiAlertsBanners({
   currentPeriod,
   currentYear,
   satBatchAlert,
+  cancelledWithPolizaCount = 0,
+  isReversingCancelled = false,
+  onReverseCancelledPoliza,
   onLocateCancelled,
   onDismissSatBatchAlert,
   batchPartialAlert,
@@ -91,7 +97,29 @@ export function CfdiAlertsBanners({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-start">
+            {onReverseCancelledPoliza && (
+              <button
+                type="button"
+                disabled={isReadOnlyClient || isPeriodLocked || isReversingCancelled}
+                onClick={onReverseCancelledPoliza}
+                title={
+                  isReadOnlyClient
+                    ? 'Modo solo lectura'
+                    : isPeriodLocked
+                    ? 'Periodo bloqueado ante el SAT'
+                    : 'Generar Póliza Inversa (Reversión) para los CFDIs cancelados'
+                }
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold cursor-pointer shrink-0 transition"
+              >
+                {isReversingCancelled ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                )}
+                <span>Revertir Póliza</span>
+              </button>
+            )}
             {satBatchAlert.alerts[0] && (
               <button
                 type="button"
@@ -112,6 +140,38 @@ export function CfdiAlertsBanners({
               Ocultar
             </button>
           </div>
+        </div>
+      )}
+
+      {(!satBatchAlert || satBatchAlert.cancelledWithPolizaCount === 0) && cancelledWithPolizaCount > 0 && onReverseCancelledPoliza && (
+        <div
+          role="alert"
+          className="bg-red-50 border border-red-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-950 text-xs shadow-2xs"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <span className="font-bold text-sm block text-red-950">
+                {cancelledWithPolizaCount} CFDI(s) CANCELADO(s) con póliza contable activa
+              </span>
+              <p className="text-red-800">
+                Existen comprobantes cancelados ante el SAT que mantienen póliza registrada. Genera la póliza inversa para revertir el efecto contable.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={isReadOnlyClient || isPeriodLocked || isReversingCancelled}
+            onClick={onReverseCancelledPoliza}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold cursor-pointer shrink-0 transition"
+          >
+            {isReversingCancelled ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            <span>Revertir Póliza</span>
+          </button>
         </div>
       )}
 

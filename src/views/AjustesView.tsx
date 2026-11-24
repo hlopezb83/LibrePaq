@@ -220,6 +220,12 @@ export function AjustesView() {
             onConfigureFicha={() => setActiveTab('empresa')}
             canDeleteCompany={s.canDeleteOrRestore}
             canCreateCompany={!s.isReadOnlySupportMode && !s.isReadOnlyClient && s.effectiveCompanyRole !== 'CLIENTE_LECTURA'}
+            canViewDespachoMonitor={
+              !s.isReadOnlyClient &&
+              (s.effectiveCompanyRole === 'OWNER' ||
+                s.effectiveCompanyRole === 'SOCIO' ||
+                s.effectiveCompanyRole === 'CONTADOR')
+            }
             toast={s.toast}
           />
         )}

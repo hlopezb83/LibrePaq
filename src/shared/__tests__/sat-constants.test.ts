@@ -38,7 +38,7 @@ describe('sat-constants — Catalogs & Safety Bounds Invariants', () => {
   test('SAT_GROUP_CODES has consistent types and natures', () => {
     expect(SAT_GROUP_CODES.length).toBeGreaterThan(30);
     for (const item of SAT_GROUP_CODES) {
-      expect(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS']).toContain(
+      expect(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS', 'ORDEN']).toContain(
         item.type
       );
       expect(['DEUDORA', 'ACREEDORA']).toContain(item.nature);

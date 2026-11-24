@@ -1,5 +1,6 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import { logCompanyAuditEvent } from './audit-logger';
+import { fetchAllRows } from './supabase-pagination';
 import type {
   AccountingRuleDirection,
   AccountingRuleRecord,
@@ -35,15 +36,17 @@ function normalizeUpperOrNull(val?: string | null): string | null {
 export const supabaseAccountingRules = {
   async listAccountingRules(companyId: string): Promise<AccountingRuleRecord[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase
-      .from('accounting_rules')
-      .select('*')
-      .eq('company_id', companyId)
-      .order('priority', { ascending: true })
-      .order('updated_at', { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return (data || []).map((row) => mapSupabaseAccountingRule(row as Record<string, unknown>));
+    const data = await fetchAllRows(async (from, to) =>
+      getRequiredSupabase()
+        .from('accounting_rules')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('priority', { ascending: true })
+        .order('updated_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
+    return data.map((row) => mapSupabaseAccountingRule(row as Record<string, unknown>));
   },
 
   async upsertAccountingRule(

@@ -1,11 +1,24 @@
 import { fromCents, toCents } from './invariants-and-math';
-import { resolveFiscalAccount } from './auto-poliza.engine';
+import { rollUpTrialBalanceAccounts } from './financial-reports-rollup';
+import {
+  buildScopedBucketRows,
+  classifyPnlBucket,
+  getCodePrefixNumber,
+  getLeafIds,
+  isCapitalGanadoAccount,
+  isResultOfExerciseAccount,
+  normalizePostCloseP13Accounts,
+  resolveAccumulatedEarningsAccount,
+  sumRootByTypeCents,
+  type PnlBucket
+} from './financial-reports-helpers';
 import type {
-  Account,
   AccountWithBalance,
   Company,
   FinancialStatementsResponse
 } from '../types';
+
+export { rollUpTrialBalanceAccounts };
 
 export interface JoinedPolizaMovementInput {
   account_id: string;
@@ -18,8 +31,8 @@ export interface JoinedPolizaMovementInput {
 }
 
 /**
- * Aggregates account movements into a full hierarchical trial balance, income statement,
- * and balance sheet for a specific fiscal year and period.
+ * Aggregates account movements into a full hierarchical trial balance, NIF B-3 income statement,
+ * and NIF B-6 balance sheet for a specific fiscal year and period.
  */
 export function computeFinancialStatementsData(
   company: Company,
@@ -28,8 +41,14 @@ export function computeFinancialStatementsData(
   ejercicio: number,
   periodo: number
 ): FinancialStatementsResponse {
-  const isBsMap = new Map(
-    accounts.map((a) => [a.id, a.type === 'ACTIVO' || a.type === 'PASIVO' || a.type === 'CAPITAL'])
+  const isPersistentBalanceAcc = new Map(
+    accounts.map((a) => [
+      a.id,
+      (a.type === 'ACTIVO' ||
+        a.type === 'PASIVO' ||
+        a.type === 'ORDEN' ||
+        (a.type === 'CAPITAL' && !isResultOfExerciseAccount(a)))
+    ])
   );
 
   const priorChargesMap = new Map<string, number>();
@@ -49,7 +68,7 @@ export function computeFinancialStatementsData(
 
     if (p.ejercicio < ejercicio) {
       hasPriorYearMovements = true;
-      if (isBsMap.get(accId)) {
+      if (isPersistentBalanceAcc.get(accId)) {
         priorChargesMap.set(accId, (priorChargesMap.get(accId) || 0) + cargoCents);
         priorCreditsMap.set(accId, (priorCreditsMap.get(accId) || 0) + abonoCents);
       } else {
@@ -67,13 +86,29 @@ export function computeFinancialStatementsData(
     }
   }
 
-  if (priorUnclosedCargoCents > 0 || priorUnclosedAbonoCents > 0) {
+  // Cuando zeroResultInitialBalances anula initialBalance de cuentas P&L entre ejercicios,
+  // trasladar el neto de esos saldos iniciales P&L a Utilidades Acumuladas para mantener A = P + C.
+  if (hasPriorYearMovements) {
+    for (const acc of accounts) {
+      if (!acc.isAffectable) continue;
+      if (acc.type !== 'INGRESOS' && acc.type !== 'COSTOS' && acc.type !== 'GASTOS') continue;
+      const initCents = toCents(acc.initialBalance);
+      if (initCents === 0) continue;
+      if (acc.nature === 'ACREEDORA') {
+        priorUnclosedAbonoCents += initCents;
+      } else {
+        priorUnclosedCargoCents += initCents;
+      }
+    }
+  }
+
+  if (priorUnclosedCargoCents !== 0 || priorUnclosedAbonoCents !== 0) {
     try {
-      const capAcc = resolveFiscalAccount(accounts, 'RESULTADO_DEL_EJERCICIO');
-      priorChargesMap.set(capAcc.id, (priorChargesMap.get(capAcc.id) || 0) + priorUnclosedCargoCents);
-      priorCreditsMap.set(capAcc.id, (priorCreditsMap.get(capAcc.id) || 0) + priorUnclosedAbonoCents);
+      const accumAcc = resolveAccumulatedEarningsAccount(accounts);
+      priorChargesMap.set(accumAcc.id, (priorChargesMap.get(accumAcc.id) || 0) + priorUnclosedCargoCents);
+      priorCreditsMap.set(accumAcc.id, (priorCreditsMap.get(accumAcc.id) || 0) + priorUnclosedAbonoCents);
     } catch {
-      // Ignore when company catalog has no earnings carryforward account yet
+      // Ignore when company catalog has no equity carryforward account yet
     }
   }
 
@@ -94,85 +129,8 @@ export function computeFinancialStatementsData(
 }
 
 /**
- * Calcula saldos iniciales, cargos/abonos del periodo, saldo final y roll-up
- * jerárquico por nivel descendente (incluyendo cuentas complementarias con signo opuesto).
- */
-export function rollUpTrialBalanceAccounts(
-  accounts: readonly Account[],
-  priorChargesMap: ReadonlyMap<string, number>,
-  priorCreditsMap: ReadonlyMap<string, number>,
-  currentChargesMap: ReadonlyMap<string, number>,
-  currentCreditsMap: ReadonlyMap<string, number>,
-  options?: { zeroResultInitialBalances?: boolean }
-): AccountWithBalance[] {
-  const byCode = new Map<string, AccountWithBalance>();
-  const zeroResults = Boolean(options?.zeroResultInitialBalances);
-  for (const acc of accounts) {
-    const priorChg = priorChargesMap.get(acc.id) || 0;
-    const priorCred = priorCreditsMap.get(acc.id) || 0;
-    const chg = currentChargesMap.get(acc.id) || 0;
-    const cred = currentCreditsMap.get(acc.id) || 0;
-
-    const isBalanceSheetAcc =
-      acc.type === 'ACTIVO' || acc.type === 'PASIVO' || acc.type === 'CAPITAL';
-    const allowOpening = !zeroResults || isBalanceSheetAcc;
-    const openingCents =
-      acc.isAffectable && allowOpening ? toCents(acc.initialBalance) : 0;
-    const initCents = acc.isAffectable
-      ? acc.nature === 'DEUDORA'
-        ? openingCents + priorChg - priorCred
-        : openingCents + priorCred - priorChg
-      : 0;
-
-    const finalCents =
-      acc.nature === 'DEUDORA' ? initCents + chg - cred : initCents + cred - chg;
-
-    byCode.set(acc.code, {
-      ...acc,
-      initialBalanceComputed: fromCents(initCents),
-      periodCharges: fromCents(chg),
-      periodCredits: fromCents(cred),
-      finalBalance: fromCents(finalCents)
-    });
-  }
-
-  const sortedDesc = [...byCode.values()].sort((a, b) => b.level - a.level);
-  for (const node of sortedDesc) {
-    if (!node.parentCode) continue;
-    const parent = byCode.get(node.parentCode);
-    if (!parent) continue;
-
-    const sign = parent.nature === node.nature ? 1 : -1;
-    const parentInit =
-      toCents(parent.initialBalanceComputed) + sign * toCents(node.initialBalanceComputed);
-    const parentChg = toCents(parent.periodCharges) + toCents(node.periodCharges);
-    const parentCred = toCents(parent.periodCredits) + toCents(node.periodCredits);
-    const parentFinal =
-      parent.nature === 'DEUDORA'
-        ? parentInit + parentChg - parentCred
-        : parentInit + parentCred - parentChg;
-
-    parent.initialBalanceComputed = fromCents(parentInit);
-    parent.periodCharges = fromCents(parentChg);
-    parent.periodCredits = fromCents(parentCred);
-    parent.finalBalance = fromCents(parentFinal);
-  }
-
-  return accounts.map(
-    (a) =>
-      byCode.get(a.code) ?? {
-        ...a,
-        initialBalanceComputed: 0,
-        periodCharges: 0,
-        periodCredits: 0,
-        finalBalance: 0
-      }
-  );
-}
-
-/**
- * Construye los Estados Financieros (Totales de Balanza, Estado de Resultados y Balance General)
- * a partir de una balanza de comprobación ya calculada y totalizada por nivel jerárquico.
+ * Construye los Estados Financieros (Totales de Balanza, Estado de Resultados NIF B-3 Mes/YTD
+ * y Balance General NIF B-6) a partir de una balanza de comprobación ya calculada.
  */
 export function buildFinancialStatementsFromTrialBalance(
   company: Company,
@@ -180,7 +138,7 @@ export function buildFinancialStatementsFromTrialBalance(
   ejercicio: number,
   periodo: number
 ): FinancialStatementsResponse {
-  const l1 = computedAccounts.filter((a) => a.level === 1);
+  const tbRoots = computedAccounts.filter((a) => a.level === 1 || !a.parentCode);
   let totalChgCents = 0;
   let totalCredCents = 0;
   let initDeudorCents = 0;
@@ -188,7 +146,7 @@ export function buildFinancialStatementsFromTrialBalance(
   let finalDeudorCents = 0;
   let finalAcreedorCents = 0;
 
-  for (const a of l1) {
+  for (const a of tbRoots) {
     totalChgCents += toCents(a.periodCharges);
     totalCredCents += toCents(a.periodCredits);
     if (a.nature === 'DEUDORA') {
@@ -200,93 +158,105 @@ export function buildFinancialStatementsFromTrialBalance(
     }
   }
 
-  const ingresosAccs = computedAccounts.filter((a) => a.type === 'INGRESOS' && a.level >= 2);
-  const costosAccs = computedAccounts.filter((a) => a.type === 'COSTOS' && a.level >= 2);
-  const gastosAccs = computedAccounts.filter(
-    (a) =>
-      a.type === 'GASTOS' &&
-      a.level >= 2 &&
-      !a.code.startsWith('8') &&
-      !a.satGroupCode.startsWith('611')
+  const { isPreCloseP13, accounts: erSourceAccounts } = normalizePostCloseP13Accounts(
+    computedAccounts,
+    periodo
   );
-  const isrAccs = computedAccounts.filter(
-    (a) =>
-      (a.code.startsWith('801') || a.code.startsWith('800') || a.satGroupCode.startsWith('611')) &&
-      a.level >= 2
-  );
-  const activosAccs = computedAccounts.filter((a) => a.type === 'ACTIVO' && a.level >= 2);
-  const pasivosAccs = computedAccounts.filter((a) => a.type === 'PASIVO' && a.level >= 2);
-  const capitalAccs = computedAccounts.filter((a) => a.type === 'CAPITAL' && a.level >= 2);
+  const erLeafIds = getLeafIds(erSourceAccounts);
 
-  const sumL2Signed = (
-    accs: AccountWithBalance[],
-    expectedNature: 'DEUDORA' | 'ACREEDORA'
-  ) =>
-    fromCents(
-      accs.reduce((s, a) => {
-        if (a.level !== 2) return s;
-        const sign = a.nature === expectedNature ? 1 : -1;
-        return s + sign * toCents(a.finalBalance);
-      }, 0)
+  const sumBucketCents = (bucket: PnlBucket, expectedNature: 'ACREEDORA' | 'DEUDORA') => {
+    let ytd = 0;
+    let period = 0;
+    for (const a of erSourceAccounts) {
+      if (a.type !== 'INGRESOS' && a.type !== 'COSTOS' && a.type !== 'GASTOS') continue;
+      if (!erLeafIds.has(a.id)) continue;
+      if (classifyPnlBucket(a) !== bucket) continue;
+      const sign = a.nature === expectedNature ? 1 : -1;
+      ytd += sign * toCents(a.finalBalance);
+      period +=
+        expectedNature === 'ACREEDORA'
+          ? toCents(a.periodCredits) - toCents(a.periodCharges)
+          : toCents(a.periodCharges) - toCents(a.periodCredits);
+    }
+    return { ytd, period };
+  };
+
+  const ing = sumBucketCents('INGRESOS', 'ACREEDORA');
+  const cos = sumBucketCents('COSTOS', 'DEUDORA');
+  const gas = sumBucketCents('GASTOS', 'DEUDORA');
+  const rifProd = sumBucketCents('RIF_PRODUCTOS', 'ACREEDORA');
+  const rifGas = sumBucketCents('RIF_GASTOS', 'DEUDORA');
+  const isr = sumBucketCents('ISR', 'DEUDORA');
+
+  const utilidadBrutaCents = ing.ytd - cos.ytd;
+  const utilidadOperativaCents = utilidadBrutaCents - gas.ytd;
+  const rifNetoCents = rifProd.ytd - rifGas.ytd;
+  const uaiCents = utilidadOperativaCents + rifNetoCents;
+  const utilidadNetaCents = uaiCents - isr.ytd;
+
+  const pUtilidadBrutaCents = ing.period - cos.period;
+  const pUtilidadOperativaCents = pUtilidadBrutaCents - gas.period;
+  const pRifNetoCents = rifProd.period - rifGas.period;
+  const pUaiCents = pUtilidadOperativaCents + pRifNetoCents;
+  const pUtilidadNetaCents = pUaiCents - isr.period;
+
+  const bsLeafIds = getLeafIds(computedAccounts);
+  const isVisibleBsRow = (a: AccountWithBalance, targetType: 'ACTIVO' | 'PASIVO' | 'CAPITAL') =>
+    a.type === targetType && (a.level >= 2 || (!a.parentCode && a.isAffectable));
+
+  const activosAccs = computedAccounts.filter((a) => isVisibleBsRow(a, 'ACTIVO'));
+  const pasivosAccs = computedAccounts.filter((a) => isVisibleBsRow(a, 'PASIVO'));
+  const capitalAccs = computedAccounts.filter(
+    (a) => isVisibleBsRow(a, 'CAPITAL') && !isResultOfExerciseAccount(a)
+  );
+
+  const totalActivoCents = sumRootByTypeCents(computedAccounts, 'ACTIVO', 'DEUDORA');
+  const totalPasivoCents = sumRootByTypeCents(computedAccounts, 'PASIVO', 'ACREEDORA');
+  const totalCapitalAllCents = sumRootByTypeCents(computedAccounts, 'CAPITAL', 'ACREEDORA');
+
+  const res305Cents = computedAccounts
+    .filter((a) => isResultOfExerciseAccount(a) && bsLeafIds.has(a.id))
+    .reduce(
+      (s, a) => s + (a.nature === 'ACREEDORA' ? 1 : -1) * toCents(a.finalBalance),
+      0
     );
 
-  // Evitar doble conteo de cuentas SAT 611.* clasificadas como GASTOS bajo 600-00-000
-  const isrInsideGastos600Cents = computedAccounts
-    .filter(
-      (a) =>
-        a.isAffectable &&
-        a.type === 'GASTOS' &&
-        !a.code.startsWith('8') &&
-        a.satGroupCode.startsWith('611')
-    )
+  const totalCapitalBaseCents = isPreCloseP13
+    ? totalCapitalAllCents - res305Cents
+    : totalCapitalAllCents;
+  const totalPasivoMasCapitalCents =
+    totalPasivoCents + totalCapitalBaseCents + utilidadNetaCents;
+
+  // Clasificación NIF B-6 sobre hojas afectables (preserva suma exacta al centavo)
+  const activoCirculante = activosAccs.filter((a) => getCodePrefixNumber(a) < 150);
+  const activoNoCirculante = activosAccs.filter((a) => getCodePrefixNumber(a) >= 150);
+  const totalActivoCircCents = computedAccounts
+    .filter((a) => a.type === 'ACTIVO' && bsLeafIds.has(a.id) && getCodePrefixNumber(a) < 150)
     .reduce((s, a) => s + (a.nature === 'DEUDORA' ? 1 : -1) * toCents(a.finalBalance), 0);
+  const totalActivoNoCircCents = totalActivoCents - totalActivoCircCents;
 
-  const totalIngresosCents = toCents(
-    computedAccounts.find((a) => a.code === '400-00-000')?.finalBalance ??
-      sumL2Signed(ingresosAccs, 'ACREEDORA')
-  );
-  const totalCostosCents = toCents(
-    computedAccounts.find((a) => a.code === '500-00-000')?.finalBalance ??
-      sumL2Signed(costosAccs, 'DEUDORA')
-  );
-  const acc600 = computedAccounts.find((a) => a.code === '600-00-000');
-  const totalGastosCents = acc600
-    ? toCents(acc600.finalBalance) - isrInsideGastos600Cents
-    : toCents(sumL2Signed(gastosAccs, 'DEUDORA'));
-  const l1Or800Isr = computedAccounts.find((a) => a.code === '800-00-000' || a.code === '801-00-000');
-  const totalIsrCents = l1Or800Isr
-    ? toCents(l1Or800Isr.finalBalance) + isrInsideGastos600Cents
-    : isrAccs.some((a) => a.level === 2)
-      ? toCents(sumL2Signed(isrAccs, 'DEUDORA'))
-      : isrAccs
-          .filter((a) => a.isAffectable)
-          .reduce((s, a) => s + (a.nature === 'DEUDORA' ? 1 : -1) * toCents(a.finalBalance), 0);
-  const utilidadBrutaCents = totalIngresosCents - totalCostosCents;
-  const utilidadNetaCents = utilidadBrutaCents - totalGastosCents - totalIsrCents;
+  const pasivoCortoPlazo = pasivosAccs.filter((a) => getCodePrefixNumber(a) < 250);
+  const pasivoLargoPlazo = pasivosAccs.filter((a) => getCodePrefixNumber(a) >= 250);
+  const totalPasivoCpCents = computedAccounts
+    .filter((a) => a.type === 'PASIVO' && bsLeafIds.has(a.id) && getCodePrefixNumber(a) < 250)
+    .reduce((s, a) => s + (a.nature === 'ACREEDORA' ? 1 : -1) * toCents(a.finalBalance), 0);
+  const totalPasivoLpCents = totalPasivoCents - totalPasivoCpCents;
 
-  const totalActivoCents = toCents(
-    computedAccounts.find((a) => a.code === '100-00-000')?.finalBalance ??
-      sumL2Signed(activosAccs, 'DEUDORA')
+  const capitalLeafs = computedAccounts.filter(
+    (a) => a.type === 'CAPITAL' && bsLeafIds.has(a.id) && !isResultOfExerciseAccount(a)
   );
-  const totalPasivoCents = toCents(
-    computedAccounts.find((a) => a.code === '200-00-000')?.finalBalance ??
-      sumL2Signed(pasivosAccs, 'ACREEDORA')
+  const capitalContribuido = capitalLeafs.filter((a) => !isCapitalGanadoAccount(a));
+  const capitalGanado = capitalLeafs.filter((a) => isCapitalGanadoAccount(a));
+  const totalCapContribCents = capitalContribuido.reduce(
+    (s, a) => s + (a.nature === 'ACREEDORA' ? 1 : -1) * toCents(a.finalBalance),
+    0
   );
-  const totalCapitalBaseCents = toCents(
-    computedAccounts.find((a) => a.code === '300-00-000')?.finalBalance ??
-      sumL2Signed(capitalAccs, 'ACREEDORA')
-  );
-  const totalPasivoMasCapitalCents = totalPasivoCents + totalCapitalBaseCents + utilidadNetaCents;
+  const totalCapGanadoCents = totalCapitalBaseCents - totalCapContribCents + utilidadNetaCents;
 
-  const totalIngresos = fromCents(totalIngresosCents);
-  const totalCostos = fromCents(totalCostosCents);
-  const totalGastos = fromCents(totalGastosCents);
-  const totalIsr = fromCents(totalIsrCents);
-  const utilidadBruta = fromCents(utilidadBrutaCents);
-  const utilidadNeta = fromCents(utilidadNetaCents);
   const totalActivo = fromCents(totalActivoCents);
   const totalPasivo = fromCents(totalPasivoCents);
   const totalCapitalBase = fromCents(totalCapitalBaseCents);
+  const utilidadNeta = fromCents(utilidadNetaCents);
   const totalPasivoMasCapital = fromCents(totalPasivoMasCapitalCents);
 
   return {
@@ -303,16 +273,37 @@ export function buildFinancialStatementsFromTrialBalance(
       finalAcreedor: fromCents(finalAcreedorCents)
     },
     incomeStatement: {
-      ingresos: ingresosAccs,
-      totalIngresos,
-      costos: costosAccs,
-      totalCostos,
-      utilidadBruta,
-      gastos: gastosAccs,
-      totalGastos,
-      isrEjercicio: isrAccs,
-      totalIsr,
-      utilidadNeta
+      ingresos: buildScopedBucketRows(erSourceAccounts, 'INGRESOS', erLeafIds),
+      totalIngresos: fromCents(ing.ytd),
+      costos: buildScopedBucketRows(erSourceAccounts, 'COSTOS', erLeafIds),
+      totalCostos: fromCents(cos.ytd),
+      utilidadBruta: fromCents(utilidadBrutaCents),
+      gastos: buildScopedBucketRows(erSourceAccounts, 'GASTOS', erLeafIds),
+      totalGastos: fromCents(gas.ytd),
+      utilidadOperativa: fromCents(utilidadOperativaCents),
+      rifProductos: buildScopedBucketRows(erSourceAccounts, 'RIF_PRODUCTOS', erLeafIds),
+      totalRifProductos: fromCents(rifProd.ytd),
+      rifGastos: buildScopedBucketRows(erSourceAccounts, 'RIF_GASTOS', erLeafIds),
+      totalRifGastos: fromCents(rifGas.ytd),
+      rifNeto: fromCents(rifNetoCents),
+      utilidadAntesImpuestos: fromCents(uaiCents),
+      isrEjercicio: buildScopedBucketRows(erSourceAccounts, 'ISR', erLeafIds),
+      totalIsr: fromCents(isr.ytd),
+      utilidadNeta,
+      isPreCloseP13,
+      periodTotals: {
+        totalIngresos: fromCents(ing.period),
+        totalCostos: fromCents(cos.period),
+        utilidadBruta: fromCents(pUtilidadBrutaCents),
+        totalGastos: fromCents(gas.period),
+        utilidadOperativa: fromCents(pUtilidadOperativaCents),
+        totalRifProductos: fromCents(rifProd.period),
+        totalRifGastos: fromCents(rifGas.period),
+        rifNeto: fromCents(pRifNetoCents),
+        utilidadAntesImpuestos: fromCents(pUaiCents),
+        totalIsr: fromCents(isr.period),
+        utilidadNeta: fromCents(pUtilidadNetaCents)
+      }
     },
     balanceSheet: {
       activos: activosAccs,
@@ -323,7 +314,21 @@ export function buildFinancialStatementsFromTrialBalance(
       totalCapitalBase,
       utilidadEjercicio: utilidadNeta,
       totalPasivoMasCapital,
-      isBalanced: Math.abs(totalActivo - totalPasivoMasCapital) < 0.05
+      isBalanced: Math.abs(totalActivoCents - totalPasivoMasCapitalCents) <= 1,
+      nifB6: {
+        activoCirculante,
+        totalActivoCirculante: fromCents(totalActivoCircCents),
+        activoNoCirculante,
+        totalActivoNoCirculante: fromCents(totalActivoNoCircCents),
+        pasivoCortoPlazo,
+        totalPasivoCortoPlazo: fromCents(totalPasivoCpCents),
+        pasivoLargoPlazo,
+        totalPasivoLargoPlazo: fromCents(totalPasivoLpCents),
+        capitalContribuido,
+        totalCapitalContribuido: fromCents(totalCapContribCents),
+        capitalGanado,
+        totalCapitalGanado: fromCents(totalCapGanadoCents)
+      }
     }
   };
 }

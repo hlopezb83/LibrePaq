@@ -42,7 +42,8 @@ const OP_LABELS: Record<string, string> = {
 
 const TERCERO_LABELS: Record<string, string> = {
   '04': 'Nacional',
-  '05': 'Extranjero'
+  '05': 'Extranjero',
+  '15': 'Global'
 };
 
 const EFOS_BADGE_LABELS: Record<Efos69BStatus, string> = {
@@ -61,9 +62,9 @@ export function DiotSuppliersTable({
 }: DiotSuppliersTableProps) {
   const { copiedKey, copy: copyBatchLine } = useCopyToClipboard<string>(1800);
   const totalActosPagadosCents =
-    totals.actosPagados8 !== undefined
-      ? toCents(totals.actosPagados16) + toCents(totals.actosPagados8)
-      : rows.reduce((acc, r) => acc + toCents(r.actosPagados16) + toCents(r.actosPagados8 ?? 0), 0);
+    rows.length > 0
+      ? rows.reduce((acc, r) => acc + toCents(r.actosPagados16) + toCents(r.actosPagados8 ?? 0), 0)
+      : toCents(totals.actosPagados16);
 
   return (
     <div
@@ -97,7 +98,7 @@ export function DiotSuppliersTable({
             </tr>
           ) : (
             rows.map((r) => {
-              const rowKey = `${r.rfc}::${r.tipoOperacion}`;
+              const rowKey = `${r.rfc}::${r.nombre}::${r.tipoOperacion}`;
               const isLineCopied = copiedKey === rowKey;
               return (
                 <tr

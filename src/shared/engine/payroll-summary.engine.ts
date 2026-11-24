@@ -84,10 +84,11 @@ export function computePayrollPeriodSummary(params: {
 }): PayrollPeriodSummary {
   const { cfdis, trialBalance, ejercicio, periodo } = params;
   const nominaCfdis = cfdis.filter((c) => {
-    if (c.statusSat !== 'VIGENTE' || c.tipoComprobante !== 'N' || c.direction !== 'EMITIDO' || !c.fecha) {
+    const effectiveDate = c.fechaPago || c.fecha;
+    if (c.statusSat !== 'VIGENTE' || c.tipoComprobante !== 'N' || c.direction !== 'EMITIDO' || !effectiveDate) {
       return false;
     }
-    const { year, month } = parseCalendarDate(c.fecha, 0, 0);
+    const { year, month } = parseCalendarDate(effectiveDate, 0, 0);
     return year === ejercicio && month === periodo;
   });
 
@@ -189,16 +190,16 @@ export function computeSuaAndIsnProvision(
   );
 
   const accGastoSua = resolvePayrollAccount(
-    accounts, ['601-01-010', '601-02-001', '601-26-001'], ['imss', 'cuotas patronales', 'infonavit'], 'GASTOS', 'SUELDOS_Y_SALARIOS'
+    accounts, ['601-01-007', '601-01-008', '601-02-001', '601-26-001'], ['cuota', 'imss', 'infonavit', 'sar', 'rcv'], 'GASTOS', 'SUELDOS_Y_SALARIOS'
   );
   const accGastoIsn = resolvePayrollAccount(
-    accounts, ['601-01-011', '601-02-002', '601-58-001'], ['isn', 'impuesto sobre nómina', 'nómina estatal'], 'GASTOS', 'SUELDOS_Y_SALARIOS'
+    accounts, ['601-01-011', '601-02-002', '601-58-001'], ['nomina', 'nómina', 'sobre nomina', 'sobre nómina', 'isn', 'estatal'], 'GASTOS', 'SUELDOS_Y_SALARIOS'
   );
   const accPasivoSua = resolvePayrollAccount(
     accounts, ['211-01-002', '211-01-001', '211-02-001'], ['imss', 'infonavit', 'cuotas'], 'PASIVO', 'OTRAS_CUENTAS_POR_PAGAR'
   );
   const accPasivoIsn = resolvePayrollAccount(
-    accounts, ['213-01-003', '213-02-001', '211-01-003'], ['isn', 'impuesto sobre nómina', 'impuestos estatales'], 'PASIVO', 'OTRAS_CUENTAS_POR_PAGAR'
+    accounts, ['213-01-004', '213-01-003', '213-02-001', '211-01-003'], ['isn', 'impuesto sobre nómina', 'impuesto sobre nomina', 'impuestos estatales'], 'PASIVO', 'OTRAS_CUENTAS_POR_PAGAR'
   );
 
   const ref = inputs.referencia?.trim() || `SUA-ISN-${inputs.ejercicio}-${String(inputs.periodo).padStart(2, '0')}`;

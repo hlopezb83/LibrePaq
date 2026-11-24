@@ -17,6 +17,7 @@ import type {
 } from '../../shared/types';
 import { getCompanyById } from './companies.repo';
 import { getCfdiById, getCfdiDocuments } from './cfdi.repo';
+import { listAccountingRulesRepo } from './accounting-rules.repo';
 import { getThirdPartiesByCompany } from './third-parties.repo';
 import { computeTrialBalance } from './trial-balance.repo';
 
@@ -61,9 +62,7 @@ export function getTaxParameters(
   ejercicio: number,
   periodo = 0
 ): TaxParametersRecord {
-  const rowExact = db
-    .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo = ?')
-    .get(companyId, ejercicio, periodo) as {
+  type TaxParamRow = {
     company_id: string;
     ejercicio: number;
     periodo?: number;
@@ -72,14 +71,29 @@ export function getTaxParameters(
     pagos_provisionales_anteriores: number;
     saldo_favor_iva_anterior: number;
     tipo_cambio_dof_cierre: number;
-  } | null;
+    ptu_pagada_ejercicio?: number;
+  };
+
+  const rowExact = db
+    .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo = ?')
+    .get(companyId, ejercicio, periodo) as TaxParamRow | null;
+
+  const rowPrior =
+    !rowExact && periodo > 0
+      ? (db
+          .query(
+            'SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo > 0 AND periodo < ? ORDER BY periodo DESC LIMIT 1'
+          )
+          .get(companyId, ejercicio, periodo) as TaxParamRow | null)
+      : null;
 
   const row =
     rowExact ??
+    rowPrior ??
     (periodo !== 0
       ? (db
           .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo = 0')
-          .get(companyId, ejercicio) as typeof rowExact)
+          .get(companyId, ejercicio) as TaxParamRow | null)
       : null);
 
   return {
@@ -90,7 +104,8 @@ export function getTaxParameters(
     perdidasFiscalesPendientes: Number(row?.perdidas_fiscales_pendientes ?? 0),
     pagosProvisionalesAnteriores: Number(row?.pagos_provisionales_anteriores ?? 0),
     saldoFavorIvaAnterior: Number(row?.saldo_favor_iva_anterior ?? 0),
-    tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0)
+    tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0),
+    ptuPagadaEjercicio: Number(row?.ptu_pagada_ejercicio ?? 0)
   };
 }
 
@@ -111,20 +126,22 @@ export function saveTaxParameters(
     pagosProvisionalesAnteriores:
       input.pagosProvisionalesAnteriores ?? current.pagosProvisionalesAnteriores,
     saldoFavorIvaAnterior: input.saldoFavorIvaAnterior ?? current.saldoFavorIvaAnterior,
-    tipoCambioDofCierre: input.tipoCambioDofCierre ?? current.tipoCambioDofCierre
+    tipoCambioDofCierre: input.tipoCambioDofCierre ?? current.tipoCambioDofCierre,
+    ptuPagadaEjercicio: input.ptuPagadaEjercicio ?? current.ptuPagadaEjercicio ?? 0
   };
 
   db.prepare(`
     INSERT INTO tax_parameters (
       company_id, ejercicio, periodo, coeficiente_utilidad, perdidas_fiscales_pendientes,
-      pagos_provisionales_anteriores, saldo_favor_iva_anterior, tipo_cambio_dof_cierre
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      pagos_provisionales_anteriores, saldo_favor_iva_anterior, tipo_cambio_dof_cierre, ptu_pagada_ejercicio
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(company_id, ejercicio, periodo) DO UPDATE SET
       coeficiente_utilidad = excluded.coeficiente_utilidad,
       perdidas_fiscales_pendientes = excluded.perdidas_fiscales_pendientes,
       pagos_provisionales_anteriores = excluded.pagos_provisionales_anteriores,
       saldo_favor_iva_anterior = excluded.saldo_favor_iva_anterior,
-      tipo_cambio_dof_cierre = excluded.tipo_cambio_dof_cierre
+      tipo_cambio_dof_cierre = excluded.tipo_cambio_dof_cierre,
+      ptu_pagada_ejercicio = excluded.ptu_pagada_ejercicio
   `).run(
     companyId,
     ejercicio,
@@ -133,7 +150,8 @@ export function saveTaxParameters(
     fromCents(toCents(next.perdidasFiscalesPendientes)),
     fromCents(toCents(next.pagosProvisionalesAnteriores)),
     fromCents(toCents(next.saldoFavorIvaAnterior)),
-    next.tipoCambioDofCierre
+    next.tipoCambioDofCierre,
+    fromCents(toCents(next.ptuPagadaEjercicio ?? 0))
   );
 
   return getTaxParameters(companyId, ejercicio, periodo);
@@ -150,6 +168,8 @@ export function getFiscalWorkpaperReport(
   const parameters = getTaxParameters(company.id, ejercicio, periodo);
   const trialBalance = computeTrialBalance(company.id, ejercicio, periodo);
   const cfdis = getCfdiDocuments(company.id);
+  const rules = listAccountingRulesRepo(company.id);
+  const thirdParties = getThirdPartiesByCompany(company.id);
 
   return computeFiscalWorkpaperFromTrialBalance({
     company,
@@ -157,7 +177,9 @@ export function getFiscalWorkpaperReport(
     periodo,
     parameters,
     trialBalance,
-    cfdis
+    cfdis,
+    rules,
+    thirdParties
   });
 }
 

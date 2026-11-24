@@ -1,139 +1,13 @@
-import type { CfdiRelatedDoc, CfdiTaxBreakdown } from './types';
+import type { CfdiTaxBreakdown } from './types';
 import { findNode, findNodes, getAttr, round2, type XmlNode } from './cfdi-xml-nodes';
+export { parsePago20Complement } from './cfdi-xml-pago';
 
 export { findNode, findNodes, getAttr, type XmlNode };
 
-export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | null) {
-  const pagoTotales = findNode(doc, 'Totales');
-  const allPagos = findNodes(doc, 'Pago');
-  const allDoctosRel = findNodes(doc, 'DoctoRelacionado');
-
-  const pagoGroups = (allPagos.length > 0 ? allPagos : [null]).map((pNode, idx) => {
-    const rawMonedaP = getAttr(pNode, 'MonedaP').toUpperCase();
-    const pagoMoneda = rawMonedaP && rawMonedaP !== 'XXX' ? rawMonedaP : 'MXN';
-    const parsedTcP = parseFloat(getAttr(pNode, 'TipoCambioP') || '');
-    const pagoTipoCambio =
-      pagoMoneda === 'MXN' ? 1 : Number.isFinite(parsedTcP) && parsedTcP > 0 ? parsedTcP : 1;
-    const monto = parseFloat(getAttr(pNode, 'Monto') || '0') || 0;
-    const drNodes = pNode ? findNodes(pNode, 'DoctoRelacionado') : allDoctosRel;
-    return { pNode, pagoMoneda, pagoTipoCambio, monto, drNodes: idx === 0 && pNode && drNodes.length === 0 ? allDoctosRel : drNodes };
-  });
-  const firstPago = allPagos[0] ?? null;
-  const distinctCurrencies = new Set(pagoGroups.map((g) => g.pagoMoneda));
-  const hasMixedCurrencies = distinctCurrencies.size > 1;
-  const hasTotalesMxn = pagoTotales !== null && getAttr(pagoTotales, 'MontoTotalPagos') !== '';
-
-  let montoTotalPagos = parseFloat(getAttr(pagoTotales, 'MontoTotalPagos') || '0') || 0;
-  if (montoTotalPagos === 0) {
-    for (const g of pagoGroups) {
-      montoTotalPagos +=
-        (hasTotalesMxn || hasMixedCurrencies) && g.pagoMoneda !== 'MXN'
-          ? g.monto * g.pagoTipoCambio
-          : g.monto;
-    }
-  }
-
-  const rawBaseIva16 = getAttr(pagoTotales, 'TotalTrasladosBaseIVA16');
-  const rawImpIva16 = getAttr(pagoTotales, 'TotalTrasladosImpuestoIVA16');
-  const rawBaseIva8 = getAttr(pagoTotales, 'TotalTrasladosBaseIVA8');
-  const rawImpIva8 = getAttr(pagoTotales, 'TotalTrasladosImpuestoIVA8');
-  const rawBaseIva0 = getAttr(pagoTotales, 'TotalTrasladosBaseIVA0');
-  const rawBaseExento = getAttr(pagoTotales, 'TotalTrasladosBaseIVAExento');
-
-  const hasExplicitBases =
-    rawBaseIva16 !== '' || rawBaseIva8 !== '' || rawBaseIva0 !== '' || rawBaseExento !== '';
-
-  const base16 = parseFloat(rawBaseIva16 || '0') || 0;
-  const imp16 = parseFloat(rawImpIva16 || '0') || 0;
-  const base8 = parseFloat(rawBaseIva8 || '0') || 0;
-  const imp8 = parseFloat(rawImpIva8 || '0') || 0;
-  const base0 = parseFloat(rawBaseIva0 || '0') || 0;
-  const baseExento = parseFloat(rawBaseExento || '0') || 0;
-
-  const singleCurrency = pagoGroups[0]?.pagoMoneda ?? 'MXN';
-  const moneda = hasTotalesMxn || hasMixedCurrencies ? 'MXN' : singleCurrency;
-  const tipoCambio =
-    moneda === 'MXN' ? 1 : pagoGroups[0]?.pagoTipoCambio ?? 1;
-
-  const isrRetenido = parseFloat(getAttr(pagoTotales, 'TotalRetencionesISR') || '0') || 0;
-  const ivaRetenido = parseFloat(getAttr(pagoTotales, 'TotalRetencionesIVA') || '0') || 0;
-
-  const uuidsRelacionados = allDoctosRel
-    .map((dr) => getAttr(dr, 'IdDocumento').toUpperCase())
-    .filter(Boolean);
-  const uuidRelacionado = uuidsRelacionados[0] || fallbackUuidRel;
-
-  const relatedDocs: CfdiRelatedDoc[] = [];
-  let exentoDrFallback = 0;
-  let drImpPagadoSum = 0;
-  for (const g of pagoGroups) {
-    for (const dr of g.drNodes) {
-      const idDocumento = getAttr(dr, 'IdDocumento').toUpperCase();
-      if (!idDocumento) continue;
-      const numParcialidad = Number.parseInt(getAttr(dr, 'NumParcialidad') || '1', 10) || 1;
-      const impSaldoAnt = round2(parseFloat(getAttr(dr, 'ImpSaldoAnt') || '0') || 0);
-      const impPagado = round2(parseFloat(getAttr(dr, 'ImpPagado') || '0') || 0);
-      const impSaldoInsoluto = round2(parseFloat(getAttr(dr, 'ImpSaldoInsoluto') || '0') || 0);
-      const monedaDr = getAttr(dr, 'MonedaDR').toUpperCase() || undefined;
-      const rawEq = getAttr(dr, 'EquivalenciaDR') || getAttr(dr, 'TipoCambioDR');
-      const parsedEq = rawEq ? parseFloat(rawEq) : NaN;
-      const equivalenciaDr = Number.isFinite(parsedEq) && parsedEq > 0 ? parsedEq : undefined;
-      const impInHeaderCur =
-        moneda === 'MXN' && (monedaDr || g.pagoMoneda) !== 'MXN'
-          ? (monedaDr === g.pagoMoneda || !monedaDr)
-            ? impPagado * g.pagoTipoCambio
-            : equivalenciaDr
-              ? (impPagado / equivalenciaDr) * g.pagoTipoCambio
-              : impPagado * g.pagoTipoCambio
-          : moneda !== 'MXN' && monedaDr && monedaDr !== g.pagoMoneda && equivalenciaDr
-            ? impPagado / equivalenciaDr
-            : impPagado;
-      drImpPagadoSum += impInHeaderCur;
-      const objetoImpDr = getAttr(dr, 'ObjetoImpDR');
-      if (objetoImpDr === '01' || objetoImpDr === '03' || objetoImpDr === '04') {
-        exentoDrFallback += impInHeaderCur;
-      }
-      relatedDocs.push({
-        idDocumento,
-        numParcialidad,
-        impSaldoAnt,
-        impPagado,
-        impSaldoInsoluto,
-        ...(monedaDr ? { monedaDr } : {}),
-        ...(equivalenciaDr !== undefined ? { equivalenciaDr } : {}),
-        ...(g.pagoMoneda !== 'MXN'
-          ? { pagoMoneda: g.pagoMoneda, pagoTipoCambio: g.pagoTipoCambio }
-          : {})
-      });
-    }
-  }
-  if (montoTotalPagos === 0) montoTotalPagos = drImpPagadoSum;
-
-  const subtotal = hasExplicitBases
-    ? base16 + base8 + base0 + baseExento
-    : pagoTotales !== null
-      ? montoTotalPagos
-      : Number((montoTotalPagos / 1.16).toFixed(2));
-  const ivaTrasladado = hasExplicitBases
-    ? imp16 + imp8
-    : pagoTotales !== null
-      ? 0
-      : Number((montoTotalPagos - subtotal).toFixed(2));
-
-  const taxBreakdown: CfdiTaxBreakdown = hasExplicitBases
-    ? { base16: round2(base16), iva16: round2(imp16), base8: round2(base8), iva8: round2(imp8), base0: round2(base0), baseExento: round2(baseExento), ieps: 0 }
-    : { base16: ivaTrasladado > 0 ? round2(subtotal) : 0, iva16: ivaTrasladado > 0 ? round2(ivaTrasladado) : 0, base8: 0, iva8: 0, base0: ivaTrasladado === 0 && exentoDrFallback === 0 ? round2(subtotal) : 0, baseExento: round2(exentoDrFallback), ieps: 0 };
-
-  return {
-    subtotal: round2(subtotal), ivaTrasladado: round2(ivaTrasladado),
-    isrRetenido: round2(isrRetenido), ivaRetenido: round2(ivaRetenido),
-    total: round2(montoTotalPagos), formaPago: getAttr(firstPago, 'FormaDePagoP') || '03',
-    moneda, tipoCambio, uuidRelacionado, uuidsRelacionados, relatedDocs, taxBreakdown
-  };
-}
-
 export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number, baseDescuento = 0) {
   const nominaAttrs = findNode(doc, 'Nomina');
+  const rawFechaPago = getAttr(nominaAttrs, 'FechaPago');
+  const fechaPago = rawFechaPago ? rawFechaPago.slice(0, 10) : null;
   const deduccionesAttrs = findNode(doc, 'Deducciones');
   const rawTotalPercepciones = getAttr(nominaAttrs, 'TotalPercepciones');
   const totalPercepciones =
@@ -158,6 +32,7 @@ export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number, base
   const total = Number((subtotal - isrRetenido - descuento).toFixed(2));
 
   return {
+    fechaPago,
     subtotal,
     isrRetenido,
     descuento,

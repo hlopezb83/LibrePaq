@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { extractCfdiFechaPago } from '../shared/xml-utils';
 import type {
   Account,
   AccountNature,
@@ -149,10 +150,13 @@ export interface ThirdPartyDbRow {
   rol: 'PROVEEDOR' | 'CLIENTE' | 'AMBOS';
   cuenta_operacion_code: string;
   cuenta_contrapartida_code: string;
-  tipo_tercero_diot: '04' | '05';
+  tipo_tercero_diot: '04' | '05' | '15';
   tipo_operacion_diot: '03' | '06' | '85';
   tasa_iva_default: 16 | 8 | 0;
   estatus_69b: Efos69BStatus;
+  id_fiscal?: string | null;
+  pais?: string | null;
+  jurisdiccion_fiscal?: string | null;
   updated_at: string;
 }
 
@@ -230,11 +234,13 @@ function parseJsonField<T>(raw: unknown): T | null {
 }
 
 export function mapCfdiRow(r: CfdiDbRow): CfdiDocument {
+  const rawFechaPago = (r as CfdiDbRow & { fecha_pago?: string | null }).fecha_pago;
   return {
     id: r.id,
     companyId: r.company_id,
     uuid: r.uuid,
     fecha: r.fecha,
+    fechaPago: (rawFechaPago ? String(rawFechaPago).slice(0, 10) : extractCfdiFechaPago(r.xml_raw, r.tipo_comprobante)) ?? null,
     tipoComprobante: r.tipo_comprobante,
     direction: r.direction,
     serie: r.serie,
@@ -279,6 +285,9 @@ export function mapThirdPartyRow(r: ThirdPartyDbRow): ThirdPartyRecord {
     tipoOperacionDiot: r.tipo_operacion_diot,
     tasaIvaDefault: Number(r.tasa_iva_default) as 16 | 8 | 0,
     estatus69B: r.estatus_69b,
+    idFiscal: r.id_fiscal ?? null,
+    pais: r.pais ?? null,
+    jurisdiccionFiscal: r.jurisdiccion_fiscal ?? null,
     updatedAt: r.updated_at
   };
 }

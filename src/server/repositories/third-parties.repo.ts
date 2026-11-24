@@ -99,21 +99,27 @@ export function upsertThirdPartyRecord(
     rol: 'PROVEEDOR' | 'CLIENTE' | 'AMBOS';
     cuentaOperacionCode: string;
     cuentaContrapartidaCode: string;
-    tipoTerceroDiot: '04' | '05';
+    tipoTerceroDiot: '04' | '05' | '15';
     tipoOperacionDiot: '03' | '06' | '85';
     tasaIvaDefault: 16 | 8 | 0;
     estatus69B: Efos69BStatus;
+    idFiscal?: string | null;
+    pais?: string | null;
+    jurisdiccionFiscal?: string | null;
   }
 ): ThirdPartyRecord {
   const cleanRfc = input.rfc.trim().toUpperCase();
   const id = `tp_${companyId}_${cleanRfc}`;
   const now = new Date().toISOString();
+  const cleanPais = input.pais?.trim().toUpperCase() || null;
+  const cleanJuris = cleanPais === 'ZZZ' ? (input.jurisdiccionFiscal?.trim() || null) : null;
 
   db.prepare(`
     INSERT INTO third_parties (
       id, company_id, rfc, nombre, rol, cuenta_operacion_code, cuenta_contrapartida_code,
-      tipo_tercero_diot, tipo_operacion_diot, tasa_iva_default, estatus_69b, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      tipo_tercero_diot, tipo_operacion_diot, tasa_iva_default, estatus_69b,
+      id_fiscal, pais, jurisdiccion_fiscal, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(company_id, rfc) DO UPDATE SET
       nombre = excluded.nombre,
       rol = excluded.rol,
@@ -123,6 +129,9 @@ export function upsertThirdPartyRecord(
       tipo_operacion_diot = excluded.tipo_operacion_diot,
       tasa_iva_default = excluded.tasa_iva_default,
       estatus_69b = excluded.estatus_69b,
+      id_fiscal = excluded.id_fiscal,
+      pais = excluded.pais,
+      jurisdiccion_fiscal = excluded.jurisdiccion_fiscal,
       updated_at = excluded.updated_at
   `).run(
     id,
@@ -136,6 +145,9 @@ export function upsertThirdPartyRecord(
     input.tipoOperacionDiot,
     input.tasaIvaDefault,
     input.estatus69B,
+    input.idFiscal?.trim() || null,
+    cleanPais,
+    cleanJuris,
     now
   );
 

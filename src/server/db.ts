@@ -61,6 +61,10 @@ export {
 } from './repositories/polizas-closing.repo';
 
 export {
+  reclassifyAccountMovements
+} from './repositories/polizas-reclassify.repo';
+
+export {
   getCfdiDocuments,
   getCfdiById,
   getCfdiXml,

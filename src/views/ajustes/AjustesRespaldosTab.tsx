@@ -169,13 +169,13 @@ export function AjustesRespaldosTab({
                 id="ajustes-import-csv-input"
                 name="csvCatalogFile"
                 type="file"
-                accept=".csv,.txt"
+                accept=".csv,.txt,.xml"
                 disabled={!canImportCsv}
                 onChange={handleImportCsvCatalog}
                 className="sr-only"
               />
               <FolderTree className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>Importar Catálogo CSV</span>
+              <span>Importar CSV / TXT / XML</span>
             </label>
             <button
               type="button"

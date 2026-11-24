@@ -103,7 +103,10 @@ export function computeCxcCxpAging(params: {
   );
 
   const ppdInvoices = companyCfdis.filter(
-    (c) => c.tipoComprobante === 'I' && c.metodoPago === 'PPD'
+    (c) =>
+      c.tipoComprobante === 'I' &&
+      c.metodoPago === 'PPD' &&
+      parseCalendarDate(c.fecha).isoDate <= asOfDate
   );
   const ppdByUuid = new Map<string, CfdiDocument>();
   for (const inv of ppdInvoices) {
@@ -118,7 +121,8 @@ export function computeCxcCxpAging(params: {
   };
 
   for (const doc of companyCfdis) {
-    const fechaPago = parseCalendarDate(doc.fecha).isoDate;
+    const fechaPago = parseCalendarDate(doc.fechaPago || doc.fecha).isoDate;
+    if (fechaPago > asOfDate) continue;
     if (doc.tipoComprobante === 'P') {
       if (doc.relatedDocs && doc.relatedDocs.length > 0) {
         const singleDoc = doc.relatedDocs.length === 1;

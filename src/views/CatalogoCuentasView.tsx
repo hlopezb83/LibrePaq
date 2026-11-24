@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertCircle, Eye, Lock, RefreshCw } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useUIModal } from '../context/UIModalContext';
@@ -7,11 +8,13 @@ import { CatalogoFilterBar } from './catalogo/CatalogoFilterBar';
 import { CatalogoHeaderBar } from './catalogo/CatalogoHeaderBar';
 import { CatalogoKeyboardShortcutsBar } from './catalogo/CatalogoKeyboardShortcutsBar';
 import { CatalogoTable } from './catalogo/CatalogoTable';
+import { ReclassifyAccountModal } from './catalogo/ReclassifyAccountModal';
 import { useCatalogoKeyboardNavigation } from './catalogo/useCatalogoKeyboardNavigation';
 import { useCatalogoManager } from './catalogo/useCatalogoManager';
 
 export function CatalogoCuentasView() {
   const manager = useCatalogoManager();
+  const [isReclassifyOpen, setIsReclassifyOpen] = useState(false);
   const { globalLedgerAccountId, openLedger } = useUIModal();
   const { copiedKey: copiedCode, copy: copyAccountCode } = useCopyToClipboard<string>(1800);
   const {
@@ -126,6 +129,7 @@ export function CatalogoCuentasView() {
         isReadOnlyClient={isReadOnlyClient}
         onImportCsv={handleImportAccountsCsv}
         onExportCsv={handleExportCsv}
+        onOpenReclassify={() => setIsReclassifyOpen(true)}
         onOpenCreateModal={openCreateModal}
       />
 
@@ -260,6 +264,17 @@ export function CatalogoCuentasView() {
         isImporting={isImportingCsv}
         onClose={() => setCsvPreview(null)}
         onConfirm={() => void handleConfirmImportCsv()}
+      />
+
+      <ReclassifyAccountModal
+        isOpen={isReclassifyOpen}
+        companyId={manager.activeCompanyId}
+        currentYear={currentYear ?? 2026}
+        currentPeriod={activeCompany?.currentPeriod ?? 1}
+        isPeriodLocked={isPeriodLocked}
+        isReadOnlyClient={isReadOnlyClient}
+        accounts={accounts}
+        onClose={() => setIsReclassifyOpen(false)}
       />
     </div>
   );

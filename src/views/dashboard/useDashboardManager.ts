@@ -5,7 +5,8 @@ import { useToast } from '../../context/ToastContext';
 import { useUIModal } from '../../context/UIModalContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
-import { sumCents } from '../../shared/accounting-engine';
+import { fromCents, sumCents, toCents } from '../../shared/accounting-engine';
+import { computeDashboardCashCoverage } from '../../shared/engine/dashboard.engine';
 import { MESES_SAT } from '../../shared/sat-constants';
 import { computeEfosDashboardSummary, resolveLedgerAccountId } from './dashboardHelpers';
 
@@ -80,6 +81,12 @@ export function useDashboardManager() {
     enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
   });
   const isPeriodLocked = Boolean(periodLock?.isLocked);
+
+  const { data: fiscalWorkpaper } = useQuery({
+    queryKey: ['fiscal-workpaper', activeCompanyId, currentYear, currentPeriod],
+    queryFn: () => apiClient.getFiscalWorkpaper(activeCompanyId, currentYear, currentPeriod),
+    enabled: Boolean(activeCompanyId)
+  });
 
   const isLoading = isDashboardLoading || isAccountsLoading;
   const isError = isDashboardError || isAccountsError;
@@ -158,7 +165,25 @@ export function useDashboardManager() {
 
   const derived = useMemo(() => {
     if (!data) return null;
-    const { company, kpis, monthlyTrend, recentPolizas, pendingCfdis } = data;
+    const { company, kpis: rawKpis, monthlyTrend, recentPolizas, pendingCfdis } = data;
+    const alignedIvaNeto = fiscalWorkpaper
+      ? (fiscalWorkpaper.ivaDefinitivo.ivaNetoAPagar > 0
+          ? fiscalWorkpaper.ivaDefinitivo.ivaNetoAPagar
+          : -fiscalWorkpaper.ivaDefinitivo.saldoFavorIvaRemanente)
+      : rawKpis.ivaPorPagarNeto;
+
+    const pasivoCodes = new Set(accounts.filter((a) => a.type === 'PASIVO').map((a) => a.code));
+    const totalPasivoFromAccounts = fromCents(
+      accounts
+        .filter((a) => a.type === 'PASIVO' && (!a.parentCode || !pasivoCodes.has(a.parentCode)))
+        .reduce((s, a) => s + (a.nature === 'ACREEDORA' ? 1 : -1) * toCents(a.finalBalance), 0)
+    );
+    const totalPasivo =
+      rawKpis.totalPasivo !== undefined && rawKpis.totalPasivo !== 0
+        ? rawKpis.totalPasivo
+        : totalPasivoFromAccounts;
+    const kpis = { ...rawKpis, ivaPorPagarNeto: alignedIvaNeto, totalPasivo };
+
     const mesActualNombre =
       MESES_SAT.find((m) => m.periodo === company.currentPeriod)?.nombre || `P${company.currentPeriod}`;
     const maxBar = Math.max(
@@ -169,8 +194,7 @@ export function useDashboardManager() {
       kpis.ingresosPeriodo > 0 ? ((kpis.egresosPeriodo / kpis.ingresosPeriodo) * 100).toFixed(1) : '0.0';
     const margenOperativo =
       kpis.ingresosPeriodo > 0 ? ((kpis.utilidadNeta / kpis.ingresosPeriodo) * 100).toFixed(1) : '0.0';
-    const razonCoberturaBancos =
-      kpis.cuentasPorPagar > 0 ? (kpis.efectivoBancos / kpis.cuentasPorPagar).toFixed(2) : 'S/D';
+    const razonCoberturaBancos = computeDashboardCashCoverage(kpis.efectivoBancos, totalPasivo);
     const hasActivity = kpis.totalPolizasPeriodo > 0 || kpis.cfdisTotalesPeriodo > 0;
     const hasBankData = Boolean(
       bankRec && (bankRec.statementLines.length > 0 || bankRec.bookMovements.length > 0)
@@ -260,7 +284,7 @@ export function useDashboardManager() {
       completedChecks: closingChecks.filter((c) => c.done).length,
       efosSummary
     };
-  }, [data, bankRec, trialBalanceSummary, thirdParties]);
+  }, [data, bankRec, trialBalanceSummary, thirdParties, fiscalWorkpaper, accounts]);
 
   return {
     activeCompanyId,

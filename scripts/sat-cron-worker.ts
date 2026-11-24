@@ -249,7 +249,9 @@ export async function runSatCronWorker(): Promise<{
 
         if (estadoSol === '3') {
           // Solicitud TERMINADA: Descargar todos los paquetes reportados por el SAT
-          const packageMatches = Array.from(verText.matchAll(/<IdsPaquetes>([^<]+)<\/IdsPaquetes>/gi));
+          const packageMatches = Array.from(
+            verText.matchAll(/<(?:[A-Za-z_][\w.-]*:)?IdsPaquetes\b[^>]*>([^<]+)<\/(?:[A-Za-z_][\w.-]*:)?IdsPaquetes>/gi)
+          );
           const packageIds = packageMatches.length > 0
             ? packageMatches.map((m) => (m[1] ? m[1].trim() : '')).filter(Boolean)
             : [`${req.id_solicitud_sat}_01`];
@@ -260,6 +262,7 @@ export async function runSatCronWorker(): Promise<{
             doc: Record<string, unknown>;
             uuid: string;
           }> = [];
+          let hadDownloadError = false;
 
           for (const idPaquete of packageIds) {
             console.log(`[SAT Worker] Descargando paquete ${idPaquete}...`);
@@ -287,13 +290,17 @@ export async function runSatCronWorker(): Promise<{
             );
 
             if (!descRes.ok) {
+              hadDownloadError = true;
               console.warn(`[SAT Worker] Falló descarga HTTP de ${idPaquete}: ${descRes.status}`);
               continue;
             }
 
             const descText = await descRes.text();
-            const paqueteMatch = descText.match(/<Paquete>([^<]+)<\/Paquete>/i);
+            const paqueteMatch = descText.match(
+              /<(?:[A-Za-z_][\w.-]*:)?Paquete\b[^>]*>([^<]+)<\/(?:[A-Za-z_][\w.-]*:)?Paquete>/i
+            );
             if (!paqueteMatch) {
+              hadDownloadError = true;
               console.warn(`[SAT Worker] Paquete ${idPaquete} sin contenido base64 en respuesta SAT.`);
               continue;
             }
@@ -303,6 +310,7 @@ export async function runSatCronWorker(): Promise<{
               const zipBytes = Buffer.from(paqueteMatch[1] || '', 'base64');
               // Límite de seguridad: Paquete ZIP no mayor a 100MB ni > 90MB descomprimido / 5,000 archivos
               if (zipBytes.length > 100 * 1024 * 1024) {
+                hadDownloadError = true;
                 console.warn(`[SAT Worker] Paquete ${idPaquete} excede límite de seguridad (100MB). Omitiendo.`);
                 continue;
               }
@@ -320,6 +328,7 @@ export async function runSatCronWorker(): Promise<{
                 }
               });
             } catch (zipErr) {
+              hadDownloadError = true;
               console.warn(`[SAT Worker] Error descomprimiendo paquete ZIP ${idPaquete}:`, zipErr);
               continue;
             }
@@ -346,6 +355,7 @@ export async function runSatCronWorker(): Promise<{
                     company_id: companyId,
                     uuid: parsed.uuid,
                     fecha: parsed.fecha,
+                    fecha_pago: parsed.fechaPago ?? null,
                     tipo_comprobante: parsed.tipoComprobante,
                     direction,
                     serie: parsed.serie || '',
@@ -369,6 +379,8 @@ export async function runSatCronWorker(): Promise<{
                     uso_cfdi: parsed.usoCfdi || 'G03',
                     uuid_relacionado: parsed.uuidRelacionado || null,
                     status_sat: 'VIGENTE',
+                    tax_breakdown: parsed.taxBreakdown ?? null,
+                    related_docs: parsed.relatedDocs ?? null,
                     xml_raw: xmlRaw
                   }
                 });
@@ -418,7 +430,7 @@ export async function runSatCronWorker(): Promise<{
           totalDownloaded += insertedCount;
           console.log(`[SAT Worker] Solicitud ${req.id_solicitud_sat} integrada: +${insertedCount} XMLs.`);
 
-          if (!hadInsertError) {
+          if (!hadInsertError && !hadDownloadError) {
             await supabase
               .from('sat_download_requests')
               .update({
@@ -434,7 +446,7 @@ export async function runSatCronWorker(): Promise<{
               .from('sat_download_requests')
               .update({
                 estado_solicitud: 'EN_PROCESO',
-                mensaje_sat: `SAT 5000: Error parcial al guardar CFDIs en BD (+${insertedCount} insertados). Se reintentará en el siguiente ciclo.`
+                mensaje_sat: `SAT 5000: Error parcial al descargar o guardar CFDIs (+${insertedCount} insertados). Se reintentará en el siguiente ciclo.`
               })
               .eq('id', req.id);
           }

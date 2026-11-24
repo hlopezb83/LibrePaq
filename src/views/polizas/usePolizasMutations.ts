@@ -2,8 +2,9 @@ import { type RefObject } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { formatCurrency } from '../../lib/formatters';
-import type { AccountWithBalance, PolizaType } from '../../shared/types';
+import { formatCurrency, getDefaultDateForPeriod } from '../../lib/formatters';
+import { buildInversePolizaDraft } from '../../shared/engine/poliza-productivity';
+import type { AccountWithBalance, Poliza, PolizaType } from '../../shared/types';
 import type { DraftMovement } from './PolizaEditorModal';
 
 export interface UsePolizasMutationsParams {
@@ -254,10 +255,49 @@ export function usePolizasMutations({
     }
   });
 
+  const reversePolizaMutation = useMutation({
+    mutationFn: (poliza: Poliza) => {
+      if (isWriteBlocked) {
+        throw new Error(
+          isReadOnlyClient
+            ? 'Acceso de solo lectura: no se pueden generar pólizas inversas.'
+            : `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} está bloqueado ante el SAT.`
+        );
+      }
+      const targetFecha = getDefaultDateForPeriod(currentYear, currentPeriod);
+      const draft = buildInversePolizaDraft(poliza, {
+        fecha: targetFecha,
+        periodo: currentPeriod ?? poliza.periodo
+      });
+      return apiClient.createPoliza(draft);
+    },
+    onSuccess: (saved) => {
+      invalidateAccountingQueries(queryClient, [
+        'polizas',
+        'accounts',
+        'account-ledger',
+        'reports',
+        'dashboard',
+        'bank-reconciliation',
+        'fiscal-workpaper',
+        'diot',
+        'sat-xml'
+      ]);
+      toast.success(
+        `Póliza Inversa ${saved.tipo} #${saved.folio} Generada`,
+        `Reversión balanceada por ${formatCurrency(saved.totalCargos)}.`
+      );
+    },
+    onError: (err: Error) => {
+      toast.error('Error al generar póliza inversa', err.message);
+    }
+  });
+
   return {
     savePolizaMutation,
     deletePolizaMutation,
     closeYearMutation,
-    createPedimentoMutation
+    createPedimentoMutation,
+    reversePolizaMutation
   };
 }

@@ -198,8 +198,20 @@ describe('Ola 4B — Anexo 24 .zip Oficial SAT, Nodos de Pago y Visor Fiel CFDI 
   test('2. PL.xml incluye nodos de pago <PLZ:Transferencia>, <PLZ:Cheque> y <PLZ:OtrMetodoPago> solo en cuentas bancarias 102.*', () => {
     const plXml = buildSatAnexo24Xml(mockCompany, 2026, 10, 'polizas', mockAccounts, mockPolizas);
 
-    expect(plXml.xml).toContain('<PLZ:Transferencia CtaOri="102-01-001" BancoOriNal="012" CtaDest="SPEI-778899"');
+    // Sin BancoDestNal configurado, usa OtrMetodoPago MetPagoPol="03" en lugar de clonar BancoOriNal
+    expect(plXml.xml).toContain('<PLZ:OtrMetodoPago MetPagoPol="03" Fecha="2026-10-20" Benef="Transferencia SPEI proveedor"');
     expect(plXml.xml).toContain('RFC="PRO990101AA1" Monto="23200.00"');
+
+    // Con ctaDest y bancoDestNal reales en cfdiLookup, sí emite <PLZ:Transferencia>
+    const plWithDest = buildSatAnexo24Xml(mockCompany, 2026, 10, 'polizas', mockAccounts, mockPolizas, {
+      cfdiLookup: new Map([
+        [
+          '11111111-2222-4333-8444-555555555555',
+          { total: 23200, rfcContraparte: 'PRO990101AA1', ctaDest: '002180012345678901', bancoDestNal: '002' }
+        ]
+      ])
+    });
+    expect(plWithDest.xml).toContain('<PLZ:Transferencia CtaOri="102-01-001" BancoOriNal="012" CtaDest="002180012345678901" BancoDestNal="002"');
 
     expect(plXml.xml).toContain('<PLZ:OtrMetodoPago MetPagoPol="01" Fecha="2026-10-22" Benef="Depósito efectivo &amp; caja"');
     expect(plXml.xml).toContain('Monto="5800.00"');

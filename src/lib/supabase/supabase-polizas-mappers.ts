@@ -1,4 +1,4 @@
-import { fromCents, sumCents } from '../../shared/accounting-engine';
+import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
 import { getCurrentFiscalPeriod } from '../../shared/date-utils';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { Account, Poliza, PolizaType } from '../../shared/types';
@@ -253,16 +253,23 @@ export async function fetchPolizaCfdisMap(
   const map = new Map<string, string[]>();
   if (!supabase || polizaIds.length === 0) return map;
   for (const chunk of chunkArray(polizaIds, 150)) {
-    const { data, error } = await supabase
-      .from('poliza_cfdis')
-      .select('poliza_id, cfdi_uuid')
-      .in('poliza_id', chunk);
-    if (error || !data) continue;
-    for (const row of data as Array<{ poliza_id?: string; cfdi_uuid?: string }>) {
-      if (!row.poliza_id || !row.cfdi_uuid) continue;
-      const list = map.get(row.poliza_id) ?? [];
-      list.push(row.cfdi_uuid);
-      map.set(row.poliza_id, list);
+    try {
+      const data = await fetchAllRows(async (from, to) =>
+        getRequiredSupabase()
+          .from('poliza_cfdis')
+          .select('poliza_id, cfdi_uuid')
+          .in('poliza_id', chunk)
+          .order('id', { ascending: true })
+          .range(from, to)
+      );
+      for (const row of data as Array<{ poliza_id?: string; cfdi_uuid?: string }>) {
+        if (!row.poliza_id || !row.cfdi_uuid) continue;
+        const list = map.get(row.poliza_id) ?? [];
+        list.push(row.cfdi_uuid);
+        map.set(row.poliza_id, list);
+      }
+    } catch {
+      // Ignorar si poliza_cfdis no está disponible en instancias previas a Ronda 4
     }
   }
   return map;

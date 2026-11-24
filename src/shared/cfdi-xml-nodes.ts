@@ -4,6 +4,7 @@ import { decodeXmlEntities } from './xml-utils';
 export type XmlNode = Record<string, unknown>;
 const MAX_XML_TREE_DEPTH = 24;
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const ISOLATED_BRANCHES = new Set(['Addenda']);
 
 export function round2(n: number): number {
   return Number((Number.isFinite(n) ? n : 0).toFixed(2));
@@ -28,7 +29,7 @@ export function findNode(node: unknown, targetTag: string, depth = 0): XmlNode |
     return Array.isArray(val) ? ((val[0] as XmlNode) ?? null) : (val as XmlNode);
   }
   for (const k of Object.keys(rec)) {
-    if (UNSAFE_KEYS.has(k) || k.startsWith('@_')) continue;
+    if (UNSAFE_KEYS.has(k) || ISOLATED_BRANCHES.has(k) || k.startsWith('@_')) continue;
     const child = rec[k];
     if (Array.isArray(child)) {
       for (const item of child) {
@@ -50,7 +51,7 @@ export function findNodes(node: unknown, targetTag: string): XmlNode[] {
     if (results.length >= SAFETY_BOUNDS.MAX_XML_TAGS) return;
     const rec = curr as XmlNode;
     for (const k of Object.keys(rec)) {
-      if (UNSAFE_KEYS.has(k)) continue;
+      if (UNSAFE_KEYS.has(k) || ISOLATED_BRANCHES.has(k)) continue;
       const v = rec[k];
       if (k === targetTag) {
         if (Array.isArray(v)) {

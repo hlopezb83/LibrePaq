@@ -115,7 +115,7 @@ export function Anexo24OptionsBar({
         {isOrden ? (
           <div className="space-y-1 min-w-[220px]">
             <label htmlFor="anexo24-num-orden" className="block font-bold text-slate-700">
-              NumOrden (Formato: AAA0000000/00)
+              NumOrden (Formato: [A-Z]&#123;3&#125;[0-6]\d&#123;6&#125;/\d&#123;2&#125;)
             </label>
             <input
               id="anexo24-num-orden"
@@ -143,14 +143,14 @@ export function Anexo24OptionsBar({
             )}
             {ordenInvalid && (
               <p id="anexo24-num-orden-error" className="text-[11px] text-red-700 font-semibold">
-                Debe cumplir patrón SAT: 3 letras + 7 dígitos + / + 2 dígitos.
+                Debe cumplir patrón SAT XSD 1.3: 3 letras + dígito [0-6] + 6 dígitos + / + 2 dígitos.
               </p>
             )}
           </div>
         ) : (
           <div className="space-y-1 min-w-[220px]">
             <label htmlFor="anexo24-num-tramite" className="block font-bold text-slate-700">
-              NumTramite (10–14 alfanuméricos)
+              NumTramite (Formato: AA000000000000)
             </label>
             <input
               id="anexo24-num-tramite"
@@ -178,7 +178,7 @@ export function Anexo24OptionsBar({
             )}
             {tramiteInvalid && (
               <p id="anexo24-num-tramite-error" className="text-[11px] text-red-700 font-semibold">
-                Debe contener entre 10 y 14 caracteres alfanuméricos sin espacios.
+                Debe cumplir patrón SAT XSD 1.3: 2 letras mayúsculas seguidas de 12 dígitos (ej. DE202600000001).
               </p>
             )}
           </div>

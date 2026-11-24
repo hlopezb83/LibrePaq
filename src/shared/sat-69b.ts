@@ -1,22 +1,17 @@
 import type { Efos69BStatus } from './types';
+import {
+  decodeSat69BCsvBytes,
+  parseSat69BCsv,
+  type Sat69BParseResult,
+  type Sat69BRecord
+} from './sat-69b-parser';
 
-export interface Sat69BRecord {
-  rfc: string;
-  nombre: string;
-  situacion: 'PRESUNTO' | 'DEFINITIVO' | 'DESVIRTUADO' | 'FAVORABLE';
-  status: Efos69BStatus;
-  fechaOficio?: string;
-  publicacionDof?: string;
-}
-
-export interface Sat69BParseResult {
-  records: Map<string, Sat69BRecord>;
-  total: number;
-  presuntos: number;
-  definitivos: number;
-  desvirtuados: number;
-  favorables: number;
-}
+export {
+  decodeSat69BCsvBytes,
+  parseSat69BCsv,
+  type Sat69BParseResult,
+  type Sat69BRecord
+};
 
 // Catálogo base con RFCs muestra de EFOS reales publicados en DOF por el SAT
 // para asegurar protección preventiva inmediata desde el primer arranque
@@ -60,143 +55,10 @@ const META_STORAGE_KEY = 'librepaq_sat_69b_meta_v1';
 
 export interface Sat69BMeta {
   totalCount: number;
+  cachedCount?: number;
+  isTruncated?: boolean;
   cloudSynced: boolean;
   updatedAt: string;
-}
-
-/**
- * Parsea el archivo CSV oficial del SAT (Listado_Completo_69-B.csv).
- * Soporta delimitadores coma o punto y coma, comillas dobles y saltos de línea.
- */
-export function parseSat69BCsv(csvContent: string): Sat69BParseResult {
-  const records = new Map<string, Sat69BRecord>();
-  let presuntos = 0;
-  let definitivos = 0;
-  let desvirtuados = 0;
-  let favorables = 0;
-
-  const lines = csvContent.split(/\r?\n/);
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
-    // Detectar si la línea contiene un RFC mexicano válido (12 o 13 caracteres alfanuméricos)
-    const tokens = parseCsvRow(line);
-    if (tokens.length < 3) continue;
-
-    // En el formato oficial del SAT:
-    // Columna 0 o 1 es el RFC (a veces precedido por número consecutivo)
-    let rfcCandidate = '';
-    let nombreCandidate = '';
-    let situacionCandidate = '';
-    let dofCandidate = '';
-
-    for (let i = 0; i < Math.min(tokens.length, 5); i++) {
-      const rawToken = tokens[i];
-      if (!rawToken) continue;
-      const val = rawToken.trim().toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
-      if (/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/.test(val)) {
-        rfcCandidate = val;
-        nombreCandidate = tokens[i + 1]?.trim() || '';
-        situacionCandidate = tokens[i + 2]?.trim().toUpperCase() || '';
-        dofCandidate = tokens[i + 5]?.trim() || '';
-        break;
-      }
-    }
-
-    if (!rfcCandidate) continue;
-
-    let situacion: Sat69BRecord['situacion'] = 'PRESUNTO';
-    let status: Efos69BStatus = 'PRESUNTO_EFOS';
-
-    if (situacionCandidate.includes('DEFINITIV')) {
-      situacion = 'DEFINITIVO';
-      status = 'DEFINITIVO_EFOS';
-    } else if (situacionCandidate.includes('DESVIRTUAD')) {
-      situacion = 'DESVIRTUADO';
-      status = 'DESVIRTUADO';
-    } else if (situacionCandidate.includes('SENTENCIA') || situacionCandidate.includes('FAVORABLE')) {
-      situacion = 'FAVORABLE';
-      status = 'LIMPIO';
-    } else {
-      situacion = 'PRESUNTO';
-      status = 'PRESUNTO_EFOS';
-    }
-
-    records.set(rfcCandidate, {
-      rfc: rfcCandidate,
-      nombre: nombreCandidate,
-      situacion,
-      status,
-      publicacionDof: dofCandidate
-    });
-  }
-
-  presuntos = 0;
-  definitivos = 0;
-  desvirtuados = 0;
-  favorables = 0;
-  for (const rec of records.values()) {
-    if (rec.situacion === 'DEFINITIVO') definitivos++;
-    else if (rec.situacion === 'DESVIRTUADO') desvirtuados++;
-    else if (rec.situacion === 'FAVORABLE') favorables++;
-    else presuntos++;
-  }
-
-  return {
-    records,
-    total: records.size,
-    presuntos,
-    definitivos,
-    desvirtuados,
-    favorables
-  };
-}
-
-/**
- * Divide una fila CSV respetando campos entre comillas
- */
-function detectUnquotedDelimiter(row: string): ';' | ',' {
-  let inQuotes = false;
-  let semiCount = 0;
-  let commaCount = 0;
-  for (let i = 0; i < row.length; i++) {
-    const ch = row[i];
-    if (ch === '"') {
-      if (inQuotes && row[i + 1] === '"') i++;
-      else inQuotes = !inQuotes;
-    } else if (!inQuotes) {
-      if (ch === ';') semiCount++;
-      else if (ch === ',') commaCount++;
-    }
-  }
-  return semiCount > commaCount ? ';' : ',';
-}
-
-function parseCsvRow(row: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  const delimiter = detectUnquotedDelimiter(row);
-
-  for (let i = 0; i < row.length; i++) {
-    const char = row[i];
-    if (char === '"') {
-      if (inQuotes && row[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === delimiter && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current);
-  return result;
 }
 
 let cached69bDb: Map<string, Sat69BRecord> | null = null;
@@ -249,22 +111,32 @@ export function save69BDatabase(
   cached69bDb = map;
 
   if (typeof window === 'undefined' || !window.localStorage) return;
-  const meta: Sat69BMeta = {
-    totalCount: map.size,
-    cloudSynced: Boolean(opts?.cloudSynced),
-    updatedAt: new Date().toISOString()
-  };
+  const now = new Date().toISOString();
   try {
-    window.localStorage.setItem(META_STORAGE_KEY, JSON.stringify(meta));
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(map.values())));
-  } catch {
-    // Si excede cuota localStorage (padrón completo SAT >12,000 RFCs), conservar caché rápida parcial sin perder memoria/nube
+    const meta: Sat69BMeta = {
+      totalCount: map.size,
+      cachedCount: map.size,
+      isTruncated: false,
+      cloudSynced: Boolean(opts?.cloudSynced),
+      updatedAt: now
+    };
+    window.localStorage.setItem(META_STORAGE_KEY, JSON.stringify(meta));
+  } catch (err) {
     try {
-      const compactSlice = Array.from(map.values()).slice(0, 1500);
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compactSlice));
-    } catch (err) {
-      console.warn('[SAT 69-B] Cuota de almacenamiento local excedida o restringida:', err);
+      window.localStorage.removeItem(STORAGE_KEY);
+      const truncatedMeta: Sat69BMeta = {
+        totalCount: map.size,
+        cachedCount: 0,
+        isTruncated: true,
+        cloudSynced: Boolean(opts?.cloudSynced),
+        updatedAt: now
+      };
+      window.localStorage.setItem(META_STORAGE_KEY, JSON.stringify(truncatedMeta));
+    } catch {
+      // Ignorar si meta tampoco cabe
     }
+    console.warn('[SAT 69-B] Cuota de almacenamiento local excedida; caché local omitido sin truncar silenciosamente:', err);
   }
 }
 

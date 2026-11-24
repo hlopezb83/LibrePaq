@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Clock, FileCheck2, RefreshCw, Search, Wallet, X } from 'lucide-react';
+import { AlertCircle, Clock, Download, FileCheck2, RefreshCw, Search, Wallet, X } from 'lucide-react';
 import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
 import { apiClient } from '../../lib/api-client';
-import { formatCurrency, formatShortDate } from '../../lib/formatters';
+import { downloadCsvFile, formatCurrency, formatShortDate } from '../../lib/formatters';
+import { getLastDateForPeriod } from '../../shared/date-utils';
 import type { CxcCxpAgingBucket, CxcCxpAgingResponse } from '../../shared/types';
 import { CxcCxpTable, type BucketMeta } from './CxcCxpTable';
 
 export interface CxcCxpTabProps {
   activeCompanyId: string;
+  currentYear?: number;
+  currentPeriod?: number;
 }
 
 type AgingMode = 'CXC' | 'CXP';
 type CxcCxpApiClient = typeof apiClient & {
-  getCxcCxpAging?: (companyId: string) => Promise<CxcCxpAgingResponse>;
+  getCxcCxpAging?: (companyId: string, asOfIso?: string) => Promise<CxcCxpAgingResponse>;
 };
 
 const BUCKET_META: readonly BucketMeta[] = [
@@ -24,27 +27,32 @@ const BUCKET_META: readonly BucketMeta[] = [
   { key: '90_PLUS', label: '+90 días', badgeClass: 'bg-red-50 text-red-900 border-red-300' }
 ];
 
-export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
+export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCxpTabProps) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<AgingMode>('CXC');
   const [bucketFilter, setBucketFilter] = useState<CxcCxpAgingBucket | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
+  const asOfIso = useMemo(
+    () => (currentYear && currentPeriod ? getLastDateForPeriod(currentYear, currentPeriod) : undefined),
+    [currentYear, currentPeriod]
+  );
+
   useEffect(() => {
     setBucketFilter(null);
     setSearchQuery('');
     setExpandedIds(new Set());
-  }, [activeCompanyId]);
+  }, [activeCompanyId, asOfIso]);
 
   const { data, isLoading, isError, error, refetch } = useQuery<CxcCxpAgingResponse>({
-    queryKey: ['cxc-cxp', activeCompanyId],
+    queryKey: ['cxc-cxp', activeCompanyId, asOfIso ?? 'today'],
     queryFn: () => {
       const client = apiClient as CxcCxpApiClient;
       if (typeof client.getCxcCxpAging !== 'function') {
         throw new Error('El servicio de antigüedad de saldos CxC / CxP no está disponible temporalmente.');
       }
-      return client.getCxcCxpAging(activeCompanyId);
+      return client.getCxcCxpAging(activeCompanyId, asOfIso);
     },
     enabled: Boolean(activeCompanyId)
   });
@@ -76,6 +84,14 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
       );
     });
   }, [items, bucketFilter, searchQuery]);
+
+  const bucketCounts = useMemo(() => {
+    const counts: Record<CxcCxpAgingBucket, number> = { '0_30': 0, '31_60': 0, '61_90': 0, '90_PLUS': 0 };
+    for (const row of items) {
+      counts[row.bucket] = (counts[row.bucket] ?? 0) + 1;
+    }
+    return counts;
+  }, [items]);
 
   if (isError) {
     return (
@@ -120,13 +136,15 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
     setBucketFilter(null);
   };
 
-  const bucketCounts = useMemo(() => {
-    const counts: Record<CxcCxpAgingBucket, number> = { '0_30': 0, '31_60': 0, '61_90': 0, '90_PLUS': 0 };
-    for (const row of items) {
-      counts[row.bucket] = (counts[row.bucket] ?? 0) + 1;
-    }
-    return counts;
-  }, [items]);
+  const handleExportCsv = () => {
+    const headers = ['Cartera', 'RFC', 'RazonSocial', 'SerieFolio', 'UUID', 'Fecha', 'Moneda', 'TotalMXN', 'PagadoMXN', 'SaldoInsolutoMXN', 'DiasAntiguedad', 'Rango'];
+    const rows = filteredItems.map((r) => [
+      mode, r.rfc, r.nombre, r.serieFolio, r.uuid, r.fecha, r.moneda,
+      r.totalOriginalMxn.toFixed(2), r.totalPagadoMxn.toFixed(2), r.saldoInsolutoMxn.toFixed(2),
+      r.daysPast, r.bucket
+    ]);
+    downloadCsvFile(`Antiguedad_${mode}_${data.asOfDate}.csv`, headers, rows);
+  };
 
   const buckets = mode === 'CXC' ? data.cxcBuckets : data.cxpBuckets;
   const totalInsoluto = mode === 'CXC' ? data.cxcTotal : data.cxpTotal;
@@ -237,16 +255,27 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
                 className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
               />
             </div>
-            {hasFilters && (
+            <div className="flex flex-wrap items-center gap-2">
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={() => { setBucketFilter(null); setSearchQuery(''); }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer transition"
+                >
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Limpiar filtros ({filteredItems.length}/{items.length})</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => { setBucketFilter(null); setSearchQuery(''); }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer transition"
+                onClick={handleExportCsv}
+                disabled={filteredItems.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-50 text-xs font-semibold text-slate-800 cursor-pointer transition"
               >
-                <X className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Limpiar filtros ({filteredItems.length}/{items.length})</span>
+                <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Exportar CSV / Excel</span>
               </button>
-            )}
+            </div>
           </div>
         )}
 

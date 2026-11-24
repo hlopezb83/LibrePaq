@@ -76,7 +76,11 @@ fiscalRoutes.post('/third-parties', async (c) => {
       ['PROVEEDOR', 'CLIENTE', 'AMBOS'].includes(rolRaw) ? rolRaw : 'PROVEEDOR'
     ) as 'PROVEEDOR' | 'CLIENTE' | 'AMBOS';
 
-    const tipoTerceroDiot = String(body.tipoTerceroDiot ?? '04') === '05' ? '05' : '04';
+    const rawTercero = String(body.tipoTerceroDiot ?? '04');
+    const tipoTerceroDiot = (['04', '05', '15'].includes(rawTercero) ? rawTercero : '04') as
+      | '04'
+      | '05'
+      | '15';
     const opDiotRaw = String(body.tipoOperacionDiot ?? '85');
     const tipoOperacionDiot = (
       ['03', '06', '85'].includes(opDiotRaw) ? opDiotRaw : '85'
@@ -101,7 +105,10 @@ fiscalRoutes.post('/third-parties', async (c) => {
       tipoTerceroDiot,
       tipoOperacionDiot,
       tasaIvaDefault,
-      estatus69B
+      estatus69B,
+      idFiscal: body.idFiscal ? String(body.idFiscal) : null,
+      pais: body.pais ? String(body.pais) : null,
+      jurisdiccionFiscal: body.jurisdiccionFiscal ? String(body.jurisdiccionFiscal) : null
     });
     return c.json(saved);
   } catch (err) {
@@ -247,7 +254,9 @@ fiscalRoutes.put('/fiscal-workpaper/parameters', async (c) => {
       saldoFavorIvaAnterior:
         body.saldoFavorIvaAnterior !== undefined ? Number(body.saldoFavorIvaAnterior) : undefined,
       tipoCambioDofCierre:
-        body.tipoCambioDofCierre !== undefined ? Number(body.tipoCambioDofCierre) : undefined
+        body.tipoCambioDofCierre !== undefined ? Number(body.tipoCambioDofCierre) : undefined,
+      ptuPagadaEjercicio:
+        body.ptuPagadaEjercicio !== undefined ? Number(body.ptuPagadaEjercicio) : undefined
     });
     return c.json(updated);
   } catch (err) {

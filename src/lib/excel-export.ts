@@ -3,6 +3,12 @@ import { sanitizeSpreadsheetText } from '../shared/date-utils';
 import type { Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../shared/types';
 import type { ExtendedFinancialStatementsResponse } from '../shared/types/extended-statements.types';
 import {
+  buildBalanceGeneralSheetData,
+  buildBalanzaSheetData,
+  buildDia17SheetData,
+  buildEstadoResultadosSheetData
+} from './excel-deliverable-sheets';
+import {
   buildCashFlowSheetData,
   buildComparativeSheetData,
   buildEquityChangesSheetData,
@@ -32,6 +38,12 @@ export interface AccountLedgerData {
   initialBalance: number;
   account: { code: string; name: string };
   entries: AccountLedgerEntry[];
+}
+
+export interface WorkbookSheetSpec {
+  sheet: string;
+  data: SheetData;
+  columns: Array<{ width: number }>;
 }
 
 const sCell = (val: string | null | undefined) => ({
@@ -99,12 +111,7 @@ export async function exportAccountLedgerXlsx(
 
   rows.push([
     { type: String, value: 'TOTALES DEL PERIODO', fontWeight: 'bold' },
-    sCell(''),
-    sCell(''),
-    sCell(''),
-    sCell(''),
-    sCell(''),
-    sCell(''),
+    sCell(''), sCell(''), sCell(''), sCell(''), sCell(''), sCell(''),
     { type: Number, value: totalCargos, format: '$#,##0.00', fontWeight: 'bold' },
     { type: Number, value: totalAbonos, format: '$#,##0.00', fontWeight: 'bold' },
     {
@@ -128,16 +135,7 @@ export async function exportAccountLedgerXlsx(
   ]).toFile(fileName);
 }
 
-export async function exportDeliverablesXlsx({
-  reportsData,
-  fiscalData,
-  company,
-  year,
-  period,
-  formatVerticalPct,
-  extendedStatements,
-  mesNombre
-}: {
+export interface ExportDeliverablesXlsxParams {
   reportsData: FinancialStatementsResponse | null | undefined;
   fiscalData: FiscalWorkpaperResponse | null | undefined;
   company: Company;
@@ -146,194 +144,87 @@ export async function exportDeliverablesXlsx({
   formatVerticalPct: (amount: number, base: number) => string;
   extendedStatements?: ExtendedFinancialStatementsResponse | null;
   mesNombre?: string;
-}): Promise<void> {
-  if (!reportsData) return;
+  hideZeroAccounts?: boolean;
+  includeBalanza?: boolean;
+  includeResultados?: boolean;
+  includeBalance?: boolean;
+  includeDia17?: boolean;
+  includeNifAging?: boolean;
+}
 
-  const balanzaSheet: SheetData = [
-    [
-      { value: 'Código Cuenta', fontWeight: 'bold' },
-      { value: 'Nombre de la Cuenta', fontWeight: 'bold' },
-      { value: 'Agrupador SAT', fontWeight: 'bold' },
-      { value: 'Naturaleza', fontWeight: 'bold' },
-      { value: 'Nivel', fontWeight: 'bold', align: 'center' },
-      { value: 'Saldo Inicial', fontWeight: 'bold', align: 'right' },
-      { value: 'Cargos (Debe)', fontWeight: 'bold', align: 'right' },
-      { value: 'Abonos (Haber)', fontWeight: 'bold', align: 'right' },
-      { value: 'Saldo Final', fontWeight: 'bold', align: 'right' }
-    ],
-    ...reportsData.trialBalance.map((r): SheetData[number] => [
-      sCell(r.code),
-      sCell(r.name),
-      sCell(r.satGroupCode),
-      sCell(r.nature),
-      { type: Number, value: r.level },
-      { type: Number, value: r.initialBalanceComputed, format: '$#,##0.00' },
-      { type: Number, value: r.periodCharges, format: '$#,##0.00' },
-      { type: Number, value: r.periodCredits, format: '$#,##0.00' },
-      { type: Number, value: r.finalBalance, format: '$#,##0.00', fontWeight: r.level === 1 ? 'bold' : undefined }
-    ])
-  ];
+export function buildDeliverablesSheets(params: ExportDeliverablesXlsxParams): WorkbookSheetSpec[] {
+  const {
+    reportsData, fiscalData, company, year, period, formatVerticalPct,
+    extendedStatements, mesNombre,
+    hideZeroAccounts = false, includeBalanza = true, includeResultados = true,
+    includeBalance = true, includeDia17 = true, includeNifAging = true
+  } = params;
+  if (!reportsData) return [];
 
-  const signedBal = (a: FinancialStatementsResponse['trialBalance'][number], expectedNature: 'DEUDORA' | 'ACREEDORA') =>
-    a.nature === expectedNature ? a.finalBalance : -a.finalBalance;
-  const er = reportsData.incomeStatement;
-  const totalIsr = er.totalIsr ?? 0;
-  const isrRows: SheetData =
-    totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
-      ? [
-          ...(er.isrEjercicio ?? []).map((a): SheetData[number] => {
-            const val = signedBal(a, 'DEUDORA');
-            return [sCell('ISR EJERCICIO'), sCell(a.code), sCell(a.name), { type: Number, value: val, format: '$#,##0.00' }, sCell(formatVerticalPct(val, er.totalIngresos))];
-          }),
-          [
-            { type: String, value: 'IMPUESTOS A LA UTILIDAD (ISR)', fontWeight: 'bold' },
-            sCell(''),
-            { type: String, value: 'Provisión ISR del Ejercicio (NIF D-4)', fontWeight: 'bold' },
-            { type: Number, value: totalIsr, format: '$#,##0.00', fontWeight: 'bold' },
-            { type: String, value: formatVerticalPct(totalIsr, er.totalIngresos), fontWeight: 'bold' }
-          ]
-        ]
-      : [];
-
-  const mapErRow = (label: string, a: FinancialStatementsResponse['trialBalance'][number], nat: 'DEUDORA' | 'ACREEDORA'): SheetData[number] => {
-    const val = signedBal(a, nat);
-    return [sCell(label), sCell(a.code), sCell(a.name), { type: Number, value: val, format: '$#,##0.00' }, sCell(formatVerticalPct(val, er.totalIngresos))];
-  };
-
-  const erSheet: SheetData = [
-    [
-      { value: 'Rubro Contable', fontWeight: 'bold' },
-      { value: 'Código', fontWeight: 'bold' },
-      { value: 'Nombre Cuenta', fontWeight: 'bold' },
-      { value: 'Importe MXN', fontWeight: 'bold', align: 'right' },
-      { value: '% s/Ventas', fontWeight: 'bold', align: 'right' }
-    ],
-    ...er.ingresos.map((a) => mapErRow('INGRESOS', a, 'ACREEDORA')),
-    [
-      { type: String, value: 'TOTAL INGRESOS', fontWeight: 'bold' }, sCell(''),
-      { type: String, value: 'Ventas Netas del Periodo', fontWeight: 'bold' },
-      { type: Number, value: er.totalIngresos, format: '$#,##0.00', fontWeight: 'bold' },
-      { type: String, value: '100.0%', fontWeight: 'bold' }
-    ],
-    ...er.costos.map((a) => mapErRow('COSTOS', a, 'DEUDORA')),
-    [
-      { type: String, value: 'TOTAL COSTOS', fontWeight: 'bold' }, sCell(''),
-      { type: String, value: 'Costo de Ventas NIF B-3', fontWeight: 'bold' },
-      { type: Number, value: er.totalCostos, format: '$#,##0.00', fontWeight: 'bold' },
-      { type: String, value: formatVerticalPct(er.totalCostos, er.totalIngresos), fontWeight: 'bold' }
-    ],
-    [
-      { type: String, value: 'UTILIDAD BRUTA', fontWeight: 'bold' }, sCell(''),
-      { type: String, value: 'Margen Bruto de Operación', fontWeight: 'bold' },
-      { type: Number, value: er.utilidadBruta, format: '$#,##0.00', fontWeight: 'bold' },
-      { type: String, value: formatVerticalPct(er.utilidadBruta, er.totalIngresos), fontWeight: 'bold' }
-    ],
-    ...er.gastos.map((a) => mapErRow('GASTOS', a, 'DEUDORA')),
-    [
-      { type: String, value: 'TOTAL GASTOS GENERALES', fontWeight: 'bold' }, sCell(''),
-      { type: String, value: 'Gastos de Operación y Administración', fontWeight: 'bold' },
-      { type: Number, value: er.totalGastos, format: '$#,##0.00', fontWeight: 'bold' },
-      { type: String, value: formatVerticalPct(er.totalGastos, er.totalIngresos), fontWeight: 'bold' }
-    ],
-    ...isrRows,
-    [
-      { type: String, value: 'UTILIDAD NETA DEL EJERCICIO', fontWeight: 'bold' }, sCell(''),
-      { type: String, value: 'Resultado Neto Fiscal', fontWeight: 'bold' },
-      { type: Number, value: er.utilidadNeta, format: '$#,##0.00', fontWeight: 'bold' },
-      { type: String, value: formatVerticalPct(er.utilidadNeta, er.totalIngresos), fontWeight: 'bold' }
-    ]
-  ];
-
-  const bg = reportsData.balanceSheet;
-
-  const mapBgRow = (section: string, a: FinancialStatementsResponse['trialBalance'][number], expectedNature: 'DEUDORA' | 'ACREEDORA'): SheetData[number] => {
-    const val = signedBal(a, expectedNature);
-    return [
-      sCell(section),
-      sCell(a.code),
-      sCell(a.name),
-      a.isAffectable ? { type: Number, value: val, format: '$#,##0.00' } : sCell(''),
-      !a.isAffectable ? { type: Number, value: val, format: '$#,##0.00', fontWeight: 'bold' } : sCell('')
-    ];
-  };
-
-  const bgSheet: SheetData = [
-    [
-      { value: 'Clasificación', fontWeight: 'bold' },
-      { value: 'Código', fontWeight: 'bold' },
-      { value: 'Nombre de la Cuenta', fontWeight: 'bold' },
-      { value: 'Saldo Cuenta MXN', fontWeight: 'bold', align: 'right' },
-      { value: 'Subtotal Rubro MXN', fontWeight: 'bold', align: 'right' }
-    ],
-    ...bg.activos.map((a) => mapBgRow('ACTIVO', a, 'DEUDORA')),
-    [
-      { type: String, value: 'TOTAL ACTIVO', fontWeight: 'bold' }, sCell('100'),
-      { type: String, value: 'Total Activo Neto (NIF B-6)', fontWeight: 'bold' },
-      sCell(''),
-      { type: Number, value: bg.totalActivo, format: '$#,##0.00', fontWeight: 'bold' }
-    ],
-    ...bg.pasivos.map((a) => mapBgRow('PASIVO', a, 'ACREEDORA')),
-    [
-      { type: String, value: 'TOTAL PASIVO', fontWeight: 'bold' }, sCell('200'),
-      { type: String, value: 'Total Pasivo', fontWeight: 'bold' },
-      sCell(''),
-      { type: Number, value: bg.totalPasivo, format: '$#,##0.00', fontWeight: 'bold' }
-    ],
-    ...bg.capital.map((a) => mapBgRow('CAPITAL', a, 'ACREEDORA')),
-    [
-      sCell('CAPITAL'),
-      sCell('305-01-001'),
-      sCell('Resultado (Utilidad / Pérdida) del Ejercicio Actual'),
-      { type: Number, value: bg.utilidadEjercicio, format: '$#,##0.00' },
-      sCell('')
-    ],
-    [
-      { type: String, value: 'TOTAL PASIVO Y CAPITAL', fontWeight: 'bold' }, sCell(''),
-      { type: String, value: 'Suma de Pasivo y Capital Contable', fontWeight: 'bold' },
-      sCell(''),
-      { type: Number, value: bg.totalPasivoMasCapital, format: '$#,##0.00', fontWeight: 'bold' }
-    ]
-  ];
-
-  const dia17Sheet: SheetData = [
-    [
-      { value: 'Concepto Fiscal SAT', fontWeight: 'bold' },
-      { value: 'Fundamento Legal / Base', fontWeight: 'bold' },
-      { value: 'Importe Determinado MXN', fontWeight: 'bold', align: 'right' }
-    ],
-    [sCell('Régimen Fiscal'), sCell(company.regimenFiscal), sCell('')],
-    [sCell('Ingresos Nominales Periodo'), sCell('Art. 16 / 17 / 106 LISR'), { type: Number, value: fiscalData?.isrProvisional.ingresosPeriodo ?? 0, format: '$#,##0.00' }],
-    [sCell('Ingresos Acumulables Ejercicio'), sCell('Art. 14 / 106 LISR'), { type: Number, value: fiscalData?.isrProvisional.ingresosAcumuladosEjercicio ?? 0, format: '$#,##0.00' }],
-    [sCell('Deducciones Autorizadas Periodo'), sCell('Art. 25 / 103 LISR'), { type: Number, value: fiscalData?.isrProvisional.deduccionesAutorizadasPeriodo ?? 0, format: '$#,##0.00' }],
-    [sCell('Coeficiente de Utilidad'), sCell('Art. 14 Fracc. I LISR'), { type: Number, value: fiscalData?.isrProvisional.coeficienteUtilidadAplicado ?? 0, format: '0.0000' }],
-    [sCell('Utilidad Fiscal Estimada'), sCell('Base Gravable ISR'), { type: Number, value: fiscalData?.isrProvisional.utilidadFiscalEstimada ?? 0, format: '$#,##0.00' }],
-    [sCell('ISR Causado Acumulado'), sCell(`Tasa Efectiva ${fiscalData?.isrProvisional.tasaIsrPct ?? 30}%`), { type: Number, value: fiscalData?.isrProvisional.isrCausado ?? 0, format: '$#,##0.00' }],
-    [sCell('(-) Pagos Provisionales Previos'), sCell('Art. 14 LISR'), { type: Number, value: fiscalData?.isrProvisional.pagosProvisionalesPrevios ?? 0, format: '$#,##0.00' }],
-    [sCell('(-) ISR Retenido Acreditable'), sCell('Art. 14 / 106 LISR'), { type: Number, value: fiscalData?.isrProvisional.isrRetenidoPeriodo ?? 0, format: '$#,##0.00' }],
-    [sCell('(=) ISR Neto a Pagar Periodo'), sCell('Línea de Captura Día 17'), { type: Number, value: fiscalData?.isrProvisional.isrNetoAPagar ?? 0, format: '$#,##0.00', fontWeight: 'bold' }],
-    [sCell('IVA Trasladado Cobrado'), sCell('Art. 1 / 1-B LIVA'), { type: Number, value: fiscalData?.ivaDefinitivo.ivaTrasladadoCobrado ?? 0, format: '$#,##0.00' }],
-    [sCell('(-) IVA Acreditable Pagado'), sCell('Art. 4 / 5 LIVA'), { type: Number, value: fiscalData?.ivaDefinitivo.ivaAcreditablePagado ?? 0, format: '$#,##0.00' }],
-    [sCell('(-) IVA Retenido Acreditable'), sCell('Art. 5 Fracc. IV LIVA'), { type: Number, value: fiscalData?.ivaDefinitivo.ivaRetenidoAcreditable ?? 0, format: '$#,##0.00' }],
-    [sCell('(-) Saldo a Favor IVA Previo'), sCell('Art. 6 LIVA'), { type: Number, value: fiscalData?.ivaDefinitivo.saldoFavorIvaAcreditable ?? 0, format: '$#,##0.00' }],
-    [sCell('(=) IVA Neto a Pagar'), sCell('Liquidación Mensual LIVA'), { type: Number, value: fiscalData?.ivaDefinitivo.ivaNetoAPagar ?? 0, format: '$#,##0.00', fontWeight: 'bold' }],
-    [sCell('TOTAL ESTIMADO LÍNEA CAPTURA'), sCell('SAT Día 17 Oficial'), { type: Number, value: fiscalData?.resumenLineaCapturaSat.totalEstimadoDia17 ?? 0, format: '$#,##0.00', fontWeight: 'bold' }]
-  ];
-
-  const safeFileRfc = company.rfc.replace(/[^a-zA-Z0-9]/g, '');
-  const fileName = `Dossier_Ejecutivo_${safeFileRfc}_${year}_P${String(period).padStart(2, '0')}.xlsx`;
   const mesLabel = mesNombre || `Periodo ${String(period).padStart(2, '0')}`;
-  const sheets = [
-    { sheet: 'Balanza', data: balanzaSheet },
-    { sheet: 'Estado de Resultados', data: erSheet },
-    { sheet: 'Balance General', data: bgSheet },
-    { sheet: 'Papel Dia 17', data: dia17Sheet }
-  ];
-  if (extendedStatements) {
+  const sheets: WorkbookSheetSpec[] = [];
+
+  if (includeBalanza) {
+    sheets.push({
+      sheet: 'Balanza',
+      data: buildBalanzaSheetData(reportsData, company, year, period, mesLabel, hideZeroAccounts),
+      columns: [
+        { width: 16 }, { width: 38 }, { width: 14 }, { width: 12 }, { width: 8 },
+        { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }
+      ]
+    });
+  }
+  if (includeResultados) {
+    sheets.push({
+      sheet: 'Estado de Resultados',
+      data: buildEstadoResultadosSheetData(reportsData, company, year, period, mesLabel, formatVerticalPct, hideZeroAccounts),
+      columns: [
+        { width: 28 }, { width: 16 }, { width: 40 }, { width: 18 }, { width: 20 }, { width: 14 }
+      ]
+    });
+  }
+  if (includeBalance) {
+    sheets.push({
+      sheet: 'Balance General',
+      data: buildBalanceGeneralSheetData(reportsData, company, year, period, mesLabel, hideZeroAccounts),
+      columns: [
+        { width: 28 }, { width: 16 }, { width: 40 }, { width: 20 }, { width: 20 }
+      ]
+    });
+  }
+  if (includeDia17) {
+    sheets.push({
+      sheet: 'Papel Dia 17',
+      data: buildDia17SheetData(fiscalData, company, year, period, mesLabel),
+      columns: [{ width: 42 }, { width: 30 }, { width: 22 }]
+    });
+  }
+  if (extendedStatements && includeNifAging) {
     sheets.push(
-      { sheet: 'Flujos NIF B-2', data: buildCashFlowSheetData(extendedStatements, mesLabel) },
-      { sheet: 'Cambios Capital NIF B-4', data: buildEquityChangesSheetData(extendedStatements, mesLabel) },
-      { sheet: 'Comparativo Anual', data: buildComparativeSheetData(extendedStatements, mesLabel) }
+      {
+        sheet: 'Flujos NIF B-2',
+        data: buildCashFlowSheetData(extendedStatements, mesLabel),
+        columns: [{ width: 28 }, { width: 22 }, { width: 44 }, { width: 18 }]
+      },
+      {
+        sheet: 'Cambios Capital NIF B-4',
+        data: buildEquityChangesSheetData(extendedStatements, mesLabel),
+        columns: [{ width: 48 }, { width: 20 }, { width: 20 }, { width: 24 }, { width: 26 }, { width: 24 }]
+      },
+      {
+        sheet: 'Comparativo Anual',
+        data: buildComparativeSheetData(extendedStatements, mesLabel),
+        columns: [{ width: 16 }, { width: 38 }, { width: 12 }, { width: 14 }, { width: 18 }, { width: 24 }, { width: 18 }, { width: 14 }]
+      }
     );
   }
+  return sheets;
+}
+
+export async function exportDeliverablesXlsx(params: ExportDeliverablesXlsxParams): Promise<void> {
+  const sheets = buildDeliverablesSheets(params);
+  if (sheets.length === 0) return;
+  const safeFileRfc = params.company.rfc.replace(/[^a-zA-Z0-9]/g, '');
+  const fileName = `Dossier_Ejecutivo_${safeFileRfc}_${params.year}_P${String(params.period).padStart(2, '0')}.xlsx`;
   await writeXlsx(sheets).toFile(fileName);
 }

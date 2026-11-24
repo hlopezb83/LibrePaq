@@ -189,10 +189,13 @@ export const fiscalAndBankApi = {
     rol: 'PROVEEDOR' | 'CLIENTE' | 'AMBOS';
     cuentaOperacionCode: string;
     cuentaContrapartidaCode: string;
-    tipoTerceroDiot: '04' | '05';
+    tipoTerceroDiot: '04' | '05' | '15';
     tipoOperacionDiot: '03' | '06' | '85';
     tasaIvaDefault: 16 | 8 | 0;
     estatus69B: Efos69BStatus;
+    idFiscal?: string | null;
+    pais?: string | null;
+    jurisdiccionFiscal?: string | null;
   }) =>
     fetchWithTimeout('/api/third-parties', {
       method: 'POST',
@@ -260,6 +263,7 @@ export const fiscalAndBankApi = {
     pagosProvisionalesAnteriores?: number;
     saldoFavorIvaAnterior?: number;
     tipoCambioDofCierre?: number;
+    ptuPagadaEjercicio?: number;
   }) =>
     fetchWithTimeout('/api/fiscal-workpaper/parameters', {
       method: 'PUT',
@@ -281,10 +285,10 @@ export const fiscalAndBankApi = {
       body: JSON.stringify({ companyId, year, period })
     }).then((r) => handleResponse<Poliza>(r)),
 
-  getCxcCxpAging: (companyId: string) =>
-    fetchWithTimeout(`/api/companies/${encodeURIComponent(companyId)}/cxc-cxp`).then((r) =>
-      handleResponse<CxcCxpAgingResponse>(r)
-    ),
+  getCxcCxpAging: (companyId: string, asOfIso?: string) =>
+    fetchWithTimeout(
+      `/api/companies/${encodeURIComponent(companyId)}/cxc-cxp${asOfIso ? `?asOf=${encodeURIComponent(asOfIso)}` : ''}`
+    ).then((r) => handleResponse<CxcCxpAgingResponse>(r)),
 
   verifyCfdisSatBatch: (companyId: string, cfdiIds: string[]) =>
     fetchWithTimeout(

@@ -5,7 +5,8 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { annualTaxClient } from '../../lib/annual-tax-client';
 import { apiClient } from '../../lib/api-client';
-import { downloadBlobFile, downloadCsvFile } from '../../lib/formatters';
+import { downloadBlobFile } from '../../lib/formatters';
+import { exportActiveReportCsv } from './reportesCsvExport';
 import { getTodayLocalIso } from '../../shared/date-utils';
 import {
   isValidSatNumOrden,
@@ -167,109 +168,12 @@ export function useReportesManager() {
 
   const handleExportBalanzaCsv = () => {
     if (!data) return;
-    const periodCode = `P${String(data.periodo).padStart(2, '0')}`;
-    if (activeTab === 'RESULTADOS') {
-      const er = data.incomeStatement;
-      const base = er.totalIngresos || 0;
-      const pct = (val: number) => (base !== 0 ? `${((val / base) * 100).toFixed(1)}%` : '0.0%');
-      const signed = (
-        a: typeof data.trialBalance[number],
-        expected: 'ACREEDORA' | 'DEUDORA'
-      ) => (a.nature === expected ? a.finalBalance : -a.finalBalance);
-      const totalIsr = er.totalIsr ?? 0;
-      const isrCsvRows: Array<Array<string | number>> =
-        totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
-          ? [
-              ...(er.isrEjercicio ?? []).map((a) => {
-                const v = signed(a, 'DEUDORA');
-                return ['ISR EJERCICIO', a.code, a.name, v, pct(v)];
-              }),
-              ['IMPUESTOS A LA UTILIDAD (ISR)', '', 'Provisión ISR del Ejercicio (NIF D-4)', totalIsr, pct(totalIsr)]
-            ]
-          : [];
-      downloadCsvFile(
-        `Estado_Resultados_${data.company.rfc}_${data.ejercicio}_${periodCode}.csv`,
-        ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Importe MXN', '% s/Ventas'],
-        [
-          ...er.ingresos.map((a) => { const v = signed(a, 'ACREEDORA'); return ['INGRESOS', a.code, a.name, v, pct(v)]; }),
-          ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', er.totalIngresos, '100.0%'],
-          ...er.costos.map((a) => { const v = signed(a, 'DEUDORA'); return ['COSTOS', a.code, a.name, v, pct(v)]; }),
-          ['TOTAL COSTOS', '', 'Costo de Ventas', er.totalCostos, pct(er.totalCostos)],
-          ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', er.utilidadBruta, pct(er.utilidadBruta)],
-          ...er.gastos.map((a) => { const v = signed(a, 'DEUDORA'); return ['GASTOS', a.code, a.name, v, pct(v)]; }),
-          ['TOTAL GASTOS', '', 'Gastos Generales de Operación', er.totalGastos, pct(er.totalGastos)],
-          ...isrCsvRows,
-          ['UTILIDAD NETA', '', 'Resultado Neto del Periodo', er.utilidadNeta, pct(er.utilidadNeta)]
-        ]
-      );
-      toast.success('Estado de Resultados exportado en CSV');
+    if (activeTab === 'ANUAL' && !annualTaxData) {
+      toast.info('Calculando resumen de Declaración Anual, intenta nuevamente en un segundo.');
       return;
     }
-    if (activeTab === 'BALANCE') {
-      const signedBal = (
-        a: typeof data.trialBalance[number],
-        expected: 'DEUDORA' | 'ACREEDORA'
-      ) => (a.nature !== expected ? -a.finalBalance : a.finalBalance);
-      downloadCsvFile(
-        `Balance_General_${data.company.rfc}_${data.ejercicio}_${periodCode}.csv`,
-        ['Clasificación', 'Código', 'Nombre Cuenta', 'Saldo Final MXN'],
-        [
-          ...data.balanceSheet.activos.map((a) => ['ACTIVO', a.code, a.name, signedBal(a, 'DEUDORA')]),
-          ['TOTAL ACTIVO', '100', 'Total Activo', data.balanceSheet.totalActivo],
-          ...data.balanceSheet.pasivos.map((a) => ['PASIVO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
-          ['TOTAL PASIVO', '200', 'Total Pasivo', data.balanceSheet.totalPasivo],
-          ...data.balanceSheet.capital.map((a) => ['CAPITAL', a.code, a.name, signedBal(a, 'ACREEDORA')]),
-          ['UTILIDAD EJERCICIO', '305', 'Resultado del Ejercicio Actual', data.balanceSheet.utilidadEjercicio],
-          ['PASIVO + CAPITAL', '', 'Suma Pasivo y Capital Contable', data.balanceSheet.totalPasivoMasCapital]
-        ]
-      );
-      toast.success('Balance General exportado en CSV');
-      return;
-    }
-    if (activeTab === 'ANUAL') {
-      if (!annualTaxData) {
-        toast.info('Calculando resumen de Declaración Anual, intenta nuevamente en un segundo.');
-        return;
-      }
-      const { reconciliation: rec, determination: det, inflation: inf } = annualTaxData;
-      downloadCsvFile(
-        `Declaracion_Anual_${data.company.rfc}_${annualTaxData.ejercicio}.csv`,
-        ['Sección', 'Concepto', 'Importe / Valor'],
-        [
-          ['Conciliación Contable-Fiscal', 'Utilidad / Pérdida Contable', rec.utilidadContable],
-          ['Conciliación Contable-Fiscal', '(+) Ingresos Fiscales No Contables', rec.ingresosFiscalesNoContables],
-          ['Conciliación Contable-Fiscal', '(+) Deducciones Contables No Fiscales', rec.deduccionesContablesNoFiscales],
-          ['Conciliación Contable-Fiscal', '(-) Deducciones Fiscales No Contables', -rec.deduccionesFiscalesNoContables],
-          ['Conciliación Contable-Fiscal', '(-) PTU Pagada en el Ejercicio', -rec.ptuPagadaEjercicio],
-          ['Conciliación Contable-Fiscal', '(=) Utilidad / Pérdida Fiscal', rec.utilidadFiscal],
-          ['Conciliación Contable-Fiscal', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
-          ['Conciliación Contable-Fiscal', '(=) Resultado Fiscal Gravable', rec.resultadoFiscal],
-          ['Ajuste Anual por Inflación', 'Promedio Anual de Créditos', inf.promedioCreditos],
-          ['Ajuste Anual por Inflación', 'Promedio Anual de Deudas', inf.promedioDeudas],
-          ['Ajuste Anual por Inflación', `Efecto (${inf.tipo})`, inf.tipo === 'ACUMULABLE' ? inf.ajusteAcumulable : inf.tipo === 'DEDUCIBLE' ? -inf.ajusteDeducible : 0],
-          ['Determinación ISR Anual', 'ISR Anual Causado', det.isrAnualCausado],
-          ['Determinación ISR Anual', '(-) Pagos Provisionales Efectuados', -det.pagosProvisionalesEfectuados],
-          ['Determinación ISR Anual', '(-) ISR Retenido Acreditable', -det.isrRetenidoAcreditable],
-          ['Determinación ISR Anual', det.isrAnualCargoFavor >= 0 ? '(=) ISR Anual a Cargo' : '(=) Saldo a Favor de ISR', det.isrAnualCargoFavor >= 0 ? det.isrACargo : det.isrAFavor],
-          ['Determinación ISR Anual', 'PTU por Pagar (10%)', det.ptuPorPagar10Pct],
-          ['Determinación ISR Anual', 'Nuevo Coeficiente de Utilidad', det.nuevoCoeficienteUtilidad.toFixed(4)],
-          ['CUCA y CUFIN', 'CUCA Final Actualizada', det.cucaFinal],
-          ['CUCA y CUFIN', 'CUFIN Final Actualizada', det.cufinFinal]
-        ]
-      );
-      toast.success('Declaración Anual exportada en CSV');
-      return;
-    }
-    const headers = [
-      'Código Cuenta', 'Nombre de la Cuenta', 'Agrupador SAT', 'Naturaleza',
-      'Nivel', 'Saldo Inicial', 'Cargos (Debe)', 'Abonos (Haber)', 'Saldo Final'
-    ];
-    const rows = data.trialBalance.map((r) => [
-      r.code, r.name, r.satGroupCode, r.nature, r.level,
-      r.initialBalanceComputed, r.periodCharges, r.periodCredits, r.finalBalance
-    ]);
-    downloadCsvFile(`Balanza_${data.company.rfc}_${data.ejercicio}_${periodCode}.csv`, headers, rows);
-    toast.success('Balanza de Comprobación exportada en CSV');
+    const msg = exportActiveReportCsv({ activeTab, data, annualTaxData });
+    toast.success(msg);
   };
 
   return {

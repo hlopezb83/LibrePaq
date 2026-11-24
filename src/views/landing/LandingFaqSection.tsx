@@ -19,8 +19,8 @@ const FAQ_ITEMS = [
     a: 'Sí, totalmente. LibrePaq Pro genera la Balanza de Comprobación (mensual y cierre anual mes 13), el Catálogo de Cuentas y Pólizas en el formato XML oficial del Anexo 24 vigente, listo para subirse al Buzón Tributario del SAT.'
   },
   {
-    q: '¿Puedo traer mi catálogo de cuentas y pólizas desde CONTPAQi®?',
-    a: 'Por supuesto. Puedes subir tu catálogo agrupador, saldos iniciales y pólizas en menos de 1 minuto usando tus archivos de Excel, CSV o TXT exportados de CONTPAQi®, o dar de alta a tu empresa en segundos arrastrando una sola factura XML CFDI 4.0.'
+    q: '¿Puedo migrar mi catálogo de cuentas y saldos desde CONTPAQi® o Anexo 24?',
+    a: 'Por supuesto. Puedes importar tu catálogo agrupador y saldos iniciales en menos de 1 minuto desde CSV, Excel, CT.xml / BN.xml Anexo 24 y catálogo TXT CONTPAQi®, o dar de alta tu empresa en segundos cargando tus XML CFDI 4.0.'
   },
   {
     q: '¿Funciona en cualquier computadora Windows, Mac o tablet?',

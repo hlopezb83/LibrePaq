@@ -4,13 +4,15 @@ import {
   buildAnexo24SolicitudAttrs,
   buildAuxiliarCuentasXml,
   buildAuxiliarFoliosXml,
+  hasEmptyAnexo24Body,
+  isLevel1StructuralRubro,
   isValidSatNumOrden,
   isValidSatNumTramite,
   truncXml,
   type SatSolicitudTipo
 } from './sat-anexo24-auxiliaries';
 
-export { isValidSatNumOrden, isValidSatNumTramite };
+export { hasEmptyAnexo24Body, isValidSatNumOrden, isValidSatNumTramite };
 
 export type SatXmlType =
   | 'balanza'
@@ -25,6 +27,8 @@ export interface Anexo24CfdiMetadata {
   moneda?: string;
   tipoCambio?: number;
   formaPago?: string;
+  ctaDest?: string;
+  bancoDestNal?: string;
 }
 
 export interface SatAnexo24Options {
@@ -98,11 +102,14 @@ function resolveMovementCounterpart(
   return { rawUuid, upperUuid, cfdiInfo, thirdPartyRfc, monedaRaw, tcVal, fxAttrs };
 }
 
-function inferOtherPaymentMethodCode(hint: string): string {
+function inferOtherPaymentMethodCode(hint: string, formaPago?: string): string {
   if (/\b(?:EFEC|EFECTIVO)\b/i.test(hint)) return '01';
+  if (/\b(?:CHQ|CHEQUE)\b|^CH-?\d+/i.test(hint)) return '02';
+  if (/\b(?:SPEI|TRANSF(?:ERENCIA)?|TRF|TEF|DEP)\b|dep[oó]sito/i.test(hint)) return '03';
   if (/\bTDC\b|tarjeta.*cr[eé]dito/i.test(hint)) return '04';
   if (/\b(?:TDD|TARJETA)\b/i.test(hint)) return '28';
-  if (/\bDEP\b|dep[oó]sito/i.test(hint)) return '03';
+  const cleanFp = (formaPago || '').trim();
+  if (/^\d{2}$/.test(cleanFp) && cleanFp !== '00') return cleanFp;
   return '99';
 }
 
@@ -111,7 +118,8 @@ function buildBankPaymentNode(
   poliza: Poliza,
   mov: PolizaMovement,
   thirdPartyRfc: string,
-  fxAttrs: string
+  fxAttrs: string,
+  cfdiInfo?: Anexo24CfdiMetadata
 ): string {
   const isBankAccount = (mov.accountCode || '').trim().startsWith('102');
   const ref = (mov.referencia || '').trim();
@@ -126,16 +134,23 @@ function buildBankPaymentNode(
   const hint = `${ref} ${mov.concepto || ''} ${poliza.concepto || ''}`;
 
   if (/\b(?:CHQ|CHEQUE)\b|^CH-?\d+/i.test(hint)) {
-    const numCheque = truncXml(ref || 'S/N', 20);
-    return `\n    <PLZ:Cheque Num="${numCheque}" BanEmisNal="${bancoOri}" CtaOri="${ctaOri}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
+    if (ref && !/^S\/N$/i.test(ref)) {
+      const numCheque = truncXml(ref, 20);
+      return `\n    <PLZ:Cheque Num="${numCheque}" BanEmisNal="${bancoOri}" CtaOri="${ctaOri}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
+    }
+    return `\n    <PLZ:OtrMetodoPago MetPagoPol="02" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
   }
 
   if (/\b(?:SPEI|TRANSF(?:ERENCIA)?|TRF|TEF)\b/i.test(hint)) {
-    const ctaDest = truncXml(ref || '0000000000', 50);
-    return `\n    <PLZ:Transferencia CtaOri="${ctaOri}" BancoOriNal="${bancoOri}" CtaDest="${ctaDest}" BancoDestNal="${bancoOri}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
+    const rawCtaDest = (cfdiInfo?.ctaDest || (ref && !/^0+$/.test(ref) ? ref : '')).trim();
+    const rawBancoDest = (cfdiInfo?.bancoDestNal || '').trim();
+    if (rawCtaDest && rawBancoDest) {
+      return `\n    <PLZ:Transferencia CtaOri="${ctaOri}" BancoOriNal="${bancoOri}" CtaDest="${truncXml(rawCtaDest, 50)}" BancoDestNal="${truncXml(rawBancoDest, 3)}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
+    }
+    return `\n    <PLZ:OtrMetodoPago MetPagoPol="03" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
   }
 
-  const metPago = inferOtherPaymentMethodCode(hint);
+  const metPago = inferOtherPaymentMethodCode(hint, cfdiInfo?.formaPago);
   return `\n    <PLZ:OtrMetodoPago MetPagoPol="${metPago}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
 }
 
@@ -164,13 +179,23 @@ export function buildSatAnexo24Xml(
   if (type === 'catalogo') {
     const catMes = Math.max(1, Math.min(12, period));
     const catMesStr = String(catMes).padStart(2, '0');
+    const excludedParentCodes = new Set(
+      trialBalance.filter((acc) => isLevel1StructuralRubro(acc)).map((acc) => acc.code)
+    );
     const ctasXml = trialBalance
+      .filter((acc) => !isLevel1StructuralRubro(acc))
       .map((acc) => {
         const codAgrup = truncXml(acc.satGroupCode || '101.01', 15);
         const numCta = truncXml(acc.code, 100);
         const desc = truncXml(acc.name, 200);
-        const subCtaAttr = acc.parentCode ? `SubCtaDe="${truncXml(acc.parentCode, 100)}" ` : '';
-        const nivel = acc.level || 1;
+        const parentExcluded = Boolean(acc.parentCode && excludedParentCodes.has(acc.parentCode));
+        const subCtaAttr =
+          acc.parentCode && !parentExcluded
+            ? `SubCtaDe="${truncXml(acc.parentCode, 100)}" `
+            : '';
+        const nivel = parentExcluded
+          ? Math.max(1, (acc.level || 1) - 1)
+          : acc.level || 1;
         const natur = acc.nature === 'DEUDORA' ? 'D' : 'A';
         return `  <catalogocuentas:Ctas CodAgrup="${codAgrup}" NumCta="${numCta}" Desc="${desc}" ${subCtaAttr}Nivel="${nivel}" Natur="${natur}"/>`;
       })
@@ -207,6 +232,7 @@ ${ctasXml}
         const polId = truncXml(`${p.tipo}-${p.folio}`, 50);
         const fecha = p.fecha ? p.fecha.slice(0, 10) : `${year}-${polMesStr}-01`;
         const concepto = truncXml(p.concepto || `Póliza ${p.tipo} ${p.folio}`, 300);
+        const emittedPolizaUuids = new Set<string>();
 
         const transaccionesXml = (p.movements || [])
           .map((m) => {
@@ -231,7 +257,8 @@ ${ctasXml}
             } = resolveMovementCounterpart(cleanRfc, p, m, options);
 
             let compNode = '';
-            if (rawUuid) {
+            if (rawUuid && !emittedPolizaUuids.has(upperUuid)) {
+              emittedPolizaUuids.add(upperUuid);
               const montoReal =
                 cfdiInfo?.total && cfdiInfo.total > 0
                   ? cfdiInfo.total
@@ -251,7 +278,7 @@ ${ctasXml}
               }
             }
 
-            const paymentNode = buildBankPaymentNode(fecha, p, m, thirdPartyRfc, fxAttrs);
+            const paymentNode = buildBankPaymentNode(fecha, p, m, thirdPartyRfc, fxAttrs, cfdiInfo);
 
             return `  <PLZ:Transaccion NumCta="${numCta}" DesCta="${desCta}" Concepto="${movConcepto}" Debe="${debe}" Haber="${haber}">${compNode}${paymentNode}\n  </PLZ:Transaccion>`;
           })

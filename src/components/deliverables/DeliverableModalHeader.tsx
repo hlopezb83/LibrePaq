@@ -80,7 +80,7 @@ export function DeliverableModalHeader({
                   Centro de Entregables Contables y Fiscales
                 </h2>
                 <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-900/80 text-blue-200 border border-blue-700">
-                  Dossier ({selectedDocsCount}/4)
+                  Dossier ({selectedDocsCount}/6)
                 </span>
               </div>
               <p className="text-xs text-slate-300 truncate">
@@ -218,7 +218,7 @@ export function DeliverableModalHeader({
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{tab.id === 'DOSSIER' ? `Dossier (${selectedDocsCount}/4)` : tab.label}</span>
+                <span>{tab.id === 'DOSSIER' ? `Dossier (${selectedDocsCount}/6)` : tab.label}</span>
               </button>
             );
           })}

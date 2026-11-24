@@ -59,7 +59,9 @@ annualTaxRoutes.post('/companies/:companyId/annual-tax', async (c) => {
       ptuPagadaAnterior:
         body.ptuPagadaAnterior !== undefined ? Number(body.ptuPagadaAnterior) : undefined,
       noDeduciblesManual:
-        body.noDeduciblesManual !== undefined ? Number(body.noDeduciblesManual) : undefined
+        body.noDeduciblesManual !== undefined ? Number(body.noDeduciblesManual) : undefined,
+      deduccionesPersonales:
+        body.deduccionesPersonales !== undefined ? Number(body.deduccionesPersonales) : undefined
     }, userId);
 
     return c.json(getAnnualTaxSummaryRepo(companyId, ejercicio, userId));

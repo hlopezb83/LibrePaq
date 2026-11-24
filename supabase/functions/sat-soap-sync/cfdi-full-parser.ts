@@ -26,6 +26,7 @@ export interface CfdiRelatedDoc {
 export interface ParsedCfdiFull {
   uuid: string;
   fecha: string;
+  fechaPago?: string | null;
   tipoComprobante: string;
   serie: string;
   folio: string;
@@ -96,6 +97,8 @@ function parseAttributes(attrText: string): Record<string, string> {
 
 function parseXmlTree(xmlRaw: string): XmlElementNode {
   const cleaned = xmlRaw
+    .replace(/<(?:[A-Za-z_][\w.-]*:)?Addenda\b[^>]*>[\s\S]*?<\/(?:[A-Za-z_][\w.-]*:)?Addenda\s*>/gi, '')
+    .replace(/<(?:[A-Za-z_][\w.-]*:)?Addenda\b[^>]*\/\s*>/gi, '')
     .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<\?[\s\S]*?\?>/g, '');
@@ -194,6 +197,8 @@ function parsePago20(comprobante: XmlElementNode, fallbackUuidRel: string | null
   });
 
   const firstPago = allPagos[0] ?? null;
+  const rawFechaPago = attr(firstPago, 'FechaPago');
+  const fechaPago = rawFechaPago ? rawFechaPago.slice(0, 10) : null;
   const distinctCurrencies = new Set(pagoGroups.map((g) => g.pagoMoneda));
   const hasMixedCurrencies = distinctCurrencies.size > 1;
   const hasTotalesMxn = pagoTotales !== null && attr(pagoTotales, 'MontoTotalPagos') !== '';
@@ -225,8 +230,8 @@ function parsePago20(comprobante: XmlElementNode, fallbackUuidRel: string | null
   const singleCurrency = pagoGroups[0]?.pagoMoneda ?? 'MXN';
   const moneda = hasTotalesMxn || hasMixedCurrencies ? 'MXN' : singleCurrency;
   const tipoCambio = moneda === 'MXN' ? 1 : (pagoGroups[0]?.pagoTipoCambio ?? 1);
-  const isrRetenido = numAttr(pagoTotales, 'TotalRetencionesISR');
-  const ivaRetenido = numAttr(pagoTotales, 'TotalRetencionesIVA');
+  let isrRetenido = numAttr(pagoTotales, 'TotalRetencionesISR');
+  let ivaRetenido = numAttr(pagoTotales, 'TotalRetencionesIVA');
 
   const uuidsRel = allDoctosRel.map((dr) => attr(dr, 'IdDocumento').toUpperCase()).filter(Boolean);
   const uuidRelacionado = uuidsRel[0] || fallbackUuidRel;
@@ -278,38 +283,93 @@ function parsePago20(comprobante: XmlElementNode, fallbackUuidRel: string | null
   }
   if (montoTotalPagos === 0) montoTotalPagos = drImpPagadoSum;
 
-  const subtotal = hasExplicitBases
-    ? base16 + base8 + base0 + baseExento
-    : pagoTotales !== null
-      ? montoTotalPagos
-      : round2(montoTotalPagos / 1.16);
-  const ivaTrasladado = hasExplicitBases
-    ? imp16 + imp8
-    : pagoTotales !== null
-      ? 0
-      : round2(montoTotalPagos - subtotal);
-
-  const taxBreakdown: CfdiTaxBreakdown = hasExplicitBases
-    ? {
-        base16: round2(base16),
-        iva16: round2(imp16),
-        base8: round2(base8),
-        iva8: round2(imp8),
-        base0: round2(base0),
-        baseExento: round2(baseExento),
-        ieps: 0
+  let expHasExplicit = false;
+  let expB16 = 0;
+  let expI16 = 0;
+  let expB8 = 0;
+  let expI8 = 0;
+  let expB0 = 0;
+  let expBEx = 0;
+  if (!hasExplicitBases) {
+    for (const g of pagoGroups) {
+      if (!g.pNode) continue;
+      const mult = moneda === 'MXN' && g.pagoMoneda !== 'MXN' ? g.pagoTipoCambio : 1;
+      const pTras = [...findAll(g.pNode, 'TrasladoP'), ...findAll(g.pNode, 'Traslado')];
+      const drTras = pTras.length === 0 ? findAll(g.pNode, 'TrasladoDR') : [];
+      for (const t of [...pTras, ...drTras]) {
+        expHasExplicit = true;
+        const imp = attr(t, 'ImpuestoP') || attr(t, 'ImpuestoDR') || attr(t, 'Impuesto');
+        const factor = attr(t, 'TipoFactorP') || attr(t, 'TipoFactorDR') || attr(t, 'TipoFactor');
+        const tasa = numAttr(t, 'TasaOCuotaP') || numAttr(t, 'TasaOCuotaDR') || numAttr(t, 'TasaOCuota');
+        const base = (numAttr(t, 'BaseP') || numAttr(t, 'BaseDR') || numAttr(t, 'Base')) * mult;
+        const importe = (numAttr(t, 'ImporteP') || numAttr(t, 'ImporteDR') || numAttr(t, 'Importe')) * mult;
+        if (imp !== '002' && imp !== '') continue;
+        if (factor === 'Exento') expBEx += base;
+        else if (Math.abs(tasa - 0.16) < 0.005) { expI16 += importe; expB16 += base > 0 ? base : importe / 0.16; }
+        else if (Math.abs(tasa - 0.08) < 0.005) { expI8 += importe; expB8 += base > 0 ? base : importe / 0.08; }
+        else if (factor === 'Tasa' && tasa === 0) expB0 += base;
+        else if (importe > 0) { expI16 += importe; expB16 += base > 0 ? base : importe / 0.16; }
       }
-    : {
-        base16: ivaTrasladado > 0 ? round2(subtotal) : 0,
-        iva16: ivaTrasladado > 0 ? round2(ivaTrasladado) : 0,
-        base8: 0,
-        iva8: 0,
-        base0: ivaTrasladado === 0 && exentoDrFallback === 0 ? round2(subtotal) : 0,
-        baseExento: round2(exentoDrFallback),
-        ieps: 0
-      };
+      if (isrRetenido === 0 && ivaRetenido === 0) {
+        const pRet = [...findAll(g.pNode, 'RetencionP'), ...findAll(g.pNode, 'Retencion')];
+        const drRet = pRet.length === 0 ? findAll(g.pNode, 'RetencionDR') : [];
+        for (const r of [...pRet, ...drRet]) {
+          const imp = attr(r, 'ImpuestoP') || attr(r, 'ImpuestoDR') || attr(r, 'Impuesto');
+          const importe = (numAttr(r, 'ImporteP') || numAttr(r, 'ImporteDR') || numAttr(r, 'Importe')) * mult;
+          if (imp === '001') isrRetenido += importe;
+          else if (imp === '002') ivaRetenido += importe;
+        }
+      }
+    }
+  }
+
+  let subtotal: number;
+  let ivaTrasladado: number;
+  let taxBreakdown: CfdiTaxBreakdown;
+  if (hasExplicitBases) {
+    const effectiveBaseExento = rawBaseExento !== '' ? baseExento : exentoDrFallback;
+    subtotal = base16 + base8 + base0 + effectiveBaseExento;
+    ivaTrasladado = imp16 + imp8;
+    taxBreakdown = {
+      base16: round2(base16),
+      iva16: round2(imp16),
+      base8: round2(base8),
+      iva8: round2(imp8),
+      base0: round2(base0),
+      baseExento: round2(effectiveBaseExento),
+      ieps: 0
+    };
+  } else if (expHasExplicit) {
+    const effectiveEx = expBEx > 0 ? expBEx : exentoDrFallback;
+    ivaTrasladado = expI16 + expI8;
+    const baseSum = expB16 + expB8 + expB0 + effectiveEx;
+    subtotal = baseSum > 0 ? baseSum : Math.max(0, montoTotalPagos - ivaTrasladado);
+    taxBreakdown = {
+      base16: round2(expB16),
+      iva16: round2(expI16),
+      base8: round2(expB8),
+      iva8: round2(expI8),
+      base0: round2(expB0),
+      baseExento: round2(effectiveEx),
+      ieps: 0
+    };
+  } else {
+    subtotal = montoTotalPagos;
+    ivaTrasladado = 0;
+    const baseEx = round2(exentoDrFallback);
+    taxBreakdown = {
+      base16: 0,
+      iva16: 0,
+      base8: 0,
+      iva8: 0,
+      base0: round2(Math.max(0, subtotal - baseEx)),
+      baseExento: baseEx,
+      ieps: 0
+    };
+  }
 
   return {
+    fechaPago,
     subtotal: round2(subtotal),
     ivaTrasladado: round2(ivaTrasladado),
     isrRetenido: round2(isrRetenido),
@@ -326,6 +386,8 @@ function parsePago20(comprobante: XmlElementNode, fallbackUuidRel: string | null
 
 function parseNomina12(comprobante: XmlElementNode, baseSubtotal: number, baseDescuento: number, baseTotal: number) {
   const nomina = findFirst(comprobante, 'Nomina');
+  const rawFechaPago = attr(nomina, 'FechaPago');
+  const fechaPago = rawFechaPago ? rawFechaPago.slice(0, 10) : null;
   const deducciones = findFirst(nomina, 'Deducciones');
   const rawTotalPercep = attr(nomina, 'TotalPercepciones');
   const totalPercep = rawTotalPercep !== '' ? parseFloat(rawTotalPercep) || 0 : baseSubtotal;
@@ -346,7 +408,7 @@ function parseNomina12(comprobante: XmlElementNode, baseSubtotal: number, baseDe
   const total =
     baseTotal > 0 && rawTotalPercep === '' ? round2(baseTotal) : round2(subtotal - isrRetenido - descuento);
 
-  return { subtotal, isrRetenido, descuento, total };
+  return { fechaPago, subtotal, isrRetenido, descuento, total };
 }
 
 function parseStandardImpuestosAndBreakdown(comprobante: XmlElementNode, netSubtotal: number) {
@@ -511,6 +573,7 @@ export function parseCfdiFull(xmlRaw: string): ParsedCfdiFull | null {
   const tipoComprobante = (attr(comprobante, 'TipoDeComprobante') || 'I').toUpperCase();
   const rawFecha = attr(comprobante, 'Fecha');
   const fecha = rawFecha ? rawFecha.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  let fechaPago: string | null = null;
 
   let subtotal = numAttr(comprobante, 'SubTotal');
   let descuento = numAttr(comprobante, 'Descuento');
@@ -534,6 +597,7 @@ export function parseCfdiFull(xmlRaw: string): ParsedCfdiFull | null {
 
   if (tipoComprobante === 'P') {
     const p20 = parsePago20(comprobante, uuidRelacionado);
+    fechaPago = p20.fechaPago;
     subtotal = p20.subtotal;
     ivaTrasladado = p20.ivaTrasladado;
     isrRetenido = p20.isrRetenido;
@@ -548,6 +612,7 @@ export function parseCfdiFull(xmlRaw: string): ParsedCfdiFull | null {
     rawMetodo = 'PUE';
   } else if (tipoComprobante === 'N') {
     const nom = parseNomina12(comprobante, subtotal, descuento, total);
+    fechaPago = nom.fechaPago;
     subtotal = nom.subtotal;
     isrRetenido = nom.isrRetenido;
     descuento = nom.descuento;
@@ -574,6 +639,7 @@ export function parseCfdiFull(xmlRaw: string): ParsedCfdiFull | null {
   return {
     uuid,
     fecha,
+    ...(fechaPago ? { fechaPago } : {}),
     tipoComprobante,
     serie: attr(comprobante, 'Serie'),
     folio: attr(comprobante, 'Folio'),

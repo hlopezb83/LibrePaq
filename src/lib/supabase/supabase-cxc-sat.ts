@@ -143,9 +143,9 @@ export async function upsert69BBatchToCloud(
 }
 
 export const supabaseCxcSat = {
-  async getCxcCxpAging(companyId: string): Promise<CxcCxpAgingResponse> {
+  async getCxcCxpAging(companyId: string, asOfIso?: string): Promise<CxcCxpAgingResponse> {
     const cfdis = await supabaseCfdi.getCfdis(companyId, { includeXml: false });
-    return computeCxcCxpAging({ companyId, cfdis });
+    return computeCxcCxpAging({ companyId, cfdis, asOfIso });
   },
 
   checkRfcsAgainstCloud69B,

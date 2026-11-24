@@ -70,6 +70,14 @@ export function PapelDia17IsrCard({ workpaper, period }: { workpaper: FiscalWork
             </dd>
           </div>
         )}
+        {!isResicoPf && (workpaper.isrProvisional.ptuPagadaAplicada ?? 0) > 0 && (
+          <div className="flex justify-between">
+            <dt className="font-sans text-slate-600">(-) PTU Pagada Deducible:</dt>
+            <dd className="text-emerald-700">
+              -{formatCurrency(workpaper.isrProvisional.ptuPagadaAplicada ?? 0)}
+            </dd>
+          </div>
+        )}
         {!isResicoPf && (
           <div className="flex justify-between">
             <dt className="font-sans text-slate-600">(-) Pérdidas Fiscales Amortizadas:</dt>
@@ -167,10 +175,21 @@ export function PapelDia17IvaCard({ workpaper }: { workpaper: FiscalWorkpaperRes
             {formatCurrency(
               workpaper.ivaDefinitivo.ivaNetoAPagar > 0
                 ? workpaper.ivaDefinitivo.ivaNetoAPagar
-                : workpaper.ivaDefinitivo.saldoFavorIvaRemanente
+                : (workpaper.ivaDefinitivo.saldoFavorIvaMes ??
+                    workpaper.ivaDefinitivo.saldoFavorIvaRemanente)
             )}
           </dd>
         </div>
+        {workpaper.ivaDefinitivo.ivaNetoAPagar === 0 &&
+          workpaper.ivaDefinitivo.saldoFavorIvaRemanente >
+            (workpaper.ivaDefinitivo.saldoFavorIvaMes ?? 0) && (
+            <div className="flex justify-between text-[11px] text-slate-600">
+              <dt className="font-sans">Saldo a Favor Acumulado (Próx. Mes):</dt>
+              <dd className="font-semibold text-emerald-700">
+                {formatCurrency(workpaper.ivaDefinitivo.saldoFavorIvaRemanente)}
+              </dd>
+            </div>
+          )}
       </dl>
     </div>
   );

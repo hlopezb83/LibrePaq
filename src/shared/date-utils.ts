@@ -212,3 +212,35 @@ export function getLastDateForPeriod(year?: number | null, period?: number | nul
 export function getDefaultDateForPeriod(year?: number | null, period?: number | null): string {
   return getLastDateForPeriod(year, period);
 }
+
+/**
+ * Formatea la leyenda de fecha de corte para Balance General / Dossier (maneja Mes 13).
+ */
+export function formatBalanceCutoffLabel(
+  year: number,
+  period: number,
+  mesNombre: string
+): string {
+  if (period === 13) {
+    return `Al 31 de Diciembre de ${year} (Cierre Mes 13)`;
+  }
+  const clamped = Math.min(12, Math.max(1, period || 1));
+  const lastDay = new Date(year, clamped, 0).getDate();
+  return `Al ${String(lastDay).padStart(2, '0')} de ${mesNombre} de ${year}`;
+}
+
+/**
+ * Formatea la leyenda de rango acumulado para Estado de Resultados Integral (maneja Mes 13).
+ */
+export function formatIncomePeriodLabel(
+  year: number,
+  period: number,
+  mesNombre: string
+): string {
+  if (period === 13) {
+    return `Del 01 de Enero al 31 de Diciembre de ${year} (Cierre Mes 13)`;
+  }
+  const clamped = Math.min(12, Math.max(1, period || 1));
+  const lastDay = new Date(year, clamped, 0).getDate();
+  return `Del 01 de Enero al ${String(lastDay).padStart(2, '0')} de ${mesNombre} de ${year}`;
+}

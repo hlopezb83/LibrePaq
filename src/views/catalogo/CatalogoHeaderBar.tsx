@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, FolderTree, Lock, Plus, Upload } from 'lucide-react';
+import { ArrowRightLeft, Download, FolderTree, Lock, Plus, Upload } from 'lucide-react';
 
 export interface CatalogoHeaderBarProps {
   csvImportRef: React.RefObject<HTMLInputElement | null>;
@@ -7,6 +7,7 @@ export interface CatalogoHeaderBarProps {
   isReadOnlyClient?: boolean;
   onImportCsv: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onExportCsv: () => void;
+  onOpenReclassify?: () => void;
   onOpenCreateModal: () => void;
 }
 
@@ -16,6 +17,7 @@ export function CatalogoHeaderBar({
   isReadOnlyClient = false,
   onImportCsv,
   onExportCsv,
+  onOpenReclassify,
   onOpenCreateModal
 }: CatalogoHeaderBarProps) {
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
@@ -56,14 +58,31 @@ export function CatalogoHeaderBar({
             id="catalogo-import-csv"
             ref={csvImportRef}
             type="file"
-            accept=".csv,.txt,text/csv"
+            accept=".csv,.txt,.xml,text/csv,text/xml,application/xml"
             disabled={isWriteBlocked}
             onChange={onImportCsv}
             className="visually-hidden"
           />
           <Upload className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
-          <span>Importar CSV / CONTPAQi</span>
+          <span>Importar CSV / CONTPAQi / XML</span>
         </label>
+
+        {onOpenReclassify && (
+          <button
+            type="button"
+            disabled={isWriteBlocked}
+            onClick={onOpenReclassify}
+            title={
+              isWriteBlocked
+                ? blockedReason
+                : 'Reclasificar masivamente movimientos entre cuentas afectables'
+            }
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed border border-amber-200 text-xs font-semibold text-amber-900 transition cursor-pointer"
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
+            <span>Reclasificar</span>
+          </button>
+        )}
 
         <button
           type="button"

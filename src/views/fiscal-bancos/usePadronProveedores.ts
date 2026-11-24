@@ -17,7 +17,10 @@ export function extractThirdPartyDraft(tp: ThirdPartyRecord) {
     rfc: tp.rfc,
     nombre: tp.nombre,
     rol: tp.rol || ('PROVEEDOR' as const),
-    tipoTerceroDiot: (tp.tipoTerceroDiot as '04' | '05') || '04',
+    tipoTerceroDiot: (tp.tipoTerceroDiot as '04' | '05' | '15') || '04',
+    idFiscal: tp.idFiscal || '',
+    pais: tp.pais || '',
+    jurisdiccionFiscal: tp.jurisdiccionFiscal || '',
     cuentaContrapartidaCode: tp.cuentaContrapartidaCode || '201-01-001',
     cuentaOperacionCode: tp.cuentaOperacionCode || '601-01-002',
     tasaIvaDefault: (tp.tasaIvaDefault as 16 | 8 | 0) ?? 16,
@@ -49,7 +52,10 @@ export function usePadronProveedores({
   const [tpRfc, setTpRfc] = useState('');
   const [tpNombre, setTpNombre] = useState('');
   const [tpRol, setTpRol] = useState<'PROVEEDOR' | 'CLIENTE' | 'AMBOS'>('PROVEEDOR');
-  const [tpTipoTercero, setTpTipoTercero] = useState<'04' | '05'>('04');
+  const [tpTipoTercero, setTpTipoTercero] = useState<'04' | '05' | '15'>('04');
+  const [tpIdFiscal, setTpIdFiscal] = useState('');
+  const [tpPais, setTpPais] = useState('');
+  const [tpJurisdiccionFiscal, setTpJurisdiccionFiscal] = useState('');
   const [tpContrapartidaAcc, setTpContrapartidaAcc] = useState('201-01-001');
   const [tpOperacion, setTpOperacion] = useState<'03' | '06' | '85'>('03');
   const [tpExpenseAcc, setTpExpenseAcc] = useState('601-01-002');
@@ -82,6 +88,9 @@ export function usePadronProveedores({
     setTpNombre(draft.nombre);
     setTpRol(draft.rol);
     setTpTipoTercero(draft.tipoTerceroDiot);
+    setTpIdFiscal(draft.idFiscal);
+    setTpPais(draft.pais);
+    setTpJurisdiccionFiscal(draft.jurisdiccionFiscal);
     setTpContrapartidaAcc(draft.cuentaContrapartidaCode);
     setTpExpenseAcc(draft.cuentaOperacionCode);
     setTpIvaRate(draft.tasaIvaDefault);
@@ -96,6 +105,9 @@ export function usePadronProveedores({
     setTpNombre('');
     setTpRol('PROVEEDOR');
     setTpTipoTercero('04');
+    setTpIdFiscal('');
+    setTpPais('');
+    setTpJurisdiccionFiscal('');
     setTpContrapartidaAcc('201-01-001');
     setTpExpenseAcc('601-01-002');
     setTpIvaRate(16);
@@ -133,6 +145,7 @@ export function usePadronProveedores({
       if (isReadOnlyClient) {
         throw new Error('Modo solo lectura: no es posible modificar el padrón de terceros.');
       }
+      const paisNorm = tpPais.trim().toUpperCase();
       return apiClient.saveThirdParty({
         companyId,
         rfc: tpRfc,
@@ -143,7 +156,11 @@ export function usePadronProveedores({
         tipoTerceroDiot: tpTipoTercero,
         tipoOperacionDiot: tpOperacion,
         tasaIvaDefault: tpIvaRate,
-        estatus69B: tpEfos
+        estatus69B: tpEfos,
+        idFiscal: tpTipoTercero === '05' ? tpIdFiscal.trim() || null : null,
+        pais: tpTipoTercero === '05' ? paisNorm || null : null,
+        jurisdiccionFiscal:
+          tpTipoTercero === '05' && paisNorm === 'ZZZ' ? tpJurisdiccionFiscal.trim() || null : null
       });
     },
     onSuccess: (saved) => {
@@ -184,6 +201,12 @@ export function usePadronProveedores({
     setTpRol,
     tpTipoTercero,
     setTpTipoTercero,
+    tpIdFiscal,
+    setTpIdFiscal,
+    tpPais,
+    setTpPais,
+    tpJurisdiccionFiscal,
+    setTpJurisdiccionFiscal,
     tpContrapartidaAcc,
     setTpContrapartidaAcc,
     tpOperacion,

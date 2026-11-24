@@ -166,7 +166,7 @@ export function DashboardKpisGrid({
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-3 sm:divide-x divide-slate-200">
           <button
             type="button"
-            onClick={() => onOpenLedger('105-01-001')}
+            onClick={() => onOpenLedger(`${activeCompanyId}_105-00-000`)}
             title="Consultar auxiliar de Clientes en Libro Mayor"
             className="min-w-0 text-left space-y-1 hover:bg-slate-50 rounded-lg p-1 -m-1 transition cursor-pointer"
           >
@@ -176,7 +176,7 @@ export function DashboardKpisGrid({
           </button>
           <button
             type="button"
-            onClick={() => onOpenLedger('201-01-001')}
+            onClick={() => onOpenLedger(`${activeCompanyId}_201-00-000`)}
             title="Consultar auxiliar de Proveedores en Libro Mayor"
             className="min-w-0 text-left space-y-1 border-t border-slate-100 pt-2 min-[420px]:border-t-0 min-[420px]:pt-0 sm:pl-3 hover:bg-slate-50 rounded-lg p-1 -m-1 sm:m-0 transition cursor-pointer"
           >

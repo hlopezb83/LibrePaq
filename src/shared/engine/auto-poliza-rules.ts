@@ -1,99 +1,21 @@
 import type { Account, CfdiDocument, PolizaType } from '../types';
-import { extractNominaOtrosPagos } from '../cfdi-xml';
-import { assertAccountingInvariant } from './invariants-and-math';
 import type { AutoPolizaMovementDraft, AutoPolizaOverrides } from './auto-poliza-types';
 import { inferExpenseAccountForCfdi, resolveFiscalAccount } from './auto-poliza-account-resolver';
 import { appendRecibidoDeductibleMovements } from './auto-poliza-deductible';
+import { buildPayrollNominaMovements } from './auto-poliza-nomina';
 import {
   buildPaymentRepMovements,
   computeNonIvaTaxCents,
   extractCfdiRuleContext,
   makeDraft,
-  resolveEmployeeReceivableAccount,
   resolveLocalTaxLiabilityAccount,
+  resolvePendingIsrRetentionAccount,
+  resolvePendingIvaRetentionAccount,
   resolveRecibidoIsrRetentionAccount,
   toMxnCents
 } from './auto-poliza-helpers';
 
-export { buildPaymentRepMovements, computeNonIvaTaxCents, makeDraft, toMxnCents };
-
-export function buildPayrollNominaMovements(
-  cfdi: CfdiDocument,
-  accounts: readonly Account[],
-  overrides?: AutoPolizaOverrides
-): { polizaType: PolizaType; polizaConcept: string; movements: AutoPolizaMovementDraft[] } {
-  assertAccountingInvariant(
-    cfdi.direction !== 'RECIBIDO',
-    'CFDI_NOMINA_RECIBIDO',
-    'Los CFDI de Nómina recibidos (direction RECIBIDO) no generan póliza de nómina patronal.'
-  );
-  const ref = `${cfdi.serie}-${cfdi.folio}`;
-  const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
-  const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;
-
-  const accSueldos = resolveFiscalAccount(accounts, 'SUELDOS_Y_SALARIOS', opOverride);
-  const accBancos = resolveFiscalAccount(accounts, 'BANCO_SECUNDARIO', counterOverride);
-  const accIsrRetPorPagar = resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
-
-  const subtotalCents = toMxnCents(cfdi.subtotal, cfdi);
-  const rawOtrosPagos = extractNominaOtrosPagos(cfdi.xmlRaw);
-  const otrosPagosCents = Math.min(subtotalCents, toMxnCents(rawOtrosPagos, cfdi));
-  const sueldosGravadosCents = Math.max(0, subtotalCents - otrosPagosCents);
-
-  const isrCents = toMxnCents(cfdi.isrRetenido, cfdi);
-  const imssDescuentoCents = toMxnCents(cfdi.descuento, cfdi);
-  let totalCents = toMxnCents(cfdi.total, cfdi);
-
-  const cargosTotal = sueldosGravadosCents + otrosPagosCents;
-  const abonosTotal = isrCents + imssDescuentoCents + totalCents;
-  if (cargosTotal !== abonosTotal) {
-    totalCents += cargosTotal - abonosTotal;
-  }
-
-  const movements: AutoPolizaMovementDraft[] = [];
-  if (sueldosGravadosCents > 0) {
-    movements.push(makeDraft(accSueldos, ref, sueldosGravadosCents, 0, cfdi.conceptoPrincipal));
-  }
-  if (otrosPagosCents > 0) {
-    const accSubsidio = resolveFiscalAccount(accounts, 'ISR_ACREDITABLE_RETENIDO');
-    movements.push(
-      makeDraft(accSubsidio, ref, otrosPagosCents, 0, `Subsidio al Empleo / Otros Pagos Nómina ${ref}`)
-    );
-  }
-  if (isrCents > 0) {
-    movements.push(
-      makeDraft(accIsrRetPorPagar, ref, 0, isrCents, `Retenciones ISR Nómina ${ref}`)
-    );
-  }
-  if (imssDescuentoCents > 0) {
-    const accOtrasRet = resolveFiscalAccount(accounts, 'OTRAS_CUENTAS_POR_PAGAR');
-    movements.push(
-      makeDraft(accOtrasRet, ref, 0, imssDescuentoCents, `Cuotas Obreras IMSS / Descuentos ${ref}`)
-    );
-  }
-  if (totalCents < 0) {
-    const accDeudores = resolveEmployeeReceivableAccount(accounts, accBancos);
-    movements.push(
-      makeDraft(
-        accDeudores,
-        ref,
-        Math.abs(totalCents),
-        0,
-        `Saldo a cargo de empleado / Deudores diversos nómina ${ref} - ${cfdi.receptorNombre}`
-      )
-    );
-  } else {
-    movements.push(
-      makeDraft(accBancos, ref, 0, totalCents, `Pago neto nómina ${ref} - ${cfdi.receptorNombre}`)
-    );
-  }
-
-  return {
-    polizaType: overrides?.polizaType ?? 'EGRESO',
-    polizaConcept: `Nómina ${ref} - ${cfdi.receptorNombre}`,
-    movements
-  };
-}
+export { buildPaymentRepMovements, buildPayrollNominaMovements, computeNonIvaTaxCents, makeDraft, toMxnCents };
 
 export function buildCreditNoteEgresoMovements(
   cfdi: CfdiDocument,
@@ -122,11 +44,15 @@ export function buildCreditNoteEgresoMovements(
       makeDraft(accContrapartida, ref, totalCents, 0, `Nota de Crédito proveedor ${cfdi.emisorNombre}`)
     );
     if (isrRetCents > 0) {
-      const accIsrRet = resolveRecibidoIsrRetentionAccount(cfdi, accounts);
+      const accIsrRet = esPagado
+        ? resolveRecibidoIsrRetentionAccount(cfdi, accounts)
+        : resolvePendingIsrRetentionAccount(cfdi, accounts);
       movements.push(makeDraft(accIsrRet, ref, isrRetCents, 0, `Reverso Retención ISR Nota Crédito ${ref}`));
     }
     if (ivaRetCents > 0) {
-      const accIvaRet = resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR');
+      const accIvaRet = esPagado
+        ? resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR')
+        : resolvePendingIvaRetentionAccount(accounts);
       movements.push(makeDraft(accIvaRet, ref, ivaRetCents, 0, `Reverso Retención IVA Nota Crédito ${ref}`));
     }
     if (localRetenidoCents > 0) {
@@ -236,11 +162,15 @@ export function buildStandardIngresoMovements(
       deductiblePct: overrides?.deductiblePct
     });
     if (isrRetCents > 0) {
-      const accIsrRet = resolveRecibidoIsrRetentionAccount(cfdi, accounts);
+      const accIsrRet = esPagado
+        ? resolveRecibidoIsrRetentionAccount(cfdi, accounts)
+        : resolvePendingIsrRetentionAccount(cfdi, accounts);
       movements.push(makeDraft(accIsrRet, ref, 0, isrRetCents, `Retención ISR ${ref} (${cfdi.emisorRfc})`));
     }
     if (ivaRetCents > 0) {
-      const accIvaRet = resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR');
+      const accIvaRet = esPagado
+        ? resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR')
+        : resolvePendingIvaRetentionAccount(accounts);
       movements.push(makeDraft(accIvaRet, ref, 0, ivaRetCents, `Retención IVA ${ref} (${cfdi.emisorRfc})`));
     }
     if (localRetenidoCents > 0) {

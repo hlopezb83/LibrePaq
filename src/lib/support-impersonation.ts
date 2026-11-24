@@ -15,8 +15,8 @@ const ALLOWED_READ_PREFIXES = ['get', 'list', 'fetch', 'query', 'export', 'downl
 
 const BLOCKED_MUTATION_PREFIXES = [
   'create', 'update', 'upsert', 'save', 'delete', 'remove', 'import', 'sync',
-  'set', 'publish', 'clear', 'close', 'reopen', 'reconcile', 'match', 'unmatch',
-  'generate', 'restore', 'post', 'apply', 'upload'
+  'set', 'publish', 'clear', 'close', 'reopen', 'reconcile', 'reclassify',
+  'match', 'unmatch', 'generate', 'restore', 'post', 'apply', 'upload'
 ] as const;
 
 const listeners = new Set<() => void>();

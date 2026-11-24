@@ -19,6 +19,7 @@ import {
   upsert69BBatchToCloud
 } from '../../lib/supabase/supabase-cxc-sat';
 import {
+  decodeSat69BCsvBytes,
   getLoaded69BDatabase,
   getLoaded69BMeta,
   parseSat69BCsv,
@@ -86,7 +87,11 @@ export function Importar69BModal({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const text = (event.target?.result as string) || '';
+        const buffer = event.target?.result;
+        const text =
+          buffer instanceof ArrayBuffer
+            ? decodeSat69BCsvBytes(new Uint8Array(buffer))
+            : String(buffer ?? '');
         const parsed = parseSat69BCsv(text);
         if (parsed.total === 0) {
           setParseError('No se encontraron registros 69-B válidos en el CSV seleccionado.');
@@ -106,7 +111,7 @@ export function Importar69BModal({
       setIsProcessing(false);
       resetInput?.();
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

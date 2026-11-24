@@ -71,7 +71,7 @@ export function parseBankCsvDate(raw: string | undefined, fallbackDate: string):
  * Divide una fila CSV respetando campos entrecomillados RFC-4180 (ej. `"SPEI, S.A.", "$1,250.00"`).
  * NASA Power of 10 - Regla 2 (H-07, H-10): Bucle acotado por longitud máxima de línea.
  */
-export function splitCsvLine(line: string, delimiter: ',' | ';' = ','): string[] {
+export function splitCsvLine(line: string, delimiter: ',' | ';' | '\t' = ','): string[] {
   const cells: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -97,9 +97,10 @@ export function splitCsvLine(line: string, delimiter: ',' | ';' = ','): string[]
   return cells;
 }
 
-function detectCsvDelimiter(sampleLine: string): ',' | ';' {
+function detectCsvDelimiter(sampleLine: string): ',' | ';' | '\t' {
   let commas = 0;
   let semicolons = 0;
+  let tabs = 0;
   let inQuotes = false;
   for (let i = 0; i < sampleLine.length; i += 1) {
     const ch = sampleLine[i];
@@ -107,8 +108,10 @@ function detectCsvDelimiter(sampleLine: string): ',' | ';' {
     else if (!inQuotes) {
       if (ch === ',') commas += 1;
       else if (ch === ';') semicolons += 1;
+      else if (ch === '\t') tabs += 1;
     }
   }
+  if (tabs >= commas && tabs >= semicolons && tabs > 0) return '\t';
   return semicolons > commas ? ';' : ',';
 }
 
@@ -152,30 +155,21 @@ interface BankCsvColumnMap {
 }
 
 function buildHeaderColumnMap(headerCols: string[]): BankCsvColumnMap | null {
+  if (headerCols.length < 3) return null;
   const norm = headerCols.map(normalizeHeaderToken);
-  const isHeader = norm.some(
-    (h) =>
-      h.includes('fecha') ||
-      h.includes('date') ||
-      h.includes('concepto') ||
-      h.includes('cargo') ||
-      h.includes('abono') ||
-      h.includes('saldo') ||
-      h.includes('monto') ||
-      h.includes('importe')
-  );
-  if (!isHeader) return null;
-
   const findIdx = (re: RegExp) => norm.findIndex((h) => re.test(h));
   const fechaIdx = findIdx(/\b(fecha|date|fec)\b/);
-  const refIdx = findIdx(/\b(ref|referencia|folio|docto|documento|clave|autorizacion)\b/);
+  const refIdx = findIdx(/\b(ref|referencia|folio|docto|documento|clave|autorizacion|cheque|operacion)\b/);
   const descIdx = findIdx(/\b(concepto|descripcion|detalle|movimiento|leyenda|narrativa)\b/);
   const cargoIdx = findIdx(/\b(cargo|cargos|retiro|retiros|debito|egreso|salida)\b/);
   const abonoIdx = findIdx(/\b(abono|abonos|deposito|depositos|credito|ingreso|entrada)\b/);
   const montoIdx = findIdx(/\b(monto|importe|cantidad|valor)\b/);
 
+  const hasAmountOrDesc = cargoIdx >= 0 || abonoIdx >= 0 || montoIdx >= 0 || descIdx >= 0;
+  if (fechaIdx < 0 || !hasAmountOrDesc) return null;
+
   return {
-    fechaIdx: fechaIdx >= 0 ? fechaIdx : 0,
+    fechaIdx,
     refIdx,
     descIdx: descIdx >= 0 ? descIdx : refIdx,
     cargoIdx,
@@ -217,9 +211,36 @@ export function parseBankStatementCsv(
     .filter(Boolean);
   if (rawLines.length === 0) return [];
 
-  const delimiter = detectCsvDelimiter(rawLines[0] ?? '');
-  const colMap = buildHeaderColumnMap(splitCsvLine(rawLines[0] ?? '', delimiter));
-  const startIdx = colMap ? 1 : 0;
+  const scanLimit = Math.min(rawLines.length, 25);
+  let delimiter: ',' | ';' | '\t' = detectCsvDelimiter(rawLines[0] ?? '');
+  let colMap: BankCsvColumnMap | null = null;
+  let startIdx = 0;
+
+  for (let idx = 0; idx < scanLimit; idx += 1) {
+    const line = rawLines[idx]!;
+    const candDelim = detectCsvDelimiter(line);
+    const cols = splitCsvLine(line, candDelim);
+    const candMap = buildHeaderColumnMap(cols);
+    if (candMap) {
+      delimiter = candDelim;
+      colMap = candMap;
+      startIdx = idx + 1;
+      break;
+    }
+  }
+
+  if (!colMap) {
+    for (let idx = 0; idx < scanLimit; idx += 1) {
+      const line = rawLines[idx]!;
+      const candDelim = detectCsvDelimiter(line);
+      const cols = splitCsvLine(line, candDelim);
+      if (cols.length >= 3 && parseBankCsvDate(cols[0], '') !== '') {
+        delimiter = candDelim;
+        startIdx = idx;
+        break;
+      }
+    }
+  }
 
   const upperBound = Math.min(rawLines.length, startIdx + maxRows);
   const parsed: ParsedBankStatementRow[] = [];

@@ -59,6 +59,7 @@ export function PolizasView() {
       {/* Barra de Filtros y Acciones */}
       <PolizasFilterBar
         currentYear={m.currentYear}
+        currentPeriod={m.currentPeriod}
         polizas={m.polizas}
         filteredPolizas={m.filteredPolizas}
         filterTipo={m.filterTipo}
@@ -67,6 +68,18 @@ export function PolizasView() {
         setOriginFilter={m.setOriginFilter}
         searchQuery={m.searchQuery}
         setSearchQuery={m.setSearchQuery}
+        periodScope={m.periodScope}
+        setPeriodScope={m.setPeriodScope}
+        periodFrom={m.periodFrom}
+        setPeriodFrom={m.setPeriodFrom}
+        periodTo={m.periodTo}
+        setPeriodTo={m.setPeriodTo}
+        minAmount={m.minAmount}
+        setMinAmount={m.setMinAmount}
+        maxAmount={m.maxAmount}
+        setMaxAmount={m.setMaxAmount}
+        hasAdvancedFilters={m.hasAdvancedFilters}
+        onClearFilters={m.clearAllFilters}
         compactMode={m.compactMode}
         setCompactMode={(updater) => {
           m.setCompactMode((prev) => {
@@ -224,6 +237,7 @@ export function PolizasView() {
                 isPeriodLocked={m.isPeriodLocked}
                 isReadOnlyClient={m.isReadOnlyClient}
                 isDeleting={m.deletePolizaMutation.isPending && m.deletePolizaMutation.variables === pol.id}
+                isReversing={m.reversePolizaMutation.isPending && m.reversePolizaMutation.variables?.id === pol.id}
                 copiedPolizaId={m.copiedPolizaId}
                 confirmDeleteId={m.confirmDeleteId}
                 onToggleExpand={(id) =>
@@ -232,6 +246,7 @@ export function PolizasView() {
                 onCopyPoliza={m.handleCopyPoliza}
                 onPrintPoliza={(p) => handlePrintPdf([p], `${p.tipo} #${p.folio}`)}
                 onDuplicate={m.openDuplicatePolizaModal}
+                onReverse={(p) => m.reversePolizaMutation.mutate(p)}
                 onEdit={m.openEditPolizaModal}
                 onConfirmDelete={(id) => m.deletePolizaMutation.mutate(id)}
                 onCancelDelete={() => m.setConfirmDeleteId(null)}

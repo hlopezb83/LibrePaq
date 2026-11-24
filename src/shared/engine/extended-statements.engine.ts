@@ -1,6 +1,7 @@
 import type { AccountWithBalance, Company } from '../types';
 import type { CashFlowLineItem, CashFlowStatementData, ComparativeAccountRow, EquityChangesRow, EquityChangesStatementData, ExtendedFinancialStatementsResponse } from '../types/extended-statements.types';
 import { buildFinancialStatementsFromTrialBalance } from './financial-reports.engine';
+import { isIsrExpenseAccount, normalizePostCloseP13Accounts } from './financial-reports-helpers';
 import { fromCents, toCents } from './invariants-and-math';
 
 type EquityBucket = 'capitalSocial' | 'reservaLegal' | 'resultadosAcumulados' | 'resultadoEjercicio';
@@ -15,7 +16,7 @@ const EQUITY_COLUMNS: EquityChangesStatementData['columns'] = [
   { key: 'capitalSocial', label: 'Capital Social', satRef: 'SAT 301' },
   { key: 'reservaLegal', label: 'Reserva Legal', satRef: 'SAT 303' },
   { key: 'resultadosAcumulados', label: 'Resultados Acumulados', satRef: 'SAT 304' },
-  { key: 'resultadoEjercicio', label: 'Resultado del Ejercicio', satRef: 'SAT 302/Neto' },
+  { key: 'resultadoEjercicio', label: 'Resultado del Ejercicio', satRef: 'SAT 305/Neto' },
   { key: 'total', label: 'Total Capital Contable', satRef: 'NIF B-4' }
 ];
 
@@ -57,12 +58,9 @@ function computeNetIncomeFromInitialCents(accounts: readonly AccountWithBalance[
       costosCents += (a.nature === 'DEUDORA' ? 1 : -1) * balCents;
     } else if (a.type === 'GASTOS') {
       const signedBal = (a.nature === 'DEUDORA' ? 1 : -1) * balCents;
-      if (a.code.startsWith('8') || a.satGroupCode.startsWith('611')) {
-        isrCents += signedBal;
-      } else {
-        gastosCents += signedBal;
-      }
-    } else if (a.code.startsWith('8') || a.satGroupCode.startsWith('611')) {
+      if (isIsrExpenseAccount(a)) isrCents += signedBal;
+      else gastosCents += signedBal;
+    } else if (isIsrExpenseAccount(a)) {
       isrCents += (a.nature === 'DEUDORA' ? 1 : -1) * balCents;
     }
   }
@@ -91,6 +89,7 @@ function buildAccountPairs(
 
 function resolveEquityBucket(acc: AccountWithBalance): EquityBucket {
   const prefix = getSatPrefixNum(acc);
+  if (prefix === 301 && acc.code.startsWith('301-02')) return 'resultadosAcumulados';
   if (prefix === 301) return 'capitalSocial';
   if (prefix === 303) return 'reservaLegal';
   if (prefix === 304) return 'resultadosAcumulados';
@@ -114,7 +113,7 @@ function buildCashFlowStatement(
     const d = endCents - beginCents;
     const p = getSatPrefixNum(sample);
     if (sample.type === 'ACTIVO') {
-      if (p === 101 || p === 102) { acc.cashBegin += beginCents; acc.cashEnd += endCents; }
+      if (p === 101 || p === 102 || p === 103) { acc.cashBegin += beginCents; acc.cashEnd += endCents; }
       else if (p === 105) acc.clientes += d;
       else if (p === 115) acc.inv += d;
       else if (p === 171) acc.depAc += -d;
@@ -208,6 +207,18 @@ function buildEquityChangesStatement(
     close[bucket] += endCents;
   }
 
+  // Evitar fabricar dividendos negativos o doble conteo si un catálogo externo retuvo openNet en 305
+  const residualPriorIn305 = close.resultadoEjercicio - closeNet;
+  if (
+    useComparativeOpening &&
+    openNet !== 0 &&
+    residualPriorIn305 === openNet &&
+    close.resultadosAcumulados === open.resultadosAcumulados
+  ) {
+    close.resultadoEjercicio -= openNet;
+    close.resultadosAcumulados += openNet;
+  }
+
   const rows: EquityChangesRow[] = [makeEquityRow('opening', 'Saldos Iniciales del Capital Contable', 'OPENING', open)];
   if (useComparativeOpening && openNet !== 0) {
     rows.push(makeEquityRow('carryforward', 'Traspaso de Resultado del Ejercicio Anterior a Resultados Acumulados', 'MOVEMENT', { resultadosAcumulados: openNet, resultadoEjercicio: -openNet }));
@@ -271,41 +282,6 @@ function hasNonZeroTrialActivity(accounts: readonly AccountWithBalance[] | null 
 }
 
 /**
- * En Periodo 13 post-cierre anual, las cuentas de resultados se saldaron en $0.00 y el resultado
- * se traspasó a 305. Reconstruye la vista pre-cierre para NIF B-2 / B-4 sin doble conteo.
- */
-function normalizePostCloseP13TrialBalance(
-  accounts: readonly AccountWithBalance[],
-  periodo: number
-): AccountWithBalance[] {
-  if (periodo !== 13) return [...accounts];
-  const pnl = accounts.filter(
-    (a) => (a.type === 'INGRESOS' || a.type === 'COSTOS' || a.type === 'GASTOS') && (a.isAffectable || a.level >= 2)
-  );
-  if (pnl.length === 0) return [...accounts];
-  const allClosed = pnl.every((a) => toCents(a.finalBalance) === 0);
-  const hadActivity = pnl.some(
-    (a) => toCents(a.initialBalanceComputed) !== 0 || toCents(a.periodCharges) > 0 || toCents(a.periodCredits) > 0
-  );
-  if (!allClosed || !hadActivity) return [...accounts];
-
-  return accounts.map((a) => {
-    if (a.type === 'INGRESOS' || a.type === 'COSTOS' || a.type === 'GASTOS') {
-      const preCloseCents =
-        a.nature === 'ACREEDORA'
-          ? toCents(a.initialBalanceComputed) + toCents(a.periodCredits)
-          : toCents(a.initialBalanceComputed) + toCents(a.periodCharges);
-      return { ...a, finalBalance: fromCents(preCloseCents) };
-    }
-    const prefix = getSatPrefixNum(a);
-    if (a.type === 'CAPITAL' && (prefix === 305 || (prefix === 302 && a.name.toLowerCase().includes('resultado')))) {
-      return { ...a, finalBalance: a.initialBalanceComputed };
-    }
-    return a;
-  });
-}
-
-/**
  * Calcula los estados financieros extendidos NIF B-2 (Flujos de Efectivo Método Indirecto),
  * NIF B-4 (Cambios en el Capital Contable) y Comparativo Interanual a partir de las balanzas.
  */
@@ -317,21 +293,30 @@ export function computeExtendedFinancialStatements(params: {
   previousTrialBalance?: readonly AccountWithBalance[] | null;
 }): ExtendedFinancialStatementsResponse {
   const { company, ejercicio, periodo, currentTrialBalance, previousTrialBalance } = params;
-  const normalizedCurrTB = normalizePostCloseP13TrialBalance(currentTrialBalance, periodo);
+  const normalizedCurrTB = normalizePostCloseP13Accounts(currentTrialBalance, periodo).accounts;
   const hasPrev = hasNonZeroTrialActivity(previousTrialBalance);
+  const normalizedPrevTB = hasPrev
+    ? normalizePostCloseP13Accounts(previousTrialBalance ?? [], 13).accounts
+    : null;
+
   const currNetCents = toCents(buildFinancialStatementsFromTrialBalance(company, normalizedCurrTB, ejercicio, periodo).incomeStatement.utilidadNeta);
-  const prevNetCents = hasPrev
-    ? toCents(buildFinancialStatementsFromTrialBalance(company, [...(previousTrialBalance ?? [])], ejercicio - 1, 13).incomeStatement.utilidadNeta)
+  const prevNetCents = hasPrev && normalizedPrevTB
+    ? toCents(buildFinancialStatementsFromTrialBalance(company, normalizedPrevTB, ejercicio - 1, 13).incomeStatement.utilidadNeta)
     : computeNetIncomeFromInitialCents(normalizedCurrTB);
   const flowNetCents = hasPrev ? currNetCents : currNetCents - prevNetCents;
-  const pairs = buildAccountPairs(normalizedCurrTB, previousTrialBalance, hasPrev);
+  const pairs = buildAccountPairs(normalizedCurrTB, normalizedPrevTB, hasPrev);
 
   return {
     company, ejercicio, periodo,
     hasPreviousComparative: hasPrev,
-    previousEjercicioLabel: hasPrev ? `Ejercicio ${ejercicio - 1}` : `Ejercicio ${ejercicio - 1} (Sin datos — Base $0.00)`,
+    previousEjercicioLabel: hasPrev
+      ? `Ejercicio ${ejercicio - 1}`
+      : `Ejercicio ${ejercicio - 1} (Sin datos — Solo periodo actual)`,
+    cashFlowWindowLabel: hasPrev
+      ? `Acumulado YTD ${ejercicio} vs. Cierre ${ejercicio - 1}`
+      : `Periodo ${periodo} / ${ejercicio} (Movimientos del periodo — sin ejercicio ${ejercicio - 1})`,
     cashFlow: buildCashFlowStatement(pairs, selectLeafAccounts(normalizedCurrTB), flowNetCents, hasPrev ? prevNetCents : 0, hasPrev),
     equityChanges: buildEquityChangesStatement(pairs, prevNetCents, currNetCents, flowNetCents, hasPrev),
-    comparative: buildComparativeRows(normalizedCurrTB, previousTrialBalance)
+    comparative: buildComparativeRows(normalizedCurrTB, normalizedPrevTB)
   };
 }

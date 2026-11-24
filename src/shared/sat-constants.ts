@@ -111,12 +111,30 @@ export const FISCAL_ACCOUNT_ROLES = {
   ISR_RETENIDO_POR_PAGAR: {
     code: '216-01-001',
     aliases: [],
+    satGroupCode: '216.01',
+    fallbackType: 'PASIVO' as const
+  },
+  ISR_RETENIDO_SALARIOS: {
+    code: '216-01-001',
+    aliases: [],
+    satGroupCode: '216.01',
+    fallbackType: 'PASIVO' as const
+  },
+  ISR_RETENIDO_ASIMILADOS: {
+    code: '216-01-006',
+    aliases: [],
+    satGroupCode: '216.02',
+    fallbackType: 'PASIVO' as const
+  },
+  ISR_RETENIDO_HONORARIOS: {
+    code: '216-01-004',
+    aliases: [],
     satGroupCode: '216.04',
     fallbackType: 'PASIVO' as const
   },
   IVA_RETENIDO_POR_PAGAR: {
     code: '216-01-002',
-    aliases: ['216-02-001', '216-01-001'],
+    aliases: ['216-02-001'],
     satGroupCode: '216.10',
     fallbackType: 'PASIVO' as const
   },
@@ -218,7 +236,7 @@ export const FISCAL_ACCOUNT_ROLES = {
   },
   PROVISION_ISR_POR_PAGAR: {
     code: '213-01-002',
-    aliases: ['216-01-001', '201-01-099'],
+    aliases: ['201-01-099'],
     satGroupCode: '213.03',
     fallbackType: 'PASIVO' as const
   },

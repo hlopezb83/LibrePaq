@@ -12,6 +12,7 @@ export interface AnnualTaxInputs {
   dividendosPagados: number;
   ptuPagadaAnterior: number;
   noDeduciblesManual: number;
+  deduccionesPersonales?: number;
   updatedAt?: string;
 }
 
@@ -52,6 +53,8 @@ export interface AnnualFiscalReconciliation {
   perdidasFiscalesPendientes: number;
   perdidasFiscalesActualizadas: number;
   perdidasFiscalesAplicadas: number;
+  deduccionesPersonalesAplicadas?: number;
+  deduccionesPersonalesTope?: number;
   resultadoFiscal: number;
 }
 

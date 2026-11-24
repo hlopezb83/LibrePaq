@@ -164,7 +164,7 @@ export function DiotBancosView() {
               setClassifySupplierRequest({
                 rfc: row.rfc,
                 nombre: row.nombre,
-                tipoTercero: row.tipoTercero === '05' ? '05' : '04',
+                tipoTercero: row.tipoTercero === '05' || row.tipoTercero === '15' ? row.tipoTercero : '04',
                 tipoOperacion: row.tipoOperacion === '06' || row.tipoOperacion === '85' ? row.tipoOperacion : '03'
               });
               setActiveTab('PADRON_RFC');
@@ -219,7 +219,11 @@ export function DiotBancosView() {
       {/* PESTAÑA 6: CXC / CXP (PPD) */}
       {activeTab === 'CXC_CXP' && (
         <div role="tabpanel" id="fb-panel-CXC_CXP" aria-labelledby="fb-tab-CXC_CXP">
-          <CxcCxpTab activeCompanyId={activeCompanyId} />
+          <CxcCxpTab
+            activeCompanyId={activeCompanyId}
+            currentYear={currentYear}
+            currentPeriod={currentPeriod}
+          />
         </div>
       )}
 

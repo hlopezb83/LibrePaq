@@ -1,7 +1,9 @@
 import { isGuestDemoMode } from '../sandbox/guest-demo-mode';
+import { createReadOnlyGuardedClient } from '../support-impersonation';
 import { supabase } from '../supabase';
 import { MEXICO_ISN_RATES } from '../../shared/engine/payroll-summary.engine';
 import { fromCents, toCents } from '../../shared/engine/invariants-and-math';
+import { assertSupabasePeriodOpen } from './supabase-polizas-mappers';
 
 export interface PayrollPeriodSettingsRecord {
   companyId: string;
@@ -143,43 +145,63 @@ export async function getPayrollPeriodSettings(
   return record;
 }
 
+const rawPayrollSettingsWriter = {
+  async savePayrollPeriodSettings(
+    payload: PayrollPeriodSettingsRecord
+  ): Promise<PayrollPeriodSettingsRecord> {
+    const stateCode = (payload.stateCode || DEFAULT_STATE).toUpperCase();
+    const normalized: PayrollPeriodSettingsRecord = {
+      companyId: payload.companyId,
+      ejercicio: Math.round(payload.ejercicio),
+      periodo: Math.round(payload.periodo),
+      stateCode,
+      isnRate: Number.isFinite(payload.isnRate)
+        ? Math.max(0, Number(payload.isnRate.toFixed(3)))
+        : getDefaultIsnRate(stateCode),
+      imssPatronal: fromCents(Math.max(0, toCents(payload.imssPatronal))),
+      rcv: fromCents(Math.max(0, toCents(payload.rcv))),
+      infonavit: fromCents(Math.max(0, toCents(payload.infonavit)))
+    };
+
+    const activeSession = await hasActiveSupabaseSession();
+    if (activeSession && supabase) {
+      await assertSupabasePeriodOpen(normalized.companyId, normalized.ejercicio, normalized.periodo);
+    }
+
+    writeLocalFallback(normalized);
+
+    if (!activeSession || !supabase) return normalized;
+
+    const { error } = await supabase.from('payroll_period_settings').upsert(
+      {
+        company_id: normalized.companyId,
+        ejercicio: normalized.ejercicio,
+        periodo: normalized.periodo,
+        state_code: normalized.stateCode,
+        isn_rate: normalized.isnRate,
+        imss_patronal: normalized.imssPatronal,
+        rcv: normalized.rcv,
+        infonavit: normalized.infonavit,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: 'company_id,ejercicio,periodo' }
+    );
+
+    if (error) {
+      if (isMissingTableError(error)) return normalized;
+      throw new Error(error.message);
+    }
+    return normalized;
+  }
+};
+
+const guardedPayrollSettingsWriter = createReadOnlyGuardedClient(
+  rawPayrollSettingsWriter,
+  new Set(['savePayrollPeriodSettings'])
+);
+
 export async function savePayrollPeriodSettings(
   payload: PayrollPeriodSettingsRecord
 ): Promise<PayrollPeriodSettingsRecord> {
-  const stateCode = (payload.stateCode || DEFAULT_STATE).toUpperCase();
-  const normalized: PayrollPeriodSettingsRecord = {
-    companyId: payload.companyId,
-    ejercicio: Math.round(payload.ejercicio),
-    periodo: Math.round(payload.periodo),
-    stateCode,
-    isnRate: Number.isFinite(payload.isnRate) ? Math.max(0, Number(payload.isnRate.toFixed(3))) : getDefaultIsnRate(stateCode),
-    imssPatronal: fromCents(Math.max(0, toCents(payload.imssPatronal))),
-    rcv: fromCents(Math.max(0, toCents(payload.rcv))),
-    infonavit: fromCents(Math.max(0, toCents(payload.infonavit)))
-  };
-
-  writeLocalFallback(normalized);
-
-  if (!(await hasActiveSupabaseSession()) || !supabase) return normalized;
-
-  const { error } = await supabase.from('payroll_period_settings').upsert(
-    {
-      company_id: normalized.companyId,
-      ejercicio: normalized.ejercicio,
-      periodo: normalized.periodo,
-      state_code: normalized.stateCode,
-      isn_rate: normalized.isnRate,
-      imss_patronal: normalized.imssPatronal,
-      rcv: normalized.rcv,
-      infonavit: normalized.infonavit,
-      updated_at: new Date().toISOString()
-    },
-    { onConflict: 'company_id,ejercicio,periodo' }
-  );
-
-  if (error) {
-    if (isMissingTableError(error)) return normalized;
-    throw new Error(error.message);
-  }
-  return normalized;
+  return await guardedPayrollSettingsWriter.savePayrollPeriodSettings(payload);
 }

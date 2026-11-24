@@ -14,7 +14,8 @@ export function generateDeliverableSummaryText({
   legalRepTitle,
   reportsData,
   fiscalData,
-  formatVerticalPct
+  formatVerticalPct,
+  accountantNotes
 }: {
   company: Company;
   year: number;
@@ -29,6 +30,7 @@ export function generateDeliverableSummaryText({
   reportsData: FinancialStatementsResponse | null | undefined;
   fiscalData: FiscalWorkpaperResponse | null | undefined;
   formatVerticalPct: (amount: number, base: number) => string;
+  accountantNotes?: string;
 }): string {
   if (!reportsData) return '';
 
@@ -53,6 +55,8 @@ export function generateDeliverableSummaryText({
     `   • Costo de Ventas:             ${formatCurrency(reportsData.incomeStatement.totalCostos)}`,
     `   • Utilidad Bruta:              ${formatCurrency(reportsData.incomeStatement.utilidadBruta)} (Margen: ${formatVerticalPct(reportsData.incomeStatement.utilidadBruta, reportsData.incomeStatement.totalIngresos)})`,
     `   • Gastos de Operación:         ${formatCurrency(reportsData.incomeStatement.totalGastos)}`,
+    `   • Utilidad de Operación:       ${formatCurrency(reportsData.incomeStatement.utilidadOperativa ?? (reportsData.incomeStatement.utilidadBruta - reportsData.incomeStatement.totalGastos))}`,
+    `   • RIF Neto (702 - 701):        ${formatCurrency(reportsData.incomeStatement.rifNeto ?? 0)}`,
     ...(totalIsrEjercicio > 0
       ? [`   • Provisión ISR Ejercicio:     ${formatCurrency(totalIsrEjercicio)}`]
       : []),
@@ -68,6 +72,7 @@ export function generateDeliverableSummaryText({
     `   • ISR Pago Provisional:        ${formatCurrency(isrNeto)}`,
     `   • IVA Definitivo:              ${formatCurrency(ivaNeto)}`,
     `   • Total Línea de Captura:      ${formatCurrency(totalDia17)}`,
+    ...(accountantNotes?.trim() ? [`--------------------------------------------------------------------------------`, `NOTAS DEL CONTADOR:`, accountantNotes.trim()] : []),
     `--------------------------------------------------------------------------------`,
     `Dictaminó: ${auditorName} (${auditorCedula})`,
     `Autorizó:  ${legalRepName} (${legalRepTitle})`,

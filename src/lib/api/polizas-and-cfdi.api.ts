@@ -9,10 +9,13 @@ import type {
 import { buildPeriodQuery, fetchWithTimeout, handleResponse } from './api-helpers';
 
 export const polizasAndCfdiApi = {
-  getPolizas: (companyId: string, year?: number, period?: number) =>
-    fetchWithTimeout(`/api/polizas?${buildPeriodQuery(companyId, year, period)}`).then((r) =>
-      handleResponse<Poliza[]>(r)
-    ),
+  getPolizas: (companyId: string, year?: number, period?: number | 'ALL') => {
+    const qs =
+      period === 'ALL'
+        ? `${buildPeriodQuery(companyId, year, undefined)}&period=ALL`
+        : buildPeriodQuery(companyId, year, period);
+    return fetchWithTimeout(`/api/polizas?${qs}`).then((r) => handleResponse<Poliza[]>(r));
+  },
 
   createPoliza: (payload: {
     companyId: string;
@@ -75,6 +78,22 @@ export const polizasAndCfdiApi = {
       body: JSON.stringify({ companyId })
     }).then((r) =>
       handleResponse<{ closed: boolean; polizaId: string; utilidadTraspasada: number }>(r)
+    ),
+
+  reclassifyAccountMovements: (payload: {
+    companyId: string;
+    fromAccountId: string;
+    toAccountId: string;
+    ejercicio: number;
+    periodFrom?: number;
+    periodTo?: number;
+  }) =>
+    fetchWithTimeout('/api/polizas/reclassify-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then((r) =>
+      handleResponse<{ updatedMovementsCount: number; affectedPolizasCount: number }>(r)
     ),
 
   getCfdis: (companyId: string) =>

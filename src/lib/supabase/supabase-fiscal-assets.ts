@@ -1,5 +1,6 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import { logCompanyAuditEvent } from './audit-logger';
+import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import {
@@ -49,8 +50,16 @@ export interface UpdateFixedAssetPayload {
 export const supabaseFiscalAndAssets = {
   async getThirdParties(companyId: string): Promise<ThirdPartyRecord[]> {
     if (!supabase) return [];
-    const { data } = await supabase.from('third_parties').select('*').eq('company_id', companyId);
-    return (data || []).map((t: Record<string, unknown>) => mapSupabaseThirdParty(t));
+    const data = await fetchAllRows(async (from, to) =>
+      getRequiredSupabase()
+        .from('third_parties')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('rfc', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
+    return data.map((t: Record<string, unknown>) => mapSupabaseThirdParty(t));
   },
 
   async saveThirdParty(payload: Omit<ThirdPartyRecord, 'id' | 'updatedAt'>): Promise<ThirdPartyRecord> {
@@ -84,15 +93,19 @@ export const supabaseFiscalAndAssets = {
       effPeriod = effPeriod || Number(comp?.current_period) || 10;
     }
 
-    const { data } = await supabase
-      .from('fixed_assets')
-      .select('*')
-      .eq('company_id', companyId)
-      .order('fecha_adquisicion', { ascending: true });
+    const data = await fetchAllRows(async (from, to) =>
+      getRequiredSupabase()
+        .from('fixed_assets')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('fecha_adquisicion', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const periodPolizas = await supabasePolizas.getPolizas(companyId, effYear, effPeriod);
     const alreadyDepreciatedThisPeriod = hasExistingDepreciationPoliza(periodPolizas);
-    const rawAssets = (data || []).map((f: Record<string, unknown>) => mapSupabaseFixedAsset(f));
+    const rawAssets = data.map((f: Record<string, unknown>) => mapSupabaseFixedAsset(f));
     const periodCtx = { ejercicio: effYear, periodo: effPeriod, alreadyDepreciatedThisPeriod };
     const assets = rawAssets.map((a) => computeFixedAssetWithDepreciation(a, periodCtx));
 

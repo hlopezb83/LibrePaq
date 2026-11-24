@@ -24,12 +24,14 @@ export interface PolizaCardItemProps {
   isPeriodLocked: boolean;
   isReadOnlyClient?: boolean;
   isDeleting?: boolean;
+  isReversing?: boolean;
   copiedPolizaId: string | null;
   confirmDeleteId: string | null;
   onToggleExpand: (id: string) => void;
   onCopyPoliza: (pol: Poliza) => void;
   onPrintPoliza?: (pol: Poliza) => void;
   onDuplicate: (pol: Poliza) => void;
+  onReverse?: (pol: Poliza) => void;
   onEdit: (pol: Poliza) => void;
   onConfirmDelete: (id: string) => void;
   onCancelDelete: () => void;
@@ -45,12 +47,14 @@ function PolizaCardItemBase({
   isPeriodLocked,
   isReadOnlyClient = false,
   isDeleting = false,
+  isReversing = false,
   copiedPolizaId,
   confirmDeleteId,
   onToggleExpand,
   onCopyPoliza,
   onPrintPoliza,
   onDuplicate,
+  onReverse,
   onEdit,
   onConfirmDelete,
   onCancelDelete,
@@ -186,11 +190,13 @@ function PolizaCardItemBase({
             isReadOnlyClient={isReadOnlyClient}
             isPeriodLocked={isPeriodLocked}
             isDeleting={isDeleting}
+            isReversing={isReversing}
             copiedPolizaId={copiedPolizaId}
             confirmDeleteId={confirmDeleteId}
             onCopyPoliza={onCopyPoliza}
             onPrintPoliza={onPrintPoliza}
             onDuplicate={onDuplicate}
+            onReverse={onReverse}
             onEdit={onEdit}
             onConfirmDelete={onConfirmDelete}
             onCancelDelete={onCancelDelete}

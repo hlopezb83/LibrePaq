@@ -112,8 +112,12 @@ export const guestDemoExtras = {
     });
   },
 
-  async getCxcCxpAging(companyId: string) {
-    return computeCxcCxpAging({ companyId, cfdis: getGuestDemoState().cfdis.filter((c) => c.companyId === companyId) });
+  async getCxcCxpAging(companyId: string, asOfIso?: string) {
+    return computeCxcCxpAging({
+      companyId,
+      cfdis: getGuestDemoState().cfdis.filter((c) => c.companyId === companyId),
+      asOfIso
+    });
   },
 
   async getPeriodLock(companyId: string, year?: number, period?: number): Promise<PeriodLock> {

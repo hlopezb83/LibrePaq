@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import { SAFETY_BOUNDS } from './sat-constants';
 import { getTodayLocalIso } from './date-utils';
+import { stripXmlAddenda } from './xml-utils';
 import type { CfdiRelatedDoc, CfdiTaxBreakdown, CfdiTipo } from './types';
 import {
   extractCfdiTaxBreakdown,
@@ -19,6 +20,7 @@ export { buildCfdi40Xml } from './cfdi-xml-builder';
 export interface ParsedCfdiPayload {
   uuid: string;
   fecha: string;
+  fechaPago?: string | null;
   tipoComprobante: CfdiTipo;
   serie: string;
   folio: string;
@@ -48,8 +50,9 @@ export interface ParsedCfdiPayload {
 }
 
 export function extractNominaOtrosPagos(xmlRaw: string): number {
-  if (!xmlRaw || !xmlRaw.includes('TotalOtrosPagos')) return 0;
-  const m = /TotalOtrosPagos=["']([0-9]+(?:\.[0-9]+)?)["']/i.exec(xmlRaw);
+  const clean = stripXmlAddenda(xmlRaw);
+  if (!clean || !clean.includes('TotalOtrosPagos')) return 0;
+  const m = /TotalOtrosPagos=["']([0-9]+(?:\.[0-9]+)?)["']/i.exec(clean);
   return m?.[1] ? Number.parseFloat(m[1]) || 0 : 0;
 }
 
@@ -80,8 +83,11 @@ export function parseCfdiXmlString(
     throw new Error('CFDI_XML_TOO_LARGE: El archivo XML excede el límite de seguridad de 5 MB.');
   }
 
-  const parsed = getXmlParser().parse(xmlRaw) as XmlNode;
-  const comprobante = findNode(parsed, 'Comprobante') || parsed;
+  const parsed = getXmlParser().parse(stripXmlAddenda(xmlRaw)) as XmlNode;
+  const comprobante = findNode(parsed, 'Comprobante');
+  if (!comprobante) {
+    throw new Error('CFDI_INVALID_ROOT: El archivo XML no contiene el nodo raíz oficial <cfdi:Comprobante>.');
+  }
   const emisor = findNode(comprobante, 'Emisor');
   const receptor = findNode(comprobante, 'Receptor');
   const timbre = findNode(comprobante, 'TimbreFiscalDigital');
@@ -89,6 +95,7 @@ export function parseCfdiXmlString(
 
   const rawFecha = getAttr(comprobante, 'Fecha') || getTodayLocalIso();
   const fecha = rawFecha.slice(0, 10);
+  let fechaPago: string | null = null;
   const rawTipo = (getAttr(comprobante, 'TipoDeComprobante') || 'I').toUpperCase();
   const tipoComprobante: CfdiTipo = (
     ['I', 'E', 'P', 'N', 'T'].includes(rawTipo) ? rawTipo : 'I'
@@ -125,6 +132,7 @@ export function parseCfdiXmlString(
 
   if (tipoComprobante === 'P') {
     const pago = parsePago20Complement(comprobante, uuidRelacionado);
+    fechaPago = pago.fechaPago;
     subtotal = pago.subtotal;
     ivaTrasladado = pago.ivaTrasladado;
     isrRetenido = pago.isrRetenido;
@@ -140,6 +148,7 @@ export function parseCfdiXmlString(
     rawMetodo = 'PUE';
   } else if (tipoComprobante === 'N') {
     const nom = parseNomina12Complement(comprobante, subtotal, descuento);
+    fechaPago = nom.fechaPago;
     subtotal = nom.subtotal;
     isrRetenido = nom.isrRetenido;
     descuento = nom.descuento;
@@ -168,6 +177,7 @@ export function parseCfdiXmlString(
   return {
     uuid,
     fecha,
+    ...(fechaPago ? { fechaPago } : {}),
     tipoComprobante,
     serie: getAttr(comprobante, 'Serie'),
     folio: getAttr(comprobante, 'Folio'),

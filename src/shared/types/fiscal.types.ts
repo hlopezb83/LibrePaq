@@ -13,7 +13,7 @@ import type { InventoryPeriodRecord } from './cost-of-sales.types';
 export interface DiotSupplierRow {
   rfc: string;
   nombre: string;
-  tipoTercero: '04' | '05';
+  tipoTercero: '04' | '05' | '15';
   tipoOperacion: '03' | '06' | '85';
   actosPagados16: number;
   actosPagados8?: number;
@@ -43,6 +43,7 @@ export interface DiotReportResponse {
   };
   batchTxtContent: string;
   filename: string;
+  unpostedPaidCfdisCount?: number;
 }
 
 export interface BankStatementLine {
@@ -84,6 +85,7 @@ export interface BankReconciliationResponse {
     movimientosConciliados: number;
     movimientosPendientesBanco: number;
     movimientosPendientesLibros: number;
+    saldoBancoCierre?: number | null;
   };
 }
 
@@ -117,7 +119,7 @@ export interface SatDownloadRequestRecord {
   tipoSolicitud: 'EMITIDOS' | 'RECIBIDOS';
   fechaInicial: string;
   fechaFinal: string;
-  estadoSolicitud: 'ACEPTADA' | 'EN_PROCESO' | 'TERMINADA' | 'ERROR';
+  estadoSolicitud: 'ACEPTADA' | 'EN_PROCESO' | 'TERMINADA' | 'PARCIAL' | 'ERROR_LIMITE' | 'ERROR';
   codigoEstadoSat: string;
   mensajeSat: string;
   idPaqueteSat: string | null;
@@ -158,10 +160,13 @@ export interface ThirdPartyRecord {
   rol: 'PROVEEDOR' | 'CLIENTE' | 'AMBOS';
   cuentaOperacionCode: string;
   cuentaContrapartidaCode: string;
-  tipoTerceroDiot: '04' | '05';
+  tipoTerceroDiot: '04' | '05' | '15';
   tipoOperacionDiot: '03' | '06' | '85';
   tasaIvaDefault: 16 | 8 | 0;
   estatus69B: Efos69BStatus;
+  idFiscal?: string | null;
+  pais?: string | null;
+  jurisdiccionFiscal?: string | null;
   updatedAt: string;
 }
 
@@ -220,6 +225,7 @@ export interface TaxParametersRecord {
   pagosProvisionalesAnteriores: number;
   saldoFavorIvaAnterior: number;
   tipoCambioDofCierre: number;
+  ptuPagadaEjercicio?: number;
 }
 
 export interface RetencionDesgloseItem {
@@ -243,6 +249,7 @@ export interface FiscalWorkpaperResponse {
     deduccionesAutorizadasPeriodo: number;
     deduccionesAcumuladasEjercicio?: number;
     coeficienteUtilidadAplicado: number;
+    ptuPagadaAplicada?: number;
     utilidadFiscalEstimada: number;
     perdidasFiscalesAplicadas: number;
     baseGravableIsr: number;
@@ -259,6 +266,9 @@ export interface FiscalWorkpaperResponse {
     ivaRetenidoPorPagar: number;
     ivaRetenidoAcreditable?: number;
     saldoFavorIvaAcreditable: number;
+    saldoFavorIvaAnteriorDisponible?: number;
+    saldoFavorIvaAplicado?: number;
+    saldoFavorIvaMes?: number;
     ivaNetoAPagar: number;
     saldoFavorIvaRemanente: number;
   };
@@ -288,6 +298,7 @@ export interface FiscalWorkpaperResponse {
     pueIngresos: number;
     repIngresos: number;
     creditNotesRestados: number;
+    isrRetenidoFavorAcumulado?: number;
   };
   resicoThresholdAlert?: {
     applies: boolean;

@@ -185,7 +185,8 @@ describe('validators — SAT Anexo 24 XML Generation', () => {
     expect(res.xml).toContain('catalogocuentas:Catalogo');
     expect(res.xml).toContain('Version="1.3"');
     expect(res.xml).toContain('RFC="STN190822M94"');
-    expect(res.xml).toContain('NumCta="100-00-000"');
+    expect(res.xml).not.toContain('NumCta="100-00-000"');
+    expect(res.xml).toContain('NumCta="102-01-001"');
     expect(res.xml).toContain('CodAgrup="102.01"');
     expect(res.xml).toContain('Natur="D"');
   });

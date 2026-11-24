@@ -19,6 +19,7 @@ export interface Dia17DraftParams {
   pagosPrevios: string;
   ivaSaldoFavor: string;
   tcCierreUsd: string;
+  ptuPagadaEjercicio: string;
 }
 
 export function sanitizeDecimalInput(raw: string): string {
@@ -67,7 +68,8 @@ export function usePapelDia17({
     perdidasAmortizar: '0',
     pagosPrevios: '0',
     ivaSaldoFavor: '0',
-    tcCierreUsd: '0'
+    tcCierreUsd: '0',
+    ptuPagadaEjercicio: '0'
   });
 
   const { copiedKey, copy: copySatDyp } = useCopyToClipboard<'sat-dyp'>(2500);
@@ -81,7 +83,8 @@ export function usePapelDia17({
       perdidasAmortizar: String(p.perdidasFiscalesPendientes),
       pagosPrevios: String(p.pagosProvisionalesAnteriores ?? 0),
       ivaSaldoFavor: String(p.saldoFavorIvaAnterior),
-      tcCierreUsd: String(p.tipoCambioDofCierre)
+      tcCierreUsd: String(p.tipoCambioDofCierre),
+      ptuPagadaEjercicio: String(p.ptuPagadaEjercicio ?? 0)
     });
   }, [workpaper?.parameters]);
 
@@ -105,6 +108,7 @@ export function usePapelDia17({
   const parsedPagosPrevios = parseDraftNumber(draftParams.pagosPrevios);
   const parsedIvaFavor = parseDraftNumber(draftParams.ivaSaldoFavor);
   const parsedTcUsd = parseDraftNumber(draftParams.tcCierreUsd);
+  const parsedPtuPagada = parseDraftNumber(draftParams.ptuPagadaEjercicio);
 
   const hasUnsavedParams = Boolean(
     workpaper?.parameters &&
@@ -112,7 +116,8 @@ export function usePapelDia17({
         parsedPerdidas !== workpaper.parameters.perdidasFiscalesPendientes ||
         parsedPagosPrevios !== (workpaper.parameters.pagosProvisionalesAnteriores ?? 0) ||
         parsedIvaFavor !== workpaper.parameters.saldoFavorIvaAnterior ||
-        parsedTcUsd !== workpaper.parameters.tipoCambioDofCierre)
+        parsedTcUsd !== workpaper.parameters.tipoCambioDofCierre ||
+        parsedPtuPagada !== (workpaper.parameters.ptuPagadaEjercicio ?? 0))
   );
 
   const handleCopySatDyp = () => {
@@ -134,7 +139,8 @@ export function usePapelDia17({
         perdidasAmortizar: String(parsedPerdidas),
         pagosPrevios: String(parsedPagosPrevios),
         ivaSaldoFavor: String(parsedIvaFavor),
-        tcCierreUsd: String(parsedTcUsd)
+        tcCierreUsd: String(parsedTcUsd),
+        ptuPagadaEjercicio: String(parsedPtuPagada)
       };
       setDraftParams(normalized);
       return apiClient.saveTaxParameters({
@@ -145,7 +151,8 @@ export function usePapelDia17({
         perdidasFiscalesPendientes: parsedPerdidas,
         pagosProvisionalesAnteriores: parsedPagosPrevios,
         saldoFavorIvaAnterior: parsedIvaFavor,
-        tipoCambioDofCierre: parsedTcUsd
+        tipoCambioDofCierre: parsedTcUsd,
+        ptuPagadaEjercicio: parsedPtuPagada
       });
     },
     onSuccess: () => {

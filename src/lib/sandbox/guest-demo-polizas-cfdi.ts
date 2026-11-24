@@ -16,10 +16,48 @@ import type {
 import { getGuestDemoState } from './guest-demo-store';
 
 export const guestDemoPolizasCfdi = {
-  async getPolizas(companyId: string, year?: number, period?: number): Promise<Poliza[]> {
+  async getPolizas(companyId: string, year?: number, period?: number | 'ALL'): Promise<Poliza[]> {
     return getGuestDemoState().polizas.filter(
-      (p) => p.companyId === companyId && (!year || p.ejercicio === year) && (!period || p.periodo === period)
+      (p) =>
+        p.companyId === companyId &&
+        (!year || p.ejercicio === year) &&
+        (typeof period !== 'number' || p.periodo === period)
     );
+  },
+
+  async reclassifyAccountMovements(payload: {
+    companyId: string;
+    fromAccountId: string;
+    toAccountId: string;
+    ejercicio: number;
+    periodFrom?: number;
+    periodTo?: number;
+  }): Promise<{ updatedMovementsCount: number; affectedPolizasCount: number }> {
+    const s = getGuestDemoState();
+    const toAcc = s.accounts.find((a) => a.companyId === payload.companyId && a.id === payload.toAccountId);
+    const fromAcc = s.accounts.find((a) => a.companyId === payload.companyId && a.id === payload.fromAccountId);
+    if (!fromAcc || !toAcc) throw new Error('Cuenta origen o destino no encontrada.');
+    if (!fromAcc.isAffectable || !toAcc.isAffectable) {
+      throw new Error('Ambas cuentas deben ser afectables para reclasificar.');
+    }
+    const pFrom = Math.max(1, payload.periodFrom ?? 1);
+    const pTo = Math.min(13, payload.periodTo ?? 13);
+    let updatedMovementsCount = 0;
+    const affectedPolizas = new Set<string>();
+    for (const pol of s.polizas) {
+      if (pol.companyId !== payload.companyId || pol.ejercicio !== payload.ejercicio) continue;
+      if (pol.periodo < pFrom || pol.periodo > pTo) continue;
+      for (const m of pol.movements) {
+        if (m.accountId === fromAcc.id) {
+          m.accountId = toAcc.id;
+          m.accountCode = toAcc.code;
+          m.accountName = toAcc.name;
+          updatedMovementsCount += 1;
+          affectedPolizas.add(pol.id);
+        }
+      }
+    }
+    return { updatedMovementsCount, affectedPolizasCount: affectedPolizas.size };
   },
 
   async createPoliza(payload: {

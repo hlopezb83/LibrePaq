@@ -32,8 +32,11 @@ export function BalanzaTotalsFooter({
   affectableFilteredCount,
   filteredBalanzaTotals
 }: BalanzaTotalsFooterProps) {
-  const isCargosAbonosBalanced =
-    Math.abs(filteredBalanzaTotals.cargos - filteredBalanzaTotals.abonos) < 0.01;
+  const diffInit = Math.abs(filteredBalanzaTotals.initialDeudor - filteredBalanzaTotals.initialAcreedor);
+  const diffMov = Math.abs(filteredBalanzaTotals.cargos - filteredBalanzaTotals.abonos);
+  const diffFinal = Math.abs(filteredBalanzaTotals.finalDeudor - filteredBalanzaTotals.finalAcreedor);
+  const maxPairDiff = Math.max(diffInit, diffMov, diffFinal);
+  const isAllThreeBalanced = maxPairDiff < 0.01;
   const isFiltered = Boolean(balanzaSearch.trim() || onlyAffectable || levelScope !== 'ALL' || hideZeroBalances);
   const unitLabel = SCOPE_UNIT[levelScope] ?? 'cuentas';
 
@@ -42,13 +45,13 @@ export function BalanzaTotalsFooter({
       <tr className="bg-[#0A1120] text-white font-mono text-xs font-bold border-t-2 border-blue-500">
         <td colSpan={4} className="py-3 px-4 text-right uppercase tracking-wider">
           <div className="flex items-center justify-end gap-2">
-            {isCargosAbonosBalanced ? (
+            {isAllThreeBalanced ? (
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                Sumas Iguales ✔
+                Sumas Iguales (3/3) ✔
               </span>
             ) : !isFiltered ? (
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-300 border border-red-500/40">
-                Diferencia: {formatCurrency(Math.abs(filteredBalanzaTotals.cargos - filteredBalanzaTotals.abonos))}
+                Diferencia ({diffInit >= 0.01 ? 'Inicial' : diffMov >= 0.01 ? 'Movimientos' : 'Final'}): {formatCurrency(maxPairDiff)}
               </span>
             ) : null}
             <span>

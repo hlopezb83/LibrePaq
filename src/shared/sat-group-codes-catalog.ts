@@ -1,7 +1,7 @@
 export interface SatGroupCodeItem {
   code: string;
   name: string;
-  type: 'ACTIVO' | 'PASIVO' | 'CAPITAL' | 'INGRESOS' | 'COSTOS' | 'GASTOS';
+  type: 'ACTIVO' | 'PASIVO' | 'CAPITAL' | 'INGRESOS' | 'COSTOS' | 'GASTOS' | 'ORDEN';
   nature: 'DEUDORA' | 'ACREEDORA';
 }
 
@@ -108,6 +108,7 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '213.03', name: 'ISR por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '213.04', name: 'Impuesto estatal sobre nóminas por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '213.07', name: 'Otros impuestos y derechos por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
+  { code: '213.09', name: 'Otros impuestos locales / ISH por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '215', name: 'PTU por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '215.01', name: 'PTU por pagar del ejercicio', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '216', name: 'Impuestos retenidos', type: 'PASIVO', nature: 'ACREEDORA' },
@@ -115,8 +116,9 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '216.02', name: 'Impuestos retenidos de ISR por asimilados a salarios', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '216.03', name: 'Impuestos retenidos de ISR por arrendamiento', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '216.04', name: 'Impuestos retenidos de ISR por servicios profesionales', type: 'PASIVO', nature: 'ACREEDORA' },
+  { code: '216.09', name: 'Otros impuestos retenidos (incl. ISR RESICO)', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '216.10', name: 'Impuestos retenidos de IVA', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '216.11', name: 'Retenciones de IMSS / ISR RESICO por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
+  { code: '216.11', name: 'Retenciones de IMSS a los trabajadores', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '251', name: 'Acreedores diversos a largo plazo', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '252', name: 'Cuentas y créditos por pagar a largo plazo', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '252.01', name: 'Cuentas por pagar a largo plazo nacional', type: 'PASIVO', nature: 'ACREEDORA' },
@@ -192,6 +194,7 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '611', name: 'Impuesto Sobre la Renta', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '611.01', name: 'Impuesto Sobre la Renta del ejercicio', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '613', name: 'Depreciación contable', type: 'GASTOS', nature: 'DEUDORA' },
+  { code: '613.01', name: 'Depreciación contable de activos fijos', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '613.03', name: 'Depreciación de equipo de transporte', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '613.04', name: 'Depreciación de mobiliario y equipo de oficina', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '613.05', name: 'Depreciación de equipo de cómputo', type: 'GASTOS', nature: 'DEUDORA' },
@@ -205,12 +208,12 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '702.04', name: 'Intereses a favor bancarios nacional', type: 'INGRESOS', nature: 'ACREEDORA' },
   { code: '702.10', name: 'Otros productos financieros', type: 'INGRESOS', nature: 'ACREEDORA' },
   // 800 CUENTAS DE ORDEN FISCALES
-  { code: '800', name: 'Cuentas de orden', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '801', name: 'UFIN del ejercicio (Cuenta de orden)', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '801.01', name: 'UFIN del ejercicio', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '802', name: 'CUFIN del ejercicio (Cuenta de orden)', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '802.01', name: 'CUFIN', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '803', name: 'CUCA del ejercicio (Cuenta de orden)', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '803.01', name: 'CUCA', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '899', name: 'Otras cuentas de orden', type: 'ACTIVO', nature: 'DEUDORA' }
+  { code: '800', name: 'Cuentas de orden', type: 'ORDEN', nature: 'DEUDORA' },
+  { code: '801', name: 'UFIN del ejercicio (Cuenta de orden)', type: 'ORDEN', nature: 'DEUDORA' },
+  { code: '801.01', name: 'UFIN del ejercicio', type: 'ORDEN', nature: 'DEUDORA' },
+  { code: '802', name: 'CUFIN del ejercicio (Cuenta de orden)', type: 'ORDEN', nature: 'DEUDORA' },
+  { code: '802.01', name: 'CUFIN', type: 'ORDEN', nature: 'DEUDORA' },
+  { code: '803', name: 'CUCA del ejercicio (Cuenta de orden)', type: 'ORDEN', nature: 'DEUDORA' },
+  { code: '803.01', name: 'CUCA', type: 'ORDEN', nature: 'DEUDORA' },
+  { code: '899', name: 'Otras cuentas de orden', type: 'ORDEN', nature: 'DEUDORA' }
 ];

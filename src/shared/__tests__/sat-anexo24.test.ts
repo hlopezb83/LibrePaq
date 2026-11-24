@@ -134,15 +134,13 @@ describe('SAT Anexo 24 v1.3 — Generador Oficial de Contabilidad Electrónica',
     expect(res.xml).toContain('Mes="10"');
     expect(res.xml).toContain('Anio="2026"');
 
-    // Elementos de cuentas
-    expect(res.xml).toContain('NumCta="100-00-000"');
-    expect(res.xml).toContain('CodAgrup="100"');
-    expect(res.xml).toContain('Natur="D"');
+    // Elementos de cuentas (excluye rubro estructural nivel 1 100-00-000 según XSD SAT)
+    expect(res.xml).not.toContain('NumCta="100-00-000"');
 
-    // Subcuenta con parentCode
+    // Subcuenta promovida a Nivel="1" al omitirse el rubro estructural 100-00-000
     expect(res.xml).toContain('NumCta="102-01-001"');
-    expect(res.xml).toContain('SubCtaDe="100-00-000"');
-    expect(res.xml).toContain('Nivel="2"');
+    expect(res.xml).not.toContain('SubCtaDe="100-00-000"');
+    expect(res.xml).toContain('Nivel="1"');
 
     // Cuenta acreedora
     expect(res.xml).toContain('NumCta="201-01-001"');

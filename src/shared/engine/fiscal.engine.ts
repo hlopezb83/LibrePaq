@@ -92,10 +92,13 @@ export function computeFiscalWorkpaper(params: {
   const cu = Math.max(0, Math.min(1, parameters.coeficienteUtilidad));
   const perdidasDisponiblesCents = toCents(parameters.perdidasFiscalesPendientes);
   const pagosPreviosCents = toCents(parameters.pagosProvisionalesAnteriores);
+  const ptuPagadaCents = Math.max(0, toCents(parameters.ptuPagadaEjercicio ?? 0));
   const isrRetenidoAcreditableCents = toCents(isrRetenidoFavorPeriodo);
+  const effectiveMes = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
 
   let utilidadFiscalEstimadaCents = 0;
   let perdidasAplicadasCents = 0;
+  let ptuDeducibleCents = 0;
   let baseGravableIsrCents = 0;
   let tasaIsrPct = 30.0;
   let isrCausadoCents = 0;
@@ -105,12 +108,14 @@ export function computeFiscalWorkpaper(params: {
     const positiveMesCents = Math.max(0, ingresosMesCents);
     utilidadFiscalEstimadaCents = positiveMesCents;
     perdidasAplicadasCents = 0;
+    ptuDeducibleCents = 0;
     baseGravableIsrCents = positiveMesCents;
     tasaIsrPct = calculateResicoPfRate(positiveMesCents);
     isrCausadoCents = Math.round(baseGravableIsrCents * (tasaIsrPct / 100));
     isrNetoAPagarCents = Math.max(0, isrCausadoCents - isrRetenidoAcreditableCents);
   } else if (esResico && !isPersonaFisica) {
-    utilidadFiscalEstimadaCents = Math.max(0, ingresosAcumCents - deduccionesAcumCents);
+    ptuDeducibleCents = ptuPagadaCents;
+    utilidadFiscalEstimadaCents = Math.max(0, ingresosAcumCents - deduccionesAcumCents - ptuDeducibleCents);
     perdidasAplicadasCents = Math.min(utilidadFiscalEstimadaCents, perdidasDisponiblesCents);
     baseGravableIsrCents = Math.max(0, utilidadFiscalEstimadaCents - perdidasAplicadasCents);
     tasaIsrPct = 30.0;
@@ -120,7 +125,8 @@ export function computeFiscalWorkpaper(params: {
       isrCausadoCents - pagosPreviosCents - isrRetenidoAcreditableCents
     );
   } else if (isPersonaFisica && !esResico) {
-    utilidadFiscalEstimadaCents = Math.max(0, ingresosAcumCents - deduccionesAcumCents);
+    ptuDeducibleCents = ptuPagadaCents;
+    utilidadFiscalEstimadaCents = Math.max(0, ingresosAcumCents - deduccionesAcumCents - ptuDeducibleCents);
     perdidasAplicadasCents = Math.min(utilidadFiscalEstimadaCents, perdidasDisponiblesCents);
     baseGravableIsrCents = Math.max(0, utilidadFiscalEstimadaCents - perdidasAplicadasCents);
     const pfCalc = calculateArt106PfIsr(baseGravableIsrCents, periodo, ejercicio);
@@ -131,7 +137,9 @@ export function computeFiscalWorkpaper(params: {
       isrCausadoCents - pagosPreviosCents - isrRetenidoAcreditableCents
     );
   } else {
-    utilidadFiscalEstimadaCents = Math.max(0, Math.round(ingresosAcumCents * cu));
+    ptuDeducibleCents =
+      effectiveMes >= 5 ? Math.round((ptuPagadaCents * (effectiveMes - 4)) / 8) : 0;
+    utilidadFiscalEstimadaCents = Math.max(0, Math.round(ingresosAcumCents * cu) - ptuDeducibleCents);
     perdidasAplicadasCents = Math.min(utilidadFiscalEstimadaCents, perdidasDisponiblesCents);
     baseGravableIsrCents = Math.max(0, utilidadFiscalEstimadaCents - perdidasAplicadasCents);
     tasaIsrPct = 30.0;
@@ -147,17 +155,20 @@ export function computeFiscalWorkpaper(params: {
   const ivaPagadoCents = toCents(ivaAcreditablePagado);
   const ivaRetenidoCents = toCents(ivaRetenidoPorPagar);
   const ivaRetenidoFavorCents = toCents(ivaRetenidoFavorPeriodo ?? 0);
-  const saldoFavorAnteriorCents = toCents(parameters.saldoFavorIvaAnterior);
+  const saldoFavorAnteriorCents = Math.max(0, toCents(parameters.saldoFavorIvaAnterior));
   const actosGravados16Cents =
     params.ivaBreakdown &&
     (params.ivaBreakdown.base16 > 0 || params.ivaBreakdown.base8 > 0 || params.ivaBreakdown.base0 > 0)
       ? toCents(params.ivaBreakdown.base16)
       : Math.round(ivaCobradoCents / 0.16);
 
-  const rawIvaDiffCents =
-    ivaCobradoCents - ivaPagadoCents - ivaRetenidoFavorCents - saldoFavorAnteriorCents;
-  const ivaNetoAPagarCents = Math.max(0, rawIvaDiffCents);
-  const saldoFavorRemanenteCents = rawIvaDiffCents < 0 ? Math.abs(rawIvaDiffCents) : 0;
+  const ivaBrutoMesCents = ivaCobradoCents - ivaPagadoCents - ivaRetenidoFavorCents;
+  const ivaACargoBrutoCents = Math.max(0, ivaBrutoMesCents);
+  const saldoFavorIvaMesCents = ivaBrutoMesCents < 0 ? Math.abs(ivaBrutoMesCents) : 0;
+  const ivaAcreditableSaldoFavorAplicadoCents = Math.min(ivaACargoBrutoCents, saldoFavorAnteriorCents);
+  const ivaNetoAPagarCents = ivaACargoBrutoCents - ivaAcreditableSaldoFavorAplicadoCents;
+  const saldoFavorRemanenteCents =
+    saldoFavorIvaMesCents + (saldoFavorAnteriorCents - ivaAcreditableSaldoFavorAplicadoCents);
 
   // Fluctuación Cambiaria USD (NIF B-15: solo partidas monetarias vigentes PPD / insolutas)
   const tcDof = parameters.tipoCambioDofCierre > 0 ? parameters.tipoCambioDofCierre : 19.85;
@@ -219,6 +230,7 @@ export function computeFiscalWorkpaper(params: {
       deduccionesAutorizadasPeriodo: fromCents(deduccionesMesCents),
       deduccionesAcumuladasEjercicio: fromCents(deduccionesAcumCents),
       coeficienteUtilidadAplicado: cu,
+      ptuPagadaAplicada: fromCents(ptuDeducibleCents),
       utilidadFiscalEstimada: fromCents(utilidadFiscalEstimadaCents),
       perdidasFiscalesAplicadas: fromCents(perdidasAplicadasCents),
       baseGravableIsr: fromCents(baseGravableIsrCents),
@@ -234,7 +246,10 @@ export function computeFiscalWorkpaper(params: {
       ivaAcreditablePagado: fromCents(ivaPagadoCents),
       ivaRetenidoPorPagar: fromCents(ivaRetenidoCents),
       ivaRetenidoAcreditable: fromCents(ivaRetenidoFavorCents),
-      saldoFavorIvaAcreditable: fromCents(saldoFavorAnteriorCents),
+      saldoFavorIvaAcreditable: fromCents(ivaAcreditableSaldoFavorAplicadoCents),
+      saldoFavorIvaAnteriorDisponible: fromCents(saldoFavorAnteriorCents),
+      saldoFavorIvaAplicado: fromCents(ivaAcreditableSaldoFavorAplicadoCents),
+      saldoFavorIvaMes: fromCents(saldoFavorIvaMesCents),
       ivaNetoAPagar: fromCents(ivaNetoAPagarCents),
       saldoFavorIvaRemanente: fromCents(saldoFavorRemanenteCents)
     },

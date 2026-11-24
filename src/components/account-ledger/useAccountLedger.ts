@@ -7,6 +7,7 @@ import { apiClient } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
 import { exportAccountLedgerXlsx } from '../../lib/excel-export';
 import { MESES_SAT } from '../../shared/sat-constants';
+import { fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type { AccountLedgerEntry } from '../../shared/types';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
@@ -96,7 +97,7 @@ export function useAccountLedger(
   const effectiveFrom = Math.min(periodFrom, periodTo);
   const effectiveTo = Math.max(periodFrom, periodTo);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data: rawData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['account-ledger', companyId, accountId, currentYear, effectiveFrom, effectiveTo],
     queryFn: () =>
       apiClient.getAccountLedger(
@@ -108,6 +109,27 @@ export function useAccountLedger(
       ),
     enabled: Boolean(accountId)
   });
+
+  const data = useMemo(() => {
+    if (!rawData) return undefined;
+    const sorted = [...rawData.entries].sort((a, b) => {
+      const dateCmp = String(a.fecha).localeCompare(String(b.fecha));
+      if (dateCmp !== 0) return dateCmp;
+      const perCmp = Number(a.periodo ?? 0) - Number(b.periodo ?? 0);
+      if (perCmp !== 0) return perCmp;
+      const folioCmp = Number(a.folioPoliza) - Number(b.folioPoliza);
+      return folioCmp !== 0 ? folioCmp : String(a.movementId).localeCompare(String(b.movementId));
+    });
+    let runningCents = toCents(rawData.initialBalance);
+    const isDeudora = rawData.account.nature === 'DEUDORA';
+    const entries = sorted.map((e) => {
+      const c = toCents(e.cargo);
+      const a = toCents(e.abono);
+      runningCents += isDeudora ? c - a : a - c;
+      return { ...e, runningBalance: fromCents(runningCents) };
+    });
+    return { ...rawData, entries };
+  }, [rawData]);
 
   const mesFromNombre =
     MESES_SAT.find((m) => m.periodo === effectiveFrom)?.corto || `P${effectiveFrom}`;

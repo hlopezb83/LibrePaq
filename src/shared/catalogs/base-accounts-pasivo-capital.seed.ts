@@ -51,7 +51,9 @@ export const BASE_ACCOUNTS_PASIVO_CAPITAL: ReadonlyArray<SeedAccount> = [
   acc('PASIVO', '216-01-002', 'Retenciones de IVA por Pagar', '216-00-000', 3, true, '216.10'),
   acc('PASIVO', '216-01-003', 'Retenciones de ISR por Arrendamiento', '216-00-000', 3, true, '216.03'),
   acc('PASIVO', '216-01-004', 'Retenciones de ISR por Servicios Profesionales (Honorarios)', '216-00-000', 3, true, '216.04'),
-  acc('PASIVO', '216-01-005', 'Retenciones de ISR RESICO por Pagar', '216-00-000', 3, true, '216.11'),
+  acc('PASIVO', '216-01-005', 'Retenciones de ISR RESICO por Pagar', '216-00-000', 3, true, '216.09'),
+  acc('PASIVO', '216-02-001', 'ISR Retenido PPD Pendiente de Pago', '216-00-000', 3, true, '216.01'),
+  acc('PASIVO', '216-02-002', 'IVA Retenido PPD Pendiente de Pago', '216-00-000', 3, true, '216.10'),
   // CAPITAL
   acc('CAPITAL', '300-00-000', 'CAPITAL CONTABLE', null, 1, false, '300'),
   acc('CAPITAL', '301-00-000', 'Capital Social y Resultados Acumulados', '300-00-000', 2, false, '301'),

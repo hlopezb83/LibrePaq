@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   AlertCircle,
   RefreshCw,
@@ -8,6 +8,7 @@ import {
   X
 } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
+import { checkRfcsAgainstCloud69B } from '../../lib/supabase/supabase-cxc-sat';
 import type { AccountWithBalance } from '../../shared/types';
 import { Importar69BModal } from './Importar69BModal';
 import { PadronProveedoresForm } from './PadronProveedoresForm';
@@ -19,7 +20,7 @@ export interface PadronProveedoresTabProps {
   accounts: AccountWithBalance[];
   isReadOnlyClient?: boolean;
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
-  initialRfcToClassify?: { rfc: string; nombre?: string; tipoTercero?: '04' | '05'; tipoOperacion?: '03' | '06' | '85' } | null;
+  initialRfcToClassify?: { rfc: string; nombre?: string; tipoTercero?: '04' | '05' | '15'; tipoOperacion?: '03' | '06' | '85' } | null;
   onClearInitialClassify?: () => void;
 }
 
@@ -52,6 +53,12 @@ export function PadronProveedoresTab({
     setTpRol,
     tpTipoTercero,
     setTpTipoTercero,
+    tpIdFiscal,
+    setTpIdFiscal,
+    tpPais,
+    setTpPais,
+    tpJurisdiccionFiscal,
+    setTpJurisdiccionFiscal,
     tpOperacion,
     setTpOperacion,
     tpExpenseAcc,
@@ -67,6 +74,20 @@ export function PadronProveedoresTab({
     handle69BImportComplete,
     saveThirdPartyMutation
   } = usePadronProveedores({ companyId, accounts, isReadOnlyClient: isReadOnly, onFeedback });
+
+  const checkedCloudKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (!companyId || thirdParties.length === 0) return;
+    const rfcs = thirdParties.map((tp) => tp.rfc).filter((r) => r.length >= 12);
+    const key = `${companyId}::${rfcs.join(',')}`;
+    if (rfcs.length === 0 || checkedCloudKeyRef.current === key) return;
+    checkedCloudKeyRef.current = key;
+    void checkRfcsAgainstCloud69B(rfcs, companyId)
+      .then((res) => {
+        if (res.matches.length > 0) void refetchTp();
+      })
+      .catch(() => undefined);
+  }, [companyId, thirdParties, refetchTp]);
 
   useEffect(() => {
     if (!initialRfcToClassify) return;
@@ -136,6 +157,12 @@ export function PadronProveedoresTab({
           setTpRol={setTpRol}
           tpTipoTercero={tpTipoTercero}
           setTpTipoTercero={setTpTipoTercero}
+          tpIdFiscal={tpIdFiscal}
+          setTpIdFiscal={setTpIdFiscal}
+          tpPais={tpPais}
+          setTpPais={setTpPais}
+          tpJurisdiccionFiscal={tpJurisdiccionFiscal}
+          setTpJurisdiccionFiscal={setTpJurisdiccionFiscal}
           tpExpenseAcc={tpExpenseAcc}
           setTpExpenseAcc={setTpExpenseAcc}
           tpIvaRate={tpIvaRate}

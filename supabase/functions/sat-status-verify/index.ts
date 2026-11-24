@@ -72,17 +72,11 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'UPSERT_69B_BATCH') {
       if (auth.platformRole !== 'SUPERADMIN') {
-        if (!payload?.companyId || typeof payload.companyId !== 'string' || !payload.companyId.trim()) {
-          return jsonResponse(
-            { ok: false, error: 'Acceso denegado: se requiere rol SUPERADMIN o SOCIO con companyId válido' },
-            403,
-            headers
-          );
-        }
-        const access = await authorizeCompanyRole(supabase, auth, payload.companyId, 'SOCIO');
-        if (!access.ok) {
-          return jsonResponse({ ok: false, error: access.error }, access.status, headers);
-        }
+        return jsonResponse(
+          { ok: false, error: 'Acceso denegado: se requiere rol SUPERADMIN para actualizar el padrón global 69-B' },
+          403,
+          headers
+        );
       }
       return await handleUpsert69BBatch(supabase, payload as Upsert69BBatchPayload, headers);
     }

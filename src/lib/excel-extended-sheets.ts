@@ -61,8 +61,8 @@ export function buildCashFlowSheetData(
     [labelCell('FLUJO NETO DE FINANCIAMIENTO', true), sCell(''), labelCell('Suma de Actividades de Financiamiento', true), mxnCell(cf.flujoNetoFinanciamiento, true)],
     [],
     [labelCell('VARIACIÓN NETA DE EFECTIVO', true), sCell('NIF B-2'), labelCell('Operación + Inversión + Financiamiento', true), mxnCell(cf.variacionNetaEfectivo, true)],
-    [labelCell('EFECTIVO AL INICIO DEL PERIODO'), sCell('101/102'), labelCell('Efectivo y Equivalentes Iniciales'), mxnCell(cf.efectivoInicial)],
-    [labelCell('EFECTIVO AL FINAL DEL PERIODO', true), sCell('101/102'), labelCell('Efectivo y Equivalentes Finales', true), mxnCell(cf.efectivoFinal, true)],
+    [labelCell('EFECTIVO AL INICIO DEL PERIODO'), sCell('101/102/103'), labelCell('Efectivo y Equivalentes Iniciales'), mxnCell(cf.efectivoInicial)],
+    [labelCell('EFECTIVO AL FINAL DEL PERIODO', true), sCell('101/102/103'), labelCell('Efectivo y Equivalentes Finales', true), mxnCell(cf.efectivoFinal, true)],
     [labelCell('RECONCILIACIÓN NIF B-2', true), sCell(cf.isReconciled ? 'CUADRADO' : 'DIFERENCIA'), labelCell('Diferencia vs Variación de Caja/Bancos'), mxnCell(cf.diferenciaReconciliacion)]
   ];
   return rows;

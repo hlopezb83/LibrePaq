@@ -1,4 +1,4 @@
-import type { Account, FiscalWorkpaperResponse } from '../types';
+import type { Account, AccountWithBalance, FiscalWorkpaperResponse } from '../types';
 import {
   assertAccountingInvariant,
   fromCents,
@@ -8,16 +8,29 @@ import {
   resolveFiscalAccount,
   type AutoPolizaMovementDraft
 } from './auto-poliza.engine';
+import { roundArt20Cff } from './sat-dyp-formatter';
+import {
+  buildExchangeFluctuationMovements,
+  push118WithCap
+} from './tax-provision-helpers';
+
+export { buildExchangeFluctuationMovements };
+
+export interface TaxProvisionOptions {
+  roundArt20Cff?: boolean;
+  capIva118ToBookBalance?: boolean;
+}
 
 /**
  * Motor Contable para Provisión Mensual de Impuestos Federales (ISR Día 17 e IVA Definitivo).
- * Cumple con Art. 28 Fracc. I LISR (ISR No Deducible) y Art. 5-D LIVA (Liquidación de IVA).
+ * Cumple con Art. 28 Fracc. I LISR (ISR No Deducible), Art. 5-D LIVA y Art. 20 CFF (redondeo ±$0.50).
  */
 export function buildTaxProvisionMovements(
   wp: FiscalWorkpaperResponse,
-  accounts: readonly Account[],
+  accounts: readonly (Account | AccountWithBalance)[],
   periodo: number,
-  ejercicio: number
+  ejercicio: number,
+  options?: TaxProvisionOptions
 ): AutoPolizaMovementDraft[] {
   const isrNetoCents = toCents(wp.isrProvisional.isrNetoAPagar);
   const isrCausadoCents = toCents(wp.isrProvisional.isrCausado);
@@ -49,11 +62,29 @@ export function buildTaxProvisionMovements(
   const accIvaPagado = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO');
   const accIvaPorPagar = resolveFiscalAccount(accounts, 'PROVISION_IVA_POR_PAGAR');
   const accIvaFavor = resolveFiscalAccount(accounts, 'IVA_A_FAVOR');
+  const accIvaPendienteRaw = accounts.find(
+    (a) => a.isAffectable && (a.code === '119-01-001' || a.satGroupCode === '119.01') && a.id !== accIvaPagado.id
+  ) ?? null;
 
+  const accIvaPagadoBal = accIvaPagado as Account & Partial<AccountWithBalance>;
+  const has118Activity =
+    typeof accIvaPagadoBal.finalBalance === 'number' &&
+    (accIvaPagadoBal.finalBalance > 0 ||
+      (accIvaPagadoBal.periodCharges ?? 0) > 0 ||
+      (accIvaPagadoBal.periodCredits ?? 0) > 0);
+  const enforce118Cap = Boolean(options?.capIva118ToBookBalance) || has118Activity;
+  const remaining118Ref = {
+    cents: enforce118Cap ? Math.max(0, toCents(accIvaPagadoBal.finalBalance ?? 0)) : Number.MAX_SAFE_INTEGER
+  };
+  const applyArt20 = Boolean(options?.roundArt20Cff);
   const movements: AutoPolizaMovementDraft[] = [];
 
   // 1. Provisión de ISR Provisional (No deducible Art. 28 Fracc. I LISR / NIF D-4)
   if (isrGastoCents > 0) {
+    const isrPayableCents = applyArt20 && isrNetoCents > 0 ? roundArt20Cff(isrNetoCents, { isCents: true }) * 100 : isrNetoCents;
+    const isrRoundingDiff = isrPayableCents - isrNetoCents;
+    assertAccountingInvariant(Math.abs(isrRoundingDiff) <= 50, 'ART20_ROUNDING_EXCEEDED', 'Ajuste por redondeo Art. 20 CFF fuera de rango ±$0.50.');
+
     movements.push({
       accountId: accGastoFiscal.id,
       accountCode: accGastoFiscal.code,
@@ -75,7 +106,7 @@ export function buildTaxProvisionMovements(
         abono: fromCents(isrRetAplicadoCents)
       });
     }
-    if (isrNetoCents > 0) {
+    if (isrPayableCents > 0) {
       movements.push({
         accountId: accIsrPorPagar.id,
         accountCode: accIsrPorPagar.code,
@@ -83,7 +114,19 @@ export function buildTaxProvisionMovements(
         referencia: `ISR-M${periodo}`,
         concepto: `ISR Provisional por pagar SAT Día 17 (${periodo}/${ejercicio})`,
         cargo: 0,
-        abono: fromCents(isrNetoCents)
+        abono: fromCents(isrPayableCents)
+      });
+    }
+    if (isrRoundingDiff !== 0) {
+      const accRound = resolveFiscalAccount(accounts, 'GASTO_NO_DEDUCIBLE');
+      movements.push({
+        accountId: accRound.id,
+        accountCode: accRound.code,
+        accountName: accRound.name,
+        referencia: `ISR-M${periodo}`,
+        concepto: 'Ajuste por redondeo fiscal Art. 20 CFF (ISR)',
+        cargo: isrRoundingDiff > 0 ? fromCents(isrRoundingDiff) : 0,
+        abono: isrRoundingDiff < 0 ? fromCents(Math.abs(isrRoundingDiff)) : 0
       });
     }
   }
@@ -103,18 +146,20 @@ export function buildTaxProvisionMovements(
           abono: 0
         });
       }
-      if (ivaPagadoCents > 0) {
-        movements.push({
-          accountId: accIvaPagado.id,
-          accountCode: accIvaPagado.code,
-          accountName: accIvaPagado.name,
-          referencia: `IVA-M${periodo}`,
-          concepto: 'Acreditamiento de IVA Pagado del periodo',
-          cargo: 0,
-          abono: fromCents(ivaPagadoCents)
-        });
-      }
-      const ivaPorPagarCents = ivaCobradoCents - ivaPagadoCents;
+      const creditedIvaCents =
+        ivaPagadoCents > 0
+          ? push118WithCap(
+              movements,
+              accIvaPagado,
+              accIvaPendienteRaw,
+              ivaPagadoCents,
+              remaining118Ref,
+              `IVA-M${periodo}`,
+              'Acreditamiento de IVA Pagado del periodo',
+              'Acreditamiento complementario desde IVA Pendiente de Pago'
+            )
+          : 0;
+      const ivaPorPagarCents = ivaCobradoCents - creditedIvaCents;
       const retFavorCents = toCents(wp.ivaDefinitivo.ivaRetenidoAcreditable ?? 0);
       const saldoFavorAntCents = toCents(wp.ivaDefinitivo.saldoFavorIvaAcreditable ?? 0);
       const retAplicadaCents = Math.min(ivaPorPagarCents, retFavorCents);
@@ -161,15 +206,32 @@ export function buildTaxProvisionMovements(
       }
 
       if (ivaNetoCents > 0) {
-        movements.push({
-          accountId: accIvaPorPagar.id,
-          accountCode: accIvaPorPagar.code,
-          accountName: accIvaPorPagar.name,
-          referencia: `IVA-M${periodo}`,
-          concepto: `IVA Definitivo por pagar SAT Día 17 (${periodo}/${ejercicio})`,
-          cargo: 0,
-          abono: fromCents(ivaNetoCents)
-        });
+        const ivaPayableCents = applyArt20 ? roundArt20Cff(ivaNetoCents, { isCents: true }) * 100 : ivaNetoCents;
+        const ivaRoundingDiff = ivaPayableCents - ivaNetoCents;
+        assertAccountingInvariant(Math.abs(ivaRoundingDiff) <= 50, 'ART20_ROUNDING_EXCEEDED', 'Ajuste por redondeo Art. 20 CFF fuera de rango ±$0.50.');
+        if (ivaPayableCents > 0) {
+          movements.push({
+            accountId: accIvaPorPagar.id,
+            accountCode: accIvaPorPagar.code,
+            accountName: accIvaPorPagar.name,
+            referencia: `IVA-M${periodo}`,
+            concepto: `IVA Definitivo por pagar SAT Día 17 (${periodo}/${ejercicio})`,
+            cargo: 0,
+            abono: fromCents(ivaPayableCents)
+          });
+        }
+        if (ivaRoundingDiff !== 0) {
+          const accRound = resolveFiscalAccount(accounts, 'GASTO_NO_DEDUCIBLE');
+          movements.push({
+            accountId: accRound.id,
+            accountCode: accRound.code,
+            accountName: accRound.name,
+            referencia: `IVA-M${periodo}`,
+            concepto: 'Ajuste por redondeo fiscal Art. 20 CFF (IVA)',
+            cargo: ivaRoundingDiff > 0 ? fromCents(ivaRoundingDiff) : 0,
+            abono: ivaRoundingDiff < 0 ? fromCents(Math.abs(ivaRoundingDiff)) : 0
+          });
+        }
       }
     } else {
       // Caso B: IVA Saldo a Favor del Contribuyente (Art. 5-D LIVA)
@@ -185,25 +247,32 @@ export function buildTaxProvisionMovements(
         });
       }
       const retFavorCents = toCents(wp.ivaDefinitivo.ivaRetenidoAcreditable ?? 0);
-      const saldoFavorCents = ivaPagadoCents - ivaCobradoCents + retFavorCents;
-      movements.push({
-        accountId: accIvaFavor.id,
-        accountCode: accIvaFavor.code,
-        accountName: accIvaFavor.name,
-        referencia: `IVA-M${periodo}`,
-        concepto: `Determinación de IVA Saldo a Favor del periodo (${periodo}/${ejercicio})`,
-        cargo: fromCents(saldoFavorCents),
-        abono: 0
-      });
-      movements.push({
-        accountId: accIvaPagado.id,
-        accountCode: accIvaPagado.code,
-        accountName: accIvaPagado.name,
-        referencia: `IVA-M${periodo}`,
-        concepto: 'Cancelación de IVA Acreditable Pagado contra Saldo a Favor',
-        cargo: 0,
-        abono: fromCents(ivaPagadoCents)
-      });
+      const effectiveCreditedCents = Math.min(
+        ivaPagadoCents,
+        remaining118Ref.cents + (accIvaPendienteRaw ? ivaPagadoCents : 0)
+      );
+      const saldoFavorCents = Math.max(0, effectiveCreditedCents - ivaCobradoCents + retFavorCents);
+      if (saldoFavorCents > 0) {
+        movements.push({
+          accountId: accIvaFavor.id,
+          accountCode: accIvaFavor.code,
+          accountName: accIvaFavor.name,
+          referencia: `IVA-M${periodo}`,
+          concepto: `Determinación de IVA Saldo a Favor del periodo (${periodo}/${ejercicio})`,
+          cargo: fromCents(saldoFavorCents),
+          abono: 0
+        });
+      }
+      push118WithCap(
+        movements,
+        accIvaPagado,
+        accIvaPendienteRaw,
+        effectiveCreditedCents,
+        remaining118Ref,
+        `IVA-M${periodo}`,
+        'Cancelación de IVA Acreditable Pagado contra Saldo a Favor',
+        'Cancelación de IVA Pendiente contra Saldo a Favor'
+      );
       if (retFavorCents > 0) {
         const accRetFavor = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_RETENIDO');
         movements.push({
@@ -219,105 +288,33 @@ export function buildTaxProvisionMovements(
     }
     if (ivaNoAcreditableCents > 0) {
       const accGastoIvaNoAcred =
+        accounts.find((a) => a.isAffectable && a.code === '601-01-012') ??
         accounts.find((a) => a.isAffectable && /iva\s*no\s*acreditable/i.test(a.name)) ??
+        accounts.find((a) => a.isAffectable && a.satGroupCode === '601.56') ??
         resolveFiscalAccount(accounts, 'HONORARIOS_SERVICIOS');
-      movements.push(
-        {
+      const noAcredTransferred = push118WithCap(
+        movements,
+        accIvaPagado,
+        accIvaPendienteRaw,
+        ivaNoAcreditableCents,
+        remaining118Ref,
+        `IVA-M${periodo}`,
+        'Cancelación de IVA no acreditable por prorrateo Art. 5 LIVA',
+        'Cancelación de IVA pendiente no acreditable por prorrateo Art. 5 LIVA'
+      );
+      if (noAcredTransferred > 0) {
+        movements.push({
           accountId: accGastoIvaNoAcred.id,
           accountCode: accGastoIvaNoAcred.code,
           accountName: accGastoIvaNoAcred.name,
           referencia: `IVA-M${periodo}`,
           concepto: 'IVA no acreditable por prorrateo Art. 5 LIVA (Gasto deducible Art. 28 LISR)',
-          cargo: fromCents(ivaNoAcreditableCents),
+          cargo: fromCents(noAcredTransferred),
           abono: 0
-        },
-        {
-          accountId: accIvaPagado.id,
-          accountCode: accIvaPagado.code,
-          accountName: accIvaPagado.name,
-          referencia: `IVA-M${periodo}`,
-          concepto: 'Cancelación de IVA no acreditable por prorrateo Art. 5 LIVA',
-          cargo: 0,
-          abono: fromCents(ivaNoAcreditableCents)
-        }
-      );
+        });
+      }
     }
   }
 
   return movements;
-}
-
-/**
- * Motor Contable para Revaluación Mensual de Moneda Extranjera USD (NIF B-15).
- */
-export function buildExchangeFluctuationMovements(
-  wp: FiscalWorkpaperResponse,
-  accounts: readonly Account[]
-): {
-  movements: AutoPolizaMovementDraft[];
-  concept: string;
-} {
-  const diffCents = toCents(wp.fluctuacionCambiaria.diferenciaCambiariaMxn);
-  assertAccountingInvariant(
-    Math.abs(diffCents) > 0,
-    'ZERO_EXCHANGE_DIFF',
-    'No existe diferencia cambiaria USD por registrar con el Tipo de Cambio DOF actual.'
-  );
-
-  const isNetPayable = toCents(wp.fluctuacionCambiaria.saldoMonedaExtranjeraUsd) < 0;
-  const accMonetaria = isNetPayable
-    ? resolveFiscalAccount(accounts, 'PROVEEDORES_NACIONALES')
-    : resolveFiscalAccount(accounts, 'CLIENTES_NACIONALES');
-  const accUtilidad = resolveFiscalAccount(accounts, 'UTILIDAD_CAMBIARIA');
-  const accPerdida = resolveFiscalAccount(accounts, 'PERDIDA_CAMBIARIA');
-  const absAmount = fromCents(Math.abs(diffCents));
-  const tcStr = wp.fluctuacionCambiaria.tipoCambioDofCierre.toFixed(4);
-
-  const movements: AutoPolizaMovementDraft[] =
-    diffCents > 0
-      ? [
-          {
-            accountId: accMonetaria.id,
-            accountCode: accMonetaria.code,
-            accountName: accMonetaria.name,
-            referencia: `TC-DOF-${tcStr}`,
-            concepto: 'Ajuste por revaluación cambiaria USD al cierre DOF (NIF B-15)',
-            cargo: absAmount,
-            abono: 0
-          },
-          {
-            accountId: accUtilidad.id,
-            accountCode: accUtilidad.code,
-            accountName: accUtilidad.name,
-            referencia: `TC-DOF-${tcStr}`,
-            concepto: 'Utilidad cambiaria devengada fin de mes',
-            cargo: 0,
-            abono: absAmount
-          }
-        ]
-      : [
-          {
-            accountId: accPerdida.id,
-            accountCode: accPerdida.code,
-            accountName: accPerdida.name,
-            referencia: `TC-DOF-${tcStr}`,
-            concepto: 'Pérdida cambiaria devengada fin de mes',
-            cargo: absAmount,
-            abono: 0
-          },
-          {
-            accountId: accMonetaria.id,
-            accountCode: accMonetaria.code,
-            accountName: accMonetaria.name,
-            referencia: `TC-DOF-${tcStr}`,
-            concepto: 'Ajuste por revaluación cambiaria USD al cierre DOF (NIF B-15)',
-            cargo: 0,
-            abono: absAmount
-          }
-        ];
-
-  return {
-    movements,
-    concept: `Póliza de Fluctuación Cambiaria USD (T.C. DOF $${tcStr})`
-  };
 }

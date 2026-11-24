@@ -18,8 +18,14 @@ export interface PadronProveedoresFormProps {
   setTpNombre: (val: string) => void;
   tpRol: ThirdPartyRecord['rol'];
   setTpRol: (val: ThirdPartyRecord['rol']) => void;
-  tpTipoTercero: '04' | '05';
-  setTpTipoTercero: (val: '04' | '05') => void;
+  tpTipoTercero: '04' | '05' | '15';
+  setTpTipoTercero: (val: '04' | '05' | '15') => void;
+  tpIdFiscal: string;
+  setTpIdFiscal: (val: string) => void;
+  tpPais: string;
+  setTpPais: (val: string) => void;
+  tpJurisdiccionFiscal: string;
+  setTpJurisdiccionFiscal: (val: string) => void;
   tpExpenseAcc: string;
   setTpExpenseAcc: (val: string) => void;
   tpIvaRate: 16 | 8 | 0;
@@ -46,6 +52,12 @@ export function PadronProveedoresForm({
   setTpRol,
   tpTipoTercero,
   setTpTipoTercero,
+  tpIdFiscal,
+  setTpIdFiscal,
+  tpPais,
+  setTpPais,
+  tpJurisdiccionFiscal,
+  setTpJurisdiccionFiscal,
   tpExpenseAcc,
   setTpExpenseAcc,
   tpIvaRate,
@@ -168,13 +180,64 @@ export function PadronProveedoresForm({
             id="tp-tipo-tercero"
             disabled={isReadOnly}
             value={tpTipoTercero}
-            onChange={(e) => setTpTipoTercero(e.target.value as '04' | '05')}
+            onChange={(e) => setTpTipoTercero(e.target.value as '04' | '05' | '15')}
             className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white disabled:bg-slate-100"
           >
             <option value="04">04 Nacional</option>
             <option value="05">05 Extranjero</option>
+            <option value="15">15 Global</option>
           </select>
         </div>
+
+        {tpTipoTercero === '05' && (
+          <>
+            <div>
+              <label htmlFor="tp-id-fiscal" className="block text-[11px] font-bold text-slate-700 mb-1">
+                ID Fiscal Extranjero
+              </label>
+              <input
+                id="tp-id-fiscal"
+                type="text"
+                disabled={isReadOnly}
+                value={tpIdFiscal}
+                onChange={(e) => setTpIdFiscal(e.target.value)}
+                placeholder="US-99-123456"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white disabled:bg-slate-100"
+              />
+            </div>
+            <div>
+              <label htmlFor="tp-pais" className="block text-[11px] font-bold text-slate-700 mb-1">
+                País (ISO / SAT)
+              </label>
+              <input
+                id="tp-pais"
+                type="text"
+                maxLength={3}
+                disabled={isReadOnly}
+                value={tpPais}
+                onChange={(e) => setTpPais(e.target.value.toUpperCase())}
+                placeholder="USA / ZZZ"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono uppercase bg-white disabled:bg-slate-100"
+              />
+            </div>
+            {tpPais.trim().toUpperCase() === 'ZZZ' && (
+              <div>
+                <label htmlFor="tp-jurisdiccion" className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Jurisdicción (País ZZZ)
+                </label>
+                <input
+                  id="tp-jurisdiccion"
+                  type="text"
+                  disabled={isReadOnly}
+                  value={tpJurisdiccionFiscal}
+                  onChange={(e) => setTpJurisdiccionFiscal(e.target.value)}
+                  placeholder="Nombre de jurisdicción"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white disabled:bg-slate-100"
+                />
+              </div>
+            )}
+          </>
+        )}
 
         <div className="lg:col-span-2">
           <label htmlFor="tp-expense-acc" className="block text-[11px] font-bold text-slate-700 mb-1">

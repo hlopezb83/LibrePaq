@@ -28,6 +28,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
   const ownWorkspaceId = workspace?.id || (user ? `ws_${user.id.slice(0, 8)}` : 'ws_demo');
   const isOwnWorkspace = !activeCompany?.userId || activeCompany.userId === 'demo' || activeCompany.userId === user?.id;
   const workspaceId = isOwnWorkspace ? ownWorkspaceId : `ws_${activeCompany.userId!.slice(0, 8)}`;
+  const isReadOnlyClientRole = effectiveCompanyRole === 'CLIENTE_LECTURA';
   const canManageTeam = !isReadOnlySupportMode && !isSupportImpersonation && (effectiveCompanyRole === 'OWNER' || effectiveCompanyRole === 'SOCIO');
 
   const [inviteEmail, setInviteEmail] = useState('');
@@ -41,7 +42,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
   const { data: members = [], isLoading: membersLoading, isError: membersIsError, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['workspace-members', workspaceId],
     queryFn: () => workspaceRbacClient.listWorkspaceMembers(workspaceId),
-    enabled: Boolean(workspaceId)
+    enabled: Boolean(workspaceId) && !isReadOnlyClientRole
   });
 
   const { data: auditLogs = [], isLoading: auditLoading, isError: auditIsError, error: auditError, refetch: refetchAudit } = useQuery({
@@ -86,6 +87,10 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
   const handleInviteSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!inviteEmail.includes('@')) { toast.error('Ingresa un correo electrónico válido'); return; }
+    if (inviteRole === 'CLIENTE_LECTURA' && inviteCompanyIds.length === 0) {
+      toast.error('Para el rol Cliente Solo Lectura debes seleccionar al menos una empresa.');
+      return;
+    }
     inviteMutation.mutate();
   };
 
@@ -160,7 +165,11 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
 
               {companies.length > 0 && canManageTeam && (
                 <fieldset className="md:col-span-12 space-y-1.5 pt-1">
-                  <legend className="text-[11px] font-semibold text-slate-600 mb-1">Empresas visibles (si no marcas ninguna, tendrá acceso a todas):</legend>
+                  <legend className="text-[11px] font-semibold text-slate-600 mb-1">
+                    {inviteRole === 'CLIENTE_LECTURA'
+                      ? 'Empresas visibles (obligatorio seleccionar al menos 1 empresa para Cliente Solo Lectura):'
+                      : 'Empresas visibles (si no marcas ninguna, tendrá acceso a todas):'}
+                  </legend>
                   <div className="flex flex-wrap items-center gap-2">
                     {companies.map((c) => (
                       <label key={c.id} className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] cursor-pointer hover:border-blue-300">
@@ -196,7 +205,11 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
           <Users className="w-4 h-4 text-slate-700" aria-hidden="true" />
           <h3 className="text-sm font-bold text-slate-900">Miembros del Despacho ({members.length})</h3>
         </div>
-        {membersIsError ? (
+        {isReadOnlyClientRole ? (
+          <p role="status" className="text-xs text-slate-600 p-3 rounded-xl bg-slate-50 border border-slate-200">
+            Por seguridad del despacho, el listado de colaboradores y permisos no está visible para el rol Cliente Solo Lectura.
+          </p>
+        ) : membersIsError ? (
           <div role="alert" className="p-4 rounded-xl border border-red-200 bg-red-50/70 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-red-900">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />

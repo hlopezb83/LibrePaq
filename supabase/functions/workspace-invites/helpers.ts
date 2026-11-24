@@ -123,13 +123,14 @@ export async function isWorkspaceMember(
   if (ctx.isSupport) return true;
   const { data } = await supabase
     .from('workspace_members')
-    .select('id, user_id, email')
+    .select('id, user_id, email, role')
     .eq('workspace_id', wsId)
     .eq('status', 'ACTIVO');
   return (data || []).some(
     (m) =>
-      m.user_id === ctx.userId ||
-      (!m.user_id && ctx.email !== '' && String(m.email || '').trim().toLowerCase() === ctx.email)
+      String(m.role || '').toUpperCase() !== 'CLIENTE_LECTURA' &&
+      (m.user_id === ctx.userId ||
+        (!m.user_id && ctx.email !== '' && String(m.email || '').trim().toLowerCase() === ctx.email))
   );
 }
 
@@ -142,27 +143,20 @@ export async function assertCompaniesBelongToWorkspace(
   if (companyIds.length === 0 || ctx.isSuper) return null;
   const { data: comps, error } = await supabase
     .from('companies')
-    .select('id, user_id')
+    .select('id, user_id, organization_id')
     .in('id', companyIds);
   if (error) return error.message;
   if ((comps || []).length !== companyIds.length) {
     return 'Una o más empresas seleccionadas no existen';
   }
-  const { data: socios } = await supabase
-    .from('workspace_members')
-    .select('user_id')
-    .eq('workspace_id', wsId)
-    .eq('status', 'ACTIVO')
-    .eq('role', 'SOCIO');
-  const socioUserIds = new Set(
-    (socios || []).map((s) => (s.user_id ? String(s.user_id) : '')).filter(Boolean)
-  );
   for (const c of comps || []) {
     const uid = c.user_id ? String(c.user_id) : '';
+    const orgId = c.organization_id ? String(c.organization_id).trim() : '';
     const ok =
-      uid !== '' &&
-      uid !== 'demo' &&
-      (uid === ctx.userId || uid === wsId || `ws_${uid.slice(0, 8)}` === wsId || socioUserIds.has(uid));
+      (orgId !== '' && orgId === wsId) ||
+      (uid !== '' &&
+        uid !== 'demo' &&
+        (uid === ctx.userId || uid === wsId || `ws_${uid.slice(0, 8)}` === wsId));
     if (!ok) return 'No tienes autorización sobre una o más empresas seleccionadas';
   }
   return null;

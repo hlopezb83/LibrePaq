@@ -155,7 +155,7 @@ export function LandingHeroSection({
         {/* Badge adicional: Migración fácil desde CONTPAQi */}
         <div className="mt-5 sm:mt-6 flex items-start sm:items-center justify-center gap-2 text-xs text-slate-600 font-medium text-left sm:text-center">
           <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
-          <span>¿Ya usas CONTPAQi®? Importa tu catálogo de cuentas y pólizas en formato Excel o TXT en 1 minuto.</span>
+          <span>¿Ya usas CONTPAQi®? Migra tu catálogo y saldos con CSV, Excel, CT.xml / BN.xml Anexo 24 y catálogo TXT CONTPAQi®.</span>
         </div>
       </div>
 

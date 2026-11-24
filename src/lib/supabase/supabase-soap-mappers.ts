@@ -9,7 +9,7 @@ export interface DbSatDownloadRequest {
   tipo_solicitud: 'EMITIDOS' | 'RECIBIDOS';
   fecha_inicial: string;
   fecha_final: string;
-  estado_solicitud: 'ACEPTADA' | 'EN_PROCESO' | 'ERROR' | 'TERMINADA';
+  estado_solicitud: 'ACEPTADA' | 'EN_PROCESO' | 'ERROR' | 'TERMINADA' | 'PARCIAL' | 'ERROR_LIMITE';
   codigo_estado_sat: string;
   mensaje_sat: string;
   id_paquete_sat: string | null;

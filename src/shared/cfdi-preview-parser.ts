@@ -1,7 +1,26 @@
 import { XMLParser } from 'fast-xml-parser';
 import { findNode, findNodes, getAttr, round2, type XmlNode } from './cfdi-xml-nodes';
 import { SAFETY_BOUNDS } from './sat-constants';
+import { stripXmlAddenda } from './xml-utils';
 import type { CfdiDocument } from './types';
+import {
+  extractImpuestosLocales,
+  extractNominaComplemento,
+  extractPagosComplemento,
+  type CfdiPreviewDoctoRelacionado,
+  type CfdiPreviewDrTaxItem,
+  type CfdiPreviewLocalTaxItem,
+  type CfdiPreviewNomina,
+  type CfdiPreviewPagoItem
+} from './cfdi-preview-complements';
+
+export type {
+  CfdiPreviewDoctoRelacionado,
+  CfdiPreviewDrTaxItem,
+  CfdiPreviewLocalTaxItem,
+  CfdiPreviewNomina,
+  CfdiPreviewPagoItem
+};
 
 export interface CfdiPreviewConcepto {
   claveProdServ: string; noIdentificacion: string; cantidad: number; claveUnidad: string;
@@ -11,26 +30,6 @@ export interface CfdiPreviewConcepto {
 
 export interface CfdiPreviewTaxItem {
   base: number; impuesto: string; tipoFactor: string; tasaOCuota: string; importe: number;
-}
-
-export interface CfdiPreviewDoctoRelacionado {
-  idDocumento: string; serie: string; folio: string; monedaDr: string;
-  equivalenciaDr: string; numParcialidad: string;
-  impSaldoAnt: number; impPagado: number; impSaldoInsoluto: number;
-}
-
-export interface CfdiPreviewPagoItem {
-  fechaPago: string; formaDePagoP: string; monedaP: string; tipoCambioP: string;
-  monto: number; numOperacion: string;
-  doctosRelacionados: CfdiPreviewDoctoRelacionado[];
-}
-
-export interface CfdiPreviewNomina {
-  version: string; tipoNomina: string; fechaPago: string;
-  fechaInicialPago: string; fechaFinalPago: string; numDiasPagados: number;
-  totalPercepciones: number; totalDeducciones: number; totalOtrosPagos: number;
-  numEmpleado: string; curp: string; numSeguridadSocial: string;
-  puesto: string; departamento: string; salarioDiarioIntegrado: number;
 }
 
 export interface CfdiPreviewData {
@@ -50,6 +49,7 @@ export interface CfdiPreviewData {
   impuestos: {
     totalImpuestosTrasladados: number; totalImpuestosRetenidos: number;
     traslados: CfdiPreviewTaxItem[]; retenciones: CfdiPreviewTaxItem[];
+    locales?: CfdiPreviewLocalTaxItem[];
   };
   timbre: {
     version: string; uuid: string; fechaTimbrado: string; rfcProvCertif: string;
@@ -131,56 +131,6 @@ function buildFallbackPreview(cfdi: CfdiDocument): CfdiPreviewData {
   };
 }
 
-function extractPagosComplemento(comprobante: XmlNode): CfdiPreviewPagoItem[] | undefined {
-  const pagoNodes = findNodes(comprobante, 'Pago');
-  if (pagoNodes.length === 0) return undefined;
-  return pagoNodes.map((p) => {
-    const doctos = findNodes(p, 'DoctoRelacionado').map((d) => ({
-      idDocumento: getAttr(d, 'IdDocumento').toUpperCase(),
-      serie: getAttr(d, 'Serie'),
-      folio: getAttr(d, 'Folio'),
-      monedaDr: getAttr(d, 'MonedaDR') || 'MXN',
-      equivalenciaDr: getAttr(d, 'EquivalenciaDR') || '1',
-      numParcialidad: getAttr(d, 'NumParcialidad') || '1',
-      impSaldoAnt: round2(parseNum(getAttr(d, 'ImpSaldoAnt'), 0)),
-      impPagado: round2(parseNum(getAttr(d, 'ImpPagado'), 0)),
-      impSaldoInsoluto: round2(parseNum(getAttr(d, 'ImpSaldoInsoluto'), 0))
-    }));
-    return {
-      fechaPago: getAttr(p, 'FechaPago'),
-      formaDePagoP: getAttr(p, 'FormaDePagoP'),
-      monedaP: getAttr(p, 'MonedaP') || 'MXN',
-      tipoCambioP: getAttr(p, 'TipoCambioP') || '1',
-      monto: round2(parseNum(getAttr(p, 'Monto'), 0)),
-      numOperacion: getAttr(p, 'NumOperacion'),
-      doctosRelacionados: doctos
-    };
-  });
-}
-
-function extractNominaComplemento(comprobante: XmlNode): CfdiPreviewNomina | undefined {
-  const nomina = findNode(comprobante, 'Nomina');
-  if (!nomina) return undefined;
-  const nomReceptor = findNode(nomina, 'Receptor');
-  return {
-    version: getAttr(nomina, 'Version') || '1.2',
-    tipoNomina: getAttr(nomina, 'TipoNomina') || 'O',
-    fechaPago: getAttr(nomina, 'FechaPago'),
-    fechaInicialPago: getAttr(nomina, 'FechaInicialPago'),
-    fechaFinalPago: getAttr(nomina, 'FechaFinalPago'),
-    numDiasPagados: parseNum(getAttr(nomina, 'NumDiasPagados'), 0),
-    totalPercepciones: round2(parseNum(getAttr(nomina, 'TotalPercepciones'), 0)),
-    totalDeducciones: round2(parseNum(getAttr(nomina, 'TotalDeducciones'), 0)),
-    totalOtrosPagos: round2(parseNum(getAttr(nomina, 'TotalOtrosPagos'), 0)),
-    numEmpleado: getAttr(nomReceptor, 'NumEmpleado'),
-    curp: getAttr(nomReceptor, 'Curp'),
-    numSeguridadSocial: getAttr(nomReceptor, 'NumSeguridadSocial'),
-    puesto: getAttr(nomReceptor, 'Puesto'),
-    departamento: getAttr(nomReceptor, 'Departamento'),
-    salarioDiarioIntegrado: round2(parseNum(getAttr(nomReceptor, 'SalarioDiarioIntegrado'), 0))
-  };
-}
-
 export function parseCfdiPreview(cfdi: CfdiDocument): CfdiPreviewData {
   const fb = buildFallbackPreview(cfdi);
   const raw = (cfdi.xmlRaw || '').trim();
@@ -188,7 +138,7 @@ export function parseCfdiPreview(cfdi: CfdiDocument): CfdiPreviewData {
 
   let parsed: XmlNode;
   try {
-    parsed = getPreviewParser().parse(raw) as XmlNode;
+    parsed = getPreviewParser().parse(stripXmlAddenda(raw)) as XmlNode;
   } catch {
     return fb;
   }
@@ -216,7 +166,8 @@ export function parseCfdiPreview(cfdi: CfdiDocument): CfdiPreviewData {
 
   const rawImp = Object.hasOwn(comprobante, 'Impuestos') ? comprobante.Impuestos : null;
   const compImp = Array.isArray(rawImp) ? ((rawImp[0] as XmlNode) ?? null) : (rawImp && typeof rawImp === 'object' ? (rawImp as XmlNode) : null);
-  let impuestos = fb.impuestos;
+  const locales = extractImpuestosLocales(comprobante);
+  let impuestos: CfdiPreviewData['impuestos'] = { ...fb.impuestos, ...(locales.length > 0 ? { locales } : {}) };
   if (compImp) {
     const traslados = compImp.Traslados ? findNodes(compImp.Traslados, 'Traslado').map(mapTaxNode) : [];
     const retenciones = compImp.Retenciones ? findNodes(compImp.Retenciones, 'Retencion').map(mapTaxNode) : [];
@@ -225,7 +176,9 @@ export function parseCfdiPreview(cfdi: CfdiDocument): CfdiPreviewData {
     impuestos = {
       totalImpuestosTrasladados: rawTotTras !== '' ? round2(parseNum(rawTotTras, 0)) : round2(traslados.reduce((s, t) => s + t.importe, 0)),
       totalImpuestosRetenidos: rawTotRet !== '' ? round2(parseNum(rawTotRet, 0)) : round2(retenciones.reduce((s, r) => s + r.importe, 0)),
-      traslados, retenciones
+      traslados,
+      retenciones,
+      ...(locales.length > 0 ? { locales } : {})
     };
   }
 

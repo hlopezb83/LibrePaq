@@ -141,7 +141,7 @@ export function LandingComparisonSection() {
                 <td className="py-4 px-6 text-emerald-800 font-semibold bg-emerald-50/30 border-l border-emerald-200">
                   <div className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
-                    <span>Importa tu catálogo y pólizas de CONTPAQi® en Excel o TXT en 1 minuto y exporta cuando quieras.</span>
+                    <span>Importa tu catálogo de cuentas y saldos iniciales desde CSV, Excel, CT.xml / BN.xml Anexo 24 o catálogo TXT de CONTPAQi® y exporta cuando quieras.</span>
                   </div>
                 </td>
               </tr>

@@ -29,6 +29,7 @@ interface AnnualSnapshotDbRow {
   dividendos_pagados: number;
   ptu_pagada_anterior: number;
   no_deducibles_manual: number;
+  deducciones_personales?: number;
   updated_at: string;
 }
 
@@ -37,8 +38,8 @@ const ANNUAL_AND_INVENTORY_DDL = `
     id TEXT PRIMARY KEY,
     company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     ejercicio INTEGER NOT NULL,
-    inpc_cierre_anterior REAL NOT NULL DEFAULT 139.38,
-    inpc_cierre_actual REAL NOT NULL DEFAULT 145.4,
+    inpc_cierre_anterior REAL NOT NULL DEFAULT 137.949,
+    inpc_cierre_actual REAL NOT NULL DEFAULT 143.042,
     cuca_inicial REAL NOT NULL DEFAULT 0,
     aportaciones_capital REAL NOT NULL DEFAULT 0,
     reducciones_capital REAL NOT NULL DEFAULT 0,
@@ -46,6 +47,7 @@ const ANNUAL_AND_INVENTORY_DDL = `
     dividendos_pagados REAL NOT NULL DEFAULT 0,
     ptu_pagada_anterior REAL NOT NULL DEFAULT 0,
     no_deducibles_manual REAL NOT NULL DEFAULT 0,
+    deducciones_personales REAL NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(company_id, ejercicio)
   );
@@ -71,6 +73,11 @@ const ANNUAL_AND_INVENTORY_DDL = `
 
 export function ensureAnnualAndInventoryTables(database: SqliteDdlTarget = db): void {
   database.exec(ANNUAL_AND_INVENTORY_DDL);
+  try {
+    database.exec('ALTER TABLE annual_tax_snapshots ADD COLUMN deducciones_personales REAL NOT NULL DEFAULT 0');
+  } catch {
+    // Column already exists
+  }
 }
 
 function mapSnapshotRow(row: AnnualSnapshotDbRow): AnnualTaxInputs {
@@ -86,6 +93,7 @@ function mapSnapshotRow(row: AnnualSnapshotDbRow): AnnualTaxInputs {
     dividendosPagados: Number(row.dividendos_pagados ?? 0),
     ptuPagadaAnterior: Number(row.ptu_pagada_anterior ?? 0),
     noDeduciblesManual: Number(row.no_deducibles_manual ?? 0),
+    deduccionesPersonales: Number(row.deducciones_personales ?? 0),
     updatedAt: row.updated_at
   };
 }
@@ -112,7 +120,8 @@ export function getAnnualTaxInputsRepo(
     cufinInicial: 0,
     dividendosPagados: 0,
     ptuPagadaAnterior: 0,
-    noDeduciblesManual: 0
+    noDeduciblesManual: 0,
+    deduccionesPersonales: 0
   };
 }
 
@@ -150,7 +159,8 @@ export function saveAnnualTaxInputsRepo(
     cufinInicial: fromCents(toCents(cleanNum(input.cufinInicial, current.cufinInicial))),
     dividendosPagados: fromCents(toCents(cleanNum(input.dividendosPagados, current.dividendosPagados))),
     ptuPagadaAnterior: fromCents(toCents(cleanNum(input.ptuPagadaAnterior, current.ptuPagadaAnterior))),
-    noDeduciblesManual: fromCents(toCents(cleanNum(input.noDeduciblesManual, current.noDeduciblesManual)))
+    noDeduciblesManual: fromCents(toCents(cleanNum(input.noDeduciblesManual, current.noDeduciblesManual))),
+    deduccionesPersonales: fromCents(toCents(cleanNum(input.deduccionesPersonales, current.deduccionesPersonales ?? 0)))
   };
 
   const now = new Date().toISOString();
@@ -160,8 +170,8 @@ export function saveAnnualTaxInputsRepo(
     INSERT INTO annual_tax_snapshots (
       id, company_id, ejercicio, inpc_cierre_anterior, inpc_cierre_actual,
       cuca_inicial, aportaciones_capital, reducciones_capital,
-      cufin_inicial, dividendos_pagados, ptu_pagada_anterior, no_deducibles_manual, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      cufin_inicial, dividendos_pagados, ptu_pagada_anterior, no_deducibles_manual, deducciones_personales, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(company_id, ejercicio) DO UPDATE SET
       inpc_cierre_anterior = excluded.inpc_cierre_anterior,
       inpc_cierre_actual = excluded.inpc_cierre_actual,
@@ -172,12 +182,13 @@ export function saveAnnualTaxInputsRepo(
       dividendos_pagados = excluded.dividendos_pagados,
       ptu_pagada_anterior = excluded.ptu_pagada_anterior,
       no_deducibles_manual = excluded.no_deducibles_manual,
+      deducciones_personales = excluded.deducciones_personales,
       updated_at = excluded.updated_at
   `).run(
     id, companyId, ejercicio, next.inpcCierreAnterior, next.inpcCierreActual,
     next.cucaInicial, next.aportacionesCapital, next.reduccionesCapital,
     next.cufinInicial, next.dividendosPagados, next.ptuPagadaAnterior,
-    next.noDeduciblesManual, now
+    next.noDeduciblesManual, next.deduccionesPersonales ?? 0, now
   );
 
   return getAnnualTaxInputsRepo(companyId, ejercicio);

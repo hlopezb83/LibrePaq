@@ -7,6 +7,26 @@
  */
 
 export const OFFICIAL_INPC_TABLE: Record<number, Record<number, number>> = {
+  2015: {
+    1: 87.110, 2: 87.275, 3: 87.631, 4: 87.404, 5: 86.967, 6: 87.113,
+    7: 87.241, 8: 87.425, 9: 87.752, 10: 88.204, 11: 88.685, 12: 89.047
+  },
+  2016: {
+    1: 89.386, 2: 89.778, 3: 89.910, 4: 89.625, 5: 89.226, 6: 89.324,
+    7: 89.557, 8: 89.809, 9: 90.358, 10: 90.906, 11: 91.617, 12: 92.039
+  },
+  2017: {
+    1: 93.604, 2: 94.145, 3: 94.722, 4: 94.839, 5: 94.725, 6: 94.964,
+    7: 95.323, 8: 95.794, 9: 96.094, 10: 96.698, 11: 97.695, 12: 98.273
+  },
+  2018: {
+    1: 98.795, 2: 99.171, 3: 99.492, 4: 99.155, 5: 98.994, 6: 99.376,
+    7: 99.909, 8: 100.492, 9: 100.917, 10: 101.440, 11: 102.303, 12: 103.020
+  },
+  2019: {
+    1: 103.108, 2: 103.079, 3: 103.476, 4: 103.531, 5: 103.233, 6: 103.299,
+    7: 103.687, 8: 103.670, 9: 103.942, 10: 104.503, 11: 105.346, 12: 105.934
+  },
   2020: {
     1: 106.248, 2: 106.683, 3: 106.628, 4: 105.547, 5: 105.952, 6: 106.539,
     7: 107.244, 8: 107.667, 9: 108.341, 10: 108.995, 11: 109.851, 12: 110.270
@@ -24,16 +44,16 @@ export const OFFICIAL_INPC_TABLE: Record<number, Record<number, number>> = {
     7: 129.951, 8: 130.669, 9: 131.253, 10: 131.758, 11: 132.602, 12: 133.298
   },
   2024: {
-    1: 134.482, 2: 134.606, 3: 135.000, 4: 135.267, 5: 135.011, 6: 135.525,
-    7: 136.953, 8: 137.000, 9: 137.070, 10: 137.828, 11: 138.944, 12: 139.380
+    1: 133.555, 2: 133.681, 3: 134.065, 4: 134.336, 5: 134.087, 6: 134.594,
+    7: 136.003, 8: 136.013, 9: 136.080, 10: 136.828, 11: 137.424, 12: 137.949
   },
   2025: {
-    1: 140.050, 2: 140.420, 3: 140.950, 4: 141.250, 5: 141.600, 6: 142.100,
-    7: 142.750, 8: 143.100, 9: 143.650, 10: 144.200, 11: 144.850, 12: 145.400
+    1: 138.343, 2: 138.726, 3: 139.161, 4: 139.620, 5: 140.012, 6: 140.405,
+    7: 140.780, 8: 140.867, 9: 141.197, 10: 141.708, 11: 142.645, 12: 143.042
   },
   2026: {
-    1: 146.100, 2: 146.600, 3: 147.150, 4: 147.700, 5: 148.200, 6: 148.800,
-    7: 149.350, 8: 149.900, 9: 150.450, 10: 151.050, 11: 151.650, 12: 152.200
+    1: 143.588, 2: 144.307, 3: 145.544, 4: 145.831, 5: 145.527, 6: 145.131,
+    7: 145.169, 8: 145.462, 9: 146.075, 10: 147.026
   }
 };
 
@@ -60,6 +80,21 @@ export const OFFICIAL_DOF_EXCHANGE_RATES: Record<number, Record<number, number>>
 };
 
 /**
+ * Retorna el último INPC oficial publicado en el catálogo (Oct 2026 = 147.026).
+ */
+export function getLatestPublishedInpc(): number {
+  const years = Object.keys(OFFICIAL_INPC_TABLE).map(Number).sort((a, b) => b - a);
+  for (const yr of years) {
+    const months = Object.keys(OFFICIAL_INPC_TABLE[yr] ?? {}).map(Number).sort((a, b) => b - a);
+    for (const m of months) {
+      const val = OFFICIAL_INPC_TABLE[yr]?.[m];
+      if (val !== undefined) return val;
+    }
+  }
+  return 143.042;
+}
+
+/**
  * Obtiene el INPC oficial para un año y mes específico.
  */
 export function getOfficialInpc(year: number, month: number): number | null {
@@ -71,10 +106,12 @@ export function getOfficialInpc(year: number, month: number): number | null {
 
 /**
  * Obtiene el INPC correspondiente a una fecha ISO (YYYY-MM-DD).
+ * Soporta serie histórica oficial 2015–2026; fechas anteriores a 2015 anclan en Ene 2015
+ * y fechas futuras sin publicación se acotan al último índice publicado.
  */
 export function getInpcForIsoDate(isoDate: string): number {
   if (!isoDate || isoDate.length < 7) {
-    return 135.0;
+    return getLatestPublishedInpc();
   }
   const parts = isoDate.split('-');
   const year = parseInt(parts[0] ?? '2024', 10);
@@ -83,25 +120,19 @@ export function getInpcForIsoDate(isoDate: string): number {
   const found = getOfficialInpc(year, month);
   if (found !== null) return found;
 
-  // Si el año es anterior a 2020, tomar enero 2020 como base segura
-  if (year < 2020) return OFFICIAL_INPC_TABLE[2020]?.[1] ?? 106.248;
-  // Si es futuro, tomar el valor más reciente registrado
-  return OFFICIAL_INPC_TABLE[2026]?.[12] ?? 152.2;
+  if (year < 2015) return OFFICIAL_INPC_TABLE[2015]?.[1] ?? 87.110;
+  return getLatestPublishedInpc();
 }
 
 /**
  * Calcula el INPC del último mes de la primera mitad del periodo en que el bien
  * haya sido utilizado en el ejercicio (Art. 31 LISR).
- *
- * Para un ejercicio regular completo de 12 meses (ej. todo el año fiscal),
- * el mes medio es Junio (mes 6).
- * Si se especifica el mes actual de depreciación mensual, toma el mes medio correspondiente.
  */
 export function getInpcMedioPeriodo(fiscalYear: number, fiscalMonth: number = 6): number {
-  const targetYear = Math.max(2020, Math.min(2026, fiscalYear));
+  const targetYear = Math.max(2015, Math.min(2026, fiscalYear));
   const targetMonth = Math.max(1, Math.min(12, fiscalMonth));
   const found = getOfficialInpc(targetYear, targetMonth);
-  return found ?? OFFICIAL_INPC_TABLE[2026]?.[6] ?? 148.8;
+  return found ?? getLatestPublishedInpc();
 }
 
 /**

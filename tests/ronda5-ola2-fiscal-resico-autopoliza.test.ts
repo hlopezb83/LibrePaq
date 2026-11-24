@@ -259,9 +259,9 @@ describe('Ronda 5 Ola 2 — Día 17 PyME/RESICO, Anual en Flujo, Auto-Póliza FX
     const val = validateDoubleEntryMovements(movs, new Map(accounts.map((a) => [a.id, a])));
     expect(val.totalCargo).toBe(val.totalAbono);
 
-    // 118-01-001 acreditado completo ($6,400 + $1,600 = $8,000) y $1,600 enviado a gasto 601-*
+    // 118-01-001 acreditado completo ($6,400 + $1,600 = $8,000) y $1,600 enviado a gasto 601-01-012 (IVA No Acreditable)
     const abonos118 = movs.filter((m) => m.accountCode === '118-01-001').reduce((s, m) => s + m.abono, 0);
-    const cargosGastoIva = movs.filter((m) => m.accountCode === '601-01-003').reduce((s, m) => s + m.cargo, 0);
+    const cargosGastoIva = movs.filter((m) => m.accountCode === '601-01-012').reduce((s, m) => s + m.cargo, 0);
     expect(abonos118).toBe(8_000);
     expect(cargosGastoIva).toBe(1_600);
 
@@ -389,8 +389,8 @@ describe('Ronda 5 Ola 2 — Día 17 PyME/RESICO, Anual en Flujo, Auto-Póliza FX
     });
     // Créditos: 100k (102) + 50k (113) = 150k (NO incluye 500k de 107-01-001)
     expect(annualPm.inflation.promedioCreditos).toBe(150_000);
-    // Deudas: 100k (210) + 200k (216) = 300k
-    expect(annualPm.inflation.promedioDeudas).toBe(300_000);
+    // Deudas: 200k (216); 210 provisiones excluidas por Art. 46 LISR
+    expect(annualPm.inflation.promedioDeudas).toBe(200_000);
     expect(annualPm.reconciliation.isrContableProvisionado).toBe(50_000);
     // Ded. contables no fiscales: 50k (801-01-001) + 250k (801-01-002) + 100k (manual) = 400k
     expect(annualPm.reconciliation.deduccionesContablesNoFiscales).toBe(400_000);

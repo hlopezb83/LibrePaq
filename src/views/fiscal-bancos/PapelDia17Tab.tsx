@@ -6,6 +6,7 @@ import {
   PapelDia17IvaCard,
   PapelDia17UsdCard
 } from './PapelDia17Cards';
+import { PapelDia17DypDrawer } from './PapelDia17DypDrawer';
 import { PapelDia17SummaryBar } from './PapelDia17SummaryBar';
 import { ResicoCashBasisBanner } from './ResicoCashBasisBanner';
 import { usePapelDia17 } from './usePapelDia17';
@@ -55,16 +56,10 @@ export function PapelDia17Tab({
 
   if (isErrorWp) {
     return (
-      <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
-        <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-          <AlertCircle className="w-6 h-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h3 className="font-bold text-slate-900 text-base">Error al calcular Papel de Trabajo Día 17</h3>
-          <p className="text-xs text-slate-600 mt-1">
-            {errorWp instanceof Error ? errorWp.message : 'Error de conexión'}
-          </p>
-        </div>
+      <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-3 max-w-lg mx-auto my-12">
+        <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
+        <h3 className="font-bold text-slate-900 text-base">Error al calcular Papel de Trabajo Día 17</h3>
+        <p className="text-xs text-slate-600">{errorWp instanceof Error ? errorWp.message : 'Error de conexión'}</p>
         <button
           type="button"
           onClick={() => void refetchWp()}
@@ -132,17 +127,8 @@ export function PapelDia17Tab({
               title={hasUnsavedParams ? unsavedTitle : 'Copiar datos estructurados para llenar el formulario de Declaraciones y Pagos (DyP) en el portal del SAT'}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
             >
-              {copiedSatDyp ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-600" aria-hidden="true" />
-                  <span className="text-emerald-700 font-bold">¡Copiado para DyP!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 text-slate-600" aria-hidden="true" />
-                  <span>Copiar para DyP SAT</span>
-                </>
-              )}
+              {copiedSatDyp ? <Check className="w-4 h-4 text-emerald-600" aria-hidden="true" /> : <Copy className="w-4 h-4 text-slate-600" aria-hidden="true" />}
+              <span className={copiedSatDyp ? 'text-emerald-700 font-bold' : ''}>{copiedSatDyp ? '¡Copiado para DyP!' : 'Copiar para DyP SAT'}</span>
             </button>
 
             {onOpenDeliverable && (
@@ -236,6 +222,22 @@ export function PapelDia17Tab({
                   className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 />
               </div>
+              <div>
+                <label htmlFor="dia17-ptu-pagada" className="block text-[11px] font-bold text-slate-700 mb-1">
+                  PTU Pagada Ejercicio ($)
+                </label>
+                <input
+                  id="dia17-ptu-pagada"
+                  type="text"
+                  inputMode="decimal"
+                  disabled={isWriteLocked}
+                  title={isWriteLocked ? lockTitle : 'PTU pagada en el ejercicio disminuible en pagos provisionales (Art. 14 / Art. 106 LISR)'}
+                  value={draftParams.ptuPagadaEjercicio}
+                  onChange={(e) => updateDraftField('ptuPagadaEjercicio', e.target.value)}
+                  onBlur={() => normalizeDraftField('ptuPagadaEjercicio')}
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                />
+              </div>
             </>
           )}
           <div>
@@ -314,6 +316,15 @@ export function PapelDia17Tab({
         year={year}
         period={period}
         retencionesDesglose={workpaper.retencionesDesglose}
+      />
+
+      <PapelDia17DypDrawer
+        workpaper={workpaper}
+        year={year}
+        period={period}
+        hasUnsavedParams={hasUnsavedParams}
+        onCopyFullGuide={handleCopySatDyp}
+        copiedFullGuide={copiedSatDyp}
       />
 
       <ResicoCashBasisBanner workpaper={workpaper} />

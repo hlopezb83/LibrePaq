@@ -1,5 +1,5 @@
 import { getRequiredSupabase } from '../supabase';
-import type { BankStatementLine } from '../../shared/types';
+import type { BankReconciliationResponse, BankStatementLine, Poliza } from '../../shared/types';
 import { fetchAllRows } from './supabase-pagination';
 
 export function mapBankStatementLine(
@@ -81,4 +81,182 @@ export async function assertMovementNotAlreadyMatched(
   if ((n1Matches ?? []).length > 0) {
     throw new Error('Este movimiento contable ya forma parte de un cruce bancario N-a-1.');
   }
+}
+
+export interface IncomingBankCsvLine {
+  fecha: string;
+  referencia: string;
+  descripcion: string;
+  cargoBanco: number;
+  abonoBanco: number;
+}
+
+function bankLineOccurrenceKey(item: {
+  fecha: unknown;
+  concepto: unknown;
+  cargo: unknown;
+  abono: unknown;
+}): string {
+  const fecha = String(item.fecha || '').slice(0, 10);
+  const concepto = String(item.concepto || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const cargo = Number(item.cargo || 0).toFixed(2);
+  const abono = Number(item.abono || 0).toFixed(2);
+  return `${fecha}|${concepto}|${cargo}|${abono}`;
+}
+
+/**
+ * Deduplica movimientos bancarios por conteo de ocurrencias sobre `(fecha, concepto, cargo, abono)`,
+ * preservando cargos/abonos repetidos legítimos en el mismo día (ej. dos comisiones o retiros idénticos).
+ */
+export function deduplicateBankLinesByOccurrence<T extends IncomingBankCsvLine>(
+  incoming: readonly T[],
+  existing: ReadonlyArray<{
+    fecha?: unknown;
+    descripcion?: unknown;
+    cargo_banco?: unknown;
+    abono_banco?: unknown;
+  }>
+): T[] {
+  const existingCounts = new Map<string, number>();
+  for (const row of existing) {
+    const key = bankLineOccurrenceKey({
+      fecha: row.fecha,
+      concepto: row.descripcion,
+      cargo: row.cargo_banco,
+      abono: row.abono_banco
+    });
+    existingCounts.set(key, (existingCounts.get(key) ?? 0) + 1);
+  }
+  const result: T[] = [];
+  for (const line of incoming) {
+    const key = bankLineOccurrenceKey({
+      fecha: line.fecha,
+      concepto: line.descripcion,
+      cargo: line.cargoBanco,
+      abono: line.abonoBanco
+    });
+    const remaining = existingCounts.get(key) ?? 0;
+    if (remaining > 0) {
+      existingCounts.set(key, remaining - 1);
+    } else {
+      result.push(line);
+    }
+  }
+  return result;
+}
+
+export async function fetchBankClosureBalance(
+  companyId: string,
+  accountId: string,
+  ejercicio: number,
+  periodo: number
+): Promise<number | null> {
+  const { data, error } = await getRequiredSupabase()
+    .from('bank_reconciliation_closures')
+    .select('saldo_banco_cierre')
+    .eq('company_id', companyId)
+    .eq('account_id', accountId)
+    .eq('ejercicio', ejercicio)
+    .eq('periodo', periodo)
+    .maybeSingle();
+  if (error || !data || data.saldo_banco_cierre == null) return null;
+  const n = Number(data.saldo_banco_cierre);
+  return Number.isFinite(n) ? n : null;
+}
+
+export async function upsertBankClosureBalance(
+  companyId: string,
+  accountId: string,
+  ejercicio: number,
+  periodo: number,
+  saldoBancoCierre: number
+): Promise<void> {
+  const { error } = await getRequiredSupabase()
+    .from('bank_reconciliation_closures')
+    .upsert(
+      {
+        id: `bclose_${companyId}_${accountId}_${ejercicio}_${periodo}`,
+        company_id: companyId,
+        account_id: accountId,
+        ejercicio,
+        periodo,
+        saldo_banco_cierre: saldoBancoCierre,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: 'company_id,account_id,ejercicio,periodo' }
+    );
+  if (error) throw new Error(error.message);
+}
+
+export function buildBankReconciliationViewRows(params: {
+  allMappedLines: BankStatementLine[];
+  allPolizas: Poliza[];
+  n1MatchedIds: ReadonlySet<string>;
+  accountId: string;
+  accountCode: string;
+  currentYear: number;
+  currentPeriod: number;
+}): {
+  statementLines: BankStatementLine[];
+  bookMovements: BankReconciliationResponse['bookMovements'];
+} {
+  const { allMappedLines, allPolizas, n1MatchedIds, accountId, accountCode, currentYear, currentPeriod } = params;
+  const isPrior = (y: number, p: number) => y < currentYear || (y === currentYear && p < currentPeriod);
+  const isCurrent = (y: number, p: number) => y === currentYear && p === currentPeriod;
+
+  const matchedMovementIds = new Set<string>([
+    ...(allMappedLines.map((l) => l.matchedMovementId).filter(Boolean) as string[]),
+    ...n1MatchedIds
+  ]);
+
+  const polizasUpToPeriod = allPolizas.filter(
+    (p) => isCurrent(p.ejercicio, p.periodo) || isPrior(p.ejercicio, p.periodo)
+  );
+  const currentPeriodMovIds = new Set<string>();
+  const movementFolioMap = new Map<string, string>();
+  for (const p of polizasUpToPeriod) {
+    const pFolio = `${p.tipo} #${p.folio}`;
+    const inCurrent = isCurrent(p.ejercicio, p.periodo);
+    for (const m of p.movements) {
+      movementFolioMap.set(m.id, pFolio);
+      if (inCurrent) currentPeriodMovIds.add(m.id);
+    }
+  }
+
+  const statementLines = allMappedLines.filter(
+    (l) => isCurrent(l.ejercicio, l.periodo) || !l.matchedMovementId || currentPeriodMovIds.has(l.matchedMovementId)
+  );
+  const matchedInCurrentLineMovIds = new Set(
+    statementLines.filter((l) => isCurrent(l.ejercicio, l.periodo) && l.matchedMovementId).map((l) => l.matchedMovementId!)
+  );
+
+  const bookMovements: BankReconciliationResponse['bookMovements'] = [];
+  for (const p of polizasUpToPeriod) {
+    const pFolio = `${p.tipo} #${p.folio}`;
+    const inCurrent = isCurrent(p.ejercicio, p.periodo);
+    for (const m of p.movements) {
+      if (m.accountId !== accountId && m.accountCode !== accountCode) continue;
+      const isMatched = matchedMovementIds.has(m.id);
+      if (!inCurrent && isMatched && !matchedInCurrentLineMovIds.has(m.id)) continue;
+      bookMovements.push({
+        movementId: m.id,
+        polizaId: p.id,
+        polizaFolio: pFolio,
+        fecha: p.fecha,
+        referencia: m.referencia || '',
+        concepto: m.concepto || p.concepto,
+        cargoContable: Number(m.cargo || 0),
+        abonoContable: Number(m.abono || 0),
+        isMatched
+      });
+    }
+  }
+
+  for (const line of statementLines) {
+    if (line.matchedMovementId && !line.matchedPolizaFolio) {
+      line.matchedPolizaFolio = movementFolioMap.get(line.matchedMovementId) ?? null;
+    }
+  }
+
+  return { statementLines, bookMovements };
 }

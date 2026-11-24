@@ -5,13 +5,11 @@ import {
   validateDoubleEntryMovements,
   type AutoPolizaOverrides
 } from '../../shared/accounting-engine';
-import {
-  parseCfdiXmlString,
-  type ParsedCfdiPayload
-} from '../../shared/cfdi-xml';
+import type { ParsedCfdiPayload } from '../../shared/cfdi-xml';
 import { parseCalendarDate } from '../../shared/date-utils';
-import { SAFETY_BOUNDS } from '../../shared/sat-constants';
+import { isCfdiBelongingToCompany } from '../../shared/xml-utils';
 import type { CfdiDocument, Company, Poliza } from '../../shared/types';
+export { batchGenerateAutoPolizasFromCfdiIds, batchUploadCfdiXmlStrings } from './cfdi-batch.repo';
 import { getCompanyById } from './companies.repo';
 import { getAccounts } from './accounts.repo';
 import { assertPeriodOpen } from './period-locks.repo';
@@ -83,6 +81,11 @@ export function insertParsedCfdiRecord(
   company: Company,
   parsed: ParsedCfdiPayload
 ): CfdiDocument {
+  assertAccountingInvariant(
+    isCfdiBelongingToCompany(parsed, company.rfc),
+    'CFDI_RFC_MISMATCH',
+    `El CFDI ${parsed.uuid} (${parsed.emisorRfc} → ${parsed.receptorRfc}) no corresponde al RFC de la empresa (${company.rfc}).`
+  );
   const existing = db
     .query('SELECT id FROM cfdi_documents WHERE company_id = ? AND uuid = ?')
     .get(company.id, parsed.uuid) as { id: string } | null;
@@ -132,41 +135,6 @@ export function insertParsedCfdiRecord(
   const created = getCfdiById(id);
   assertAccountingInvariant(created !== null, 'CFDI_INSERT_FAILED', 'No se pudo registrar el CFDI.');
   return created;
-}
-
-/**
- * H-13 (NASA Power of 10 Reglas 2 y 3):
- * Carga masiva atómica de múltiples archivos XML en una sola transacción SQLite.
- */
-export function batchUploadCfdiXmlStrings(
-  company: Company,
-  xmlList: readonly string[]
-): { uploaded: CfdiDocument[]; skippedDuplicates: number } {
-  const bound = Math.min(xmlList.length, SAFETY_BOUNDS.MAX_BATCH_CFDI);
-  const uploaded: CfdiDocument[] = [];
-  let skippedDuplicates = 0;
-
-  const checkExistingStmt = db.prepare(
-    'SELECT id FROM cfdi_documents WHERE company_id = ? AND uuid = ?'
-  );
-
-  const tx = db.transaction(() => {
-    for (let i = 0; i < bound; i += 1) {
-      const xmlRaw = xmlList[i];
-      if (!xmlRaw) continue;
-      const parsed = parseCfdiXmlString(xmlRaw);
-      const dup = checkExistingStmt.get(company.id, parsed.uuid) as { id: string } | null;
-      if (dup) {
-        skippedDuplicates += 1;
-        continue;
-      }
-      const doc = insertParsedCfdiRecord(company, parsed);
-      uploaded.push(doc);
-    }
-  });
-
-  tx();
-  return { uploaded, skippedDuplicates };
 }
 
 export function deleteCfdiRecord(cfdiId: string): {
@@ -232,7 +200,11 @@ export function generateAutoPolizaFromCfdiId(
 
   let relatedOriginalTipoCambioByUuid = overrides?.relatedOriginalTipoCambioByUuid;
   let relatedOriginalTipoCambio = overrides?.relatedOriginalTipoCambio;
-  if (cfdi.tipoComprobante === 'P' && !relatedOriginalTipoCambioByUuid) {
+  let relatedIsPpd = overrides?.relatedIsPpd;
+  let relatedPpdIsrRetenido = overrides?.relatedPpdIsrRetenido;
+  let relatedPpdIvaRetenido = overrides?.relatedPpdIvaRetenido;
+  let relatedPpdTotal = overrides?.relatedPpdTotal;
+  if ((cfdi.tipoComprobante === 'P' || cfdi.tipoComprobante === 'E') && (!relatedOriginalTipoCambioByUuid || relatedIsPpd === undefined)) {
     const relUuids = Array.from(
       new Set(
         [
@@ -246,14 +218,32 @@ export function generateAutoPolizaFromCfdiId(
     if (relUuids.length > 0) {
       const ph = relUuids.map(() => '?').join(',');
       const relRows = db
-        .query(`SELECT uuid, moneda, tipo_cambio FROM cfdi_documents WHERE company_id = ? AND UPPER(uuid) IN (${ph})`)
-        .all(company.id, ...relUuids) as Array<{ uuid: string; moneda: string; tipo_cambio: number }>;
+        .query(
+          `SELECT uuid, moneda, tipo_cambio, metodo_pago, isr_retenido, iva_retenido, total FROM cfdi_documents WHERE company_id = ? AND UPPER(uuid) IN (${ph})`
+        )
+        .all(company.id, ...relUuids) as Array<{
+        uuid: string;
+        moneda: string;
+        tipo_cambio: number;
+        metodo_pago: string;
+        isr_retenido: number;
+        iva_retenido: number;
+        total: number;
+      }>;
       const tcMap: Record<string, number> = {};
       for (const r of relRows) {
         const key = String(r.uuid ?? '').trim().toUpperCase();
         if (key && String(r.moneda || 'MXN').toUpperCase() !== 'MXN' && Number(r.tipo_cambio) > 0) {
           tcMap[key] = Number(r.tipo_cambio);
           if (relatedOriginalTipoCambio === undefined) relatedOriginalTipoCambio = Number(r.tipo_cambio);
+        }
+        if (relatedIsPpd === undefined && String(r.metodo_pago || '').toUpperCase() === 'PPD') {
+          relatedIsPpd = true;
+        }
+        if (cfdi.tipoComprobante === 'P' && String(r.metodo_pago || '').toUpperCase() === 'PPD') {
+          relatedPpdIsrRetenido = (relatedPpdIsrRetenido ?? 0) + Number(r.isr_retenido || 0);
+          relatedPpdIvaRetenido = (relatedPpdIvaRetenido ?? 0) + Number(r.iva_retenido || 0);
+          relatedPpdTotal = (relatedPpdTotal ?? 0) + Number(r.total || 0);
         }
       }
       if (Object.keys(tcMap).length > 0) relatedOriginalTipoCambioByUuid = tcMap;
@@ -265,7 +255,11 @@ export function generateAutoPolizaFromCfdiId(
     rules,
     thirdParty: overrides?.thirdParty ?? thirdParty,
     ...(relatedOriginalTipoCambio !== undefined ? { relatedOriginalTipoCambio } : {}),
-    ...(relatedOriginalTipoCambioByUuid ? { relatedOriginalTipoCambioByUuid } : {})
+    ...(relatedOriginalTipoCambioByUuid ? { relatedOriginalTipoCambioByUuid } : {}),
+    ...(relatedIsPpd !== undefined ? { relatedIsPpd } : {}),
+    ...(relatedPpdIsrRetenido ? { relatedPpdIsrRetenido } : {}),
+    ...(relatedPpdIvaRetenido ? { relatedPpdIvaRetenido } : {}),
+    ...(relatedPpdTotal ? { relatedPpdTotal } : {})
   });
   validateDoubleEntryMovements(plan.movements, accById);
 
@@ -319,30 +313,4 @@ export function generateAutoPolizaFromCfdiId(
   const created = getPolizaById(polizaId);
   assertAccountingInvariant(created !== null, 'AUTO_POLIZA_READ_ERROR', 'No se pudo recuperar la póliza generada.');
   return created;
-}
-
-/**
- * H-13 (NASA Power of 10 Reglas 2 y 3):
- * Contabilización masiva en lote dentro de una única transacción SQLite atómica.
- */
-export function batchGenerateAutoPolizasFromCfdiIds(
-  cfdiIds: readonly string[],
-  overrides?: AutoPolizaOverrides
-): { createdPolizas: Poliza[]; count: number } {
-  const bound = Math.min(cfdiIds.length, SAFETY_BOUNDS.MAX_BATCH_CFDI);
-  const createdPolizas: Poliza[] = [];
-
-  const tx = db.transaction(() => {
-    for (let i = 0; i < bound; i += 1) {
-      const id = cfdiIds[i];
-      if (!id) continue;
-      const cfdi = getCfdiById(id);
-      if (!cfdi || cfdi.polizaId) continue;
-      const poliza = generateAutoPolizaFromCfdiId(id, overrides);
-      createdPolizas.push(poliza);
-    }
-  });
-
-  tx();
-  return { createdPolizas, count: createdPolizas.length };
 }

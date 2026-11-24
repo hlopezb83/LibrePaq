@@ -173,7 +173,15 @@ async function executeSingleSatSolicitaDescarga(params: {
   let liveStatus = '5000';
   let mensajeSat = `SAT 5000: Solicitud (${tipoSat}) transmitida al Web Service oficial. Folio asignado: ${idSolicitudSat.slice(0, 8)}. El SAT está empaquetando los comprobantes.`;
 
-  if (privateKeyPem && cerBase64 && authHeader && modoEjecucion === 'SAT_LIVE') {
+  if (modoEjecucion === 'SAT_LIVE') {
+    if (!privateKeyPem || !cerBase64 || !authHeader) {
+      return {
+        ok: false,
+        status: 400,
+        tipoSolicitud: tipoSat,
+        error: `No hay credenciales e.firma (.cer y llave privada) válidas para ejecutar la descarga SAT_LIVE (${tipoSat}).`
+      };
+    }
     try {
       const soapActionHeader =
         tipoSat === 'EMITIDOS'
@@ -313,6 +321,16 @@ export async function handleSolicitaDescarga(
   companyRfc = creds.companyRfc;
   if (!companyRfc) {
     return jsonResponse({ ok: false, error: 'companyRfc es requerido para la solicitud al SAT' }, 400, headers);
+  }
+  if (modoEjecucion === 'SAT_LIVE' && (!creds.privateKeyPem || !creds.cerBase64)) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: 'No se encontraron credenciales e.firma (.cer y llave privada) para esta empresa. Registra tu e.firma antes de solicitar descargas al SAT.'
+      },
+      400,
+      headers
+    );
   }
 
   // Clamping de fechaFinal y hora actual en horario oficial CDMX (America/Mexico_City) para prevenir error 301 del SAT
@@ -555,11 +573,13 @@ async function ingestSatPackage(params: {
   let hadInsertErrors = false;
   for (let i = 0; i < toInsert.length; i += 50) {
     const batch = toInsert.slice(i, i + 50);
-    const { error: insErr } = await supabase.from('cfdi_documents').insert(batch);
+    const { error: insErr } = await supabase
+      .from('cfdi_documents')
+      .upsert(batch, { onConflict: 'company_id,uuid', ignoreDuplicates: true });
     if (!insErr) totalIngested += batch.length;
     else {
       hadInsertErrors = true;
-      console.warn('[Error batch insert CFDI]', insErr);
+      console.warn('[Error batch upsert CFDI]', insErr);
     }
   }
   return {
@@ -631,9 +651,10 @@ export async function handleVerificaDescarga(
       const estadoSol = verText.match(/EstadoSolicitud="(\d+)"/i)?.[1] || '2';
       const numCfdis = parseInt(verText.match(/NumeroCFDIs="(\d+)"/i)?.[1] || '0', 10);
       const codEstatus = verText.match(/CodEstatus="(\d+)"/i)?.[1] || '5000';
+      const codigoEstadoSol = verText.match(/CodigoEstadoSolicitud="(\d+)"/i)?.[1] || codEstatus;
       const satMsg = verText.match(/Mensaje="([^"]+)"/i)?.[1] || '';
 
-      let nuevoEstado: 'ACEPTADA' | 'EN_PROCESO' | 'TERMINADA' | 'ERROR' = 'EN_PROCESO';
+      let nuevoEstado: 'ACEPTADA' | 'EN_PROCESO' | 'TERMINADA' | 'PARCIAL' | 'ERROR' = 'EN_PROCESO';
       let nuevoMensaje = `SAT Estado ${estadoSol}: Solicitud en proceso. El SAT está preparando los paquetes.`;
       let totalIngested = 0;
       let truncatedAtLimitAny = false;
@@ -679,32 +700,39 @@ export async function handleVerificaDescarga(
               totalIngested > 0
                 ? `SAT 5000: Se integraron parcialmente ${totalIngested} comprobantes a la Bóveda ADD, pero ocurrió un error en parte de los paquetes o bloques. Vuelve a verificar para reintentar el resto.`
                 : `SAT 5000: ${numCfdis} comprobantes listos en servidores del SAT, pero ocurrió un error al descargar o integrar los paquetes. Vuelve a verificar para reintentar el resto.`;
+          } else if (truncatedAtLimitAny) {
+            nuevoEstado = 'PARCIAL';
+            nuevoMensaje = `SAT 5000: Descarga parcial (${totalIngested} nuevos, ${skippedDuplicatesTotal} existentes): el paquete superó el límite de ${MAX_XML_FILES_PER_PACKAGE} XML o 80 MB. Divide el periodo en rangos más cortos para descargar los comprobantes faltantes.`;
           } else if (totalIngested > 0) {
             nuevoEstado = 'TERMINADA';
-            nuevoMensaje = truncatedAtLimitAny
-              ? `SAT 5000: ${totalIngested} comprobantes descargados e integrados a la Bóveda ADD (tope de ${MAX_XML_FILES_PER_PACKAGE} XML por paquete alcanzado; existen archivos adicionales).`
-              : `SAT 5000: ${totalIngested} comprobantes descargados e integrados exitosamente a la Bóveda ADD.`;
+            nuevoMensaje = `SAT 5000: ${totalIngested} comprobantes descargados e integrados exitosamente a la Bóveda ADD.`;
           } else if (skippedDuplicatesTotal > 0) {
             nuevoEstado = 'TERMINADA';
-            nuevoMensaje = truncatedAtLimitAny
-              ? `SAT 5000: Paquete procesado hasta el límite de ${MAX_XML_FILES_PER_PACKAGE} XML; los ${skippedDuplicatesTotal} comprobantes revisados ya existían en la Bóveda ADD.`
-              : `SAT 5000: Paquete procesado; los ${skippedDuplicatesTotal} comprobantes ya existían en la Bóveda ADD.`;
+            nuevoMensaje = `SAT 5000: Paquete procesado; los ${skippedDuplicatesTotal} comprobantes ya existían en la Bóveda ADD.`;
           } else {
             nuevoEstado = 'EN_PROCESO';
             nuevoMensaje = `SAT 5000: ${numCfdis} comprobantes listos en servidores del SAT. Reintentando descarga e integración a Bóveda ADD...`;
           }
         }
-      } else if (['0', '4', '5', '6'].includes(estadoSol) || codEstatus === '5004') {
+      } else if (['0', '4', '5', '6'].includes(estadoSol) || codEstatus === '5004' || codigoEstadoSol === '5004') {
         nuevoEstado = 'ERROR';
-        nuevoMensaje = satMsg
-          ? `SAT ${codEstatus}: ${satMsg}`
-          : `SAT: Solicitud no encontrada o rechazada en servidores del SAT (Código ${codEstatus || estadoSol}).`;
+        nuevoMensaje =
+          estadoSol === '0'
+            ? `SAT ${codigoEstadoSol}: Token de sesión inválido o expirado ante el SAT (EstadoSolicitud 0). Reintenta la verificación con tu e.firma.`
+            : satMsg
+            ? `SAT ${codigoEstadoSol}: ${satMsg}`
+            : `SAT: Solicitud no encontrada, rechazada o vencida en servidores del SAT (Código ${codigoEstadoSol || estadoSol}).`;
       }
 
       const accumulatedCfdis = (Number(reqItem.cfdis_descargados) || 0) + totalIngested;
       await supabase
         .from('sat_download_requests')
-        .update({ estado_solicitud: nuevoEstado, mensaje_sat: nuevoMensaje, cfdis_descargados: accumulatedCfdis })
+        .update({
+          estado_solicitud: nuevoEstado,
+          codigo_estado_sat: codigoEstadoSol,
+          mensaje_sat: nuevoMensaje,
+          cfdis_descargados: accumulatedCfdis
+        })
         .eq('id', reqItem.id);
 
       results.push({
@@ -712,6 +740,8 @@ export async function handleVerificaDescarga(
         idSolicitudSat: reqItem.id_solicitud_sat,
         estadoSolicitud: nuevoEstado,
         estadoSat: estadoSol,
+        codigoEstadoSat: codigoEstadoSol,
+        mensajeSat: nuevoMensaje,
         numeroCfdis: totalIngested,
         totalAcumuladoCfdis: accumulatedCfdis,
         truncatedAtLimit: truncatedAtLimitAny,

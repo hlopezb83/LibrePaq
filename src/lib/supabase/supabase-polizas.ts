@@ -19,7 +19,7 @@ import {
 export { mapSupabasePoliza, assertSupabasePeriodOpen };
 
 export const supabasePolizas = {
-  async getPolizas(companyId: string, year?: number, period?: number): Promise<Poliza[]> {
+  async getPolizas(companyId: string, year?: number, period?: number | 'ALL'): Promise<Poliza[]> {
     if (!supabase) return [];
     const data = await fetchAllRows(async (from, to) => {
       let query = getRequiredSupabase()
@@ -28,7 +28,7 @@ export const supabasePolizas = {
         .eq('company_id', companyId);
 
       if (year) query = query.eq('ejercicio', year);
-      if (period) query = query.eq('periodo', period);
+      if (typeof period === 'number') query = query.eq('periodo', period);
 
       return query
         .order('folio', { ascending: false })

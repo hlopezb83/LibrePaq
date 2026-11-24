@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { CfdiInvoicePreviewModal } from './cfdi/preview/CfdiInvoicePreviewModal';
 import { CfdiAlertsBanners } from './cfdi/CfdiAlertsBanners';
@@ -10,12 +11,15 @@ import { CfdiSimulatorModal } from './cfdi/CfdiSimulatorModal';
 import { CfdiTable } from './cfdi/CfdiTable';
 import { CfdiXmlViewerModal } from './cfdi/CfdiXmlViewerModal';
 import { downloadCfdiXmlFile } from './cfdi/cfdiXmlUploadHelpers';
+import { reverseCancelledCfdiPolizas } from './cfdi/reverseCancelledCfdiPoliza';
 import { useAddCfdiManager } from './cfdi/useAddCfdiManager';
 import { useToast } from '../context/ToastContext';
 
 export function AddCfdiView() {
   const manager = useAddCfdiManager();
   const toast = useToast();
+  const queryClient = useQueryClient();
+  const [isReversingCancelled, setIsReversingCancelled] = useState(false);
 
   const {
     activeCompany, activeCompanyId, currentYear, currentPeriod,
@@ -80,6 +84,35 @@ export function AddCfdiView() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [fileInputRef, simModalRef, isReadOnlyClient]);
 
+  const cancelledWithPolizaCfdis = scopedCfdis.filter(
+    (c) => c.statusSat === 'CANCELADO' && Boolean(c.polizaId)
+  );
+
+  const handleReverseCancelledPoliza = async () => {
+    if (isReversingCancelled) return;
+    setIsReversingCancelled(true);
+    try {
+      const targets =
+        cancelledWithPolizaCfdis.length > 0
+          ? cancelledWithPolizaCfdis
+          : (satBatchAlert?.alerts ?? []).map((a) => ({ id: a.cfdiId, uuid: a.uuid, polizaId: null }));
+      await reverseCancelledCfdiPolizas({
+        companyId: activeCompanyId,
+        currentYear,
+        currentPeriod,
+        isPeriodLocked,
+        isReadOnlyClient,
+        targetCfdis: targets,
+        queryClient,
+        toast
+      });
+    } catch (err: unknown) {
+      toast.error('Error al revertir póliza', err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsReversingCancelled(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <CfdiAlertsBanners
@@ -88,6 +121,13 @@ export function AddCfdiView() {
         currentPeriod={currentPeriod}
         currentYear={currentYear}
         satBatchAlert={satBatchAlert}
+        cancelledWithPolizaCount={
+          statusSatFilter === 'CANCELADO_CON_POLIZA' || cancelledWithPolizaCfdis.length > 0
+            ? cancelledWithPolizaCfdis.length
+            : 0
+        }
+        isReversingCancelled={isReversingCancelled}
+        onReverseCancelledPoliza={() => void handleReverseCancelledPoliza()}
         onLocateCancelled={(alert) => {
           const firstCancelled = alert.alerts[0];
           if (!firstCancelled) return;

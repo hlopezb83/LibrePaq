@@ -3,9 +3,17 @@ import type {
   AccountWithBalance,
   CfdiDocument,
   DashboardSummary,
+  FiscalWorkpaperResponse,
   Poliza
 } from '../types';
 import { fromCents, toCents } from './invariants-and-math';
+
+/**
+ * Calcula la razón de cobertura de efectivo sobre el Pasivo Total (Efectivo / Total Pasivo).
+ */
+export function computeDashboardCashCoverage(efectivoBancos: number, totalPasivo: number): string {
+  return totalPasivo > 0 ? (efectivoBancos / totalPasivo).toFixed(2) : 'S/D';
+}
 
 /**
  * Construye los KPIs ejecutivos y listas recientes del Dashboard a partir de la balanza,
@@ -17,12 +25,13 @@ export function buildDashboardKpisFromTrialBalance(params: {
   cfdis: readonly CfdiDocument[];
   year: number;
   period: number;
+  fiscalWorkpaper?: FiscalWorkpaperResponse | null;
 }): {
   kpis: DashboardSummary['kpis'];
   recentPolizas: Poliza[];
   pendingCfdis: CfdiDocument[];
 } {
-  const { trialBalance, polizas, cfdis, year, period } = params;
+  const { trialBalance, polizas, cfdis, year, period, fiscalWorkpaper } = params;
   const byCode = new Map(trialBalance.map((a) => [a.code, a]));
 
   const ingresosAcc = byCode.get('400-00-000');
@@ -42,8 +51,30 @@ export function buildDashboardKpisFromTrialBalance(params: {
   const isrCents = isrAcc ? toCents(isrAcc.periodCharges) - toCents(isrAcc.periodCredits) : 0;
   const egresosCents = costosCents + gastosCents + isrCents;
 
-  const ivaTrasladadoCents = toCents(byCode.get('208-00-000')?.finalBalance);
-  const ivaAcreditableCents = toCents(byCode.get('118-00-000')?.finalBalance);
+  // Alinear IVA Neto del Mes con Día 17 (flujo del periodo en vez de acumulado YTD 208-118)
+  let ivaPorPagarNetoCents: number;
+  if (fiscalWorkpaper) {
+    ivaPorPagarNetoCents =
+      fiscalWorkpaper.ivaDefinitivo.ivaNetoAPagar > 0
+        ? toCents(fiscalWorkpaper.ivaDefinitivo.ivaNetoAPagar)
+        : -toCents(fiscalWorkpaper.ivaDefinitivo.saldoFavorIvaRemanente);
+  } else {
+    const ivaCobradoMesCents = toCents(
+      byCode.get('208-01-001')?.periodCredits ?? byCode.get('208-00-000')?.periodCredits
+    );
+    const ivaPagadoMesCents = toCents(
+      byCode.get('118-01-001')?.periodCharges ?? byCode.get('118-00-000')?.periodCharges
+    );
+    const ivaRetAcredMesCents = toCents(byCode.get('113-01-002')?.periodCharges);
+    ivaPorPagarNetoCents = ivaCobradoMesCents - ivaPagadoMesCents - ivaRetAcredMesCents;
+  }
+
+  const pasivoCodes = new Set(
+    trialBalance.filter((a) => a.type === 'PASIVO').map((a) => a.code)
+  );
+  const totalPasivoCents = trialBalance
+    .filter((a) => a.type === 'PASIVO' && (!a.parentCode || !pasivoCodes.has(a.parentCode)))
+    .reduce((sum, a) => sum + (a.nature === 'ACREEDORA' ? 1 : -1) * toCents(a.finalBalance), 0);
 
   const periodPrefix = `${year}-${String(period).padStart(2, '0')}`;
   const periodCfdis = cfdis.filter(
@@ -59,7 +90,8 @@ export function buildDashboardKpisFromTrialBalance(params: {
       efectivoBancos: byCode.get('102-00-000')?.finalBalance ?? 0,
       cuentasPorCobrar: byCode.get('105-00-000')?.finalBalance ?? 0,
       cuentasPorPagar: byCode.get('201-00-000')?.finalBalance ?? 0,
-      ivaPorPagarNeto: fromCents(ivaTrasladadoCents - ivaAcreditableCents),
+      totalPasivo: fromCents(totalPasivoCents),
+      ivaPorPagarNeto: fromCents(ivaPorPagarNetoCents),
       totalPolizasPeriodo: polizas.length,
       cfdisPendientesContabilizar: pendingCfdis.length,
       cfdisTotalesPeriodo: periodCfdis.length

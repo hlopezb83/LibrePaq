@@ -100,11 +100,11 @@ describe('Ola 3A — Declaración Anual, Ajuste Inflación INPC, CUCA, CUFIN y P
   });
 
   test('1. Ajuste Anual por Inflación acumulable vs deducible usando INPC oficial', () => {
-    const inpc2024Dic = getOfficialInpc(2024, 12)!; // 139.380
-    const inpc2025Dic = getOfficialInpc(2025, 12)!; // 145.400
-    expect(inpc2024Dic).toBe(139.38);
-    expect(inpc2025Dic).toBe(145.4);
-    const expectedFactor = Math.floor((inpc2025Dic / inpc2024Dic - 1) * 10000) / 10000; // 0.0431
+    const inpc2024Dic = getOfficialInpc(2024, 12)!; // 137.949
+    const inpc2025Dic = getOfficialInpc(2025, 12)!; // 143.042
+    expect(inpc2024Dic).toBe(137.949);
+    expect(inpc2025Dic).toBe(143.042);
+    const expectedFactor = Math.floor((inpc2025Dic / inpc2024Dic - 1) * 10000) / 10000; // 0.0369
 
     const trialBalance: AccountWithBalance[] = [
       makeAcc('401-01-001', 'Ventas', 'INGRESOS', 'ACREEDORA', 1_000_000, '401.01')
@@ -121,14 +121,14 @@ describe('Ola 3A — Declaración Anual, Ajuste Inflación INPC, CUCA, CUFIN y P
       inputs: {}
     });
 
-    expect(resAcum.inflation.inpcCierreAnterior).toBe(139.38);
-    expect(resAcum.inflation.inpcCierreActual).toBe(145.4);
+    expect(resAcum.inflation.inpcCierreAnterior).toBe(137.949);
+    expect(resAcum.inflation.inpcCierreActual).toBe(143.042);
     expect(resAcum.inflation.factorAjuste).toBe(expectedFactor);
     expect(resAcum.inflation.promedioCreditos).toBe(200_000);
     expect(resAcum.inflation.promedioDeudas).toBe(500_000);
     expect(resAcum.inflation.diferenciaPromedios).toBe(300_000);
     expect(resAcum.inflation.tipo).toBe('ACUMULABLE');
-    expect(resAcum.inflation.ajusteAcumulable).toBe(12_930); // 300,000 * 0.0431
+    expect(resAcum.inflation.ajusteAcumulable).toBe(11_070); // 300,000 * 0.0369
     expect(resAcum.inflation.ajusteDeducible).toBe(0);
 
     // Caso B: Créditos ($600k) > Deudas ($200k) => Ajuste Deducible
@@ -144,7 +144,7 @@ describe('Ola 3A — Declaración Anual, Ajuste Inflación INPC, CUCA, CUFIN y P
 
     expect(resDed.inflation.tipo).toBe('DEDUCIBLE');
     expect(resDed.inflation.ajusteAcumulable).toBe(0);
-    expect(resDed.inflation.ajusteDeducible).toBe(17_240); // 400,000 * 0.0431
+    expect(resDed.inflation.ajusteDeducible).toBe(14_760); // 400,000 * 0.0369
   });
 
   test('2. Conciliación Contable-Fiscal, Nuevo CU a 4 decimales, PTU 10%, Pérdidas, CUCA y CUFIN', () => {
@@ -157,17 +157,17 @@ describe('Ola 3A — Declaración Anual, Ajuste Inflación INPC, CUCA, CUFIN y P
     ];
 
     // Utilidad Contable = 2,000,000 - 800,000 - 450,000 - 150,000 = 600,000
-    // Ajuste Inflación Acumulable = 300,000 * 0.0431 = 12,930
+    // Ajuste Inflación Acumulable = 300,000 * 0.0369 = 11,070
     // Deducciones Contables No Fiscales = 150,000 (801/611) + 50,000 (601-01-006) + 20,000 (manual) = 220,000
     // Deducciones Fiscales No Contables = 80,000 (inv fiscal) + 0 (infl ded) = 80,000
-    // Utilidad Fiscal antes PTU = 600,000 + 12,930 + 220,000 - 80,000 = 752,930
-    // PTU 10% = 75,293
-    // PTU pagada anterior = 30,000 => Utilidad Fiscal = 722,930
-    // Nuevo CU = 722,930 / 2,000,000 = 0.361465 => 0.3615
-    // Factor actualización INPC = floor(145.40 / 139.38 * 10000)/10000 = 1.0431
-    // Pérdidas pendientes = 100,000 => actualizadas = 104,310
-    // Resultado Fiscal = 722,930 - 104,310 = 618,620
-    // ISR 30% = 185,586; menos pagos provisionales 120,000 = 65,586 a cargo
+    // Utilidad Fiscal antes PTU = 600,000 + 11,070 + 220,000 - 80,000 = 751,070
+    // PTU 10% = 75,107
+    // PTU pagada anterior = 30,000 => Utilidad Fiscal = 721,070
+    // Nuevo CU = floor(721,070 / 2,000,000 * 10000)/10000 = 0.3605
+    // Factor actualización INPC = floor(143.042 / 137.949 * 10000)/10000 = 1.0369
+    // Pérdidas pendientes = 100,000 => actualizadas = 103,690
+    // Resultado Fiscal = 721,070 - 103,690 = 617,380
+    // ISR 30% = 185,214; menos pagos provisionales 120,000 = 65,214 a cargo
     const res = computeAnnualTaxSummary({
       company: makeCompany(),
       ejercicio: 2025,
@@ -188,29 +188,29 @@ describe('Ola 3A — Declaración Anual, Ajuste Inflación INPC, CUCA, CUFIN y P
     });
 
     expect(res.reconciliation.utilidadContable).toBe(600_000);
-    expect(res.reconciliation.ingresosFiscalesNoContables).toBe(12_930);
+    expect(res.reconciliation.ingresosFiscalesNoContables).toBe(11_070);
     expect(res.reconciliation.deduccionesContablesNoFiscales).toBe(220_000);
     expect(res.reconciliation.deduccionesFiscalesNoContables).toBe(80_000);
-    expect(res.reconciliation.utilidadFiscalAntesPtu).toBe(752_930);
-    expect(res.reconciliation.utilidadFiscal).toBe(722_930);
-    expect(res.reconciliation.perdidasFiscalesActualizadas).toBe(104_310);
-    expect(res.reconciliation.resultadoFiscal).toBe(618_620);
+    expect(res.reconciliation.utilidadFiscalAntesPtu).toBe(751_070);
+    expect(res.reconciliation.utilidadFiscal).toBe(721_070);
+    expect(res.reconciliation.perdidasFiscalesActualizadas).toBe(103_690);
+    expect(res.reconciliation.resultadoFiscal).toBe(617_380);
 
-    // Art. 14 Fracc. I LISR ordena truncamiento a 4 decimales (0.36149 -> 0.3614)
-    expect(res.determination.nuevoCoeficienteUtilidad).toBe(0.3614);
-    expect(res.determination.ptuPorPagar10Pct).toBe(75_293);
-    expect(res.determination.isrAnualCausado).toBe(185_586);
-    expect(res.determination.isrACargo).toBe(65_586);
+    // Art. 14 Fracc. I LISR ordena truncamiento a 4 decimales
+    expect(res.determination.nuevoCoeficienteUtilidad).toBe(0.3605);
+    expect(res.determination.ptuPorPagar10Pct).toBe(75_107);
+    expect(res.determination.isrAnualCausado).toBe(185_214);
+    expect(res.determination.isrACargo).toBe(65_214);
     expect(res.determination.isrAFavor).toBe(0);
 
-    // CUCA = 500,000 * 1.0431 + 100,000 - 25,000 = 521,550 + 75,000 = 596,550
-    expect(res.determination.cucaActualizada).toBe(521_550);
-    expect(res.determination.cucaFinal).toBe(596_550);
+    // CUCA = 500,000 * 1.0369 + 100,000 - 25,000 = 518,450 + 75,000 = 593,450
+    expect(res.determination.cucaActualizada).toBe(518_450);
+    expect(res.determination.cucaFinal).toBe(593_450);
 
-    // CUFIN = 200,000 * 1.0431 + (618,620 - 185,586 - 20,000) - 50,000 = 208,620 + 413,034 - 50,000 = 571,654
-    expect(res.determination.cufinActualizada).toBe(208_620);
-    expect(res.determination.ufinDelEjercicio).toBe(413_034);
-    expect(res.determination.cufinFinal).toBe(571_654);
+    // CUFIN = 200,000 * 1.0369 + (617,380 - 185,214 - 20,000) - 50,000 = 207,380 + 412,166 - 50,000 = 569,546
+    expect(res.determination.cufinActualizada).toBe(207_380);
+    expect(res.determination.ufinDelEjercicio).toBe(412_166);
+    expect(res.determination.cufinFinal).toBe(569_546);
   });
 
   test('3. Regímenes PF Art. 152, RESICO PF (1%-2.5% anual) y RESICO PM (30% flujo)', () => {

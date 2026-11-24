@@ -103,6 +103,7 @@ export function SatRequestsHistoryCard({
           <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden font-mono text-xs">
             {visibleRequests.map((r) => {
               const isDone = r.estadoSolicitud === 'TERMINADA';
+              const isPartial = r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE';
               const isError = r.estadoSolicitud === 'ERROR';
               const isPending = r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO';
               const translated = isError
@@ -156,6 +157,16 @@ export function SatRequestsHistoryCard({
                     {isDone && (!r.cfdisDescargados || r.cfdisDescargados === 0) && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
                         0 comprobantes (periodo sin emitir)
+                      </span>
+                    )}
+
+                    {isPartial && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900"
+                        title={r.mensajeSat}
+                      >
+                        <XCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
+                        {r.cfdisDescargados || 0} XMLs (Parcial · límite SAT)
                       </span>
                     )}
 

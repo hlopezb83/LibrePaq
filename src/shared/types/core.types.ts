@@ -4,7 +4,8 @@ export type AccountType =
   | 'CAPITAL'
   | 'INGRESOS'
   | 'COSTOS'
-  | 'GASTOS';
+  | 'GASTOS'
+  | 'ORDEN';
 
 export type AccountNature = 'DEUDORA' | 'ACREEDORA';
 
@@ -21,6 +22,7 @@ export interface Company {
   currentPeriod: number;
   createdAt: string;
   userId?: string | null;
+  organizationId?: string | null;
 }
 
 export interface Account {
@@ -111,6 +113,7 @@ export interface CfdiDocument {
   companyId: string;
   uuid: string;
   fecha: string;
+  fechaPago?: string | null;
   tipoComprobante: CfdiTipo;
   direction: 'EMITIDO' | 'RECIBIDO';
   serie: string;
@@ -136,6 +139,7 @@ export interface CfdiDocument {
   statusSat: 'VIGENTE' | 'CANCELADO';
   polizaId: string | null;
   polizaFolio?: string | null;
+  deductiblePct?: number;
   xmlRaw: string;
   taxBreakdown?: CfdiTaxBreakdown | null;
   relatedDocs?: CfdiRelatedDoc[] | null;
@@ -150,6 +154,7 @@ export interface DashboardSummary {
     efectivoBancos: number;
     cuentasPorCobrar: number;
     cuentasPorPagar: number;
+    totalPasivo?: number;
     ivaPorPagarNeto: number;
     totalPolizasPeriodo: number;
     cfdisPendientesContabilizar: number;
@@ -194,9 +199,30 @@ export interface FinancialStatementsResponse {
     utilidadBruta: number;
     gastos: AccountWithBalance[];
     totalGastos: number;
+    utilidadOperativa?: number;
+    rifProductos?: AccountWithBalance[];
+    totalRifProductos?: number;
+    rifGastos?: AccountWithBalance[];
+    totalRifGastos?: number;
+    rifNeto?: number;
+    utilidadAntesImpuestos?: number;
     isrEjercicio?: AccountWithBalance[];
     totalIsr?: number;
     utilidadNeta: number;
+    isPreCloseP13?: boolean;
+    periodTotals?: {
+      totalIngresos: number;
+      totalCostos: number;
+      utilidadBruta: number;
+      totalGastos: number;
+      utilidadOperativa: number;
+      totalRifProductos: number;
+      totalRifGastos: number;
+      rifNeto: number;
+      utilidadAntesImpuestos: number;
+      totalIsr: number;
+      utilidadNeta: number;
+    };
   };
   balanceSheet: {
     activos: AccountWithBalance[];
@@ -208,6 +234,20 @@ export interface FinancialStatementsResponse {
     utilidadEjercicio: number;
     totalPasivoMasCapital: number;
     isBalanced: boolean;
+    nifB6?: {
+      activoCirculante: AccountWithBalance[];
+      totalActivoCirculante: number;
+      activoNoCirculante: AccountWithBalance[];
+      totalActivoNoCirculante: number;
+      pasivoCortoPlazo: AccountWithBalance[];
+      totalPasivoCortoPlazo: number;
+      pasivoLargoPlazo: AccountWithBalance[];
+      totalPasivoLargoPlazo: number;
+      capitalContribuido: AccountWithBalance[];
+      totalCapitalContribuido: number;
+      capitalGanado: AccountWithBalance[];
+      totalCapitalGanado: number;
+    };
   };
 }
 

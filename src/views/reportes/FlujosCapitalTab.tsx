@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, Info, Layers, TrendingUp } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
+import { formatBalanceCutoffLabel } from '../../shared/date-utils';
 import { exportExtendedStatementsXlsx } from '../../lib/excel-export';
 import { formatCurrency } from '../../lib/formatters';
 import { computeExtendedFinancialStatements } from '../../shared/engine/extended-statements.engine';
@@ -106,6 +107,7 @@ export function FlujosCapitalTab({
 
   const { cashFlow, equityChanges } = data;
   const prevYearHeader = `Ejercicio ${ejercicio - 1}`;
+  const periodBanner = formatBalanceCutoffLabel(ejercicio, effectivePeriodo, mesNombre);
 
   return (
     <div className="space-y-5">
@@ -114,7 +116,7 @@ export function FlujosCapitalTab({
           <div className="min-w-0">
             <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 uppercase tracking-tight truncate">{company.name}</h2>
             <div className="text-xs font-mono text-slate-600 mt-0.5 truncate">
-              RFC: <span className="font-semibold">{company.rfc}</span> • {mesNombre} {ejercicio} • Base: {prevYearHeader}
+              RFC: <span className="font-semibold">{company.rfc}</span> • {periodBanner} • Base: {prevYearHeader}
             </div>
             <div className="text-xs font-bold text-blue-900 mt-1 uppercase tracking-wide">
               4 Estados Financieros Básicos (NIF B-2 y NIF B-4) y Comparativo Interanual
@@ -160,9 +162,14 @@ export function FlujosCapitalTab({
       <div id="nif-subpanel-FLUJOS" role="tabpanel" aria-labelledby="nif-subtab-FLUJOS" hidden={activeSubTab !== 'FLUJOS'}>
         <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 sm:p-6 max-w-4xl mx-auto space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-700" aria-hidden="true" />
-              <h3 className="text-sm font-bold text-slate-900 uppercase">Estado de Flujos de Efectivo — Método Indirecto (NIF B-2)</h3>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-700" aria-hidden="true" />
+                <h3 className="text-sm font-bold text-slate-900 uppercase">Estado de Flujos de Efectivo — Método Indirecto (NIF B-2)</h3>
+              </div>
+              {data.cashFlowWindowLabel && (
+                <p className="text-[11px] text-slate-600 pl-7">Ventana: {data.cashFlowWindowLabel}</p>
+              )}
             </div>
             <span
               role={cashFlow.isReconciled ? 'status' : 'alert'}
@@ -188,7 +195,7 @@ export function FlujosCapitalTab({
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-slate-300">(+) Efectivo Inicial (101/102)</div>
+              <div className="text-[11px] text-slate-300">(+) Efectivo Inicial (101/102/103)</div>
               <div className="text-base font-bold font-mono tabular-nums text-slate-100">{formatCurrency(cashFlow.efectivoInicial)}</div>
             </div>
             <div className="sm:text-right">

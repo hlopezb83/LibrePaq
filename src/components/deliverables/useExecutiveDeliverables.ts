@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
+import {
+  DEFAULT_DELIVERABLE_CONFIG,
+  hasAnyDefaultSignature,
+  loadDeliverableBranding,
+  readLocalDeliverableBranding,
+  saveDeliverableBranding
+} from '../../lib/supabase/supabase-deliverables-branding';
 import { MESES_SAT } from '../../shared/sat-constants';
 import { calculateDia17Deadline, MEXICO_TIMEZONE } from '../../shared/date-utils';
 import { computeExtendedFinancialStatements } from '../../shared/engine/extended-statements.engine';
@@ -13,38 +21,7 @@ import { exportAllDeliverablesCsv } from './deliverableCsvExport';
 import { generateDeliverableSummaryText } from './deliverableSummaryText';
 
 export type DeliverableTabId = 'DOSSIER' | 'BALANZA' | 'RESULTADOS' | 'BALANCE' | 'DIA17' | 'CONFIG';
-
-export const DEFAULT_DELIVERABLE_CONFIG = {
-  firmName: 'Despacho Contable y Fiscal Integral S.C.',
-  auditorName: 'C.P.C. María Elena Gómez Garza',
-  auditorCedula: 'Céd. Prof. 4829103',
-  legalRepName: 'Ing. Alejandro Garza Martínez',
-  legalRepTitle: 'Representante Legal',
-  issuanceCity: 'Monterrey, Nuevo León'
-} as const;
-
-export function hasAnyDefaultSignature(cfg: {
-  firmName: string;
-  auditorName: string;
-  auditorCedula: string;
-  legalRepName: string;
-}): boolean {
-  return (
-    cfg.firmName === DEFAULT_DELIVERABLE_CONFIG.firmName ||
-    cfg.auditorName.includes('María Elena Gómez Garza') ||
-    cfg.auditorCedula.includes('4829103') ||
-    cfg.legalRepName.includes('Alejandro Garza Martínez')
-  );
-}
-
-function readSavedConfigForKey(key: string): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
+export { DEFAULT_DELIVERABLE_CONFIG, hasAnyDefaultSignature };
 
 interface UseExecutiveDeliverablesParams {
   company: Company;
@@ -56,133 +33,141 @@ interface UseExecutiveDeliverablesParams {
 }
 
 export function useExecutiveDeliverables({
-  company,
-  year,
-  period,
-  isOpen,
-  onClose,
-  initialTab = 'DOSSIER'
+  company, year, period, isOpen, onClose, initialTab = 'DOSSIER'
 }: UseExecutiveDeliverablesParams) {
   const toast = useToast();
+  const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = isReadOnlyClient || isReadOnlySupportMode;
   const dialogRef = useRef<HTMLDialogElement>(null);
   useDialogLightDismiss(dialogRef, onClose, { isOpen });
 
-  const [activeTab, setActiveTab] = useState<DeliverableTabId>(initialTab);
+  const [activeTab, setActiveTabState] = useState<DeliverableTabId>(initialTab);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
+
+  const initialBranding = useMemo(() => readLocalDeliverableBranding(company.id), [company.id]);
+  const [firmName, setFirmName] = useState(initialBranding.firmName);
+  const [preparerName, setPreparerName] = useState(initialBranding.preparerName);
+  const [auditorName, setAuditorName] = useState(initialBranding.auditorName);
+  const [auditorCedula, setAuditorCedula] = useState(initialBranding.auditorCedula);
+  const [legalRepName, setLegalRepName] = useState(initialBranding.legalRepName);
+  const [legalRepTitle, setLegalRepTitle] = useState(initialBranding.legalRepTitle);
+  const [issuanceCity, setIssuanceCity] = useState(initialBranding.issuanceCity);
+  const [logoDataUrl, setLogoDataUrl] = useState(initialBranding.logoDataUrl);
+  const [accountantNotes, setAccountantNotes] = useState(initialBranding.accountantNotes);
+
+  const [issuanceDate, setIssuanceDate] = useState(() =>
+    new Date().toLocaleDateString('es-MX', {
+      timeZone: MEXICO_TIMEZONE, year: 'numeric', month: 'long', day: 'numeric'
+    })
+  );
+
+  const [includeCoverRatios, setIncludeCoverRatios] = useState(true);
+  const [includeBalanza, setIncludeBalanza] = useState(true);
+  const [includeResultados, setIncludeResultados] = useState(true);
+  const [includeBalance, setIncludeBalance] = useState(true);
+  const [includeNifAging, setIncludeNifAging] = useState(true);
+  const [includeDia17, setIncludeDia17] = useState(true);
+  const [hideZeroAccounts, setHideZeroAccounts] = useState(false);
+
+  const selectedDocsCount = [
+    includeCoverRatios, includeBalanza, includeResultados, includeBalance, includeNifAging, includeDia17
+  ].filter(Boolean).length;
+  const { copiedKey, copy: copySummaryToClipboard } = useCopyToClipboard<'summary'>(3000);
+  const copiedSummary = copiedKey === 'summary';
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (isOpen) {
-      if (!dialog.open) dialog.showModal();
-    } else if (dialog.open) {
-      dialog.close();
-    }
+    if (isOpen) { if (!dialog.open) dialog.showModal(); }
+    else if (dialog.open) dialog.close();
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && initialTab) {
-      setActiveTab(initialTab);
-    }
+    if (isOpen && initialTab) setActiveTabState(initialTab);
   }, [isOpen, initialTab]);
 
-  const configKey = `librepaq_deliverable_config_${company.id}`;
-  const loadedConfigKeyRef = useRef<string>(configKey);
+  useEffect(() => {
+    let active = true;
+    void loadDeliverableBranding(company.id).then((cfg) => {
+      if (!active) return;
+      setFirmName(cfg.firmName);
+      setPreparerName(cfg.preparerName);
+      setAuditorName(cfg.auditorName);
+      setAuditorCedula(cfg.auditorCedula);
+      setLegalRepName(cfg.legalRepName);
+      setLegalRepTitle(cfg.legalRepTitle);
+      setIssuanceCity(cfg.issuanceCity);
+      setLogoDataUrl(cfg.logoDataUrl);
+      setAccountantNotes(cfg.accountantNotes);
+    });
+    return () => { active = false; };
+  }, [company.id]);
 
-  const [firmName, setFirmName] = useState(
-    () => readSavedConfigForKey(configKey).firmName || DEFAULT_DELIVERABLE_CONFIG.firmName
-  );
-  const [auditorName, setAuditorName] = useState(
-    () => readSavedConfigForKey(configKey).auditorName || DEFAULT_DELIVERABLE_CONFIG.auditorName
-  );
-  const [auditorCedula, setAuditorCedula] = useState(
-    () => readSavedConfigForKey(configKey).auditorCedula || DEFAULT_DELIVERABLE_CONFIG.auditorCedula
-  );
-  const [legalRepName, setLegalRepName] = useState(
-    () => readSavedConfigForKey(configKey).legalRepName || DEFAULT_DELIVERABLE_CONFIG.legalRepName
-  );
-  const [legalRepTitle, setLegalRepTitle] = useState(
-    () => readSavedConfigForKey(configKey).legalRepTitle || DEFAULT_DELIVERABLE_CONFIG.legalRepTitle
-  );
-  const [issuanceCity, setIssuanceCity] = useState(
-    () => readSavedConfigForKey(configKey).issuanceCity || DEFAULT_DELIVERABLE_CONFIG.issuanceCity
+  const currentBrandingPayload = useMemo(
+    () => ({
+      firmName, preparerName, auditorName, auditorCedula,
+      legalRepName, legalRepTitle, issuanceCity, logoDataUrl, accountantNotes
+    }),
+    [firmName, preparerName, auditorName, auditorCedula, legalRepName, legalRepTitle, issuanceCity, logoDataUrl, accountantNotes]
   );
 
   useEffect(() => {
-    if (loadedConfigKeyRef.current !== configKey) {
-      const saved = readSavedConfigForKey(configKey);
-      setFirmName(saved.firmName || DEFAULT_DELIVERABLE_CONFIG.firmName);
-      setAuditorName(saved.auditorName || DEFAULT_DELIVERABLE_CONFIG.auditorName);
-      setAuditorCedula(saved.auditorCedula || DEFAULT_DELIVERABLE_CONFIG.auditorCedula);
-      setLegalRepName(saved.legalRepName || DEFAULT_DELIVERABLE_CONFIG.legalRepName);
-      setLegalRepTitle(saved.legalRepTitle || DEFAULT_DELIVERABLE_CONFIG.legalRepTitle);
-      setIssuanceCity(saved.issuanceCity || DEFAULT_DELIVERABLE_CONFIG.issuanceCity);
-      loadedConfigKeyRef.current = configKey;
-      return;
-    }
+    if (isReadOnly) return;
+    const timer = setTimeout(() => {
+      void saveDeliverableBranding(company.id, currentBrandingPayload, { isReadOnly });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [company.id, currentBrandingPayload, isReadOnly]);
 
+  const setActiveTab = (next: DeliverableTabId) => {
+    setActiveTabState(next);
+  };
+
+  const handleSaveBranding = async () => {
+    if (isReadOnly) return;
     try {
-      localStorage.setItem(
-        configKey,
-        JSON.stringify({ firmName, auditorName, auditorCedula, legalRepName, legalRepTitle, issuanceCity })
-      );
-    } catch {}
-  }, [configKey, firmName, auditorName, auditorCedula, legalRepName, legalRepTitle, issuanceCity]);
-  const [issuanceDate, setIssuanceDate] = useState(() =>
-    new Date().toLocaleDateString('es-MX', {
-      timeZone: MEXICO_TIMEZONE,
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  );
-
-  const [includeBalanza, setIncludeBalanza] = useState(true);
-  const [includeResultados, setIncludeResultados] = useState(true);
-  const [includeBalance, setIncludeBalance] = useState(true);
-  const [includeDia17, setIncludeDia17] = useState(true);
-  const [hideZeroAccounts, setHideZeroAccounts] = useState(false);
-  const selectedDocsCount = [includeBalanza, includeResultados, includeBalance, includeDia17].filter(Boolean).length;
-  const { copiedKey, copy: copySummaryToClipboard } = useCopyToClipboard<'summary'>(3000);
-  const copiedSummary = copiedKey === 'summary';
+      setIsSavingBranding(true);
+      const { savedToCloud } = await saveDeliverableBranding(company.id, currentBrandingPayload, { isReadOnly });
+      toast.success(savedToCloud ? 'Membrete y notas guardados en la Nube.' : 'Membrete guardado localmente.');
+    } finally {
+      setIsSavingBranding(false);
+    }
+  };
 
   const {
-    data: reportsData,
-    isLoading: isLoadingReports,
-    isError: isErrorReports,
-    error: reportsError,
-    refetch: refetchReports
+    data: reportsData, isLoading: isLoadingReports, isError: isErrorReports,
+    error: reportsError, refetch: refetchReports
   } = useQuery({
     queryKey: ['reports', company.id, year, period],
     queryFn: () => apiClient.getReports(company.id, year, period),
     enabled: isOpen
   });
 
-  const {
-    data: prevReportsData
-  } = useQuery({
+  const { data: prevReportsData } = useQuery({
     queryKey: ['reports', company.id, year - 1, 13],
     queryFn: () => apiClient.getReports(company.id, year - 1, 13),
     enabled: isOpen && year > 2000
   });
 
+  const { data: agingData } = useQuery({
+    queryKey: ['cxc-cxp', company.id],
+    queryFn: () => apiClient.getCxcCxpAging(company.id),
+    enabled: isOpen
+  });
+
   const extendedStatements = useMemo(() => {
     if (!reportsData) return null;
     return computeExtendedFinancialStatements({
-      company,
-      ejercicio: year,
-      periodo: period,
+      company, ejercicio: year, periodo: period,
       currentTrialBalance: reportsData.trialBalance,
       previousTrialBalance: prevReportsData?.trialBalance ?? null
     });
   }, [company, year, period, reportsData, prevReportsData]);
 
   const {
-    data: fiscalData,
-    isLoading: isLoadingFiscal,
-    isError: isErrorFiscal,
-    error: fiscalError,
-    refetch: refetchFiscal
+    data: fiscalData, isLoading: isLoadingFiscal, isError: isErrorFiscal,
+    error: fiscalError, refetch: refetchFiscal
   } = useQuery({
     queryKey: ['fiscal-workpaper', company.id, year, period],
     queryFn: () => apiClient.getFiscalWorkpaper(company.id, year, period),
@@ -192,26 +177,21 @@ export function useExecutiveDeliverables({
   const isLoadingData = isLoadingReports || isLoadingFiscal;
   const isErrorData = isErrorReports || isErrorFiscal;
   const dataError = reportsError || fiscalError;
-  const refetchData = () => {
-    void refetchReports();
-    void refetchFiscal();
-  };
+  const refetchData = () => { void refetchReports(); void refetchFiscal(); };
 
   const mesNombre = useMemo(
     () => MESES_SAT.find((m) => m.periodo === period)?.nombre || `Periodo ${period}`,
     [period]
   );
 
-  const formatVerticalPct = (amount: number, base: number) => {
-    if (!base || Math.abs(base) < 0.01) return '0.0%';
-    return `${((amount / base) * 100).toFixed(1)}%`;
-  };
+  const formatVerticalPct = (amount: number, base: number) =>
+    !base || Math.abs(base) < 0.01 ? '0.0%' : `${((amount / base) * 100).toFixed(1)}%`;
 
   const isrSaldoNoAplicado = useMemo(() => {
     if (!fiscalData?.isrProvisional) return 0;
     const { isrCausado, pagosProvisionalesPrevios, isrRetenidoPeriodo } = fiscalData.isrProvisional;
-    const deduccionDirecta = pagosProvisionalesPrevios + isrRetenidoPeriodo;
-    return deduccionDirecta > isrCausado ? deduccionDirecta - isrCausado : 0;
+    const ded = pagosProvisionalesPrevios + isrRetenidoPeriodo;
+    return ded > isrCausado ? ded - isrCausado : 0;
   }, [fiscalData]);
 
   const fechaVencimientoDia17 = useMemo(
@@ -219,26 +199,15 @@ export function useExecutiveDeliverables({
     [year, period]
   );
 
-  const isUsingDefaultSignatures = hasAnyDefaultSignature({
-    firmName,
-    auditorName,
-    auditorCedula,
-    legalRepName
-  });
+  const isUsingDefaultSignatures = hasAnyDefaultSignature({ firmName, auditorName, auditorCedula, legalRepName });
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   const handleExportAllCsv = () => {
     if (!reportsData) return;
     exportAllDeliverablesCsv({
-      reportsData,
-      fiscalData,
-      company,
-      year,
-      period,
-      formatVerticalPct
+      reportsData, fiscalData, company, year, period, formatVerticalPct,
+      hideZeroAccounts, includeBalanza, includeResultados, includeBalance, includeDia17
     });
     toast.success('¡Paquete .ZIP (CSV) de cédulas descargado exitosamente!');
   };
@@ -248,13 +217,9 @@ export function useExecutiveDeliverables({
     try {
       setIsExporting(true);
       await exportDeliverablesXlsx({
-        reportsData,
-        fiscalData,
-        company,
-        year,
-        period,
-        formatVerticalPct,
-        extendedStatements
+        reportsData, fiscalData, company, year, period, formatVerticalPct,
+        extendedStatements, mesNombre, hideZeroAccounts,
+        includeBalanza, includeResultados, includeBalance, includeDia17, includeNifAging
       });
       toast.success('¡Dossier Ejecutivo descargado exitosamente en Excel (.XLSX)!');
     } catch (err) {
@@ -269,74 +234,29 @@ export function useExecutiveDeliverables({
   const handleCopyExecutiveSummary = async () => {
     if (!reportsData) return;
     const summary = generateDeliverableSummaryText({
-      company,
-      year,
-      mesNombre,
-      issuanceCity,
-      issuanceDate,
-      firmName,
-      auditorName,
-      auditorCedula,
-      legalRepName,
-      legalRepTitle,
-      reportsData,
-      fiscalData,
-      formatVerticalPct
+      company, year, mesNombre, issuanceCity, issuanceDate,
+      firmName, auditorName, auditorCedula, legalRepName, legalRepTitle,
+      reportsData, fiscalData, formatVerticalPct, accountantNotes
     });
     const copied = await copySummaryToClipboard(summary, 'summary');
-    if (copied) {
-      toast.success('¡Resumen Ejecutivo formal copiado al portapapeles!');
-    } else {
-      toast.error('No se pudo copiar el resumen al portapapeles.');
-    }
+    if (copied) toast.success('¡Resumen Ejecutivo formal copiado al portapapeles!');
+    else toast.error('No se pudo copiar el resumen al portapapeles.');
   };
 
   return {
-    dialogRef,
-    activeTab,
-    setActiveTab,
-    isExporting,
-    firmName,
-    setFirmName,
-    auditorName,
-    setAuditorName,
-    auditorCedula,
-    setAuditorCedula,
-    legalRepName,
-    setLegalRepName,
-    legalRepTitle,
-    setLegalRepTitle,
-    issuanceCity,
-    setIssuanceCity,
-    issuanceDate,
-    setIssuanceDate,
-    includeBalanza,
-    setIncludeBalanza,
-    includeResultados,
-    setIncludeResultados,
-    includeBalance,
-    setIncludeBalance,
-    includeDia17,
-    setIncludeDia17,
-    hideZeroAccounts,
-    setHideZeroAccounts,
-    selectedDocsCount,
-    copiedSummary,
-    reportsData,
-    fiscalData,
-    extendedStatements,
-    isLoadingData,
-    isErrorData,
-    dataError,
-    refetchData,
-    mesNombre,
-    formatVerticalPct,
-    isrSaldoNoAplicado,
-    fechaVencimientoDia17,
-    isUsingDefaultSignatures,
-    handlePrint,
-    handleExportAllCsv,
-    handleExportAllXlsx,
-    handleCopyExecutiveSummary
+    dialogRef, activeTab, setActiveTab, isExporting, isReadOnly, isSavingBranding, handleSaveBranding,
+    firmName, setFirmName, preparerName, setPreparerName,
+    auditorName, setAuditorName, auditorCedula, setAuditorCedula,
+    legalRepName, setLegalRepName, legalRepTitle, setLegalRepTitle,
+    issuanceCity, setIssuanceCity, issuanceDate, setIssuanceDate,
+    logoDataUrl, setLogoDataUrl, accountantNotes, setAccountantNotes,
+    includeCoverRatios, setIncludeCoverRatios, includeBalanza, setIncludeBalanza,
+    includeResultados, setIncludeResultados, includeBalance, setIncludeBalance,
+    includeNifAging, setIncludeNifAging, includeDia17, setIncludeDia17,
+    hideZeroAccounts, setHideZeroAccounts, selectedDocsCount, copiedSummary,
+    reportsData, fiscalData, extendedStatements, agingData,
+    isLoadingData, isErrorData, dataError, refetchData, mesNombre, formatVerticalPct,
+    isrSaldoNoAplicado, fechaVencimientoDia17, isUsingDefaultSignatures,
+    handlePrint, handleExportAllCsv, handleExportAllXlsx, handleCopyExecutiveSummary
   };
 }

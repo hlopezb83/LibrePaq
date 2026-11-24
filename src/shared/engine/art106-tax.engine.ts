@@ -40,11 +40,20 @@ const ART_96_BRACKETS_2026: readonly Art96Bracket[] = [
   { limit: Infinity, cuota: 133488.54, pct: 0.35 }
 ];
 
+export interface Art106BracketDetail {
+  lowerLimit: number;
+  upperLimit: number;
+  cuotaFija: number;
+  excedente: number;
+  marginalRatePct: number;
+  impuestoMarginal: number;
+}
+
 export function calculateArt106PfIsr(
   baseGravableCents: number,
   periodo: number,
   ejercicio = 2025
-): { isrCents: number; effectiveRatePct: number } {
+): { isrCents: number; effectiveRatePct: number; bracketDetail?: Art106BracketDetail } {
   if (baseGravableCents <= 0) return { isrCents: 0, effectiveRatePct: 0 };
   const m = Math.max(1, Math.min(12, periodo));
   const baseMxn = baseGravableCents / 100;
@@ -56,10 +65,22 @@ export function calculateArt106PfIsr(
     const curCuota = Number((b.cuota * m).toFixed(2));
     if (baseMxn <= curLimit) {
       const excedente = Math.max(0, baseMxn - prevLimit);
+      const impuestoMarginal = Number((excedente * b.pct).toFixed(2));
       const isrMxn = curCuota + excedente * b.pct;
       const isrCents = Math.round(isrMxn * 100);
       const effectiveRatePct = Number(((isrMxn / baseMxn) * 100).toFixed(2));
-      return { isrCents, effectiveRatePct };
+      return {
+        isrCents,
+        effectiveRatePct,
+        bracketDetail: {
+          lowerLimit: Number(prevLimit.toFixed(2)),
+          upperLimit: curLimit,
+          cuotaFija: curCuota,
+          excedente: Number(excedente.toFixed(2)),
+          marginalRatePct: Number((b.pct * 100).toFixed(2)),
+          impuestoMarginal
+        }
+      };
     }
     prevLimit = curLimit;
   }

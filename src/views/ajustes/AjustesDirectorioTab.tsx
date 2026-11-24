@@ -1,18 +1,10 @@
 import { useState } from 'react';
-import {
-  ArrowRight,
-  Building2,
-  CheckCircle2,
-  Plus,
-  Search,
-  Trash2,
-  Users,
-  X
-} from 'lucide-react';
-import { validateRfcModulo11 } from '../../shared/accounting-engine';
+import { Activity, Building2, LayoutGrid, Plus, Search, Users, X } from 'lucide-react';
 import { useUIModal } from '../../context/UIModalContext';
 import type { Company } from '../../shared/types';
+import { AjustesDirectorioCompanyCard } from './AjustesDirectorioCompanyCard';
 import { ConfirmDeleteCompanyModal } from './ConfirmDeleteCompanyModal';
+import { DespachoMonitorPanel } from './DespachoMonitorPanel';
 
 export interface AjustesDirectorioTabProps {
   companies: Company[];
@@ -27,6 +19,7 @@ export interface AjustesDirectorioTabProps {
   onConfigureFicha: () => void;
   canDeleteCompany?: boolean;
   canCreateCompany?: boolean;
+  canViewDespachoMonitor?: boolean;
   toast: {
     success: (msg: string) => void;
     error: (msg: string) => void;
@@ -43,10 +36,12 @@ export function AjustesDirectorioTab({
   onConfigureFicha,
   canDeleteCompany = true,
   canCreateCompany = true,
+  canViewDespachoMonitor = false,
   toast
 }: AjustesDirectorioTabProps) {
   const { openCompanyWizard } = useUIModal();
   const [companySearch, setCompanySearch] = useState('');
+  const [viewMode, setViewMode] = useState<'tarjetas' | 'semaforo'>('tarjetas');
   const [companyPendingDelete, setCompanyPendingDelete] = useState<Company | null>(null);
   const targetDeleteCompany =
     companyPendingDelete ??
@@ -62,9 +57,13 @@ export function AjustesDirectorioTab({
     );
   });
 
+  const handleSelectCompany = (companyId: string, name: string, rfc: string) => {
+    setActiveCompanyId(companyId);
+    toast.success(`Cambiado a: ${name} (${rfc})`);
+  };
+
   return (
     <section className="space-y-5">
-      {/* Barra Superior del Directorio: Búsqueda y Botón de Alta */}
       <div className="bg-white rounded-2xl border border-slate-300/90 p-4 sm:p-5 shadow-2xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1 min-w-0">
@@ -78,12 +77,43 @@ export function AjustesDirectorioTab({
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Conmuta al instante entre razones sociales o da de alta una nueva entidad contable para tu despacho.
+              Conmuta al instante entre razones sociales o supervisa el semáforo fiscal y contable de todo tu despacho.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-            <search className="relative flex-1 sm:w-64">
+            {canViewDespachoMonitor && companies.length > 0 && (
+              <div
+                role="group"
+                aria-label="Modo de vista del directorio"
+                className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 text-xs shrink-0"
+              >
+                <button
+                  type="button"
+                  aria-pressed={viewMode === 'tarjetas'}
+                  onClick={() => setViewMode('tarjetas')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    viewMode === 'tarjetas' ? 'bg-white text-blue-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Tarjetas</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={viewMode === 'semaforo'}
+                  onClick={() => setViewMode('semaforo')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    viewMode === 'semaforo' ? 'bg-white text-blue-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Activity className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Tablero Semáforo</span>
+                </button>
+              </div>
+            )}
+
+            <search className="relative flex-1 sm:w-60">
               <label htmlFor="directorio-company-search" className="visually-hidden">
                 Buscar empresa por razón social, RFC o régimen fiscal
               </label>
@@ -143,7 +173,6 @@ export function AjustesDirectorioTab({
         )}
       </div>
 
-      {/* Grid de Empresas o Estado Vacío Accionable */}
       {companies.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-300/90 p-8 text-center space-y-3 shadow-2xs">
           <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center mx-auto">
@@ -188,135 +217,28 @@ export function AjustesDirectorioTab({
             <span>Limpiar búsqueda</span>
           </button>
         </div>
+      ) : canViewDespachoMonitor && viewMode === 'semaforo' ? (
+        <DespachoMonitorPanel
+          companies={filteredCompanies}
+          activeCompanyId={activeCompany?.id ?? ''}
+          onSelectCompany={handleSelectCompany}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredCompanies.map((c) => {
-            const isCurrent = c.id === activeCompany?.id;
-            const m11 = validateRfcModulo11(c.rfc);
-            return (
-              <div
-                key={c.id}
-                className={`rounded-2xl border p-5 flex flex-col justify-between transition-all ${
-                  isCurrent
-                    ? 'bg-gradient-to-br from-emerald-50/50 via-white to-blue-50/40 border-emerald-300 ring-2 ring-emerald-500/30 shadow-xs'
-                    : 'bg-white border-slate-300/90 hover:border-slate-400 hover:shadow-xs'
-                }`}
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-slate-900 leading-snug">
-                          {c.name}
-                        </span>
-                        {isCurrent && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shrink-0">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" />
-                            Activa en Uso
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-600 line-clamp-1">
-                        {c.regimenFiscal}
-                      </p>
-                    </div>
-
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-slate-50 border-slate-200 text-slate-600">
-                      <Building2 className="w-4 h-4" aria-hidden="true" />
-                    </div>
-                  </div>
-
-                  {/* Chips de Datos Fiscales */}
-                  <div className="flex items-center gap-2 text-xs font-mono flex-wrap pt-1">
-                    <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-800 font-bold flex items-center gap-1">
-                      RFC: {c.rfc}
-                      {m11.isValidCheckDigit ? (
-                        <span
-                          title="Dígito verificador SAT Módulo 11 válido"
-                          className="text-emerald-700 text-[10px] ml-0.5 cursor-help"
-                        >
-                          ✓ M11
-                        </span>
-                      ) : m11.expectedCheckDigit ? (
-                        <span
-                          title={`Dígito verificador SAT Módulo 11 esperado: ${m11.expectedCheckDigit}`}
-                          className="text-amber-700 text-[10px] ml-0.5 cursor-help"
-                        >
-                          ⚠ M11:{m11.expectedCheckDigit}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
-                      CP: {c.codigoPostal || 'Sin C.P.'}
-                    </span>
-                    <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
-                      Ejercicio: {c.currentYear}
-                    </span>
-                    <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
-                      Periodo: P{String(c.currentPeriod || 1).padStart(2, '0')}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Acciones de la Empresa */}
-                <div className="mt-5 pt-3 border-t border-slate-200/80 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {isCurrent ? (
-                      <>
-                        <span className="text-xs text-emerald-800 font-bold flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          Activa en uso
-                        </span>
-                        <button
-                          type="button"
-                          onClick={onConfigureFicha}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
-                        >
-                          <span>Configurar Ficha Fiscal</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveCompanyId(c.id);
-                          toast.success(`Cambiado a: ${c.name} (${c.rfc})`);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 shadow-2xs transition cursor-pointer"
-                      >
-                        <span>Abrir Empresa</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {!isCurrent && canDeleteCompany && (
-                      <button
-                        type="button"
-                        onClick={() => setCompanyPendingDelete(c)}
-                        aria-label={`Eliminar empresa ${c.name}`}
-                        title={`Eliminar empresa ${c.name}`}
-                        className="p-2 min-w-9 min-h-9 inline-flex items-center justify-center rounded-xl text-slate-500 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-200 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" aria-hidden="true" />
-                      </button>
-                    )}
-                    {isCurrent && companies.length > 1 && canDeleteCompany && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteCompany(!confirmDeleteCompany)}
-                        className="text-[11px] text-slate-500 hover:text-red-700 font-semibold underline cursor-pointer py-1"
-                      >
-                        Opciones de baja
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredCompanies.map((c) => (
+            <AjustesDirectorioCompanyCard
+              key={c.id}
+              company={c}
+              isCurrent={c.id === activeCompany?.id}
+              companiesCount={companies.length}
+              canDeleteCompany={canDeleteCompany}
+              confirmDeleteCompany={confirmDeleteCompany}
+              setConfirmDeleteCompany={setConfirmDeleteCompany}
+              onSelectCompany={(comp) => handleSelectCompany(comp.id, comp.name, comp.rfc)}
+              onConfigureFicha={onConfigureFicha}
+              onRequestDeleteCompany={setCompanyPendingDelete}
+            />
+          ))}
         </div>
       )}
 

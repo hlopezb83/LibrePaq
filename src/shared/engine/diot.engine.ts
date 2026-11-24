@@ -6,11 +6,12 @@ import type {
   DiotSupplierRow,
   ThirdPartyRecord
 } from '../types';
+import { parseCalendarDate } from '../date-utils';
 import { fromCents, sumCents, toCents } from './invariants-and-math';
 import {
   buildDiot54BatchLine,
-  computePago20BasesWithoutBreakdown,
   generateDiotTxt,
+  resolveDiotDocAmounts,
   type DiotTipoTercero,
   type DiotTxtRowInput
 } from './diot-txt';
@@ -30,6 +31,7 @@ export interface DiotComputationParams {
 type InternalDiotRow = DiotSupplierRow & {
   pais?: string;
   nacionalidad?: string;
+  jurisdiccionFiscal?: string;
   idFiscal?: string;
   devolucionesMxn?: number;
   devoluciones8?: number;
@@ -38,100 +40,11 @@ type InternalDiotRow = DiotSupplierRow & {
 };
 
 type ExtendedThirdParty = ThirdPartyRecord & {
-  pais?: string;
-  nacionalidad?: string;
-  idFiscal?: string;
+  pais?: string | null;
+  nacionalidad?: string | null;
+  jurisdiccionFiscal?: string | null;
+  idFiscal?: string | null;
 };
-
-function resolveDocAmounts(doc: CfdiDocument, thirdParty?: ExtendedThirdParty) {
-  const concLower = doc.conceptoPrincipal.toLowerCase();
-  const tc = doc.moneda && doc.moneda !== 'MXN' && (doc.tipoCambio || 1) > 0 ? doc.tipoCambio || 1 : 1;
-  const netBase = Math.max(0, doc.subtotal - (doc.descuento || 0)) * tc;
-  const isCreditNote = doc.tipoComprobante === 'E';
-  const tb = doc.taxBreakdown;
-  const hasBreakdown =
-    !isCreditNote &&
-    tb != null &&
-    (tb.base16 > 0 || tb.base8 > 0 || tb.base0 > 0 || tb.baseExento > 0 || tb.ieps > 0);
-
-  if (doc.tipoComprobante === 'P' && !hasBreakdown) {
-    const p20 = computePago20BasesWithoutBreakdown(doc, tc, concLower, thirdParty);
-    const isP20Rate8 = p20.base8 > 0 && p20.base16 === 0;
-    return {
-      isCreditNote: false,
-      subtotal16: p20.base16,
-      subtotal8: p20.base8,
-      baseCero: p20.base0,
-      baseExenta: p20.baseExenta,
-      iepsPagado: 0,
-      devolucion16: 0,
-      devolucion8: 0,
-      iva16Mxn: isP20Rate8 ? 0 : p20.ivaMxn,
-      iva8Mxn: isP20Rate8 ? p20.ivaMxn : 0,
-      ivaRetenidoMxn: doc.ivaRetenido * tc,
-      isrRetenidoMxn: doc.isrRetenido * tc,
-      totalMxn: p20.paidTotalMxn > 0 ? p20.paidTotalMxn : doc.total * tc
-    };
-  }
-
-  const isExemptOrZero = doc.ivaTrasladado === 0 && !isCreditNote;
-  const rawIvaMxn = doc.ivaTrasladado * tc;
-  const inferredRatio = netBase > 0 ? rawIvaMxn / netBase : 0.16;
-  const inferredIsRate8 =
-    Math.abs(inferredRatio - 0.08) < 0.015 ||
-    (thirdParty?.tasaIvaDefault === 8 && rawIvaMxn > 0 && Math.abs(inferredRatio - 0.16) >= 0.015);
-
-  const subtotal16 = hasBreakdown
-    ? tb.base16 * tc
-    : !isCreditNote && !isExemptOrZero && !inferredIsRate8
-      ? netBase
-      : 0;
-  const subtotal8 = hasBreakdown
-    ? tb.base8 * tc
-    : !isCreditNote && !isExemptOrZero && inferredIsRate8
-      ? netBase
-      : 0;
-  const baseCero = hasBreakdown
-    ? tb.base0 * tc
-    : isExemptOrZero && !concLower.includes('exento')
-      ? netBase
-      : 0;
-  const baseExenta = hasBreakdown
-    ? tb.baseExento * tc
-    : isExemptOrZero && concLower.includes('exento')
-      ? netBase
-      : 0;
-  const iepsPagado = hasBreakdown ? tb.ieps * tc : 0;
-
-  let iva16Mxn = 0;
-  let iva8Mxn = 0;
-  if (hasBreakdown && tb.iva16 + tb.iva8 > 0) {
-    iva16Mxn = tb.iva16 * tc;
-    iva8Mxn = tb.iva8 * tc;
-  } else if (rawIvaMxn > 0) {
-    const is8 = hasBreakdown ? tb.base8 > 0 && tb.base16 === 0 : inferredIsRate8;
-    if (is8) iva8Mxn = rawIvaMxn;
-    else iva16Mxn = rawIvaMxn;
-  }
-
-  const ncIsRate8 = isCreditNote && ((tb != null && tb.iva8 > 0 && tb.iva16 === 0) || inferredIsRate8);
-
-  return {
-    isCreditNote,
-    subtotal16,
-    subtotal8,
-    baseCero,
-    baseExenta,
-    iepsPagado,
-    devolucion16: isCreditNote && !ncIsRate8 ? netBase : 0,
-    devolucion8: isCreditNote && ncIsRate8 ? netBase : 0,
-    iva16Mxn,
-    iva8Mxn,
-    ivaRetenidoMxn: doc.ivaRetenido * tc,
-    isrRetenidoMxn: doc.isrRetenido * tc,
-    totalMxn: doc.total * tc
-  };
-}
 
 /**
  * Motor único de cálculo y generación de layout DIOT (Formato SAT 2025/2026 de 54 campos)
@@ -192,16 +105,51 @@ export function computeDiotReportData({
   });
 
   const thirdPartyByRfc = new Map<string, ExtendedThirdParty>();
+  const foreignThirdParties: ExtendedThirdParty[] = [];
   for (const tp of thirdParties ?? []) {
-    if (tp.rfc) thirdPartyByRfc.set(tp.rfc.trim().toUpperCase(), tp as ExtendedThirdParty);
+    if (!tp.rfc) continue;
+    const upper = tp.rfc.trim().toUpperCase();
+    const ext = tp as ExtendedThirdParty;
+    if (upper === 'XEXX010101000' || upper.startsWith('XEXX') || tp.tipoTerceroDiot === '05') {
+      foreignThirdParties.push(ext);
+    }
+    if (!thirdPartyByRfc.has(upper)) {
+      thirdPartyByRfc.set(upper, ext);
+    }
+  }
+
+  let unpostedPaidCfdisCount = 0;
+  for (const c of cfdis) {
+    if (
+      c.direction !== 'RECIBIDO' ||
+      c.statusSat === 'CANCELADO' ||
+      c.tipoComprobante === 'T' ||
+      c.tipoComprobante === 'N'
+    ) {
+      continue;
+    }
+    const isPaid = c.metodoPago === 'PUE' || c.tipoComprobante === 'P';
+    if (!isPaid) continue;
+    const effectiveDate = c.tipoComprobante === 'P' ? (c.fechaPago || c.fecha) : c.fecha;
+    const cal = parseCalendarDate(effectiveDate, ejercicio, periodo);
+    if (cal.year === ejercicio && cal.month === periodo && (!c.polizaId || !polizaIdsInPeriod.has(c.polizaId))) {
+      unpostedPaidCfdisCount += 1;
+    }
   }
 
   const byRfcOp = new Map<string, InternalDiotRow>();
 
   for (const doc of paidRecibidos) {
     const rfc = doc.emisorRfc.trim().toUpperCase();
-    const thirdParty = thirdPartyByRfc.get(rfc);
-    const tpOpt = thirdParty as { pais?: string; nacionalidad?: string; idFiscal?: string } | undefined;
+    const docNameUpper = doc.emisorNombre.trim().toUpperCase();
+    const isGenericForeignRfc = rfc === 'XEXX010101000' || rfc.startsWith('XEXX');
+    const matchedForeignTp = isGenericForeignRfc
+      ? foreignThirdParties.find(
+          (tp) => tp.rfc.trim().toUpperCase() === rfc && tp.nombre.trim().toUpperCase() === docNameUpper
+        ) ?? (foreignThirdParties.length === 1 ? foreignThirdParties[0] : undefined)
+      : undefined;
+    const thirdParty = matchedForeignTp ?? thirdPartyByRfc.get(rfc);
+    const tpOpt = thirdParty;
     const concLower = doc.conceptoPrincipal.toLowerCase();
     let tipoOperacion: '03' | '06' | '85' = thirdParty?.tipoOperacionDiot ?? '85';
     if (!thirdParty?.tipoOperacionDiot) {
@@ -211,13 +159,15 @@ export function computeDiotReportData({
       }
     }
 
-    const groupKey = `${rfc}::${tipoOperacion}`;
-    const existing = byRfcOp.get(groupKey);
-    const amt = resolveDocAmounts(doc, thirdParty);
+    const amt = resolveDiotDocAmounts(doc, thirdParty);
     const sign = amt.isCreditNote ? -1 : 1;
-    const tipoTercero: '04' | '05' =
+    const tipoTercero: DiotTipoTercero =
       thirdParty?.tipoTerceroDiot ??
-      (rfc === 'XEXX010101000' || rfc.startsWith('XEXX') ? '05' : '04');
+      (isGenericForeignRfc ? '05' : '04');
+    const isForeign = tipoTercero === '05' || isGenericForeignRfc;
+    const foreignDiscriminator = isForeign ? (tpOpt?.idFiscal?.trim() || docNameUpper) : '';
+    const groupKey = isForeign ? `${rfc}::${foreignDiscriminator}::${tipoOperacion}` : `${rfc}::${tipoOperacion}`;
+    const existing = byRfcOp.get(groupKey);
 
     const iva16Signed = fromCents(toCents(sign * amt.iva16Mxn));
     const iva8Signed = fromCents(toCents(sign * amt.iva8Mxn));
@@ -242,9 +192,10 @@ export function computeDiotReportData({
         totalPagado: fromCents(toCents(sign * amt.totalMxn)),
         cfdiCount: 1,
         batchLine: '',
-        pais: tpOpt?.pais,
-        nacionalidad: tpOpt?.nacionalidad,
-        idFiscal: tpOpt?.idFiscal,
+        pais: tpOpt?.pais ?? undefined,
+        nacionalidad: tpOpt?.nacionalidad ?? undefined,
+        jurisdiccionFiscal: tpOpt?.jurisdiccionFiscal ?? undefined,
+        idFiscal: tpOpt?.idFiscal ?? undefined,
         devolucionesMxn: amt.devolucion16,
         devoluciones8: amt.devolucion8
       });
@@ -271,6 +222,7 @@ export function computeDiotReportData({
     const {
       pais: _p,
       nacionalidad: _n,
+      jurisdiccionFiscal: _jf,
       idFiscal: _id,
       devolucionesMxn: _dev,
       devoluciones8: _dev8,
@@ -288,8 +240,14 @@ export function computeDiotReportData({
   const ivaRetenido = fromCents(sumCents(rows.map((r) => r.ivaRetenido)));
   const isrRetenido = fromCents(sumCents(rows.map((r) => r.isrRetenido)));
 
-  const ivaTrasladadoAcc = trialBalance.find((a) => a.code === '208-01-001');
-  const ivaTrasladadoCobrado = ivaTrasladadoAcc ? ivaTrasladadoAcc.periodCredits : 0;
+  const ivaTrasladadoAccs = trialBalance.filter(
+    (a) =>
+      a.isAffectable !== false &&
+      (a.satGroupCode === '208.01' || a.satGroupCode?.startsWith('208.01') || a.code.startsWith('208-01'))
+  );
+  const ivaTrasladadoCobrado = fromCents(
+    Math.max(0, sumCents(ivaTrasladadoAccs.map((a) => a.periodCredits - a.periodCharges)))
+  );
   const ivaNetoCargoFavor = fromCents(toCents(ivaTrasladadoCobrado) - toCents(ivaAcreditable16));
   const mesStr = String(periodo).padStart(2, '0');
 
@@ -307,6 +265,7 @@ export function computeDiotReportData({
       ivaNetoCargoFavor
     },
     batchTxtContent: rows.map((r) => r.batchLine).join('\n'),
-    filename: `DIOT_${company.rfc}_${ejercicio}_${mesStr}.txt`
+    filename: `DIOT_${company.rfc}_${ejercicio}_${mesStr}.txt`,
+    unpostedPaidCfdisCount
   };
 }

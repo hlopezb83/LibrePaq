@@ -3,6 +3,17 @@ import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
 import { splitCsvLine } from '../../shared/csv-bank-parser';
 import type { AccountNature, AccountType, AccountWithBalance } from '../../shared/types';
+import {
+  inferLevelFromCode,
+  inferParentCodeFromSet,
+  isContpaqiCatalogTxt,
+  isValidMigrationAccountCode,
+  normalizeMigrationAccountCode,
+  parseAnexo24XmlCatalogOrBalanza,
+  parseContpaqiTxtCatalog,
+  type BalanzaValidationSummary,
+  type CatalogoFileFormat
+} from './catalogoMigrationParsers';
 
 export interface ParsedCatalogoCsvRow {
   code: string;
@@ -24,55 +35,18 @@ export interface CatalogoCsvSkippedRow {
 
 export interface CatalogoCsvImportPreview {
   fileName: string;
+  fileFormat?: CatalogoFileFormat;
+  balanzaValidation?: BalanzaValidationSummary;
+  fechaInicioOperaciones?: string;
   toCreate: ParsedCatalogoCsvRow[];
   toUpdate: ParsedCatalogoCsvRow[];
   skipped: CatalogoCsvSkippedRow[];
   allValidRows: ParsedCatalogoCsvRow[];
 }
 
-const VALID_TYPES = new Set<AccountType>(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS']);
+const VALID_TYPES = new Set<AccountType>(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS', 'ORDEN']);
 
-function normalizeAccountCode(rawInput: string): string {
-  const clean = rawInput.trim();
-  if (/^\d{8}$/.test(clean)) {
-    return `${clean.slice(0, 3)}-${clean.slice(3, 5)}-${clean.slice(5, 8)}`;
-  }
-  if (/^\d{11}$/.test(clean)) {
-    return `${clean.slice(0, 4)}-${clean.slice(4, 7)}-${clean.slice(7, 11)}`;
-  }
-  return clean;
-}
-
-export function isValidAccountMask(code: string): boolean {
-  return /^[A-Za-z0-9]{2,6}(-[A-Za-z0-9]{1,6}){1,4}$/.test(code);
-}
-
-function inferLevelFromMask(code: string): number {
-  const parts = code.split('-');
-  if (parts.length <= 1) return 1;
-  let nonZeroCount = 0;
-  for (const seg of parts) {
-    if (!/^0+$/.test(seg)) nonZeroCount += 1;
-  }
-  return Math.max(1, Math.min(4, nonZeroCount));
-}
-
-function inferParentFromCode(code: string, knownCodes: Set<string>): string | null {
-  const parts = code.split('-');
-  for (let i = parts.length - 1; i >= 1; i -= 1) {
-    if (/^0+$/.test(parts[i]!)) continue;
-    const candidateParts = parts.map((seg, idx) => (idx >= i ? '0'.repeat(seg.length) : seg));
-    const candidate = candidateParts.join('-');
-    if (candidate !== code && knownCodes.has(candidate)) {
-      return candidate;
-    }
-  }
-  if (parts.length > 3) {
-    const truncated = parts.slice(0, parts.length - 1).join('-');
-    if (knownCodes.has(truncated)) return truncated;
-  }
-  return null;
-}
+export const isValidAccountMask = isValidMigrationAccountCode;
 
 function parseBoolColumn(raw: string | undefined): boolean | undefined {
   const val = (raw ?? '').trim().toLowerCase();
@@ -102,8 +76,13 @@ export function parseCatalogoCsvWithReport(text: string): {
 
   const findCol = (patterns: string[], fallbackIdx: number) => {
     if (!hasHeader) return fallbackIdx;
-    const idx = firstCols.findIndex((h) => patterns.some((p) => h.includes(p)));
-    return idx >= 0 ? idx : fallbackIdx;
+    for (const p of patterns) {
+      const exactIdx = firstCols.findIndex((h) => h === p);
+      if (exactIdx >= 0) return exactIdx;
+      const partialIdx = firstCols.findIndex((h) => h.includes(p));
+      if (partialIdx >= 0) return partialIdx;
+    }
+    return fallbackIdx;
   };
 
   const colCode = findCol(['código cuenta', 'codigo cuenta', 'codigo', 'cuenta'], 0);
@@ -113,7 +92,7 @@ export function parseCatalogoCsvWithReport(text: string): {
   const colNature = findCol(['naturaleza'], 4);
   const colLevel = findCol(['nivel'], 5);
   const colAffectable = findCol(['afectable'], 6);
-  const colBalance = findCol(['apertura enero', 'saldo inicial', 'inicial'], 7);
+  const colBalance = findCol(['saldo apertura enero', 'apertura enero', 'saldo inicial', 'inicial'], 7);
   const colParent = hasHeader
     ? firstCols.findIndex((h) => h.includes('padre') || h.includes('parent'))
     : 11;
@@ -123,7 +102,7 @@ export function parseCatalogoCsvWithReport(text: string): {
   for (let i = startIdx; i < indexedLines.length; i += 1) {
     const { text: rawLine, lineNumber } = indexedLines[i]!;
     const cols = splitCsvLine(rawLine);
-    const rawCode = normalizeAccountCode(cols[colCode] ?? '');
+    const rawCode = normalizeMigrationAccountCode(cols[colCode] ?? '');
     const rawName = (cols[colName] ?? '').trim();
     if (!isValidAccountMask(rawCode)) {
       skipped.push({
@@ -152,7 +131,7 @@ export function parseCatalogoCsvWithReport(text: string): {
     const level =
       Number.isInteger(parsedLevelNum) && parsedLevelNum >= 1 && parsedLevelNum <= 5
         ? parsedLevelNum
-        : inferLevelFromMask(rawCode);
+        : inferLevelFromCode(rawCode);
 
     const parsedAff = parseBoolColumn(cols[colAffectable]);
     const isAffectable = parsedAff !== undefined ? parsedAff : level >= 3;
@@ -162,7 +141,7 @@ export function parseCatalogoCsvWithReport(text: string): {
     const cleanedBalText = rawBalText.replace(/[$,()\s]/g, '');
     const parsedBal = cleanedBalText ? Number(cleanedBalText) : 0;
     const rawBalVal = Number.isFinite(parsedBal) ? (isParenNeg ? -Math.abs(parsedBal) : parsedBal) : 0;
-    const rawParent = colParent >= 0 ? normalizeAccountCode(cols[colParent] ?? '') : '';
+    const rawParent = colParent >= 0 ? normalizeMigrationAccountCode(cols[colParent] ?? '') : '';
 
     tempRows.push({
       code: rawCode,
@@ -180,12 +159,19 @@ export function parseCatalogoCsvWithReport(text: string): {
   const knownCodes = new Set(tempRows.map((r) => r.code));
   const rows = tempRows.map((r) => ({
     ...r,
-    parentCode: r.parentCode !== undefined ? r.parentCode : inferParentFromCode(r.code, knownCodes)
+    parentCode: r.parentCode !== undefined ? r.parentCode : inferParentCodeFromSet(r.code, knownCodes)
   }));
   return { rows, skipped };
 }
 
 export function parseCatalogoCsvText(text: string): ParsedCatalogoCsvRow[] {
+  const clean = text.replace(/^\uFEFF/, '').trimStart();
+  if (clean.startsWith('<')) {
+    return parseAnexo24XmlCatalogOrBalanza(clean).rows;
+  }
+  if (isContpaqiCatalogTxt(clean)) {
+    return parseContpaqiTxtCatalog(clean).rows;
+  }
   return parseCatalogoCsvWithReport(text).rows;
 }
 
@@ -194,7 +180,32 @@ export function buildCatalogoImportPreview(
   text: string,
   existingAccounts: AccountWithBalance[]
 ): CatalogoCsvImportPreview {
-  const { rows, skipped } = parseCatalogoCsvWithReport(text);
+  const trimmed = text.replace(/^\uFEFF/, '').trimStart();
+  const isXml = fileName.toLowerCase().endsWith('.xml') || trimmed.startsWith('<');
+  let fileFormat: CatalogoFileFormat = 'CSV';
+  let rows: ParsedCatalogoCsvRow[] = [];
+  let skipped: CatalogoCsvSkippedRow[] = [];
+  let balanzaValidation: BalanzaValidationSummary | undefined;
+  let fechaInicioOperaciones: string | undefined;
+
+  if (isXml) {
+    const parsedXml = parseAnexo24XmlCatalogOrBalanza(trimmed, existingAccounts);
+    fileFormat = parsedXml.format;
+    rows = parsedXml.rows;
+    skipped = parsedXml.skipped;
+    balanzaValidation = parsedXml.balanzaValidation;
+    fechaInicioOperaciones = parsedXml.fechaInicioOperaciones;
+  } else if (isContpaqiCatalogTxt(trimmed)) {
+    const parsedTxt = parseContpaqiTxtCatalog(trimmed);
+    fileFormat = parsedTxt.format;
+    rows = parsedTxt.rows;
+    skipped = parsedTxt.skipped;
+  } else {
+    const parsedCsv = parseCatalogoCsvWithReport(text);
+    rows = parsedCsv.rows;
+    skipped = parsedCsv.skipped;
+  }
+
   const existingCodes = new Set(existingAccounts.map((a) => a.code));
   const toCreate: ParsedCatalogoCsvRow[] = [];
   const toUpdate: ParsedCatalogoCsvRow[] = [];
@@ -205,7 +216,16 @@ export function buildCatalogoImportPreview(
       toCreate.push(row);
     }
   }
-  return { fileName, toCreate, toUpdate, skipped, allValidRows: rows };
+  return {
+    fileName,
+    fileFormat,
+    balanzaValidation,
+    fechaInicioOperaciones,
+    toCreate,
+    toUpdate,
+    skipped,
+    allValidRows: rows
+  };
 }
 
 export function downloadCatalogoTemplateCsv() {

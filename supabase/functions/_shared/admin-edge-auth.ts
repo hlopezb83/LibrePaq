@@ -125,7 +125,8 @@ export interface CompanyRoleResolution {
 
 /**
  * Resuelve el rol efectivo de un usuario sobre una empresa en `companies`,
- * evaluando propiedad directa y membresías activas en `workspace_members` / `company_member_access`.
+ * evaluando propiedad directa, `companies.organization_id`, `company_member_access`
+ * y membresías activas de despacho en `workspace_members` (sin fugas cross-tenant).
  */
 export async function resolveEffectiveCompanyRole(
   supabase: SupabaseClient,
@@ -136,7 +137,7 @@ export async function resolveEffectiveCompanyRole(
   const email = userEmail.trim().toLowerCase();
   const { data: comp, error: compErr } = await supabase
     .from('companies')
-    .select('id, user_id')
+    .select('id, user_id, organization_id')
     .eq('id', companyId)
     .maybeSingle();
 
@@ -146,8 +147,13 @@ export async function resolveEffectiveCompanyRole(
   if (comp.user_id === userId) {
     return { role: 'OWNER', canWrite: true, isReadOnlyClient: false };
   }
-  if (!comp.user_id || comp.user_id === 'demo') {
+
+  const orgId = comp.organization_id ? String(comp.organization_id).trim() : null;
+  if ((!comp.user_id || comp.user_id === 'demo') && !orgId) {
     return { role: null, canWrite: false, isReadOnlyClient: false };
+  }
+  if (orgId && (orgId === userId || orgId === `ws_${userId.slice(0, 8)}`)) {
+    return { role: 'OWNER', canWrite: true, isReadOnlyClient: false };
   }
 
   const { data: byUser } = await supabase
@@ -195,28 +201,22 @@ export async function resolveEffectiveCompanyRole(
     accessByMember.set(mid, list);
   }
 
-  const { data: ownerProfile } = await supabase
-    .from('user_profiles')
-    .select('workspace_id')
-    .eq('id', comp.user_id)
-    .maybeSingle();
-  const ownerProfileWorkspaceId = ownerProfile?.workspace_id ? String(ownerProfile.workspace_id) : null;
-
   let bestRole: DespachoRole | null = null;
   for (const m of active) {
     const mid = String(m.id);
+    const mWorkspaceId = String(m.workspace_id || '').trim();
     const restricted = accessByMember.get(mid) || [];
     let candidate: DespachoRole | null = null;
-    if (restricted.length > 0) {
+
+    if (orgId !== null && mWorkspaceId === orgId && String(m.role || '').toUpperCase() === 'SOCIO') {
+      candidate = 'SOCIO';
+    } else if (restricted.length > 0) {
       const match = restricted.find((r) => String(r.company_id) === companyId);
       if (match) candidate = (match.role_override || m.role) as DespachoRole;
-    } else if (
-      m.workspace_id === comp.user_id ||
-      m.workspace_id === `ws_${String(comp.user_id).slice(0, 8)}` ||
-      (ownerProfileWorkspaceId !== null && m.workspace_id === ownerProfileWorkspaceId)
-    ) {
+    } else if (orgId !== null && mWorkspaceId === orgId) {
       candidate = m.role as DespachoRole;
     }
+
     if (candidate && (!bestRole || DESPACHO_ROLE_RANK[candidate] > DESPACHO_ROLE_RANK[bestRole])) {
       bestRole = candidate;
     }

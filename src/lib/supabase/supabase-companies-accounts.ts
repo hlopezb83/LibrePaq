@@ -1,6 +1,11 @@
 import { getRequiredSupabase, supabase } from '../supabase';
 import { assertAccountingInvariant, toCents, validateAccountHierarchy } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
+import {
+  deleteCompanyFallbackInSupabase,
+  propagateOpenAccountNameToMovements,
+  resolveActiveOrganizationId
+} from './supabase-accounts-helpers';
 import { mapSupabaseCompany, mapSupabaseAccount } from './supabase-mappers';
 import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen } from './supabase-polizas';
@@ -50,6 +55,7 @@ export const supabaseCompaniesAndAccounts = {
     fielCerBase64?: string;
     fielKeyBase64?: string;
     fielPassword?: string;
+    organizationId?: string | null;
   }): Promise<Company> {
     if (!supabase) throw new Error('Supabase no está configurado');
 
@@ -59,6 +65,12 @@ export const supabaseCompaniesAndAccounts = {
     const currentPeriod = payload.currentPeriod ?? 10;
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData?.user?.id || null;
+    const organizationId = await resolveActiveOrganizationId(
+      supabase,
+      userId,
+      payload.organizationId,
+      authData?.user?.user_metadata?.workspace_id
+    );
 
     const { data, error } = await supabase
       .from('companies')
@@ -72,7 +84,8 @@ export const supabaseCompaniesAndAccounts = {
         current_year: currentYear,
         current_period: currentPeriod,
         created_at: new Date().toISOString(),
-        user_id: userId
+        user_id: userId,
+        organization_id: organizationId
       })
       .select()
       .single();
@@ -133,36 +146,7 @@ export const supabaseCompaniesAndAccounts = {
     const { error: rpcError } = await supabase.rpc('delete_company_cascade', { company_id_param: companyId });
     if (!rpcError) return { deleted: true };
 
-    // Fallback secuencial cliente si la RPC en PostgreSQL no está disponible
-    const { data: pols } = await supabase.from('polizas').select('id').eq('company_id', companyId);
-    const polIds = (pols || []).map((p: { id: string }) => p.id);
-    if (polIds.length > 0) {
-      const { error: movErr } = await supabase.from('poliza_movements').delete().in('poliza_id', polIds);
-      if (movErr) throw new Error(movErr.message);
-    }
-    const childTables = [
-      'bank_statement_matches',
-      'inventory_periods',
-      'accounting_rules',
-      'annual_tax_snapshots',
-      'company_audit_logs',
-      'bank_statement_lines',
-      'cfdi_documents',
-      'polizas',
-      'fixed_assets',
-      'third_parties',
-      'period_locks',
-      'tax_parameters',
-      'fiel_credentials',
-      'sat_download_requests',
-      'accounts'
-    ];
-    for (const table of childTables) {
-      const { error: childErr } = await supabase.from(table).delete().eq('company_id', companyId);
-      if (childErr) throw new Error(`[Delete ${table}] ${childErr.message}`);
-    }
-    const { error } = await supabase.from('companies').delete().eq('id', companyId);
-    if (error) throw new Error(error.message);
+    await deleteCompanyFallbackInSupabase(supabase, companyId);
     return { deleted: true };
   },
 
@@ -238,9 +222,20 @@ export const supabaseCompaniesAndAccounts = {
       `Ya existe una cuenta con el código ${cleanCode}.`
     );
 
+    const initialBalanceNum = Number(payload.initialBalance || 0);
+    if (toCents(initialBalanceNum) !== 0) {
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('current_year')
+        .eq('id', payload.companyId)
+        .maybeSingle();
+      await assertSupabasePeriodOpen(payload.companyId, comp?.current_year || 2026, 1);
+    }
+
     const hierarchy = validateAccountHierarchy(existingAccounts, cleanParent, cleanCode);
     const resolvedLevel = cleanParent ? hierarchy.level : payload.level;
 
+    let affectableParentIdToDisable: string | null = null;
     if (cleanParent) {
       const parentAccount = existingAccounts.find((a) => a.code === cleanParent);
       if (parentAccount && parentAccount.isAffectable) {
@@ -254,6 +249,7 @@ export const supabaseCompaniesAndAccounts = {
             `No se pueden crear subcuentas bajo la cuenta afectable ${parentAccount.code} porque ya tiene movimientos contables registrados.`
           );
         }
+        affectableParentIdToDisable = parentAccount.id;
       }
     }
 
@@ -270,9 +266,17 @@ export const supabaseCompaniesAndAccounts = {
       is_affectable: payload.isAffectable,
       sat_group_code: payload.satGroupCode.trim(),
       currency: 'MXN',
-      initial_balance: Number(payload.initialBalance || 0)
+      initial_balance: initialBalanceNum
     });
     if (error) throw new Error(error.message);
+
+    if (affectableParentIdToDisable) {
+      const { error: parentUpdErr } = await supabase
+        .from('accounts')
+        .update({ is_affectable: false })
+        .eq('id', affectableParentIdToDisable);
+      if (parentUpdErr) throw new Error(parentUpdErr.message);
+    }
     return { id, code: cleanCode, name: payload.name };
   },
 
@@ -281,7 +285,11 @@ export const supabaseCompaniesAndAccounts = {
     payload: { name: string; satGroupCode: string; type: string; nature: string; initialBalance: number; }
   ): Promise<{ updated: boolean }> {
     if (!supabase) return { updated: false };
-    const { data: ex } = await supabase.from('accounts').select('company_id, initial_balance, nature').eq('id', accountId).maybeSingle();
+    const { data: ex } = await supabase
+      .from('accounts')
+      .select('company_id, name, initial_balance, nature')
+      .eq('id', accountId)
+      .maybeSingle();
     if (ex && (Math.abs(Number(ex.initial_balance) - Number(payload.initialBalance || 0)) > 0.001 || ex.nature !== payload.nature)) {
       const { data: comp } = await supabase.from('companies').select('current_year').eq('id', ex.company_id).maybeSingle();
       await assertSupabasePeriodOpen(String(ex.company_id), comp?.current_year || 2026, 1);
@@ -292,11 +300,10 @@ export const supabaseCompaniesAndAccounts = {
       nature: payload.nature, type: payload.type, initial_balance: Number(payload.initialBalance || 0)
     }).eq('id', accountId);
     if (error) throw new Error(error.message);
-    const { error: movErr } = await supabase
-      .from('poliza_movements')
-      .update({ account_name: cleanName })
-      .eq('account_id', accountId);
-    if (movErr) throw new Error(movErr.message);
+    const nameChanged = ex ? String(ex.name ?? '').trim() !== cleanName : true;
+    if (nameChanged && ex?.company_id) {
+      await propagateOpenAccountNameToMovements(supabase, String(ex.company_id), accountId, cleanName);
+    }
     return { updated: true };
   },
 

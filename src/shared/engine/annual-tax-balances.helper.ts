@@ -2,7 +2,7 @@ import type { Account, AccountWithBalance } from '../types/core.types';
 import type { AnnualInflationMonthlyRow, AnnualInflationResult } from '../types/annual-tax.types';
 import type { FixedAssetRecord as FaRecord } from '../types/fiscal.types';
 import { MESES_SAT } from '../sat-constants';
-import { getOfficialInpc } from '../sat-inpc-catalog';
+import { getLatestPublishedInpc, getOfficialInpc } from '../sat-inpc-catalog';
 import { parseCalendarDate } from '../date-utils';
 import { resolveFiscalAccount } from './auto-poliza.engine';
 import { rollUpTrialBalanceAccounts, type JoinedPolizaMovementInput } from './financial-reports.engine';
@@ -11,7 +11,7 @@ import { fromCents, toCents } from './invariants-and-math';
 import type { AnnualMonthlyBalancesInput, AnnualTaxMonthlyBalance } from './annual-tax.engine';
 
 const CREDIT_PREFIXES = ['102', '103', '105', '106', '107', '113'] as const;
-const DEBT_PREFIXES = ['201', '202', '205', '206', '210', '211', '213', '216', '251', '252', '253'] as const;
+const DEBT_PREFIXES = ['201', '202', '205', '206', '213', '216', '251', '252', '253'] as const;
 
 export function pickEvalAccounts(accounts: readonly AccountWithBalance[]): AccountWithBalance[] {
   const affectable = accounts.filter((a) => a.isAffectable);
@@ -28,8 +28,8 @@ export function resolveAnnualInpcPair(
   inpcAnterior?: number,
   inpcActual?: number
 ): { inpcCierreAnterior: number; inpcCierreActual: number } {
-  const fallbackAnt = getOfficialInpc(ejercicio - 1, 12) ?? 139.38;
-  const fallbackAct = getOfficialInpc(ejercicio, 12) ?? 145.4;
+  const fallbackAnt = getOfficialInpc(ejercicio - 1, 12) ?? getLatestPublishedInpc() ?? 137.949;
+  const fallbackAct = getOfficialInpc(ejercicio, 12) ?? getLatestPublishedInpc() ?? 143.042;
   return {
     inpcCierreAnterior: inpcAnterior !== undefined && Number(inpcAnterior) > 0 ? Number(inpcAnterior) : fallbackAnt,
     inpcCierreActual: inpcActual !== undefined && Number(inpcActual) > 0 ? Number(inpcActual) : fallbackAct
@@ -46,8 +46,24 @@ function isExcludedInflationCredit(acc: AccountWithBalance): boolean {
   const code = acc.code ?? '';
   const sat = acc.satGroupCode ?? '';
   if (code === '107-01-001' || sat === '107.01') return true;
+  if (code.startsWith('107-02') || sat === '107.02' || sat.startsWith('107.02')) return true;
   const lower = acc.name.toLowerCase();
-  return code.startsWith('107') && (lower.includes('empleado') || lower.includes('funcionario'));
+  return (
+    code.startsWith('107') &&
+    (lower.includes('empleado') ||
+      lower.includes('funcionario') ||
+      lower.includes('socio') ||
+      lower.includes('accionista'))
+  );
+}
+
+function isExcludedInflationDebt(acc: AccountWithBalance): boolean {
+  const code = acc.code ?? '';
+  const sat = acc.satGroupCode ?? '';
+  const lower = acc.name.toLowerCase();
+  if (sat === '213.03' || sat.startsWith('213.03') || code === '213-01-002') return true;
+  if (code.startsWith('210') || code.startsWith('211') || sat.startsWith('210') || sat.startsWith('211')) return true;
+  return code.startsWith('213') && lower.includes('isr');
 }
 
 function normalizeMonthlyBalances(
@@ -91,7 +107,7 @@ export function computeAnnualInflation(
       const balCents = toCents(acc.finalBalance);
       if (hasPrefix(acc, CREDIT_PREFIXES) && !isExcludedInflationCredit(acc)) {
         monthCreditosCents += Math.max(0, balCents);
-      } else if (hasPrefix(acc, DEBT_PREFIXES)) {
+      } else if (hasPrefix(acc, DEBT_PREFIXES) && !isExcludedInflationDebt(acc)) {
         monthDeudasCents += Math.max(0, balCents);
       }
     }
@@ -285,14 +301,17 @@ export function computeAnnualProvisionalPayments(params: {
     monthCredits.set(p.periodo, (monthCredits.get(p.periodo) || 0) + toCents(row.abono));
   }
 
-  let ledger1To11Cents = 0;
-  let ledger12Cents = 0;
+  let charges1To11Cents = 0;
+  let charges12Cents = 0;
+  let totalCreditsCents = 0;
   for (let m = 1; m <= 12; m += 1) {
-    const val = Math.max(monthCharges.get(m) || 0, monthCredits.get(m) || 0);
-    if (m < 12) ledger1To11Cents += val;
-    else ledger12Cents += val;
+    const ch = monthCharges.get(m) || 0;
+    const cr = monthCredits.get(m) || 0;
+    if (m < 12) charges1To11Cents += ch;
+    else charges12Cents += ch;
+    totalCreditsCents += cr;
   }
-  const ledgerTotalCents = ledger1To11Cents + ledger12Cents;
+  const totalChargesCents = charges1To11Cents + charges12Cents;
 
   let maxParamPriorCents = 0;
   for (const row of taxParameterRows) {
@@ -302,8 +321,14 @@ export function computeAnnualProvisionalPayments(params: {
     );
   }
 
-  if (ledger1To11Cents === 0 && maxParamPriorCents > 0) {
-    return fromCents(maxParamPriorCents + ledger12Cents);
+  if (totalChargesCents > 0) {
+    if (charges1To11Cents === 0 && maxParamPriorCents > 0) {
+      return fromCents(maxParamPriorCents + charges12Cents);
+    }
+    return fromCents(Math.max(totalChargesCents, maxParamPriorCents));
   }
-  return fromCents(Math.max(ledgerTotalCents, maxParamPriorCents));
+  if (maxParamPriorCents > 0) {
+    return fromCents(maxParamPriorCents);
+  }
+  return fromCents(totalCreditsCents);
 }

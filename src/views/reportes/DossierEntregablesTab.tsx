@@ -1,6 +1,6 @@
 import { FileCheck2, Printer } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
-import { calculateDia17Deadline } from '../../shared/date-utils';
+import { formatBalanceCutoffLabel, calculateDia17Deadline } from '../../shared/date-utils';
 import type { DeliverableTabId } from '../../components/deliverables/useExecutiveDeliverables';
 
 interface DossierEntregablesTabProps {
@@ -33,7 +33,7 @@ export function DossierEntregablesTab({
               Dossier Oficial de Entregables
             </span>
             <h2 className="text-xl font-bold text-white tracking-tight">
-              Carpeta de Cierre Contable y Fiscal — {mesNombre} {ejercicio}
+              Carpeta de Cierre Contable y Fiscal — {periodo === 13 ? formatBalanceCutoffLabel(ejercicio, periodo, mesNombre) : `${mesNombre} ${ejercicio}`}
             </h2>
             <p className="text-xs text-slate-300">
               Paquete integral de estados financieros dictaminados bajo NIF mexicanas, cédula fiscal Día 17 y papeles de trabajo para dirección y auditores.

@@ -13,6 +13,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { downloadBlobFile } from '../../lib/formatters';
 import {
+  hasEmptyAnexo24Body,
   isValidSatNumOrden,
   isValidSatNumTramite,
   type SatXmlType
@@ -84,14 +85,17 @@ export function Anexo24Tab({
     satXmlType === 'balanza' &&
     anexo24Options.tipoEnvio === 'C' &&
     !anexo24Options.fechaModBal.trim();
-  const isDownloadBlocked = !satXmlData || hasSolicitudWarning || isMissingFechaModBal;
+  const isEmptyXmlBody = Boolean(satXmlData?.xml && hasEmptyAnexo24Body(satXmlType, satXmlData.xml));
+  const isDownloadBlocked = !satXmlData || hasSolicitudWarning || isMissingFechaModBal || isEmptyXmlBody;
   const blockedDownloadTitle = !satXmlData
     ? 'Esperando generación del archivo XML Anexo 24...'
-    : isMissingFechaModBal
-      ? 'Captura la FechaModBal requerida para envío Complementario (C)'
-      : missingSolicitudFolio
-        ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
-        : `Corrige el formato de ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} antes de descargar`;
+    : isEmptyXmlBody
+      ? 'Archivo XML vacío: sin registros de detalle requeridos por XSD SAT 1.3 (minOccurs="1")'
+      : isMissingFechaModBal
+        ? 'Captura la FechaModBal requerida para envío Complementario (C)'
+        : missingSolicitudFolio
+          ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
+          : `Corrige el formato de ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} antes de descargar`;
 
   const handleCopy = () => {
     if (!satXmlData?.xml) return;
@@ -255,18 +259,20 @@ export function Anexo24Tab({
             <span>
               Archivo oficial: <strong className="text-blue-700 break-all">{satXmlData.filename}</strong> ({satXmlData.type})
             </span>
-            {hasSolicitudWarning || isMissingFechaModBal ? (
+            {hasSolicitudWarning || isMissingFechaModBal || isEmptyXmlBody ? (
               <span
                 role="status"
                 className="inline-flex items-center gap-1 text-amber-900 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300"
               >
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
                 <span>
-                  {isMissingFechaModBal
-                    ? 'Captura FechaModBal requerida para envío Complementario (C)'
-                    : missingSolicitudFolio
-                      ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
-                      : `${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} con formato inválido`}
+                  {isEmptyXmlBody
+                    ? 'Archivo XML vacío (sin registros de detalle requeridos por XSD SAT 1.3)'
+                    : isMissingFechaModBal
+                      ? 'Captura FechaModBal requerida para envío Complementario (C)'
+                      : missingSolicitudFolio
+                        ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
+                        : `${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} con formato inválido`}
                 </span>
               </span>
             ) : (

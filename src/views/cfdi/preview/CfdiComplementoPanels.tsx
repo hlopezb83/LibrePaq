@@ -2,6 +2,13 @@ import { Banknote, Users } from 'lucide-react';
 import { formatCurrency } from '../../../lib/formatters';
 import type { CfdiPreviewNomina, CfdiPreviewPagoItem } from '../../../shared/cfdi-preview-parser';
 
+function formatTaxCode(code: string): string {
+  if (code === '001') return 'ISR';
+  if (code === '002') return 'IVA';
+  if (code === '003') return 'IEPS';
+  return code;
+}
+
 export function CfdiComplementoPagosPanel({ pagos }: { pagos: CfdiPreviewPagoItem[] }) {
   return (
     <section
@@ -18,6 +25,9 @@ export function CfdiComplementoPagosPanel({ pagos }: { pagos: CfdiPreviewPagoIte
             <span>
               Fecha Pago: <strong className="text-slate-900">{pago.fechaPago || 'N/D'}</strong> • Forma:{' '}
               <strong>{pago.formaDePagoP || 'N/D'}</strong> • Moneda: <strong>{pago.monedaP}</strong>
+              {pago.monedaP !== 'MXN' || pago.tipoCambioP !== '1' ? (
+                <> • TipoCambioP: <strong>{pago.tipoCambioP}</strong></>
+              ) : null}
               {pago.numOperacion && <> • Operación: <strong>{pago.numOperacion}</strong></>}
             </span>
             <span className="font-bold text-blue-900 tabular-nums">
@@ -29,7 +39,7 @@ export function CfdiComplementoPagosPanel({ pagos }: { pagos: CfdiPreviewPagoIte
               <table className="w-full text-left border-collapse text-[11px]">
                 <thead>
                   <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold uppercase">
-                    <th scope="col" className="py-1.5 px-2.5">CFDI Relacionado (UUID)</th>
+                    <th scope="col" className="py-1.5 px-2.5">CFDI Relacionado (UUID / MonedaDR)</th>
                     <th scope="col" className="py-1.5 px-2.5 text-center">Parcialidad</th>
                     <th scope="col" className="py-1.5 px-2.5 text-right">Saldo Anterior</th>
                     <th scope="col" className="py-1.5 px-2.5 text-right">Importe Pagado</th>
@@ -40,10 +50,26 @@ export function CfdiComplementoPagosPanel({ pagos }: { pagos: CfdiPreviewPagoIte
                   {pago.doctosRelacionados.map((d, dIdx) => (
                     <tr key={`${d.idDocumento}-${dIdx}`}>
                       <td className="py-1.5 px-2.5 text-slate-800 break-all">
-                        {d.idDocumento}
-                        {(d.serie || d.folio) && (
-                          <span className="text-slate-500 ml-1.5">({[d.serie, d.folio].filter(Boolean).join('-')})</span>
-                        )}
+                        <div>
+                          {d.idDocumento}
+                          {(d.serie || d.folio) && (
+                            <span className="text-slate-500 ml-1.5">({[d.serie, d.folio].filter(Boolean).join('-')})</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-600 mt-0.5">
+                          MonedaDR: <strong>{d.monedaDr}</strong> • Eq: <strong>{d.equivalenciaDr}</strong>
+                          {d.objetoImpDr && <> • ObjImpDR: <strong>{d.objetoImpDr}</strong></>}
+                          {d.impuestosDr && d.impuestosDr.length > 0 && (
+                            <>
+                              {' • ImpuestosDR: '}
+                              {d.impuestosDr.map((tx, txIdx) => (
+                                <span key={txIdx} className="inline-block mr-1.5">
+                                  {tx.tipo === 'Retencion' ? 'Ret' : 'Tras'} {formatTaxCode(tx.impuesto)} (Base {formatCurrency(tx.base)}: {formatCurrency(tx.importe)})
+                                </span>
+                              ))}
+                            </>
+                          )}
+                        </div>
                       </td>
                       <td className="py-1.5 px-2.5 text-center tabular-nums">#{d.numParcialidad}</td>
                       <td className="py-1.5 px-2.5 text-right tabular-nums">{formatCurrency(d.impSaldoAnt)}</td>
@@ -110,6 +136,44 @@ export function CfdiComplementoNominaPanel({ nomina }: { nomina: CfdiPreviewNomi
           <strong className="text-slate-900 tabular-nums">{formatCurrency(nomina.totalOtrosPagos)}</strong>
         </div>
       </div>
+
+      {(nomina.percepciones?.length || nomina.deducciones?.length || nomina.otrosPagos?.length) ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-[11px]">
+          {nomina.percepciones && nomina.percepciones.length > 0 && (
+            <div className="bg-white rounded-lg border border-indigo-200 p-2.5 space-y-1">
+              <strong className="text-indigo-950 block uppercase">Percepciones</strong>
+              {nomina.percepciones.map((p, i) => (
+                <div key={i} className="flex justify-between gap-2 font-mono">
+                  <span className="font-sans text-slate-700 truncate" title={p.concepto}>{p.tipoPercepcion} · {p.concepto}</span>
+                  <span className="text-emerald-800 tabular-nums shrink-0">{formatCurrency(p.importeGravado + p.importeExento)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {nomina.deducciones && nomina.deducciones.length > 0 && (
+            <div className="bg-white rounded-lg border border-indigo-200 p-2.5 space-y-1">
+              <strong className="text-indigo-950 block uppercase">Deducciones</strong>
+              {nomina.deducciones.map((d, i) => (
+                <div key={i} className="flex justify-between gap-2 font-mono">
+                  <span className="font-sans text-slate-700 truncate" title={d.concepto}>{d.tipoDeduccion} · {d.concepto}</span>
+                  <span className="text-red-700 tabular-nums shrink-0">-{formatCurrency(d.importe)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {nomina.otrosPagos && nomina.otrosPagos.length > 0 && (
+            <div className="bg-white rounded-lg border border-indigo-200 p-2.5 space-y-1">
+              <strong className="text-indigo-950 block uppercase">Otros Pagos</strong>
+              {nomina.otrosPagos.map((o, i) => (
+                <div key={i} className="flex justify-between gap-2 font-mono">
+                  <span className="font-sans text-slate-700 truncate" title={o.concepto}>{o.tipoOtroPago} · {o.concepto}</span>
+                  <span className="text-slate-900 tabular-nums shrink-0">{formatCurrency(o.importe)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

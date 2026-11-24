@@ -19,8 +19,42 @@ export interface Anexo24AuxOptions {
   cfdiLookup?: ReadonlyMap<string, Anexo24AuxCfdiMeta>;
 }
 
-export const SAT_NUM_ORDEN_REGEX = /^[A-Z]{3}\d{7}\/\d{2}$/;
-export const SAT_NUM_TRAMITE_REGEX = /^[A-Z0-9]{10,14}$/;
+export const SAT_NUM_ORDEN_REGEX = /^[A-Z]{3}[0-6]\d{6}\/\d{2}$/;
+export const SAT_NUM_TRAMITE_REGEX = /^[A-Z]{2}\d{12}$/;
+
+export function isLevel1StructuralRubro(acc: Pick<AccountWithBalance, 'isAffectable' | 'code' | 'satGroupCode' | 'level'>): boolean {
+  if (acc.isAffectable) return false;
+  const code = (acc.code || '').trim();
+  const satCode = (acc.satGroupCode || '').trim();
+  return (
+    /^[1-6]00-00-000$/.test(code) ||
+    /^[1-6]00$/.test(satCode) ||
+    (acc.level === 1 && /^[1-6]00/.test(code))
+  );
+}
+
+export function hasEmptyAnexo24Body(
+  satXmlType: 'balanza' | 'catalogo' | 'polizas' | 'auxiliar_folios' | 'auxiliar_cuentas' | string,
+  xml: string
+): boolean {
+  if (!xml) return true;
+  switch (satXmlType) {
+    case 'catalogo':
+      return !/<catalogocuentas:Ctas\b/.test(xml);
+    case 'balanza':
+      return !/<BCE:Ctas\b/.test(xml);
+    case 'polizas':
+      return !/<PLZ:Poliza\b/.test(xml);
+    case 'auxiliar_folios':
+    case 'xf':
+      return !/<RepAux:DetAuxFol\b/.test(xml);
+    case 'auxiliar_cuentas':
+    case 'xc':
+      return !/<AuxiliarCtas:Cuenta\b/.test(xml);
+    default:
+      return false;
+  }
+}
 
 export function isValidSatNumOrden(value: string): boolean {
   return SAT_NUM_ORDEN_REGEX.test(value.trim().toUpperCase());

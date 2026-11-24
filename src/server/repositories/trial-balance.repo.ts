@@ -1,5 +1,9 @@
 import { db } from '../connection';
-import { fromCents, toCents, resolveFiscalAccount } from '../../shared/accounting-engine';
+import { fromCents, toCents } from '../../shared/accounting-engine';
+import {
+  isResultOfExerciseAccount,
+  resolveAccumulatedEarningsAccount
+} from '../../shared/engine/financial-reports-helpers';
 import { rollUpTrialBalanceAccounts } from '../../shared/engine/financial-reports.engine';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { AccountType, AccountWithBalance } from '../../shared/types';
@@ -16,6 +20,14 @@ export function computeTrialBalance(
   const accounts = getAccounts(companyId);
   if (accounts.length === 0) return [];
 
+  const resultAccIds = new Set(
+    accounts.filter((a) => isResultOfExerciseAccount(a)).map((a) => a.id)
+  );
+  const hasPriorRow = db
+    .query('SELECT 1 as found FROM polizas WHERE company_id = ? AND ejercicio < ? LIMIT 1')
+    .get(companyId, ejercicio) as { found: number } | null;
+  const hasPriorYearMovements = Boolean(hasPriorRow);
+
   const priorRows = db
     .query(`
       SELECT m.account_id, COALESCE(SUM(m.cargo), 0) as sum_cargo, COALESCE(SUM(m.abono), 0) as sum_abono
@@ -24,7 +36,7 @@ export function computeTrialBalance(
       WHERE p.company_id = ? AND (
         (p.ejercicio = ? AND p.periodo < ?)
         OR (p.ejercicio < ? AND m.account_id IN (
-          SELECT id FROM accounts WHERE company_id = ? AND type IN ('ACTIVO', 'PASIVO', 'CAPITAL')
+          SELECT id FROM accounts WHERE company_id = ? AND type IN ('ACTIVO', 'PASIVO', 'CAPITAL', 'ORDEN')
         ))
       )
       GROUP BY m.account_id
@@ -37,12 +49,54 @@ export function computeTrialBalance(
 
   const priorChargesCentsMap = new Map<string, number>();
   const priorCreditsCentsMap = new Map<string, number>();
-  for (const r of priorRows) {
-    priorChargesCentsMap.set(r.account_id, toCents(r.sum_cargo));
-    priorCreditsCentsMap.set(r.account_id, toCents(r.sum_abono));
+  let priorRolloverCargoCents = 0;
+  let priorRolloverAbonoCents = 0;
+
+  if (hasPriorYearMovements) {
+    // Re-query prior-year movements on 305-* (Resultado del Ejercicio) separately so only prior-year 305-* rolls into 301-02-001
+    const prior305Rows = db
+      .query(`
+        SELECT m.account_id, COALESCE(SUM(m.cargo), 0) as sum_cargo, COALESCE(SUM(m.abono), 0) as sum_abono
+        FROM poliza_movements m
+        INNER JOIN polizas p ON m.poliza_id = p.id
+        WHERE p.company_id = ? AND p.ejercicio < ?
+        GROUP BY m.account_id
+      `)
+      .all(companyId, ejercicio) as Array<{ account_id: string; sum_cargo: number; sum_abono: number }>;
+    const prior305CargoMap = new Map<string, number>();
+    const prior305AbonoMap = new Map<string, number>();
+    for (const r of prior305Rows) {
+      if (resultAccIds.has(r.account_id)) {
+        const c = toCents(r.sum_cargo);
+        const a = toCents(r.sum_abono);
+        prior305CargoMap.set(r.account_id, c);
+        prior305AbonoMap.set(r.account_id, a);
+        priorRolloverCargoCents += c;
+        priorRolloverAbonoCents += a;
+      }
+    }
+    for (const r of priorRows) {
+      const c = toCents(r.sum_cargo) - (prior305CargoMap.get(r.account_id) || 0);
+      const a = toCents(r.sum_abono) - (prior305AbonoMap.get(r.account_id) || 0);
+      if (c !== 0) priorChargesCentsMap.set(r.account_id, c);
+      if (a !== 0) priorCreditsCentsMap.set(r.account_id, a);
+    }
+    for (const acc of accounts) {
+      if (!acc.isAffectable) continue;
+      if (acc.type !== 'INGRESOS' && acc.type !== 'COSTOS' && acc.type !== 'GASTOS') continue;
+      const initCents = toCents(acc.initialBalance);
+      if (initCents === 0) continue;
+      if (acc.nature === 'ACREEDORA') priorRolloverAbonoCents += initCents;
+      else priorRolloverCargoCents += initCents;
+    }
+  } else {
+    for (const r of priorRows) {
+      priorChargesCentsMap.set(r.account_id, toCents(r.sum_cargo));
+      priorCreditsCentsMap.set(r.account_id, toCents(r.sum_abono));
+    }
   }
 
-  // AUD-R6-01: Acumular resultados de ejercicios previos sin póliza de cierre en Capital
+  // AUD-R6-01: Acumular resultados de ejercicios previos sin póliza de cierre en Capital (301-02-001 / 304.01)
   const unclosedPrior = db
     .query(`
       SELECT COALESCE(SUM(m.cargo), 0) as sum_cargo, COALESCE(SUM(m.abono), 0) as sum_abono
@@ -55,16 +109,17 @@ export function computeTrialBalance(
     .get(companyId, ejercicio, companyId) as { sum_cargo: number; sum_abono: number } | null;
 
   if (unclosedPrior) {
-    const uCargo = toCents(unclosedPrior.sum_cargo);
-    const uAbono = toCents(unclosedPrior.sum_abono);
-    if (uCargo > 0 || uAbono > 0) {
-      try {
-        const capAcc = resolveFiscalAccount(accounts, 'RESULTADO_DEL_EJERCICIO');
-        priorChargesCentsMap.set(capAcc.id, (priorChargesCentsMap.get(capAcc.id) || 0) + uCargo);
-        priorCreditsCentsMap.set(capAcc.id, (priorCreditsCentsMap.get(capAcc.id) || 0) + uAbono);
-      } catch {
-        // Ignorar si el catálogo carece de cuenta de resultados
-      }
+    priorRolloverCargoCents += toCents(unclosedPrior.sum_cargo);
+    priorRolloverAbonoCents += toCents(unclosedPrior.sum_abono);
+  }
+
+  if (priorRolloverCargoCents !== 0 || priorRolloverAbonoCents !== 0) {
+    try {
+      const accumAcc = resolveAccumulatedEarningsAccount(accounts);
+      priorChargesCentsMap.set(accumAcc.id, (priorChargesCentsMap.get(accumAcc.id) || 0) + priorRolloverCargoCents);
+      priorCreditsCentsMap.set(accumAcc.id, (priorCreditsCentsMap.get(accumAcc.id) || 0) + priorRolloverAbonoCents);
+    } catch {
+      // Ignorar si el catálogo carece de cuenta de resultados acumulados
     }
   }
 
@@ -94,7 +149,8 @@ export function computeTrialBalance(
     priorChargesCentsMap,
     priorCreditsCentsMap,
     chargesCentsByAccountId,
-    creditsCentsByAccountId
+    creditsCentsByAccountId,
+    { zeroResultInitialBalances: hasPriorYearMovements }
   );
 }
 

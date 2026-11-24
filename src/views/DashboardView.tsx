@@ -8,6 +8,7 @@ import { DashboardClosingCycle } from './dashboard/DashboardClosingCycle';
 import { DashboardAddAutomationSection } from './dashboard/DashboardAddAutomationSection';
 import { DashboardTrendSection } from './dashboard/DashboardTrendSection';
 import { DashboardRecentPolizasTable } from './dashboard/DashboardRecentPolizasTable';
+import { DashboardTieoutCard } from './dashboard/DashboardTieoutCard';
 import { useDashboardManager } from './dashboard/useDashboardManager';
 
 export function DashboardView() {
@@ -168,6 +169,9 @@ export function DashboardView() {
         completedChecks={completedChecks}
         onOpenDeliverables={() => openDeliverables()}
       />
+
+      {/* Amarre Integral 3-Vías (SAT ADD ↔ Contabilidad ↔ DIOT) */}
+      <DashboardTieoutCard company={company} mesActualNombre={mesActualNombre} />
 
       {/* Automatización ADD en 1 clic + Gráfica de Tendencia */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

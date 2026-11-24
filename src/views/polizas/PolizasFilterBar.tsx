@@ -6,12 +6,14 @@ import {
   X
 } from 'lucide-react';
 import type { Poliza, PolizaType } from '../../shared/types';
-import { hasPolizaCfdi } from './filterPolizas';
+import { hasPolizaCfdi, type PolizaPeriodScope } from './filterPolizas';
+import { PolizasAdvancedFilterRow } from './PolizasAdvancedFilterRow';
 import { PolizasHeaderActions } from './PolizasHeaderActions';
 import { PolizasTotalsBar } from './PolizasTotalsBar';
 
 export interface PolizasFilterBarProps {
   currentYear?: number;
+  currentPeriod?: number;
   polizas: Poliza[];
   filteredPolizas: Poliza[];
   filterTipo: 'ALL' | PolizaType;
@@ -20,6 +22,18 @@ export interface PolizasFilterBarProps {
   setOriginFilter: (o: 'ALL' | 'WITH_CFDI' | 'MANUAL') => void;
   searchQuery: string;
   setSearchQuery: (s: string) => void;
+  periodScope?: PolizaPeriodScope;
+  setPeriodScope?: (s: PolizaPeriodScope) => void;
+  periodFrom?: number;
+  setPeriodFrom?: (p: number) => void;
+  periodTo?: number;
+  setPeriodTo?: (p: number) => void;
+  minAmount?: string;
+  setMinAmount?: (v: string) => void;
+  maxAmount?: string;
+  setMaxAmount?: (v: string) => void;
+  hasAdvancedFilters?: boolean;
+  onClearFilters?: () => void;
   compactMode: boolean;
   setCompactMode: (updater: (prev: boolean) => boolean) => void;
   filteredTotals: { cargos: number; abonos: number };
@@ -37,6 +51,7 @@ export interface PolizasFilterBarProps {
 
 export function PolizasFilterBar({
   currentYear,
+  currentPeriod,
   polizas,
   filteredPolizas,
   filterTipo,
@@ -45,6 +60,18 @@ export function PolizasFilterBar({
   setOriginFilter,
   searchQuery,
   setSearchQuery,
+  periodScope = 'CURRENT',
+  setPeriodScope,
+  periodFrom = 1,
+  setPeriodFrom,
+  periodTo = 12,
+  setPeriodTo,
+  minAmount = '',
+  setMinAmount,
+  maxAmount = '',
+  setMaxAmount,
+  hasAdvancedFilters = false,
+  onClearFilters,
   compactMode,
   setCompactMode,
   filteredTotals,
@@ -178,13 +205,17 @@ export function PolizasFilterBar({
               <span>{compactMode ? 'Pólizas Contraídas' : 'Contraer Partidas'}</span>
             </button>
 
-            {(filterTipo !== 'ALL' || originFilter !== 'ALL' || searchQuery.trim() !== '') && (
+            {(hasAdvancedFilters || filterTipo !== 'ALL' || originFilter !== 'ALL' || searchQuery.trim() !== '') && (
               <button
                 type="button"
                 onClick={() => {
-                  setFilterTipo('ALL');
-                  setOriginFilter('ALL');
-                  setSearchQuery('');
+                  if (onClearFilters) {
+                    onClearFilters();
+                  } else {
+                    setFilterTipo('ALL');
+                    setOriginFilter('ALL');
+                    setSearchQuery('');
+                  }
                 }}
                 className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer transition"
               >
@@ -240,6 +271,20 @@ export function PolizasFilterBar({
             </button>
           </div>
         )}
+
+        <PolizasAdvancedFilterRow
+          currentPeriod={currentPeriod}
+          periodScope={periodScope}
+          setPeriodScope={setPeriodScope}
+          periodFrom={periodFrom}
+          setPeriodFrom={setPeriodFrom}
+          periodTo={periodTo}
+          setPeriodTo={setPeriodTo}
+          minAmount={minAmount}
+          setMinAmount={setMinAmount}
+          maxAmount={maxAmount}
+          setMaxAmount={setMaxAmount}
+        />
 
         {/* Sumas Iguales y Balance del Periodo */}
         <PolizasTotalsBar

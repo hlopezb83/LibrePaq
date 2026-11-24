@@ -35,6 +35,24 @@ export function ensureOptionalColumnMigrations(database: SqliteDdlTarget): void 
     `);
   }
 
+  const taxColsAfter = database.query('PRAGMA table_info(tax_parameters)').all() as Array<{ name: string }>;
+  if (taxColsAfter.length > 0 && !taxColsAfter.some((c) => c.name === 'ptu_pagada_ejercicio')) {
+    database.exec('ALTER TABLE tax_parameters ADD COLUMN ptu_pagada_ejercicio REAL NOT NULL DEFAULT 0;');
+  }
+
+  const tpCols = database.query('PRAGMA table_info(third_parties)').all() as Array<{ name: string }>;
+  if (tpCols.length > 0) {
+    if (!tpCols.some((c) => c.name === 'id_fiscal')) {
+      database.exec('ALTER TABLE third_parties ADD COLUMN id_fiscal TEXT;');
+    }
+    if (!tpCols.some((c) => c.name === 'pais')) {
+      database.exec('ALTER TABLE third_parties ADD COLUMN pais TEXT;');
+    }
+    if (!tpCols.some((c) => c.name === 'jurisdiccion_fiscal')) {
+      database.exec('ALTER TABLE third_parties ADD COLUMN jurisdiccion_fiscal TEXT;');
+    }
+  }
+
   const overrideCols = database.query('PRAGMA table_info(admin_user_overrides)').all() as Array<{ name: string }>;
   if (overrideCols.length > 0 && !overrideCols.some((c) => c.name === 'platform_role')) {
     database.exec('ALTER TABLE admin_user_overrides ADD COLUMN platform_role TEXT;');

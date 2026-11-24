@@ -10,6 +10,7 @@ import {
   ArrowUp,
   ArrowUpDown
 } from 'lucide-react';
+import { toCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import { balanzaTableFeatures, useBalanzaColumns } from './useBalanzaColumns';
 import { BalanzaToolbar, type BalanzaLevelScope } from './BalanzaToolbar';
@@ -37,8 +38,14 @@ export function BalanzaTab({
 
   const { zeroCount, trialDiff } = useMemo(() => {
     let zeros = 0;
-    let cargos = 0;
-    let abonos = 0;
+    let initDeudorCents = 0;
+    let initAcreedorCents = 0;
+    let cargosCents = 0;
+    let abonosCents = 0;
+    let finalDeudorCents = 0;
+    let finalAcreedorCents = 0;
+
+    const codes = new Set(trialBalance.map((a) => a.code));
     for (const r of trialBalance) {
       if (
         Math.abs(r.initialBalanceComputed) < 0.01 &&
@@ -48,12 +55,24 @@ export function BalanzaTab({
       ) {
         zeros += 1;
       }
-      if (r.isAffectable) {
-        cargos += r.periodCharges;
-        abonos += r.periodCredits;
+      if (!r.parentCode || !codes.has(r.parentCode)) {
+        cargosCents += toCents(r.periodCharges);
+        abonosCents += toCents(r.periodCredits);
+        if (r.nature === 'DEUDORA') {
+          initDeudorCents += toCents(r.initialBalanceComputed);
+          finalDeudorCents += toCents(r.finalBalance);
+        } else {
+          initAcreedorCents += toCents(r.initialBalanceComputed);
+          finalAcreedorCents += toCents(r.finalBalance);
+        }
       }
     }
-    return { zeroCount: zeros, trialDiff: Math.abs(cargos - abonos) };
+    const maxDiffCents = Math.max(
+      Math.abs(initDeudorCents - initAcreedorCents),
+      Math.abs(cargosCents - abonosCents),
+      Math.abs(finalDeudorCents - finalAcreedorCents)
+    );
+    return { zeroCount: zeros, trialDiff: maxDiffCents / 100 };
   }, [trialBalance]);
   const isTrialBalanced = trialDiff < 0.01;
 

@@ -121,7 +121,7 @@ export function inferExpenseAccountForCfdi(
  */
 export function resolveMatchingAccountingRule(
   cfdi: Pick<CfdiDocument, 'direction' | 'emisorRfc' | 'receptorRfc' | 'claveProdServ' | 'usoCfdi'> &
-    Partial<Pick<CfdiDocument, 'tipoComprobante' | 'metodoPago'>>,
+    Partial<Pick<CfdiDocument, 'tipoComprobante' | 'metodoPago' | 'formaPago'>>,
   rules?: readonly AccountingRuleRecord[] | null
 ): AccountingRuleRecord | null {
   if (!rules || rules.length === 0) return null;
@@ -190,10 +190,13 @@ export function resolveMatchingAccountingRule(
   if (!bestRule) return null;
 
   const counterCode = bestRule.counterAccountCode?.trim() || '';
-  if (cfdi.metodoPago === 'PPD' && /^(101|102)/.test(counterCode)) {
+  const isNonCashNc =
+    cfdi.tipoComprobante === 'E' &&
+    ['15', '17', '30', '99'].includes((cfdi.formaPago || '').trim());
+  if ((cfdi.metodoPago === 'PPD' || isNonCashNc) && /^(101|102)/.test(counterCode)) {
     return { ...bestRule, counterAccountCode: null };
   }
-  if (cfdi.metodoPago === 'PUE' && /^(105|107|201|205)/.test(counterCode)) {
+  if (cfdi.metodoPago === 'PUE' && !isNonCashNc && /^(105|107|201|205)/.test(counterCode)) {
     return { ...bestRule, counterAccountCode: null };
   }
 

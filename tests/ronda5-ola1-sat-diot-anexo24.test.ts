@@ -93,7 +93,7 @@ describe('Ronda 5 Ola 1 — DIOT 54 campos SAT 2025/2026', () => {
 
     expect(norteLine).toHaveLength(54);
     expect(norteLine[7]).toBe('2000');   // Campo 8: FN 8%
-    expect(norteLine[8]).toBe('15');     // Campo 9: IVA no acreditable / dev FN
+    expect(norteLine[8]).toBe('');       // Campo 9: Devoluciones 8% FN (no mezcla IVA no acreditable)
     expect(norteLine[9]).toBe('');       // Campo 10: FS 8% vacío
     expect(norteLine[11]).toBe('10000'); // Campo 12: 16% nacional
     expect(norteLine[12]).toBe('700');   // Campo 13: Devoluciones 16%
@@ -102,7 +102,9 @@ describe('Ronda 5 Ola 1 — DIOT 54 campos SAT 2025/2026', () => {
     expect(norteLine[17]).toBe('160');   // Campo 18: IVA acreditable 8% FN
     expect(norteLine[19]).toBe('');      // Campo 20: IVA acreditable 8% FS vacío
     expect(norteLine[21]).toBe('1600');  // Campo 22: IVA acreditable 16% (no sobrescrito por intangibles)
-    expect(norteLine[46]).toBe('60');    // Campo 47: Exclusivo IVA no acreditable total (45 + 15)
+    expect(norteLine[27]).toBe('45');    // Campo 28: IVA no acreditable 16% nacional
+    expect(norteLine[28]).toBe('15');    // Campo 29: IVA no acreditable 8% FN
+    expect(norteLine[46]).toBe('');      // Campo 47: Exclusivo IVA no acreditable importaciones intangibles
     expect(norteLine[47]).toBe('1067');  // Campo 48: IVA retenido
     expect(norteLine[48]).toBe('');      // Campo 49: Importaciones exentas (no devoluciones)
     expect(norteLine[49]).toBe('300');   // Campo 50: Actos exentos
@@ -125,9 +127,10 @@ describe('Ronda 5 Ola 1 — DIOT 54 campos SAT 2025/2026', () => {
 
     expect(surLine[7]).toBe('');
     expect(surLine[9]).toBe('4000');  // Campo 10: FS 8%
-    expect(surLine[10]).toBe('25');   // Campo 11: IVA no acreditable FS
+    expect(surLine[10]).toBe('');     // Campo 11: Devoluciones 8% FS vacío
     expect(surLine[17]).toBe('');
     expect(surLine[19]).toBe('320');  // Campo 20: IVA acreditable 8% FS
+    expect(surLine[29]).toBe('25');   // Campo 30: IVA no acreditable 8%
   });
 
   test('excluye NC PPD o ligada a PPD sin pago, infiere 8% sin taxBreakdown, separa IVA 16/8 y lee datos 05', () => {
@@ -208,7 +211,7 @@ describe('Ronda 5 Ola 1 — DIOT 54 campos SAT 2025/2026', () => {
     const extCols = extRow.batchLine.split('|');
     expect(extCols[3]).toBe('US-99-123456');
     expect(extCols[5]).toBe('USA');
-    expect(extCols[6]).toBe('ESTADOUNIDENSE');
+    expect(extCols[6]).toBe('');
     expect(extCols[49]).toBe('3000');
   });
 });

@@ -159,6 +159,9 @@ export const CREATE_TABLES_DDL = `
     tipo_operacion_diot TEXT NOT NULL DEFAULT '85',
     tasa_iva_default INTEGER NOT NULL DEFAULT 16,
     estatus_69b TEXT NOT NULL DEFAULT 'LIMPIO',
+    id_fiscal TEXT,
+    pais TEXT,
+    jurisdiccion_fiscal TEXT,
     updated_at TEXT NOT NULL,
     UNIQUE(company_id, rfc)
   );
@@ -192,6 +195,7 @@ export const CREATE_TABLES_DDL = `
     pagos_provisionales_anteriores REAL NOT NULL DEFAULT 0,
     saldo_favor_iva_anterior REAL NOT NULL DEFAULT 0,
     tipo_cambio_dof_cierre REAL NOT NULL DEFAULT 0,
+    ptu_pagada_ejercicio REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (company_id, ejercicio, periodo)
   );
 

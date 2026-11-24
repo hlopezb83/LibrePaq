@@ -43,7 +43,7 @@ export function useDiotBancosManager() {
   const [classifySupplierRequest, setClassifySupplierRequest] = useState<{
     rfc: string;
     nombre?: string;
-    tipoTercero?: '04' | '05';
+    tipoTercero?: '04' | '05' | '15';
     tipoOperacion?: '03' | '06' | '85';
   } | null>(null);
 

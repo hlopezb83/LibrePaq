@@ -7,6 +7,13 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 interface ExtendedBankApiClient {
   manualMatchBankLine?: (lineId: string, movementId: string) => Promise<unknown>;
   deleteBankStatementLine?: (lineId: string) => Promise<unknown>;
+  saveBankClosureBalance?: (
+    companyId: string,
+    accountId: string,
+    ejercicio: number,
+    periodo: number,
+    saldoBancoCierre: number
+  ) => Promise<void>;
 }
 import { useToast } from '../../context/ToastContext';
 import type { BankReconciliationResponse, BankStatementLine, ReconciliationFormulaData } from '../../shared/types';
@@ -58,6 +65,17 @@ export function useConciliacionTabActions(params: {
   }, [companyId, effectiveBankId, year, period]);
 
   useEffect(() => {
+    const cloudVal = reconData?.summary?.saldoBancoCierre;
+    if (cloudVal !== undefined && cloudVal !== null && Number.isFinite(cloudVal)) {
+      const strVal = String(cloudVal);
+      setBankBalanceDraft(strVal);
+      try {
+        if (typeof window !== 'undefined') window.localStorage.setItem(balanceStorageKey, strVal);
+      } catch {
+        // ignore storage errors
+      }
+      return;
+    }
     try {
       const saved = typeof window !== 'undefined' ? window.localStorage.getItem(balanceStorageKey) : null;
       if (saved !== null && saved.trim() !== '' && Number.isFinite(Number(saved))) {
@@ -68,11 +86,16 @@ export function useConciliacionTabActions(params: {
       // ignore storage errors
     }
     setBankBalanceDraft('');
-  }, [balanceStorageKey]);
+  }, [balanceStorageKey, reconData?.summary?.saldoBancoCierre]);
 
   const parsedBankBalance = Number.parseFloat(bankBalanceDraft);
   const hasCapturedBankBalance = bankBalanceDraft.trim() !== '' && Number.isFinite(parsedBankBalance);
   const bankStatementBalance = hasCapturedBankBalance ? parsedBankBalance : 0;
+
+  const saveClosureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (saveClosureTimerRef.current) clearTimeout(saveClosureTimerRef.current);
+  }, []);
 
   const handleBankBalanceChange = (raw: string) => {
     setBankBalanceDraft(raw);
@@ -83,6 +106,23 @@ export function useConciliacionTabActions(params: {
       }
     } catch {
       // ignore storage errors
+    }
+    const numVal = Number.parseFloat(raw);
+    const saveFn = (apiClient as unknown as ExtendedBankApiClient).saveBankClosureBalance;
+    if (
+      isSupabaseConfigured &&
+      !isWriteLocked &&
+      typeof saveFn === 'function' &&
+      companyId &&
+      effectiveBankId &&
+      year &&
+      period &&
+      Number.isFinite(numVal)
+    ) {
+      if (saveClosureTimerRef.current) clearTimeout(saveClosureTimerRef.current);
+      saveClosureTimerRef.current = setTimeout(() => {
+        void saveFn(companyId, effectiveBankId, year, period, numVal).catch(() => {});
+      }, 450);
     }
   };
 
