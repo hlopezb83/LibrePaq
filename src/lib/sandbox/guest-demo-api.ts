@@ -1,5 +1,4 @@
 import { fromCents, toCents, validateAccountHierarchy } from '../../shared/accounting-engine';
-import { getSeedAccountsForPreset } from '../../shared/catalogs/base-accounts.seed';
 import { buildDashboardKpisFromTrialBalance, buildMonthlyTrendFromPolizas } from '../../shared/engine/dashboard.engine';
 import { computeFinancialStatementsData, type JoinedPolizaMovementInput } from '../../shared/engine/financial-reports.engine';
 import {
@@ -21,6 +20,8 @@ import { getGuestDemoState } from './guest-demo-store';
 import { isGuestDemoMode } from './guest-demo-mode';
 import { guestDemoExtras } from './guest-demo-extras';
 import { guestDemoPolizasCfdi } from './guest-demo-polizas-cfdi';
+import { createGuestDemoCompany } from './guest-demo-company';
+import { buildGuestDemoBankAndOps } from './guest-demo-bank-and-ops';
 
 function getCompanyOrFirst(companyId: string): Company {
   const s = getGuestDemoState();
@@ -43,124 +44,40 @@ function buildJoinedMovs(companyId: string): JoinedPolizaMovementInput[] {
     );
 }
 
+async function getDemoReports(companyId: string, year?: number, period?: number): Promise<FinancialStatementsResponse> {
+  const s = getGuestDemoState();
+  const company = getCompanyOrFirst(companyId);
+  const ejercicio = year || company.currentYear;
+  const periodo = period || company.currentPeriod;
+  const accs: AccountWithBalance[] = s.accounts
+    .filter((a) => a.companyId === company.id)
+    .map((a) => ({
+      ...a,
+      initialBalanceComputed: a.initialBalance,
+      periodCharges: 0,
+      periodCredits: 0,
+      finalBalance: a.initialBalance
+    }));
+  return computeFinancialStatementsData(company, accs, buildJoinedMovs(company.id), ejercicio, periodo);
+}
+
+const guestDemoBankAndOps = buildGuestDemoBankAndOps({
+  getBankReconciliation: guestDemoExtras.getBankReconciliation.bind(guestDemoExtras),
+  getFiscalWorkpaper: guestDemoExtras.getFiscalWorkpaper.bind(guestDemoExtras),
+  getReports: getDemoReports,
+  getFixedAssets: guestDemoExtras.getFixedAssets.bind(guestDemoExtras)
+});
+
 export const guestDemoApi = {
   ...guestDemoExtras,
   ...guestDemoPolizasCfdi,
+  ...guestDemoBankAndOps,
 
   async getCompanies(): Promise<Company[]> {
     return [...getGuestDemoState().companies];
   },
 
-  async createCompany(payload: {
-    name: string;
-    rfc: string;
-    regimenFiscal: string;
-    codigoPostal: string;
-    currentYear?: number;
-    currentPeriod?: number;
-    catalogPreset?: 'SAT_STANDARD' | 'RESICO_SIMPLIFIED' | 'CUSTOM';
-    initialBankName?: string;
-    initialBankAccount?: string;
-    initialBankBalance?: number;
-    createOpeningEntry?: boolean;
-  }): Promise<Company> {
-    const s = getGuestDemoState();
-    const id = `comp_demo_${crypto.randomUUID().slice(0, 8)}`;
-    const now = new Date();
-    const currentYear = payload.currentYear || now.getFullYear();
-    const currentPeriod = payload.currentPeriod || now.getMonth() + 1;
-    const company: Company = {
-      id,
-      name: payload.name,
-      rfc: payload.rfc.toUpperCase(),
-      regimenFiscal: payload.regimenFiscal,
-      codigoPostal: payload.codigoPostal,
-      maskFormat: 'XXX-XX-XXX',
-      currentYear,
-      currentPeriod,
-      createdAt: now.toISOString(),
-      userId: 'usr_guest_demo'
-    };
-    s.companies.push(company);
-
-    const resolvedPreset =
-      payload.catalogPreset ??
-      (payload.regimenFiscal.startsWith('626') ? 'RESICO_SIMPLIFIED' : 'SAT_STANDARD');
-    const customBankLabel = payload.initialBankName
-      ? `${payload.initialBankName} Cta ${payload.initialBankAccount || 'Principal'}`
-      : null;
-
-    const tplAccounts = getSeedAccountsForPreset(resolvedPreset);
-    const createdAccounts: Account[] = tplAccounts.map((tpl, idx) => ({
-      id: `acc_${id}_${idx + 1}`,
-      companyId: id,
-      code: tpl.code,
-      name: tpl.code === '102-01-001' && customBankLabel ? customBankLabel : tpl.name,
-      parentCode: tpl.parentCode ?? null,
-      type: tpl.type,
-      nature: tpl.nature,
-      level: tpl.level,
-      isAffectable: tpl.isAffectable,
-      satGroupCode: tpl.satGroupCode,
-      currency: 'MXN',
-      initialBalance: 0
-    }));
-    s.accounts.push(...createdAccounts);
-
-    const bankBalanceCents = toCents(Number(payload.initialBankBalance || 0));
-    if (payload.createOpeningEntry && bankBalanceCents > 0) {
-      const bankAcc = createdAccounts.find((a) => a.code === '102-01-001');
-      const capAcc = createdAccounts.find((a) => a.code === '301-01-001');
-      if (bankAcc && capAcc) {
-        const amount = fromCents(bankBalanceCents);
-        const polId = `pol_${id}_apertura`;
-        const fecha = `${currentYear}-${String(Math.min(12, currentPeriod)).padStart(2, '0')}-01`;
-        s.polizas.push({
-          id: polId,
-          companyId: id,
-          tipo: 'DIARIO',
-          folio: 1,
-          fecha,
-          ejercicio: currentYear,
-          periodo: currentPeriod,
-          concepto: `Asiento de Apertura - Saldo Inicial en Bancos (${payload.initialBankName || 'Bancos'}) y Capital Social`,
-          cfdiUuid: null,
-          origin: 'MANUAL',
-          totalCargos: amount,
-          totalAbonos: amount,
-          isBalanced: true,
-          createdAt: now.toISOString(),
-          movements: [
-            {
-              id: `mov_${polId}_1`,
-              polizaId: polId,
-              accountId: bankAcc.id,
-              accountCode: bankAcc.code,
-              accountName: bankAcc.name,
-              referencia: 'APERTURA',
-              concepto: `Apertura cuenta bancaria ${payload.initialBankName || 'Bancos'}`,
-              cargo: amount,
-              abono: 0,
-              cfdiUuid: null
-            },
-            {
-              id: `mov_${polId}_2`,
-              polizaId: polId,
-              accountId: capAcc.id,
-              accountCode: capAcc.code,
-              accountName: capAcc.name,
-              referencia: 'APERTURA',
-              concepto: 'Aportación de Capital Social Inicial',
-              cargo: 0,
-              abono: amount,
-              cfdiUuid: null
-            }
-          ]
-        });
-      }
-    }
-    return company;
-  },
+  createCompany: createGuestDemoCompany,
 
   async updateCompany(companyId: string, payload: Partial<Company>): Promise<Company> {
     const c = getCompanyOrFirst(companyId);
@@ -182,25 +99,10 @@ export const guestDemoApi = {
     return { ...c };
   },
 
-  async getReports(companyId: string, year?: number, period?: number): Promise<FinancialStatementsResponse> {
-    const s = getGuestDemoState();
-    const company = getCompanyOrFirst(companyId);
-    const ejercicio = year || company.currentYear;
-    const periodo = period || company.currentPeriod;
-    const accs: AccountWithBalance[] = s.accounts
-      .filter((a) => a.companyId === company.id)
-      .map((a) => ({
-        ...a,
-        initialBalanceComputed: a.initialBalance,
-        periodCharges: 0,
-        periodCredits: 0,
-        finalBalance: a.initialBalance
-      }));
-    return computeFinancialStatementsData(company, accs, buildJoinedMovs(company.id), ejercicio, periodo);
-  },
+  getReports: getDemoReports,
 
   async getAccounts(companyId: string, year?: number, period?: number): Promise<AccountWithBalance[]> {
-    const rep = await this.getReports(companyId, year, period);
+    const rep = await getDemoReports(companyId, year, period);
     return rep.trialBalance;
   },
 
@@ -231,7 +133,7 @@ export const guestDemoApi = {
 
   async getDashboard(companyId: string, year?: number, period?: number): Promise<DashboardSummary> {
     const s = getGuestDemoState();
-    const report = await this.getReports(companyId, year, period);
+    const report = await getDemoReports(companyId, year, period);
     const company = report.company;
     const y = year || company.currentYear;
     const p = period || company.currentPeriod;
@@ -262,18 +164,33 @@ export const guestDemoApi = {
     return { company, kpis, monthlyTrend, recentPolizas, pendingCfdis };
   },
 
-  async getAccountLedger(companyId: string, accountId: string, year?: number, period?: number): Promise<AccountLedgerResponse | null> {
-    const rep = await this.getReports(companyId, year, period);
+  async getAccountLedger(
+    companyId: string,
+    accountId: string,
+    year?: number,
+    period?: number,
+    periodTo?: number
+  ): Promise<AccountLedgerResponse | null> {
+    const rep = await getDemoReports(companyId, year, period);
     const acc = rep.trialBalance.find((a) => a.id === accountId || a.code === accountId);
     if (!acc) return null;
-    const pols = await guestDemoPolizasCfdi.getPolizas(companyId, rep.ejercicio, rep.periodo);
+    const pFrom = rep.periodo;
+    const pTo = periodTo && periodTo >= pFrom ? periodTo : pFrom;
+    const pols = (await guestDemoPolizasCfdi.getPolizas(rep.company.id, rep.ejercicio, 'ALL'))
+      .filter((p) => p.periodo >= pFrom && p.periodo <= pTo)
+      .sort((a, b) => a.periodo - b.periodo || a.fecha.localeCompare(b.fecha) || a.folio - b.folio);
+
     let running = toCents(acc.initialBalanceComputed);
+    let totalChargesCents = 0;
+    let totalCreditsCents = 0;
     const entries: AccountLedgerEntry[] = [];
     for (const p of pols) {
       for (const m of p.movements) {
         if (m.accountId !== acc.id && m.accountCode !== acc.code) continue;
         const cC = toCents(m.cargo);
         const aC = toCents(m.abono);
+        totalChargesCents += cC;
+        totalCreditsCents += aC;
         running += acc.nature === 'DEUDORA' ? cC - aC : aC - cC;
         entries.push({
           movementId: m.id, polizaId: p.id, fecha: p.fecha, periodo: p.periodo,
@@ -284,10 +201,12 @@ export const guestDemoApi = {
       }
     }
     return {
-      account: acc, ejercicio: rep.ejercicio, periodo: rep.periodo,
+      account: acc, ejercicio: rep.ejercicio, periodo: pFrom,
       initialBalance: acc.initialBalanceComputed,
-      totalCharges: acc.periodCharges, totalCredits: acc.periodCredits,
-      finalBalance: acc.finalBalance, entries
+      totalCharges: fromCents(totalChargesCents),
+      totalCredits: fromCents(totalCreditsCents),
+      finalBalance: fromCents(running),
+      entries
     };
   },
 
@@ -298,7 +217,7 @@ export const guestDemoApi = {
     period?: number,
     options?: Omit<SatAnexo24Options, 'cfdiLookup'>
   ): Promise<{ filename: string; type: string; xml: string }> {
-    const rep = await this.getReports(companyId, year, period);
+    const rep = await getDemoReports(companyId, year, period);
     const y = rep.ejercicio;
     const p = rep.periodo;
     const needsPolizas =
@@ -338,6 +257,14 @@ export function withGuestDemoClient<T extends object>(client: T): T {
         if (typeof demoFn === 'function') {
           return (...args: unknown[]) => (demoFn as (...a: unknown[]) => unknown).apply(guestDemoApi, args);
         }
+        const targetVal = Reflect.get(target, prop, receiver);
+        if (typeof targetVal === 'function') {
+          return (..._args: unknown[]) =>
+            Promise.reject(
+              new Error(`DEMO_SANDBOX_UNSUPPORTED: La operación "${prop}" no está disponible en modo Demo.`)
+            );
+        }
+        return undefined;
       }
       return Reflect.get(target, prop, receiver);
     }

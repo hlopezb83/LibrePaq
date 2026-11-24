@@ -1,7 +1,8 @@
 import { db, type BankLineDbRow } from '../connection';
 import {
   assertAccountingInvariant,
-  buildBankLinePolizaPlan
+  buildBankLinePolizaPlan,
+  validateDoubleEntryMovements
 } from '../../shared/accounting-engine';
 import type { BankReconciliationResponse } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
@@ -38,6 +39,14 @@ export function createPolizaFromBankLineTransaction(
     desglosarIva: options?.desglosarIva,
     counterAccountCode: options?.counterAccountCode
   });
+
+  assertAccountingInvariant(
+    plan.bankAcc.isAffectable,
+    'NON_AFFECTABLE_ACCOUNT',
+    `La cuenta bancaria ${plan.bankAcc.code} (${plan.bankAcc.name}) es acumulativa y no permite movimientos directos.`
+  );
+  const accountsById = new Map(accounts.map((a) => [a.id, a]));
+  validateDoubleEntryMovements(plan.movements, accountsById);
 
   const lineYear = parseInt(bLine.fecha.slice(0, 4), 10) || company.currentYear;
   const linePeriod = parseInt(bLine.fecha.slice(5, 7), 10) || company.currentPeriod;

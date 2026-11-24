@@ -1,8 +1,7 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 import { logCompanyAuditEvent } from './audit-logger';
-import { assertAccountingInvariant, fromCents, toCents } from '../../shared/accounting-engine';
-import { chunkArray, fetchAllRows } from './supabase-pagination';
+import { assertAccountingInvariant } from '../../shared/accounting-engine';
+import { fetchAllRows } from './supabase-pagination';
 import {
   clearCompanyChildTables,
   restoreBackupChildTables
@@ -11,148 +10,23 @@ import {
   exportOptionalBackupTables,
   type ExtendedBackupBundle
 } from './supabase-backup-optional';
+import {
+  batchImportAccountsWithClient,
+  type BatchImportAccountRow
+} from './supabase-backup-accounts';
 import type {
-  Account, AccountNature, AccountType, Company, CompanyBackupBundle,
+  Account, Company, CompanyBackupBundle,
   FixedAssetRecord, PeriodLock, Poliza, TaxParametersRecord
 } from '../../shared/types';
 import { mapSupabaseAccount, supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
-import { assertSupabasePeriodOpen, mapSupabasePoliza } from './supabase-polizas';
+import { mapSupabasePoliza } from './supabase-polizas';
 import { mapSupabaseCfdi } from './supabase-cfdi';
 import {
   mapSupabaseFixedAsset,
   mapSupabaseThirdParty
 } from './supabase-fiscal-assets-helpers';
 
-export type BatchImportAccountRow = {
-  id?: string;
-  code: string;
-  name: string;
-  parentCode?: string | null;
-  type?: string;
-  nature?: string;
-  level?: number;
-  satGroupCode?: string;
-  isAffectable?: boolean;
-  initialBalance?: number;
-};
-
-export async function batchImportAccountsWithClient(
-  client: SupabaseClient,
-  companyId: string,
-  rows: BatchImportAccountRow[],
-  checkPeriodOpen: (cid: string, yr: number, per: number) => Promise<void> = assertSupabasePeriodOpen
-): Promise<{ importedCount: number; updatedCount: number }> {
-  if (!rows || rows.length === 0) return { importedCount: 0, updatedCount: 0 };
-
-  const [existingRows, compRes] = await Promise.all([
-    fetchAllRows((from, to) =>
-      client
-        .from('accounts')
-        .select('id, code, initial_balance, nature')
-        .eq('company_id', companyId)
-        .order('id')
-        .range(from, to)
-    ),
-    client.from('companies').select('current_year').eq('id', companyId).maybeSingle()
-  ]);
-  if (compRes.error) throw new Error(compRes.error.message);
-
-  const compYear = Number((compRes.data as { current_year?: number } | null)?.current_year || 2026);
-  const existingByCode = new Map<string, { id: string; initialBalance: number; nature: string }>();
-  for (const row of existingRows as Array<Record<string, unknown>>) {
-    const c = String(row.code ?? '').trim();
-    if (!c) continue;
-    existingByCode.set(c, {
-      id: String(row.id),
-      initialBalance: Number(row.initial_balance ?? 0),
-      nature: String(row.nature ?? '')
-    });
-  }
-
-  let needsPeriodCheck = false;
-  let importedCount = 0;
-  let updatedCount = 0;
-  const dedupedByCode = new Map<string, Record<string, unknown>>();
-
-  for (const r of rows) {
-    if (!r || !r.code || !r.name) continue;
-    const code = r.code.trim();
-    const codeDigits = code.replace(/[^0-9]/g, '');
-    const firstDigit = codeDigits[0] || '1';
-    const dType: AccountType =
-      firstDigit === '1'
-        ? 'ACTIVO'
-        : firstDigit === '2'
-          ? 'PASIVO'
-          : firstDigit === '3'
-            ? 'CAPITAL'
-            : firstDigit === '4'
-              ? 'INGRESOS'
-              : firstDigit === '5'
-                ? 'COSTOS'
-                : 'GASTOS';
-    const dNat: AccountNature =
-      dType === 'ACTIVO' || dType === 'COSTOS' || dType === 'GASTOS' ? 'DEUDORA' : 'ACREEDORA';
-    const nature = (r.nature as AccountNature) || dNat;
-    const initialBalance = fromCents(toCents(Number(r.initialBalance || 0)));
-    const level =
-      r.level !== undefined && Number(r.level) >= 1
-        ? Number(r.level)
-        : code.includes('-')
-          ? Math.max(
-              1,
-              Math.min(
-                4,
-                code.split('-').filter((seg) => !/^0+$/.test(seg)).length
-              )
-            )
-          : 3;
-    const isAffectable = r.isAffectable !== undefined ? r.isAffectable : level >= 3;
-
-    const prev = existingByCode.get(code);
-    if (prev) {
-      const diffBal = toCents(prev.initialBalance) !== toCents(initialBalance);
-      const diffNat = prev.nature !== nature;
-      if (diffBal || diffNat) needsPeriodCheck = true;
-    } else if (toCents(initialBalance) !== 0) {
-      needsPeriodCheck = true;
-    }
-
-    const resolvedId = prev?.id || r.id || `${companyId}_${code}`;
-    if (!dedupedByCode.has(code)) {
-      if (prev) updatedCount += 1;
-      else importedCount += 1;
-    }
-
-    dedupedByCode.set(code, {
-      id: resolvedId,
-      company_id: companyId,
-      code,
-      name: r.name.trim(),
-      parent_code: r.parentCode || null,
-      level,
-      type: (r.type as AccountType) || dType,
-      nature,
-      sat_group_code: r.satGroupCode?.trim() || code.slice(0, 3),
-      is_affectable: isAffectable,
-      initial_balance: initialBalance
-    });
-  }
-
-  if (needsPeriodCheck) {
-    await checkPeriodOpen(companyId, compYear, 1);
-  }
-
-  const accountsToUpsert = Array.from(dedupedByCode.values());
-  for (const chunk of chunkArray(accountsToUpsert, 200)) {
-    const { error } = await client.from('accounts').upsert(chunk, {
-      onConflict: 'company_id,code'
-    });
-    if (error) throw new Error(error.message);
-  }
-
-  return { importedCount, updatedCount };
-}
+export { batchImportAccountsWithClient, type BatchImportAccountRow };
 
 export const supabaseBackupRestore = {
   async batchImportAccounts(
@@ -216,7 +90,8 @@ export const supabaseBackupRestore = {
       perdidasFiscalesPendientes: Number(r.perdidas_fiscales_pendientes ?? 0),
       pagosProvisionalesAnteriores: Number(r.pagos_provisionales_anteriores ?? 0),
       saldoFavorIvaAnterior: Number(r.saldo_favor_iva_anterior ?? 0),
-      tipoCambioDofCierre: Number(r.tipo_cambio_dof_cierre ?? 0)
+      tipoCambioDofCierre: Number(r.tipo_cambio_dof_cierre ?? 0),
+      ptuPagadaEjercicio: Number(r.ptu_pagada_ejercicio ?? 0)
     }));
 
     const bankStatementLines = (rawBankLines as Array<Record<string, unknown>>).map((b) => ({
@@ -245,7 +120,9 @@ export const supabaseBackupRestore = {
       inventoryPeriods: optionalTables.inventoryPeriods,
       bankStatementMatches: optionalTables.bankStatementMatches,
       payrollPeriodSettings: optionalTables.payrollPeriodSettings,
-      polizaCfdis: optionalTables.polizaCfdis
+      polizaCfdis: optionalTables.polizaCfdis,
+      bankReconciliationClosures: optionalTables.bankReconciliationClosures,
+      deliverableBranding: optionalTables.deliverableBranding
     };
   },
 
@@ -262,12 +139,14 @@ export const supabaseBackupRestore = {
     const comp = bundle.company;
     const { data: authData } = await client.auth.getUser();
     const userId = authData?.user?.id || comp.userId || null;
+    const organizationId = comp.organizationId ?? null;
 
     const enrichedBundle: CompanyBackupBundle = {
       ...bundle,
       company: {
         ...comp,
-        userId
+        userId,
+        organizationId
       }
     };
 
@@ -296,7 +175,8 @@ export const supabaseBackupRestore = {
         current_year: comp.currentYear || 2026,
         current_period: comp.currentPeriod || 10,
         created_at: comp.createdAt || new Date().toISOString(),
-        user_id: userId
+        user_id: userId,
+        organization_id: organizationId
       });
 
       if (compErr) throw new Error(compErr.message);

@@ -18,6 +18,8 @@ import type {
 import { getCompanyById } from './companies.repo';
 import { getCfdiById, getCfdiDocuments } from './cfdi.repo';
 import { listAccountingRulesRepo } from './accounting-rules.repo';
+import { assertPeriodOpen } from './period-locks.repo';
+import { getPolizas } from './polizas.repo';
 import { getThirdPartiesByCompany } from './third-parties.repo';
 import { computeTrialBalance } from './trial-balance.repo';
 
@@ -115,6 +117,13 @@ export function saveTaxParameters(
   input: Partial<Omit<TaxParametersRecord, 'companyId' | 'ejercicio'>>
 ): TaxParametersRecord {
   const periodo = input.periodo ?? 0;
+  if (periodo > 0) {
+    assertPeriodOpen(companyId, ejercicio, periodo);
+  } else {
+    for (let p = 1; p <= 12; p += 1) {
+      assertPeriodOpen(companyId, ejercicio, p);
+    }
+  }
   const current = getTaxParameters(companyId, ejercicio, periodo);
   const next: TaxParametersRecord = {
     companyId,
@@ -170,6 +179,19 @@ export function getFiscalWorkpaperReport(
   const cfdis = getCfdiDocuments(company.id);
   const rules = listAccountingRulesRepo(company.id);
   const thirdParties = getThirdPartiesByCompany(company.id);
+  const periodPolizas = getPolizas(company.id, ejercicio, periodo);
+  const cutoffPeriod = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
+  const ytdRow = db
+    .query(`
+      SELECT COALESCE(SUM(m.cargo), 0) as sum_cargo
+      FROM poliza_movements m
+      INNER JOIN polizas p ON m.poliza_id = p.id
+      INNER JOIN accounts a ON m.account_id = a.id
+      WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo >= 1 AND p.periodo <= ?
+        AND (a.code = '113-02-001' OR a.sat_group_code = '113.02')
+    `)
+    .get(company.id, ejercicio, cutoffPeriod) as { sum_cargo: number } | null;
+  const ytdIsrRetenidoCharges = fromCents(toCents(ytdRow?.sum_cargo ?? 0));
 
   return computeFiscalWorkpaperFromTrialBalance({
     company,
@@ -179,7 +201,9 @@ export function getFiscalWorkpaperReport(
     trialBalance,
     cfdis,
     rules,
-    thirdParties
+    thirdParties,
+    ytdIsrRetenidoCharges,
+    periodPolizas
   });
 }
 

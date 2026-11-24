@@ -158,7 +158,7 @@ export async function resolveEffectiveCompanyRole(
 
   const { data: byUser } = await supabase
     .from('workspace_members')
-    .select('*')
+    .select('id, workspace_id, user_id, email, role, status, access_scope')
     .eq('status', 'ACTIVO')
     .eq('user_id', userId);
 
@@ -166,7 +166,7 @@ export async function resolveEffectiveCompanyRole(
   if (email) {
     const { data: emailRows } = await supabase
       .from('workspace_members')
-      .select('*')
+      .select('id, workspace_id, user_id, email, role, status, access_scope')
       .eq('status', 'ACTIVO')
       .eq('email', email);
     byEmail = emailRows || [];
@@ -205,16 +205,32 @@ export async function resolveEffectiveCompanyRole(
   for (const m of active) {
     const mid = String(m.id);
     const mWorkspaceId = String(m.workspace_id || '').trim();
+    const mRole = String(m.role || '').trim().toUpperCase() as DespachoRole;
+    const rawAccessScope = String(m.access_scope || '').trim().toUpperCase();
     const restricted = accessByMember.get(mid) || [];
+    const hasAllCompaniesScope =
+      rawAccessScope !== ''
+        ? rawAccessScope === 'ALL_COMPANIES'
+        : restricted.length === 0 && mRole !== 'CLIENTE_LECTURA';
     let candidate: DespachoRole | null = null;
 
-    if (orgId !== null && mWorkspaceId === orgId && String(m.role || '').toUpperCase() === 'SOCIO') {
+    if (
+      orgId !== null &&
+      mWorkspaceId === orgId &&
+      mRole === 'SOCIO' &&
+      hasAllCompaniesScope
+    ) {
       candidate = 'SOCIO';
     } else if (restricted.length > 0) {
       const match = restricted.find((r) => String(r.company_id) === companyId);
       if (match) candidate = (match.role_override || m.role) as DespachoRole;
-    } else if (orgId !== null && mWorkspaceId === orgId) {
-      candidate = m.role as DespachoRole;
+    } else if (
+      orgId !== null &&
+      mWorkspaceId === orgId &&
+      hasAllCompaniesScope &&
+      mRole !== 'CLIENTE_LECTURA'
+    ) {
+      candidate = mRole;
     }
 
     if (candidate && (!bestRole || DESPACHO_ROLE_RANK[candidate] > DESPACHO_ROLE_RANK[bestRole])) {

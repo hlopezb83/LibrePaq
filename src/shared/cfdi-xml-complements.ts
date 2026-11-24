@@ -71,7 +71,7 @@ export function parseStandardImpuestos(doc: XmlNode) {
       const importe = parseFloat(getAttr(t, 'Importe') || '0') || 0;
       if (imp === '002' || !imp) ivaTrasladado += importe;
     }
-    if (ivaTrasladado === 0 && globalImpuestosAttrs) {
+    if (conceptTraslados.length === 0 && globalImpuestosAttrs) {
       ivaTrasladado =
         parseFloat(getAttr(globalImpuestosAttrs, 'TotalImpuestosTrasladados') || '0') || 0;
     }
@@ -159,6 +159,7 @@ export function extractCfdiTaxBreakdown(
   const hasRootExento = rootTraslados.some(
     (t) => (getAttr(t, 'Impuesto') === '002' || !getAttr(t, 'Impuesto')) && getAttr(t, 'TipoFactor') === 'Exento'
   );
+  const hasRootBase0 = base0 > 0;
   let firstObjetoImp: string | undefined;
   for (const c of conceptos) {
     const obj = getAttr(c, 'ObjetoImp');
@@ -170,11 +171,17 @@ export function extractCfdiTaxBreakdown(
     );
     if ((obj === '01' || obj === '03' || obj === '04') && cTraslados.length === 0) {
       baseExento += netImp;
-    } else if (rootTraslados.length > 0 && !hasRootExento && cTraslados.length > 0) {
+    } else if (rootTraslados.length > 0 && cTraslados.length > 0) {
       for (const ct of cTraslados) {
         const ctImp = getAttr(ct, 'Impuesto');
-        if ((ctImp === '002' || !ctImp) && getAttr(ct, 'TipoFactor') === 'Exento') {
-          baseExento += (parseFloat(getAttr(ct, 'Base') || '0') || 0) || netImp;
+        if (ctImp !== '002' && ctImp !== '') continue;
+        const ctFactor = getAttr(ct, 'TipoFactor');
+        const ctTasa = parseFloat(getAttr(ct, 'TasaOCuota') || '0') || 0;
+        const ctBase = parseFloat(getAttr(ct, 'Base') || '0') || 0;
+        if (!hasRootExento && ctFactor === 'Exento') {
+          baseExento += ctBase || netImp;
+        } else if (!hasRootBase0 && ctFactor === 'Tasa' && ctTasa === 0) {
+          base0 += ctBase || netImp;
         }
       }
     }

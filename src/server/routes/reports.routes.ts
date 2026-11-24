@@ -59,12 +59,37 @@ reportsRoutes.get('/sat-xml', (c) => {
     c.req.query('period'),
     company
   );
-  const trialBalance = computeTrialBalance(company.id, year, period);
+  const rawTrialBalance = computeTrialBalance(company.id, year, period);
   const needsPolizas =
     type === 'polizas' || type === 'auxiliar_folios' || type === 'auxiliar_cuentas';
   const needsCfdiLookup = type === 'polizas' || type === 'auxiliar_folios';
 
-  const polizas = needsPolizas ? getPolizas(company.id, year, period) : [];
+  const polizas = needsPolizas
+    ? period === 13
+      ? Array.from(
+          new Map(
+            [...getPolizas(company.id, year, 12), ...getPolizas(company.id, year, 13)].map((p) => [
+              p.id,
+              p
+            ])
+          ).values()
+        )
+      : getPolizas(company.id, year, period)
+    : [];
+
+  let trialBalance = rawTrialBalance;
+  if ((type === 'auxiliar_cuentas' || type === 'xc') && period === 13) {
+    const decMap = new Map(
+      computeTrialBalance(company.id, year, 12).map((acc) => [acc.id, acc])
+    );
+    trialBalance = rawTrialBalance.map((acc) => {
+      const decAcc = decMap.get(acc.id);
+      return decAcc
+        ? { ...acc, initialBalanceComputed: decAcc.initialBalanceComputed }
+        : acc;
+    });
+  }
+
   let cfdiLookup: Map<string, Anexo24CfdiMetadata> | undefined;
   if (needsCfdiLookup) {
     const cfdis = getCfdiDocuments(company.id);
@@ -75,21 +100,29 @@ reportsRoutes.get('/sat-xml', (c) => {
           total: cf.total,
           rfcContraparte: cf.direction === 'EMITIDO' ? cf.receptorRfc : cf.emisorRfc,
           moneda: cf.moneda,
-          tipoCambio: cf.tipoCambio
+          tipoCambio: cf.tipoCambio,
+          formaPago: cf.formaPago
         });
       }
     }
   }
 
+  const strictParam = c.req.query('strict')?.toLowerCase();
   const options: SatAnexo24Options = {
     tipoEnvio,
     fechaModBal,
     tipoSolicitud,
     numOrden,
     numTramite,
+    strictSolicitud: strictParam === '1' || strictParam === 'true',
     cfdiLookup
   };
-  return c.json(buildSatAnexo24Xml(company, year, period, type, trialBalance, polizas, options));
+  try {
+    return c.json(buildSatAnexo24Xml(company, year, period, type, trialBalance, polizas, options));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Solicitud Anexo 24 inválida.';
+    return c.json({ error: message }, 400);
+  }
 });
 
 reportsRoutes.get('/diot', (c) => {

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { Context } from 'hono';
+import { db } from './connection';
 
 export interface ResolvedActor {
   userId: string | null;
@@ -206,4 +207,60 @@ export async function resolveRequestActorAsync(c: Context): Promise<ResolvedActo
   }
 
   return syncActor;
+}
+
+export function isUserSuspended(userId?: string | null, userEmail?: string | null): boolean {
+  const uid = (userId || '').trim();
+  const email = (userEmail || '').trim().toLowerCase();
+  if (!uid && !email) return false;
+  try {
+    if (uid) {
+      const byUid = db
+        .query('SELECT status FROM admin_user_overrides WHERE user_id = ?')
+        .get(uid) as { status?: string } | null;
+      if (String(byUid?.status || '').trim().toUpperCase() === 'SUSPENDIDO') return true;
+    }
+    if (email) {
+      const byEmail = db
+        .query('SELECT status FROM admin_user_overrides WHERE lower(user_id) = ?')
+        .get(email) as { status?: string } | null;
+      if (String(byEmail?.status || '').trim().toUpperCase() === 'SUSPENDIDO') return true;
+    }
+  } catch {
+    // admin_user_overrides table may not exist before initDatabase
+  }
+  return false;
+}
+
+export function rejectNonStringBodyCompanyId(
+  c: Context,
+  body: Record<string, unknown>
+): Response | null {
+  if (body.companyId !== undefined && typeof body.companyId !== 'string') {
+    return c.json({ error: 'companyId debe ser una cadena de texto válida.' }, 400);
+  }
+  return null;
+}
+
+export function readBodyCompanyId(
+  c: Context,
+  body: Record<string, unknown>
+): { ok: true; companyId: string } | { ok: false; response: Response } {
+  const nonStr = rejectNonStringBodyCompanyId(c, body);
+  if (nonStr) return { ok: false, response: nonStr };
+  const companyId = typeof body.companyId === 'string' ? body.companyId.trim() : '';
+  if (!companyId) {
+    return { ok: false, response: c.json({ error: 'companyId es requerido.' }, 400) };
+  }
+  return { ok: true, companyId };
+}
+
+export function readQueryCompanyId(
+  c: Context
+): { ok: true; companyId: string } | { ok: false; response: Response } {
+  const companyId = (c.req.query('companyId') || c.req.query('company_id') || '').trim();
+  if (!companyId) {
+    return { ok: false, response: c.json({ error: 'companyId es requerido.' }, 400) };
+  }
+  return { ok: true, companyId };
 }

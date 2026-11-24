@@ -58,6 +58,11 @@ export function ensureOptionalColumnMigrations(database: SqliteDdlTarget): void 
     database.exec('ALTER TABLE admin_user_overrides ADD COLUMN platform_role TEXT;');
   }
 
+  const cfdiCols = database.query('PRAGMA table_info(cfdi_documents)').all() as Array<{ name: string }>;
+  if (cfdiCols.length > 0 && !cfdiCols.some((c) => c.name === 'fecha_pago')) {
+    database.exec('ALTER TABLE cfdi_documents ADD COLUMN fecha_pago TEXT;');
+  }
+
   const profileTables = database
     .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_profiles'")
     .all() as Array<{ name: string }>;

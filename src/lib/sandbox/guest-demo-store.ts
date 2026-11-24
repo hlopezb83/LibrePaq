@@ -27,6 +27,7 @@ import type { AccountingRuleRecord } from '../../shared/types/accounting-rules.t
 import type { AnnualTaxInputs } from '../../shared/types/annual-tax.types';
 import type { BankN1MatchRecord } from '../../shared/types/bank-n1.types';
 import type { InventoryPeriodRecord } from '../../shared/types/cost-of-sales.types';
+import { resetGuestDemoRbacState } from './guest-demo-rbac';
 
 export interface GuestDemoState {
   companies: Company[];
@@ -35,6 +36,7 @@ export interface GuestDemoState {
   cfdis: CfdiDocument[];
   bankLines: BankStatementLine[];
   bankMatches: BankN1MatchRecord[];
+  bankClosures: Record<string, number>;
   periodLocks: PeriodLock[];
   thirdParties: ThirdPartyRecord[];
   fixedAssets: FixedAssetRecord[];
@@ -231,6 +233,7 @@ function createInitialGuestDemoState(): GuestDemoState {
     cfdis,
     bankLines: [],
     bankMatches: [],
+    bankClosures: {},
     periodLocks: [],
     thirdParties: [],
     fixedAssets: [],
@@ -250,4 +253,16 @@ export function getGuestDemoState(): GuestDemoState {
 
 export function resetGuestDemoState(): void {
   cachedState = createInitialGuestDemoState();
+  resetGuestDemoRbacState();
+}
+
+export function assertDemoPeriodOpen(companyId: string, ejercicio: number, periodo: number): void {
+  const lock = getGuestDemoState().periodLocks.find(
+    (l) => l.companyId === companyId && l.ejercicio === ejercicio && l.periodo === periodo
+  );
+  if (lock?.isLocked) {
+    throw new Error(
+      `PERIOD_LOCKED: El periodo ${String(periodo).padStart(2, '0')}/${ejercicio} está bloqueado ante el SAT.`
+    );
+  }
 }

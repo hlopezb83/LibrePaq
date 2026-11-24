@@ -102,8 +102,9 @@ describe('Ronda 5 Ola 1 — DIOT 54 campos SAT 2025/2026', () => {
     expect(norteLine[17]).toBe('160');   // Campo 18: IVA acreditable 8% FN
     expect(norteLine[19]).toBe('');      // Campo 20: IVA acreditable 8% FS vacío
     expect(norteLine[21]).toBe('1600');  // Campo 22: IVA acreditable 16% (no sobrescrito por intangibles)
-    expect(norteLine[27]).toBe('45');    // Campo 28: IVA no acreditable 16% nacional
-    expect(norteLine[28]).toBe('15');    // Campo 29: IVA no acreditable 8% FN
+    expect(norteLine[27]).toBe('15');    // Campo 28: IVA no acreditable 8% FN
+    expect(norteLine[28]).toBe('');      // Campo 29: Requisitos FN vacío
+    expect(norteLine[35]).toBe('45');    // Campo 36: IVA no acreditable 16% nacional
     expect(norteLine[46]).toBe('');      // Campo 47: Exclusivo IVA no acreditable importaciones intangibles
     expect(norteLine[47]).toBe('1067');  // Campo 48: IVA retenido
     expect(norteLine[48]).toBe('');      // Campo 49: Importaciones exentas (no devoluciones)
@@ -130,7 +131,8 @@ describe('Ronda 5 Ola 1 — DIOT 54 campos SAT 2025/2026', () => {
     expect(surLine[10]).toBe('');     // Campo 11: Devoluciones 8% FS vacío
     expect(surLine[17]).toBe('');
     expect(surLine[19]).toBe('320');  // Campo 20: IVA acreditable 8% FS
-    expect(surLine[29]).toBe('25');   // Campo 30: IVA no acreditable 8%
+    expect(surLine[29]).toBe('');     // Campo 30: FN no acreditable vacío
+    expect(surLine[31]).toBe('25');   // Campo 32: IVA no acreditable 8% FS
   });
 
   test('excluye NC PPD o ligada a PPD sin pago, infiere 8% sin taxBreakdown, separa IVA 16/8 y lee datos 05', () => {

@@ -4,7 +4,7 @@ import { buildAutoPolizaPlan } from '../../shared/engine/auto-poliza.engine';
 import { validateDoubleEntryMovements } from '../../shared/engine/invariants-and-math';
 import { parseCalendarDate } from '../../shared/date-utils';
 import { MESES_SAT } from '../../shared/sat-constants';
-import type { AccountWithBalance, Poliza } from '../../shared/types';
+import type { AccountWithBalance, Poliza, ThirdPartyRecord } from '../../shared/types';
 import type { AccountingRuleRecord } from '../../shared/types/accounting-rules.types';
 import { logCompanyAuditEvent } from './audit-logger';
 import { supabaseAccountingRules } from './supabase-accounting-rules';
@@ -22,7 +22,10 @@ export interface AutoPolizaClientOptions {
 export interface AutoPolizaBatchContext {
   accounts?: AccountWithBalance[];
   rules?: AccountingRuleRecord[];
-  thirdParties?: Map<string, { cuentaOperacionCode: string; cuentaContrapartidaCode: string }>;
+  thirdParties?: Map<
+    string,
+    { rol?: ThirdPartyRecord['rol']; cuentaOperacionCode: string; cuentaContrapartidaCode: string }
+  >;
   periodLocks?: Map<string, boolean>;
 }
 
@@ -62,7 +65,7 @@ export async function preloadAutoPolizaBatchContext(
     fetchAllRows(async (from, to) =>
       client
         .from('third_parties')
-        .select('rfc, cuenta_operacion_code, cuenta_contrapartida_code')
+        .select('rfc, rol, cuenta_operacion_code, cuenta_contrapartida_code')
         .eq('company_id', companyId)
         .order('rfc', { ascending: true })
         .order('id', { ascending: true })
@@ -74,15 +77,20 @@ export async function preloadAutoPolizaBatchContext(
       .eq('company_id', companyId)
   ]);
 
-  const thirdParties = new Map<string, { cuentaOperacionCode: string; cuentaContrapartidaCode: string }>();
+  const thirdParties = new Map<
+    string,
+    { rol?: ThirdPartyRecord['rol']; cuentaOperacionCode: string; cuentaContrapartidaCode: string }
+  >();
   for (const row of tpRows as Array<{
     rfc?: string;
+    rol?: string | null;
     cuenta_operacion_code?: string | null;
     cuenta_contrapartida_code?: string | null;
   }>) {
     const rfc = String(row.rfc || '').trim().toUpperCase();
     if (!rfc) continue;
     thirdParties.set(rfc, {
+      ...(row.rol ? { rol: row.rol as ThirdPartyRecord['rol'] } : {}),
       cuentaOperacionCode: row.cuenta_operacion_code || '',
       cuentaContrapartidaCode: row.cuenta_contrapartida_code || ''
     });
@@ -132,17 +140,19 @@ export async function runAutoPolizaFromCfdiWithClient(
       ? Promise.resolve(batchContext.thirdParties?.get(counterpartRfc) ?? null)
       : client
           .from('third_parties')
-          .select('cuenta_operacion_code, cuenta_contrapartida_code')
+          .select('rol, cuenta_operacion_code, cuenta_contrapartida_code')
           .eq('company_id', cfdi.companyId)
           .eq('rfc', counterpartRfc)
           .maybeSingle()
           .then((res) => {
             const tpRow = res.data as {
+              rol?: string | null;
               cuenta_operacion_code?: string | null;
               cuenta_contrapartida_code?: string | null;
             } | null;
             return tpRow
               ? {
+                  ...(tpRow.rol ? { rol: tpRow.rol as ThirdPartyRecord['rol'] } : {}),
                   cuentaOperacionCode: tpRow.cuenta_operacion_code || '',
                   cuentaContrapartidaCode: tpRow.cuenta_contrapartida_code || ''
                 }
@@ -173,7 +183,11 @@ export async function runAutoPolizaFromCfdiWithClient(
   const accMap = new Map(accounts.map((a) => [a.id, a]));
   validateDoubleEntryMovements(plan.movements, accMap);
 
-  const { year, month: period } = parseCalendarDate(cfdi.fecha);
+  const accountingDate =
+    (cfdi.tipoComprobante === 'P' || cfdi.tipoComprobante === 'N') && cfdi.fechaPago
+      ? cfdi.fechaPago
+      : cfdi.fecha;
+  const { year, month: period } = parseCalendarDate(accountingDate);
   const lockKey = `${year}-${period}`;
   if (batchContext?.periodLocks?.has(lockKey)) {
     if (batchContext.periodLocks.get(lockKey)) {
@@ -222,7 +236,7 @@ export async function runAutoPolizaFromCfdiWithClient(
       company_id: cfdi.companyId,
       tipo: plan.polizaType,
       folio: nextFolio,
-      fecha: cfdi.fecha,
+      fecha: accountingDate,
       ejercicio: year,
       periodo: period,
       concepto: plan.polizaConcept,
@@ -280,6 +294,17 @@ export async function runAutoPolizaFromCfdiWithClient(
   if (!claimedRows || claimedRows.length === 0) {
     await client.from('polizas').delete().eq('id', polizaId);
     throw new Error('Este CFDI ya fue contabilizado concurrentemente por otra operación.');
+  }
+
+  try {
+    await client.from('poliza_cfdis').insert({
+      id: `pc_${crypto.randomUUID().slice(0, 12)}`,
+      company_id: cfdi.companyId,
+      poliza_id: polizaId,
+      cfdi_uuid: cfdi.uuid
+    });
+  } catch {
+    // Ignorar si poliza_cfdis no está disponible en instancias previas a Ronda 4
   }
 
   logCompanyAuditEvent({

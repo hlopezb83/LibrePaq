@@ -82,8 +82,13 @@ export async function reverseCancelledCfdiPolizas(params: {
 
   for (const pol of targetPolizas) {
     const expectedPrefix = `Reverso de ${pol.tipo} #${pol.folio}:`;
-    const alreadyReversed = allYearPolizas.some((existing) =>
-      existing.concepto.startsWith(expectedPrefix)
+    const expectedExact = `${expectedPrefix} ${pol.concepto}`;
+    const alreadyReversed = allYearPolizas.some(
+      (existing) =>
+        existing.ejercicio === pol.ejercicio &&
+        existing.concepto.startsWith(expectedPrefix) &&
+        (existing.periodo === pol.periodo ||
+          (existing.periodo === params.currentPeriod && existing.concepto === expectedExact))
     );
     if (alreadyReversed) continue;
 
@@ -92,6 +97,7 @@ export async function reverseCancelledCfdiPolizas(params: {
       periodo: params.currentPeriod
     });
     const created = await apiClient.createPoliza(draft);
+    allYearPolizas.push(created);
     createdCount += 1;
     if (targetPolizas.length === 1) {
       params.toast.success(

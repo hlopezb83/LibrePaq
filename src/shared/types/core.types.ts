@@ -102,10 +102,27 @@ export interface CfdiRelatedDoc {
   impSaldoAnt: number;
   impPagado: number;
   impSaldoInsoluto: number;
+  fechaPago?: string | null;
   monedaDr?: string;
   equivalenciaDr?: number;
   pagoMoneda?: string;
   pagoTipoCambio?: number;
+}
+
+export interface CfdiRelatedDocMeta {
+  tipoCambio?: number;
+  moneda?: string;
+  conceptoPrincipal?: string;
+  claveProdServ?: string;
+  regimenEmisor?: string;
+  emisorNombre?: string;
+  usoCfdi?: string;
+  subtotalMxn?: number;
+  ivaTrasladadoMxn?: number;
+  totalMxn?: number;
+  isrRetenidoMxn?: number;
+  ivaRetenidoMxn?: number;
+  deductiblePct?: number;
 }
 
 export interface CfdiDocument {

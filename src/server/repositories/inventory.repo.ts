@@ -1,7 +1,10 @@
 import { db } from '../connection';
 import {
   computeCostOfSales,
-  computePurchasesFromTrialBalanceAccounts
+  computeInventoryInputsFromMovements,
+  computePurchasesFromMovements,
+  computePurchasesFromTrialBalanceAccounts,
+  type CostPolizaMovementInput
 } from '../../shared/engine/cost-of-sales.engine';
 import { assertAccountingInvariant, fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type {
@@ -9,6 +12,7 @@ import type {
   InventoryPeriodRecord,
   SaveInventoryPeriodPayload
 } from '../../shared/types/cost-of-sales.types';
+import { getAccounts } from './accounts.repo';
 import { ensureAnnualAndInventoryTables } from './annual-tax.repo';
 import { getCompanyById } from './companies.repo';
 import { assertPeriodOpen } from './period-locks.repo';
@@ -73,25 +77,49 @@ export function getInventoryPeriodRepo(
 
   let prevFinalInventory = 0;
   if (!row) {
-    const prevYear = targetPeriod > 1 ? targetYear : targetYear - 1;
-    const prevPeriod = targetPeriod > 1 ? targetPeriod - 1 : 12;
-    const prevRow = db
-      .query('SELECT final_inventory FROM inventory_periods WHERE company_id = ? AND ejercicio = ? AND periodo = ?')
-      .get(company.id, prevYear, prevPeriod) as { final_inventory: number } | null;
+    let prevRow: { final_inventory: number } | null = null;
+    if (targetPeriod === 1) {
+      prevRow =
+        (db
+          .query('SELECT final_inventory FROM inventory_periods WHERE company_id = ? AND ejercicio = ? AND periodo = 13')
+          .get(company.id, targetYear - 1) as { final_inventory: number } | null) ??
+        (db
+          .query('SELECT final_inventory FROM inventory_periods WHERE company_id = ? AND ejercicio = ? AND periodo = 12')
+          .get(company.id, targetYear - 1) as { final_inventory: number } | null);
+    } else {
+      prevRow = db
+        .query('SELECT final_inventory FROM inventory_periods WHERE company_id = ? AND ejercicio = ? AND periodo = ?')
+        .get(company.id, targetYear, targetPeriod - 1) as { final_inventory: number } | null;
+    }
     prevFinalInventory = prevRow ? fromCents(Math.max(0, toCents(prevRow.final_inventory))) : 0;
   }
 
   const initialInventory = row
     ? fromCents(Math.max(0, toCents(row.initial_inventory)))
     : prevFinalInventory;
-  const purchasesFromBalance = computePurchasesFromTrialBalance(company.id, targetYear, targetPeriod);
+  const method: InventoryMethod = row?.method === 'PERPETUO' ? 'PERPETUO' : 'ANALITICO';
+  const linkedPolizaId = row?.poliza_id ?? null;
+
+  const accounts = getAccounts(company.id);
+  const movRows = db
+    .query(`
+      SELECT m.poliza_id, m.account_id, m.cargo, m.abono
+      FROM poliza_movements m
+      INNER JOIN polizas p ON p.id = m.poliza_id
+      WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo = ?
+    `)
+    .all(company.id, targetYear, targetPeriod) as CostPolizaMovementInput[];
+
+  const purchasesFromBalance =
+    method === 'PERPETUO'
+      ? computeInventoryInputsFromMovements(accounts, movRows, linkedPolizaId)
+      : computePurchasesFromMovements(accounts, movRows, linkedPolizaId);
   const purchasesOverride =
     row && row.purchases_override !== null && row.purchases_override !== undefined
       ? fromCents(Math.max(0, toCents(row.purchases_override)))
       : null;
   const effectivePurchases = purchasesOverride !== null ? purchasesOverride : purchasesFromBalance;
   const finalInventory = row ? fromCents(Math.max(0, toCents(row.final_inventory))) : 0;
-  const method: InventoryMethod = row?.method === 'PERPETUO' ? 'PERPETUO' : 'ANALITICO';
 
   const computation = computeCostOfSales({
     initialInventory,

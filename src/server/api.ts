@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { Hono } from 'hono';
-import { resolveRequestActorAsync } from './auth-actor';
+import { isUserSuspended, resolveRequestActorAsync } from './auth-actor';
 import { companyExistsById, db, initDatabase } from './db';
 import { getEffectiveCompanyRoleRepo } from './repositories/workspace-members.repo';
 import { companiesRoutes } from './routes/companies.routes';
@@ -47,6 +47,12 @@ api.use('*', async (c, next) => {
   if (actor.authError) {
     return c.json({ error: actor.authError }, 401);
   }
+  if (isUserSuspended(actor.userId, actor.userEmail)) {
+    return c.json(
+      { error: 'USER_SUSPENDED: Tu cuenta ha sido suspendida por un administrador.' },
+      403
+    );
+  }
 
   if (path.startsWith('/api/companies') || path.startsWith('/api/workspaces')) {
     return next();
@@ -71,12 +77,19 @@ api.use('*', async (c, next) => {
     targetCompanyId = c.req.query('companyId') || c.req.query('company_id') || '';
   }
 
-  if (!targetCompanyId && (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH')) {
+  if (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH') {
     const ct = c.req.header('content-type') || '';
     if (ct.includes('application/json')) {
       try {
         const body = (await c.req.raw.clone().json()) as { companyId?: unknown };
-        if (typeof body?.companyId === 'string') targetCompanyId = body.companyId;
+        if (body && typeof body === 'object' && !Array.isArray(body)) {
+          if (body.companyId !== undefined && typeof body.companyId !== 'string') {
+            return c.json({ error: 'companyId debe ser una cadena de texto válida.' }, 400);
+          }
+          if (!targetCompanyId && typeof body.companyId === 'string') {
+            targetCompanyId = body.companyId.trim();
+          }
+        }
       } catch {
         // Ignorar payloads no JSON; el handler devolverá 400 si corresponde
       }

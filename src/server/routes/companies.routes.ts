@@ -1,5 +1,10 @@
 import { Hono } from 'hono';
-import { resolveRequestActor, resolveRequestActorAsync } from '../auth-actor';
+import {
+  isUserSuspended,
+  rejectNonStringBodyCompanyId,
+  resolveRequestActor,
+  resolveRequestActorAsync
+} from '../auth-actor';
 import {
   companyExistsById,
   createCompanyRecord,
@@ -20,6 +25,9 @@ export const companiesRoutes = new Hono();
 companiesRoutes.use('/companies*', async (c, next) => {
   const actor = await resolveRequestActorAsync(c);
   if (actor.authError) return c.json({ error: actor.authError }, 401);
+  if (isUserSuspended(actor.userId, actor.userEmail)) {
+    return c.json({ error: 'USER_SUSPENDED: Tu cuenta ha sido suspendida por un administrador.' }, 403);
+  }
   return next();
 });
 
@@ -53,6 +61,7 @@ companiesRoutes.put('/companies/:id', async (c) => {
     const id = c.req.param('id');
     const denied = assertRouteCompanyAccess(c, id, {
       requireWrite: true,
+      minRole: 'CONTADOR',
       blockDemoWrite: true,
       notFoundWhenNoAccess: true
     });
@@ -127,8 +136,16 @@ companiesRoutes.get('/companies/:id/backup', (c) => {
 companiesRoutes.post('/companies/restore', async (c) => {
   try {
     const actor = resolveRequestActor(c);
-    const bundle = (await c.req.json()) as CompanyBackupBundle;
-    if (!bundle?.company?.id || !bundle?.company?.rfc) {
+    const raw = (await c.req.json()) as Record<string, unknown>;
+    const nonStr = rejectNonStringBodyCompanyId(c, raw);
+    if (nonStr) return nonStr;
+    const bundle = raw as unknown as CompanyBackupBundle;
+    if (
+      typeof bundle?.company?.id !== 'string' ||
+      !bundle.company.id.trim() ||
+      typeof bundle?.company?.rfc !== 'string' ||
+      !bundle.company.rfc.trim()
+    ) {
       return c.json({ error: 'Payload de respaldo inválido: company.id y company.rfc son requeridos.' }, 400);
     }
     if (companyExistsById(bundle.company.id)) {

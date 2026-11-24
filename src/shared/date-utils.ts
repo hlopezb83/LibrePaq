@@ -129,6 +129,10 @@ export function getCurrentFiscalPeriod(now: Date = new Date()): { year: number; 
  */
 export function sanitizeSpreadsheetText(value: string): string {
   if (!value) return '';
+  const rawFirst = value.charAt(0);
+  if (rawFirst === '\t' || rawFirst === '\r' || rawFirst === '\n') {
+    return `'${value}`;
+  }
   const trimmed = value.trimStart();
   if (!trimmed) return value;
   const firstChar = trimmed[0];
@@ -136,10 +140,7 @@ export function sanitizeSpreadsheetText(value: string): string {
     firstChar === '=' ||
     firstChar === '+' ||
     firstChar === '-' ||
-    firstChar === '@' ||
-    firstChar === '\t' ||
-    firstChar === '\r' ||
-    firstChar === '\n'
+    firstChar === '@'
   ) {
     if (/^[+-]?\d+(?:\.\d+)?$/.test(trimmed.trimEnd())) {
       return value;

@@ -1,5 +1,5 @@
 import type { SheetData } from 'write-excel-file/browser';
-import { formatBalanceCutoffLabel, sanitizeSpreadsheetText } from '../shared/date-utils';
+import { formatBalanceCutoffLabel, formatIncomePeriodLabel, sanitizeSpreadsheetText } from '../shared/date-utils';
 import type {
   AccountWithBalance,
   Company,
@@ -113,7 +113,9 @@ export function buildEstadoResultadosSheetData(
   const rifNeto = er.rifNeto ?? 0;
   const uai = er.utilidadAntesImpuestos ?? utilOp + rifNeto;
   const totalIsr = er.totalIsr ?? 0;
-  const cutoff = formatBalanceCutoffLabel(year, period, mesLabel);
+  const cutoff = formatIncomePeriodLabel(year, period, mesLabel);
+  const safePct = (val: number) =>
+    !er.totalIngresos || Math.abs(er.totalIngresos) < 0.01 ? '0.0%' : formatVerticalPct(val, er.totalIngresos);
 
   const filterList = (list: AccountWithBalance[], expected: 'DEUDORA' | 'ACREEDORA') =>
     hideZeroAccounts
@@ -128,7 +130,7 @@ export function buildEstadoResultadosSheetData(
       xStr(a.name),
       xNum(signedMes(a, expected)),
       xNum(ytd),
-      xStr(formatVerticalPct(ytd, er.totalIngresos))
+      xStr(safePct(ytd))
     ];
   };
 
@@ -138,7 +140,7 @@ export function buildEstadoResultadosSheetData(
     xStr(desc, true),
     xNum(mesVal, true),
     xNum(ytdVal, true),
-    xStr(formatVerticalPct(ytdVal, er.totalIngresos), true)
+    xStr(safePct(ytdVal), true)
   ];
 
   return [
@@ -281,9 +283,18 @@ export function buildDia17SheetData(
   } else if (!isResicoPf) {
     rows.push([xStr('Coeficiente de Utilidad Aplicado'), xStr('Art. 14 Fracc. I LISR'), xNum(isr?.coeficienteUtilidadAplicado ?? 0, false, '0.0000')]);
   }
+  if (!isResicoPf) {
+    if ((isr?.ptuPagadaAplicada ?? 0) > 0) {
+      rows.push([xStr('(-) PTU Pagada Deducible'), xStr('Art. 14 / 106 LISR'), xNum(isr?.ptuPagadaAplicada ?? 0)]);
+    }
+    rows.push(
+      [xStr('(=) Utilidad Fiscal Estimada'), xStr('Resultado Fiscal Acumulado'), xNum(isr?.utilidadFiscalEstimada ?? 0)],
+      [xStr('(-) Pérdidas Fiscales Aplicadas'), xStr('Art. 57 LISR'), xNum(isr?.perdidasFiscalesAplicadas ?? 0)]
+    );
+  }
 
   rows.push(
-    [xStr('Utilidad Fiscal Estimada / Base Gravable'), xStr(isPfGeneral ? 'Tarifa Art. 106 LISR' : 'Base Gravable ISR'), xNum(isr?.baseGravableIsr ?? 0)],
+    [xStr('(=) Base Gravable ISR'), xStr(isResicoPf ? 'Art. 113-E LISR (Mensual)' : isPfGeneral ? 'Tarifa Art. 106 LISR' : 'Base Gravable ISR'), xNum(isr?.baseGravableIsr ?? 0)],
     [xStr('ISR Causado'), xStr(`Tasa Efectiva ${(isr?.tasaIsrPct ?? 30).toFixed(2)}%`), xNum(isr?.isrCausado ?? 0)],
     ...(!isResicoPf ? [[xStr('(-) Pagos Provisionales Previos'), xStr('Acreditamiento'), xNum(isr?.pagosProvisionalesPrevios ?? 0)] as SheetData[number]] : []),
     [xStr('(-) ISR Retenido Acreditable'), xStr('Art. 14 / 106 / 113-E LISR'), xNum(isr?.isrRetenidoPeriodo ?? 0)],

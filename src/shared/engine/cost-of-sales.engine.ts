@@ -130,7 +130,7 @@ export function computeInventoryInputsFromMovements(
   for (const mov of movs) {
     if (excludedPolizaId && mov.poliza_id === excludedPolizaId) continue;
     if (!invAccIds.has(mov.account_id)) continue;
-    inputCents += Math.max(0, toCents(mov.cargo));
+    inputCents += toCents(mov.cargo) - toCents(mov.abono);
   }
   return fromCents(Math.max(0, inputCents));
 }
@@ -159,19 +159,27 @@ function resolveCostOfSalesAccount(accounts: readonly Account[]): Account {
 
 function resolveInventoryOrPurchasesAccount(
   accounts: readonly Account[],
-  costAcc: Account
+  costAcc: Account,
+  method?: InventoryMethod
 ): Account {
   const affectable = accounts.filter((a) => a.isAffectable);
-  const match =
+  const invMatch =
     affectable.find((a) => a.code === '115-01-001') ??
-    affectable.find((a) => a.code.startsWith('115-') || (a.satGroupCode ?? '').startsWith('115')) ??
-    affectable.find((a) => a.code.startsWith('502-') || (a.satGroupCode ?? '').startsWith('502')) ??
-    affectable.find((a) => a.id !== costAcc.id && (a.code.startsWith('501') || (a.satGroupCode ?? '').startsWith('501')));
+    affectable.find((a) => a.code.startsWith('115-') || (a.satGroupCode ?? '').startsWith('115'));
+
+  const match =
+    invMatch ??
+    (method === 'ANALITICO'
+      ? undefined
+      : affectable.find((a) => a.code.startsWith('502-') || (a.satGroupCode ?? '').startsWith('502')) ??
+        affectable.find((a) => a.id !== costAcc.id && (a.code.startsWith('501') || (a.satGroupCode ?? '').startsWith('501'))));
 
   if (!match) {
     throw new AccountingInvariantError(
       'INVENTORY_ACCOUNT_NOT_FOUND',
-      'No se encontró cuenta de Inventarios (115-*) o Compras (502-* / 501-*) distinta a Costo de Ventas.'
+      method === 'ANALITICO'
+        ? 'El método Analítico requiere una cuenta afectable de Inventarios (115-*).'
+        : 'No se encontró cuenta de Inventarios (115-*) o Compras (502-* / 501-*) distinta a Costo de Ventas.'
     );
   }
   return match;
@@ -219,7 +227,7 @@ export function buildCostOfSalesPolizaPlan(
   }
 
   const costAcc = resolveCostOfSalesAccount(input.accounts);
-  const invAcc = resolveInventoryOrPurchasesAccount(input.accounts, costAcc);
+  const invAcc = resolveInventoryOrPurchasesAccount(input.accounts, costAcc, input.method);
   const amount = fromCents(costCents);
   const periodLabel = `P${String(input.period).padStart(2, '0')}/${input.year}`;
   const referencia = `CV-${input.year}-${String(input.period).padStart(2, '0')}`;
@@ -228,10 +236,14 @@ export function buildCostOfSalesPolizaPlan(
   let movements: CostOfSalesPolizaMovementDraft[];
 
   if (useAnalyticalAdjustment) {
+    const availableCents = initialCents + purchasesCents;
+    const effectiveFinalCents =
+      input.purchasesPeriod !== undefined ? Math.min(finalCents, availableCents) : finalCents;
+
     assertAccountingInvariant(
-      initialCents > 0 || finalCents > 0,
+      initialCents > 0 || effectiveFinalCents > 0,
       'ZERO_ANALYTICAL_ADJUSTMENT',
-      'En método Analítico con Inventario Inicial $0.00 e Inventario Final $0.00, las compras en 501 ya reflejan el Costo de Ventas.'
+      'En método Analítico sin Inventario Inicial ni Inventario Final reconocible, las compras en 501 ya reflejan el Costo de Ventas.'
     );
     movements = [];
     if (initialCents > 0) {
@@ -257,8 +269,8 @@ export function buildCostOfSalesPolizaPlan(
         }
       );
     }
-    if (finalCents > 0) {
-      const finAmt = fromCents(finalCents);
+    if (effectiveFinalCents > 0) {
+      const finAmt = fromCents(effectiveFinalCents);
       movements.push(
         {
           accountId: invAcc.id,

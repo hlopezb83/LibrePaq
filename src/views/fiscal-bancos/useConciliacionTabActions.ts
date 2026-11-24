@@ -3,22 +3,26 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { bankN1Client } from '../../lib/bank-n1-client';
 import { isSupabaseConfigured } from '../../lib/supabase';
-
-interface ExtendedBankApiClient {
-  manualMatchBankLine?: (lineId: string, movementId: string) => Promise<unknown>;
-  deleteBankStatementLine?: (lineId: string) => Promise<unknown>;
-  saveBankClosureBalance?: (
-    companyId: string,
-    accountId: string,
-    ejercicio: number,
-    periodo: number,
-    saldoBancoCierre: number
-  ) => Promise<void>;
-}
 import { useToast } from '../../context/ToastContext';
 import type { BankReconciliationResponse, BankStatementLine, ReconciliationFormulaData } from '../../shared/types';
 import type { BankN1MatchProposal } from '../../shared/types/bank-n1.types';
 import { exportBankReconciliationXlsx, printBankReconciliationPdf } from './BankReconciliationExport';
+import { useBankClosureBalance } from './useBankClosureBalance';
+
+interface ExtendedBankApiClient {
+  manualMatchBankLine?: (lineId: string, movementId: string) => Promise<unknown>;
+  deleteBankStatementLine?: (lineId: string) => Promise<unknown>;
+}
+
+const RECON_INVALIDATION_SCOPES = [
+  'bank-reconciliation',
+  'dashboard',
+  'fiscal-workpaper',
+  'diot',
+  'auxiliares-diario',
+  'annual-tax',
+  'sat-xml'
+] as const;
 
 export function useConciliacionTabActions(params: {
   companyId: string;
@@ -44,22 +48,14 @@ export function useConciliacionTabActions(params: {
   const [n1Proposals, setN1Proposals] = useState<BankN1MatchProposal[]>([]);
   const [isSearchingN1, setIsSearchingN1] = useState(false);
   const [isApplyingN1, setIsApplyingN1] = useState(false);
-  const [bankBalanceDraft, setBankBalanceDraft] = useState<string>('');
-  const [closureSaveStatus, setClosureSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  const balanceStorageKey = `lp_bank_final_bal_${companyId}_${effectiveBankId}_${year ?? 0}_${period ?? 0}`;
   const contextKey = `${companyId}::${effectiveBankId}::${year ?? ''}::${period ?? ''}`;
   const contextKeyRef = useRef(contextKey);
   contextKeyRef.current = contextKey;
   const proposeReqIdRef = useRef(0);
   const applyReqIdRef = useRef(0);
-  const saveClosureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (saveClosureTimerRef.current) {
-      clearTimeout(saveClosureTimerRef.current);
-      saveClosureTimerRef.current = null;
-    }
     proposeReqIdRef.current += 1;
     applyReqIdRef.current += 1;
     setN1Proposals([]);
@@ -68,86 +64,22 @@ export function useConciliacionTabActions(params: {
     setPolizaModalLine(null);
     setIsSearchingN1(false);
     setIsApplyingN1(false);
-    setClosureSaveStatus('idle');
   }, [companyId, effectiveBankId, year, period]);
 
-  useEffect(() => {
-    const cloudVal = reconData?.summary?.saldoBancoCierre;
-    if (cloudVal !== undefined && cloudVal !== null && Number.isFinite(cloudVal)) {
-      const strVal = String(cloudVal);
-      setBankBalanceDraft(strVal);
-      try {
-        if (typeof window !== 'undefined') window.localStorage.setItem(balanceStorageKey, strVal);
-      } catch {
-        // ignore storage errors
-      }
-      return;
-    }
-    try {
-      const saved = typeof window !== 'undefined' ? window.localStorage.getItem(balanceStorageKey) : null;
-      if (saved !== null && saved.trim() !== '' && Number.isFinite(Number(saved))) {
-        setBankBalanceDraft(saved);
-        return;
-      }
-    } catch {
-      // ignore storage errors
-    }
-    setBankBalanceDraft('');
-  }, [balanceStorageKey, reconData?.summary?.saldoBancoCierre]);
-
-  const parsedBankBalance = Number.parseFloat(bankBalanceDraft);
-  const hasCapturedBankBalance = bankBalanceDraft.trim() !== '' && Number.isFinite(parsedBankBalance);
-  const bankStatementBalance = hasCapturedBankBalance ? parsedBankBalance : 0;
-
-  useEffect(() => () => {
-    if (saveClosureTimerRef.current) clearTimeout(saveClosureTimerRef.current);
-  }, []);
-
-  const handleBankBalanceChange = (raw: string) => {
-    if (saveClosureTimerRef.current) {
-      clearTimeout(saveClosureTimerRef.current);
-      saveClosureTimerRef.current = null;
-    }
-    setBankBalanceDraft(raw);
-    try {
-      if (typeof window !== 'undefined') {
-        if (raw.trim() === '') window.localStorage.removeItem(balanceStorageKey);
-        else if (Number.isFinite(Number.parseFloat(raw))) window.localStorage.setItem(balanceStorageKey, raw);
-      }
-    } catch {
-      // ignore storage errors
-    }
-    const numVal = Number.parseFloat(raw);
-    const saveFn = (apiClient as unknown as ExtendedBankApiClient).saveBankClosureBalance;
-    if (raw.trim() === '' || !Number.isFinite(numVal)) {
-      setClosureSaveStatus('idle');
-      return;
-    }
-    if (
-      isSupabaseConfigured &&
-      !isWriteLocked &&
-      typeof saveFn === 'function' &&
-      companyId &&
-      effectiveBankId &&
-      year &&
-      period
-    ) {
-      const reqContext = contextKeyRef.current;
-      setClosureSaveStatus('saving');
-      saveClosureTimerRef.current = setTimeout(() => {
-        void saveFn(companyId, effectiveBankId, year, period, numVal)
-          .then(() => {
-            if (contextKeyRef.current === reqContext) setClosureSaveStatus('saved');
-          })
-          .catch(() => {
-            if (contextKeyRef.current === reqContext) {
-              setClosureSaveStatus('error');
-              toast.error('No se pudo guardar el saldo final del estado de cuenta en la nube.');
-            }
-          });
-      }, 450);
-    }
-  };
+  const {
+    bankBalanceDraft,
+    bankStatementBalance,
+    hasCapturedBankBalance,
+    closureSaveStatus,
+    handleBankBalanceChange
+  } = useBankClosureBalance({
+    companyId,
+    effectiveBankId,
+    year,
+    period,
+    isWriteLocked,
+    reconData
+  });
 
   const manualMatchMutation = useMutation({
     mutationFn: ({ lineId, movementId }: { lineId: string; movementId: string }) => {
@@ -161,7 +93,7 @@ export function useConciliacionTabActions(params: {
     onSuccess: () => {
       setSelectedLineId(null);
       setSelectedBookMovId(null);
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], companyId);
+      invalidateAccountingQueries(queryClient, RECON_INVALIDATION_SCOPES, companyId);
       toast.success('Partida bancaria y movimiento contable conciliados manualmente 1-a-1.');
     },
     onError: (err: Error) => toast.error(err.message)
@@ -178,7 +110,7 @@ export function useConciliacionTabActions(params: {
     },
     onSuccess: () => {
       setSelectedLineId(null);
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], companyId);
+      invalidateAccountingQueries(queryClient, RECON_INVALIDATION_SCOPES, companyId);
       toast.info('Línea bancaria eliminada del estado de cuenta.');
     },
     onError: (err: Error) => toast.error(err.message)
@@ -191,7 +123,11 @@ export function useConciliacionTabActions(params: {
     },
     onSuccess: () => {
       setPolizaModalLine(null);
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'], companyId);
+      invalidateAccountingQueries(
+        queryClient,
+        [...RECON_INVALIDATION_SCOPES, 'polizas', 'accounts', 'account-ledger', 'reports'],
+        companyId
+      );
       toast.success('¡Póliza contable generada con la contracuenta elegida y partida conciliada!');
     },
     onError: (err: Error) => toast.error(err.message)
@@ -226,7 +162,7 @@ export function useConciliacionTabActions(params: {
     setIsApplyingN1(true);
     try {
       const res = await bankN1Client.applyBankN1Matches(companyId, effectiveBankId, n1Proposals, year, period);
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], companyId);
+      invalidateAccountingQueries(queryClient, RECON_INVALIDATION_SCOPES, companyId);
       if (applyReqIdRef.current !== reqId || contextKeyRef.current !== reqContext) return;
       setN1Proposals([]);
       toast.success(`Conciliación múltiple aplicada: ${res.appliedCount} partidas bancarias cruzadas.`);

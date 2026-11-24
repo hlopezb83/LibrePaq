@@ -3,6 +3,7 @@ import type {
   CfdiDocument,
   Company,
   FiscalWorkpaperResponse,
+  Poliza,
   RetencionDesgloseItem,
   TaxParametersRecord,
   ThirdPartyRecord
@@ -11,7 +12,12 @@ import type { AccountingRuleRecord } from '../types/accounting-rules.types';
 import { computeCashBasisFiscalSummary } from './cash-basis-fiscal.engine';
 import { computeFiscalWorkpaper } from './fiscal.engine';
 import {
+  hasUnpaidPpdInvoicesByDirection,
+  isImss216Account,
+  isIvaRetentionAccount,
   isNonCfdiCashDeductionAccount,
+  isPpdPendingRetentionAccount,
+  reconstructGrossIvaAfterProvision,
   resolveOpenUsdPpdCfdis
 } from './fiscal-trial-balance.helper';
 import { fromCents, sumCents, toCents } from './invariants-and-math';
@@ -31,8 +37,21 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
   cfdis: readonly CfdiDocument[];
   rules?: readonly AccountingRuleRecord[];
   thirdParties?: readonly ThirdPartyRecord[];
+  ytdIsrRetenidoCharges?: number;
+  periodPolizas?: readonly Poliza[];
 }): FiscalWorkpaperResponse {
-  const { company, ejercicio, periodo, parameters, trialBalance, cfdis, rules, thirdParties } = params;
+  const {
+    company,
+    ejercicio,
+    periodo,
+    parameters,
+    trialBalance,
+    cfdis,
+    rules,
+    thirdParties,
+    ytdIsrRetenidoCharges,
+    periodPolizas
+  } = params;
 
   const ingresosAccounts = trialBalance.filter((a) => a.isAffectable && a.type === 'INGRESOS');
   const egresosAccounts = trialBalance.filter(
@@ -81,27 +100,15 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
       (sat.startsWith('118') && a.name.toLowerCase().includes('iva'))
     );
   });
-  const isIvaRetentionAcc = (a: AccountWithBalance): boolean => {
-    const sat = (a.satGroupCode ?? '').trim();
-    if (sat === '216.10') return true;
-    if (sat.startsWith('216.') && sat !== '216.10') return false;
-    if (a.code === '216-01-002') return true;
-    const lower = a.name.toLowerCase();
-    return lower.includes('iva') && !lower.includes('isr');
-  };
-  const isImss216Account = (a: AccountWithBalance): boolean => {
-    const sat = (a.satGroupCode ?? '').trim();
-    const lower = a.name.toLowerCase();
-    return sat === '216.11' && (!lower.includes('isr') || lower.includes('imss'));
-  };
   const retention216Accounts = trialBalance.filter(
     (a) =>
       a.isAffectable &&
       (a.code.startsWith('216') || (a.satGroupCode ?? '').startsWith('216')) &&
-      !isImss216Account(a)
+      !isImss216Account(a) &&
+      !isPpdPendingRetentionAccount(a)
   );
-  const accRetIvaList = retention216Accounts.filter(isIvaRetentionAcc);
-  const accRetIsrList = retention216Accounts.filter((a) => !isIvaRetentionAcc(a));
+  const accRetIvaList = retention216Accounts.filter(isIvaRetentionAccount);
+  const accRetIsrList = retention216Accounts.filter((a) => !isIvaRetentionAccount(a));
   const accIsrFavor = trialBalance.find(
     (a) => a.code === '113-02-001' || a.satGroupCode === '113.02'
   );
@@ -121,19 +128,20 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
 
   const esResico = company.regimenFiscal.slice(0, 3) === '626';
   const esResicoPf = esResico && company.rfc.trim().length === 13;
-  const hasUnpaidPpdEmitidos = cfdis.some(
-    (c) => c.statusSat !== 'CANCELADO' && c.direction === 'EMITIDO' && c.metodoPago === 'PPD'
-  );
-  const hasUnpaidPpdRecibidos = cfdis.some(
-    (c) => c.statusSat !== 'CANCELADO' && c.direction === 'RECIBIDO' && c.metodoPago === 'PPD'
-  );
+  const {
+    hasUnpaidEmitidos: hasUnpaidPpdEmitidos,
+    hasUnpaidRecibidos: hasUnpaidPpdRecibidos
+  } = hasUnpaidPpdInvoicesByDirection(cfdis, ejercicio, periodo);
   const useCashFlow =
     cfdis.length > 0 &&
     cashResult.isCashBasisRegime &&
     (cashResult.hasCfdiCashActivity || cashResult.hasUnpaidPpdInScope);
 
-  const tbIvaPagado = fromCents(
-    Math.max(0, sumCents(ivaPagadoAccounts.map((a) => a.periodCharges - a.periodCredits)))
+  const { tbIvaCobrado, tbIvaPagado } = reconstructGrossIvaAfterProvision(
+    trialBalance,
+    ivaCobradoAccounts,
+    ivaPagadoAccounts,
+    periodPolizas
   );
   const prorationFactor = cashResult.ivaBreakdown.prorationFactor;
   const ivaAcreditablePagado =
@@ -151,32 +159,65 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
         }
       : cashResult.ivaBreakdown;
 
-  const tbIvaCobrado = fromCents(
-    Math.max(0, sumCents(ivaCobradoAccounts.map((a) => a.periodCredits - a.periodCharges)))
-  );
   const ivaTrasladadoCobrado =
     useCashFlow && (cashResult.hasEmitidosCashActivity || hasUnpaidPpdEmitidos)
       ? cashResult.ivaTrasladadoCobradoPeriodo
       : tbIvaCobrado;
 
-  const tbIsrFavor = esResicoPf
-    ? (accIsrFavor?.periodCharges ?? 0)
-    : Math.max(accIsrFavor?.periodCharges ?? 0, accIsrFavor?.finalBalance ?? 0);
+  const has113Activity =
+    accIsrFavor !== undefined &&
+    (accIsrFavor.finalBalance > 0 || accIsrFavor.periodCharges > 0 || accIsrFavor.periodCredits > 0);
+  const tbIsrMes = Math.max(0, accIsrFavor?.periodCharges ?? 0);
+  const tbIsrYtd =
+    ytdIsrRetenidoCharges !== undefined
+      ? Math.max(ytdIsrRetenidoCharges, tbIsrMes, accIsrFavor?.finalBalance ?? 0)
+      : Math.max(tbIsrMes, accIsrFavor?.finalBalance ?? 0);
   const cfdiIsrFavorAcum =
     cashResult.cashBasisSummary.isrRetenidoFavorAcumulado ?? cashResult.isrRetenidoFavorAcumulado ?? 0;
-  const isrRetenidoFavorPeriodo = esResicoPf
-    ? (useCashFlow && cashResult.cashBasisSummary.retencionResico125 > 0
-        ? cashResult.cashBasisSummary.retencionResico125
-        : tbIsrFavor)
-    : cfdiIsrFavorAcum > 0
-      ? Math.max(cfdiIsrFavorAcum, tbIsrFavor)
-      : tbIsrFavor;
+  const cfdiIsrFavorMes =
+    cashResult.isrRetenidoFavorMesPeriodo ?? cashResult.cashBasisSummary.retencionResico125;
 
-  const tbIvaFavor = accIvaFavor?.periodCharges ?? 0;
-  const ivaRetenidoFavorPeriodo =
-    useCashFlow && cashResult.ivaRetenidoFavorPeriodo > 0
+  const isrRetenidoFavorPeriodo = esResicoPf
+    ? useCashFlow
+      ? cashResult.cashBasisSummary.retencionResico125 > 0
+        ? cashResult.cashBasisSummary.retencionResico125
+        : hasUnpaidPpdEmitidos
+          ? 0
+          : tbIsrMes
+      : tbIsrMes
+    : useCashFlow
+      ? cfdiIsrFavorAcum > 0
+        ? hasUnpaidPpdEmitidos
+          ? cfdiIsrFavorAcum
+          : Math.max(cfdiIsrFavorAcum, tbIsrYtd)
+        : hasUnpaidPpdEmitidos
+          ? 0
+          : tbIsrYtd
+      : tbIsrYtd;
+
+  const rawIsrMes = esResicoPf
+    ? isrRetenidoFavorPeriodo
+    : useCashFlow
+      ? cfdiIsrFavorMes > 0
+        ? hasUnpaidPpdEmitidos
+          ? cfdiIsrFavorMes
+          : Math.max(cfdiIsrFavorMes, tbIsrMes)
+        : hasUnpaidPpdEmitidos
+          ? 0
+          : tbIsrMes
+      : tbIsrMes;
+  const isrRetenidoMesActual = has113Activity
+    ? fromCents(Math.min(toCents(rawIsrMes), Math.max(0, toCents(accIsrFavor!.finalBalance))))
+    : rawIsrMes;
+
+  const tbIvaFavor = Math.max(0, accIvaFavor?.periodCharges ?? 0);
+  const ivaRetenidoFavorPeriodo = useCashFlow
+    ? cashResult.ivaRetenidoFavorPeriodo > 0
       ? cashResult.ivaRetenidoFavorPeriodo
-      : tbIvaFavor;
+      : hasUnpaidPpdEmitidos
+        ? 0
+        : tbIvaFavor
+    : tbIvaFavor;
 
   const tbIsrPorPagar = fromCents(
     sumCents(accRetIsrList.map((a) => Math.max(0, a.periodCredits)))
@@ -199,7 +240,7 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
   const retencionesDesglose: RetencionDesgloseItem[] = retention216Accounts
     .filter((a) => toCents(a.periodCredits) > 0)
     .map((a) => {
-      const isIva = isIvaRetentionAcc(a);
+      const isIva = isIvaRetentionAccount(a);
       return {
         code: a.code,
         satGroupCode: a.satGroupCode || (isIva ? '216.10' : '216.01'),
@@ -263,6 +304,7 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     isrRetenidoPorPagar,
     ivaRetenidoPorPagar,
     isrRetenidoFavorPeriodo,
+    isrRetenidoMesActual,
     ivaRetenidoFavorPeriodo,
     usdCfdis,
     cashBasisSummary: effectiveCashSummary,

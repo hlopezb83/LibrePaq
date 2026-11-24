@@ -16,8 +16,10 @@ import type {
   ThirdPartyRecord
 } from '../../shared/types';
 import { buildPeriodQuery, fetchWithTimeout, handleResponse } from './api-helpers';
+import { fiscalAndBankExtraApi } from './fiscal-and-bank-extra.api';
 
 export const fiscalAndBankApi = {
+  ...fiscalAndBankExtraApi,
   getDiotReport: (companyId: string, year?: number, period?: number) =>
     fetchWithTimeout(`/api/diot?${buildPeriodQuery(companyId, year, period)}`).then((r) =>
       handleResponse<DiotReportResponse>(r)
@@ -203,8 +205,8 @@ export const fiscalAndBankApi = {
       body: JSON.stringify(payload)
     }).then((r) => handleResponse<ThirdPartyRecord>(r)),
 
-  getFixedAssets: (companyId: string) =>
-    fetchWithTimeout(`/api/fixed-assets?companyId=${encodeURIComponent(companyId)}`).then((r) =>
+  getFixedAssets: (companyId: string, year?: number, period?: number) =>
+    fetchWithTimeout(`/api/fixed-assets?${buildPeriodQuery(companyId, year, period)}`).then((r) =>
       handleResponse<FixedAssetsResponse>(r)
     ),
 
@@ -235,11 +237,11 @@ export const fiscalAndBankApi = {
       method: 'DELETE'
     }).then((r) => handleResponse<{ deleted: boolean }>(r)),
 
-  generateDepreciationPoliza: (companyId: string) =>
+  generateDepreciationPoliza: (companyId: string, year?: number, period?: number) =>
     fetchWithTimeout('/api/fixed-assets/depreciation-poliza', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId })
+      body: JSON.stringify({ companyId, year, period })
     }).then((r) => handleResponse<Poliza>(r)),
 
   getFiscalWorkpaper: (companyId: string, year?: number, period?: number) =>

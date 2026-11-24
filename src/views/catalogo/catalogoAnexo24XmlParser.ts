@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import { fromCents, toCents } from '../../shared/accounting-engine';
+import { SAFETY_BOUNDS } from '../../shared/sat-constants';
 import type { AccountWithBalance } from '../../shared/types';
 import type { CatalogoCsvSkippedRow, ParsedCatalogoCsvRow } from './catalogoCsvIo';
 import {
@@ -7,10 +8,16 @@ import {
   inferNatureFromType,
   inferParentCodeFromSet,
   inferTypeFromCode,
-  isValidMigrationAccountCode,
   normalizeMigrationAccountCode,
   type CatalogoMigrationParseResult
 } from './catalogoMigrationParsers';
+
+function isValidAnexo24AccountCode(code: string): boolean {
+  return (
+    /^[A-Za-z0-9]{1,8}(?:[.-][A-Za-z0-9]{1,8}){1,4}$/.test(code) ||
+    /^[A-Za-z0-9]{2,20}$/.test(code)
+  );
+}
 
 function asArray<T>(val: T | T[] | undefined): T[] {
   if (!val) return [];
@@ -40,7 +47,7 @@ export function parseAnexo24XmlCatalogOrBalanza(
     ctas.forEach((node, idx) => {
       const code = normalizeMigrationAccountCode(String(node['@_NumCta'] ?? ''));
       const name = String(node['@_Desc'] ?? '').trim();
-      if (!isValidMigrationAccountCode(code) || !name) {
+      if (!isValidAnexo24AccountCode(code) || !name) {
         skipped.push({
           lineNumber: idx + 1,
           rawLine: `${code} ${name}`.trim(),
@@ -52,9 +59,10 @@ export function parseAnexo24XmlCatalogOrBalanza(
         ? normalizeMigrationAccountCode(String(node['@_SubCtaDe']))
         : null;
       const nivelNum = Number(node['@_Nivel'] ?? 0);
-      const level = Number.isInteger(nivelNum) && nivelNum >= 1 && nivelNum <= 4
-        ? nivelNum
-        : inferLevelFromCode(code);
+      const level =
+        Number.isInteger(nivelNum) && nivelNum >= 1 && nivelNum <= SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL
+          ? nivelNum
+          : inferLevelFromCode(code);
       const type = inferTypeFromCode(code);
       const nature = inferNatureFromType(type, String(node['@_Natur'] ?? ''));
 
@@ -101,7 +109,7 @@ export function parseAnexo24XmlCatalogOrBalanza(
 
     ctas.forEach((node, idx) => {
       const code = normalizeMigrationAccountCode(String(node['@_NumCta'] ?? ''));
-      if (!isValidMigrationAccountCode(code)) {
+      if (!isValidAnexo24AccountCode(code)) {
         skipped.push({
           lineNumber: idx + 1,
           rawLine: String(node['@_NumCta'] ?? ''),

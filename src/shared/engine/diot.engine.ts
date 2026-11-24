@@ -59,22 +59,33 @@ export function computeDiotReportData({
   trialBalance,
   thirdParties
 }: DiotComputationParams): DiotReportResponse {
+  const targetPeriod = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
   const ppdInvoiceUuids = new Set<string>();
-  const paidDocUuidsInPeriod = new Set<string>();
+  const paidDocUuidsAllUpToPeriod = new Set<string>();
   for (const c of cfdis) {
     if (c.direction !== 'RECIBIDO' || c.statusSat === 'CANCELADO') continue;
     const upperUuid = (c.uuid || '').trim().toUpperCase();
     if (c.metodoPago === 'PPD' && c.tipoComprobante !== 'E' && upperUuid) {
       ppdInvoiceUuids.add(upperUuid);
     }
-    if (c.polizaId && polizaIdsInPeriod.has(c.polizaId)) {
+    const effDate = c.tipoComprobante === 'P' ? (c.fechaPago || c.fecha) : c.fecha;
+    const cal = parseCalendarDate(effDate, ejercicio, targetPeriod);
+    const isPaidUpToPeriod =
+      (c.polizaId && polizaIdsInPeriod.has(c.polizaId)) ||
+      (Boolean(c.polizaId) && (cal.year < ejercicio || (cal.year === ejercicio && cal.month <= targetPeriod)));
+    if (isPaidUpToPeriod) {
       if (c.tipoComprobante === 'P') {
-        if (c.uuidRelacionado) paidDocUuidsInPeriod.add(c.uuidRelacionado.trim().toUpperCase());
+        if (c.uuidRelacionado) {
+          for (const u of c.uuidRelacionado.split(/[\s,;]+/)) {
+            const clean = u.trim().toUpperCase();
+            if (clean) paidDocUuidsAllUpToPeriod.add(clean);
+          }
+        }
         for (const dr of c.relatedDocs ?? []) {
-          if (dr.idDocumento) paidDocUuidsInPeriod.add(dr.idDocumento.trim().toUpperCase());
+          if (dr.idDocumento) paidDocUuidsAllUpToPeriod.add(dr.idDocumento.trim().toUpperCase());
         }
       } else if (c.metodoPago === 'PUE' && c.tipoComprobante !== 'E' && upperUuid) {
-        paidDocUuidsInPeriod.add(upperUuid);
+        paidDocUuidsAllUpToPeriod.add(upperUuid);
       }
     }
   }
@@ -92,11 +103,11 @@ export function computeDiotReportData({
     }
     if (c.tipoComprobante === 'E') {
       if (c.metodoPago === 'PPD') return false;
-      const relList = (c.uuidRelacionado || '')
-        .split(/[\s,;]+/)
-        .map((u) => u.trim().toUpperCase())
-        .filter(Boolean);
-      if (relList.some((u) => ppdInvoiceUuids.has(u) && !paidDocUuidsInPeriod.has(u))) {
+      const relList = [
+        ...(c.uuidRelacionado || '').split(/[\s,;]+/).map((u) => u.trim().toUpperCase()).filter(Boolean),
+        ...(c.relatedDocs ?? []).map((dr) => (dr.idDocumento || '').trim().toUpperCase()).filter(Boolean)
+      ];
+      if (relList.some((u) => ppdInvoiceUuids.has(u) && !paidDocUuidsAllUpToPeriod.has(u))) {
         return false;
       }
       return true;
@@ -139,16 +150,28 @@ export function computeDiotReportData({
 
   const byRfcOp = new Map<string, InternalDiotRow>();
 
+  const normVendor = (s: string) =>
+    s.trim().toUpperCase().replace(/[^A-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const foreignNamesMatch = (a: string, b: string): boolean => {
+    const na = normVendor(a);
+    const nb = normVendor(b);
+    if (!na || !nb) return false;
+    return na === nb || (na.length >= 4 && nb.length >= 4 && (na.includes(nb) || nb.includes(na)));
+  };
+
   for (const doc of paidRecibidos) {
     const rfc = doc.emisorRfc.trim().toUpperCase();
     const docNameUpper = doc.emisorNombre.trim().toUpperCase();
     const isGenericForeignRfc = rfc === 'XEXX010101000' || rfc.startsWith('XEXX');
     const matchedForeignTp = isGenericForeignRfc
       ? foreignThirdParties.find(
-          (tp) => tp.rfc.trim().toUpperCase() === rfc && tp.nombre.trim().toUpperCase() === docNameUpper
-        ) ?? (foreignThirdParties.length === 1 ? foreignThirdParties[0] : undefined)
+          (tp) => tp.rfc.trim().toUpperCase() === rfc && normVendor(tp.nombre) === normVendor(doc.emisorNombre)
+        ) ??
+        (foreignThirdParties.length === 1 && foreignNamesMatch(foreignThirdParties[0]!.nombre, doc.emisorNombre)
+          ? foreignThirdParties[0]
+          : undefined)
       : undefined;
-    const thirdParty = matchedForeignTp ?? thirdPartyByRfc.get(rfc);
+    const thirdParty = isGenericForeignRfc ? matchedForeignTp : thirdPartyByRfc.get(rfc);
     const tpOpt = thirdParty;
     const concLower = doc.conceptoPrincipal.toLowerCase();
     let tipoOperacion: '03' | '06' | '85' = thirdParty?.tipoOperacionDiot ?? '85';

@@ -61,34 +61,60 @@ export interface Sat69BMeta {
   updatedAt: string;
 }
 
+export function normalizeRfc69BKey(rfc: string): string {
+  return String(rfc || '').trim().toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
+}
+
 let cached69bDb: Map<string, Sat69BRecord> | null = null;
+let hasReal69bListLoaded = false;
 
 export function reset69BDatabaseCache(): void {
   cached69bDb = null;
+  hasReal69bListLoaded = false;
 }
 
 /**
- * Carga el registro de EFOS desde localStorage complementado con la base inicial
+ * Carga el registro de EFOS desde localStorage, usando la base inicial de muestra
+ * únicamente mientras no exista un padrón SAT real cargado.
  */
 export function getLoaded69BDatabase(): Map<string, Sat69BRecord> {
   if (cached69bDb) return cached69bDb;
 
   const db = new Map<string, Sat69BRecord>();
-  for (const item of INITIAL_EFOS_DATABASE) {
-    db.set(item.rfc, item);
-  }
+  let loadedFromStorage = false;
 
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: Sat69BRecord[] = JSON.parse(stored);
-        for (const item of parsed) {
-          db.set(item.rfc, item);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          loadedFromStorage = true;
+          hasReal69bListLoaded = true;
+          for (const item of parsed) {
+            const key = normalizeRfc69BKey(item?.rfc || '');
+            if (key) db.set(key, { ...item, rfc: key });
+          }
+        }
+      }
+      if (!loadedFromStorage) {
+        const metaRaw = window.localStorage.getItem(META_STORAGE_KEY);
+        if (metaRaw) {
+          const meta = JSON.parse(metaRaw) as Sat69BMeta;
+          if (meta && meta.totalCount > 0) {
+            hasReal69bListLoaded = true;
+          }
         }
       }
     } catch {
       // Ignorar errores de deserialización
+    }
+  }
+
+  if (!loadedFromStorage && !hasReal69bListLoaded) {
+    for (const item of INITIAL_EFOS_DATABASE) {
+      const key = normalizeRfc69BKey(item.rfc);
+      if (key) db.set(key, { ...item, rfc: key });
     }
   }
 
@@ -106,9 +132,11 @@ export function save69BDatabase(
 ): void {
   const map = new Map<string, Sat69BRecord>();
   for (const r of records) {
-    if (r?.rfc) map.set(r.rfc.trim().toUpperCase(), r);
+    const key = normalizeRfc69BKey(r?.rfc || '');
+    if (key) map.set(key, { ...r, rfc: key });
   }
   cached69bDb = map;
+  hasReal69bListLoaded = true;
 
   if (typeof window === 'undefined' || !window.localStorage) return;
   const now = new Date().toISOString();
@@ -136,7 +164,7 @@ export function save69BDatabase(
     } catch {
       // Ignorar si meta tampoco cabe
     }
-    console.warn('[SAT 69-B] Cuota de almacenamiento local excedida; caché local omitido sin truncar silenciosamente:', err);
+    console.warn('[SAT 69-B] Cuota de almacenamiento local excedida; padrón completo preservado en memoria:', err);
   }
 }
 
@@ -164,29 +192,41 @@ export function merge69BCloudMatches(
   if (!matches || matches.length === 0) return;
   const db = getLoaded69BDatabase();
   for (const m of matches) {
-    const cleanRfc = String(m.rfc || '').trim().toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
+    const cleanRfc = normalizeRfc69BKey(m.rfc);
     if (!cleanRfc) continue;
     const upperSit = String(m.situacion || '').toUpperCase();
-    const situacion: Sat69BRecord['situacion'] = upperSit.includes('DEFINITIV')
+    const situacion: Sat69BRecord['situacion'] | null = upperSit.includes('DEFINITIV')
       ? 'DEFINITIVO'
       : upperSit.includes('DESVIRTUAD')
         ? 'DESVIRTUADO'
         : upperSit.includes('FAVORABLE') || upperSit.includes('SENTENCIA')
           ? 'FAVORABLE'
-          : 'PRESUNTO';
+          : upperSit.includes('PRESUNT')
+            ? 'PRESUNTO'
+            : null;
+    if (!situacion && !m.estatus69b) continue;
+    const resolvedSituacion: Sat69BRecord['situacion'] =
+      situacion ??
+      (m.estatus69b === 'DEFINITIVO_EFOS'
+        ? 'DEFINITIVO'
+        : m.estatus69b === 'DESVIRTUADO'
+          ? 'DESVIRTUADO'
+          : m.estatus69b === 'LIMPIO'
+            ? 'FAVORABLE'
+            : 'PRESUNTO');
     const status: Efos69BStatus =
       m.estatus69b ||
-      (situacion === 'DEFINITIVO'
+      (resolvedSituacion === 'DEFINITIVO'
         ? 'DEFINITIVO_EFOS'
-        : situacion === 'DESVIRTUADO'
+        : resolvedSituacion === 'DESVIRTUADO'
           ? 'DESVIRTUADO'
-          : situacion === 'FAVORABLE'
+          : resolvedSituacion === 'FAVORABLE'
             ? 'LIMPIO'
             : 'PRESUNTO_EFOS');
     db.set(cleanRfc, {
       rfc: cleanRfc,
       nombre: m.nombre || '',
-      situacion,
+      situacion: resolvedSituacion,
       status,
       ...(m.fechaOficio ? { fechaOficio: m.fechaOficio } : {}),
       ...(m.publicacionDof ? { publicacionDof: m.publicacionDof } : {})
@@ -202,7 +242,7 @@ export function checkRfc69BStatus(rfc: string): {
   status: Efos69BStatus;
   record?: Sat69BRecord;
 } {
-  const cleanRfc = rfc.trim().toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
+  const cleanRfc = normalizeRfc69BKey(rfc);
   const db = getLoaded69BDatabase();
   const found = db.get(cleanRfc);
 

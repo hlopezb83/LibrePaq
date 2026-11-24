@@ -16,10 +16,6 @@ export function closeYearPolizaTransaction(
   let utilidadTraspasada = 0;
 
   const tx = db.transaction(() => {
-    if (switchToPeriod13) {
-      db.prepare('UPDATE companies SET current_period = 13 WHERE id = ?').run(companyId);
-    }
-
     // Preservar pólizas manuales/ajuste en Periodo 13: borrar únicamente pólizas previas de CIERRE_ANUAL
     db.prepare(
       "DELETE FROM polizas WHERE company_id = ? AND ejercicio = ? AND periodo = 13 AND origin = 'CIERRE_ANUAL'"
@@ -64,6 +60,10 @@ export function closeYearPolizaTransaction(
         m.abono,
         null
       );
+    }
+
+    if (switchToPeriod13) {
+      db.prepare('UPDATE companies SET current_period = 13 WHERE id = ?').run(companyId);
     }
   });
 

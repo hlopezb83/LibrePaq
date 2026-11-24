@@ -104,7 +104,7 @@ function parseXmlTree(xmlRaw: string): XmlElementNode {
     .replace(/<\?[\s\S]*?\?>/g, '');
   const root: XmlElementNode = { name: '__root__', attrs: {}, children: [] };
   const stack: XmlElementNode[] = [root];
-  const tagRegex = /<(\/?)([A-Za-z_][\w:.-]*)((?:\s+[^<>]*?)?)(\/?)>/g;
+  const tagRegex = /<(\/?)([A-Za-z_][\w:.-]*)((?:\s+(?:"[^"]*"|'[^']*'|[^<>"'/])*)?)(\/?)>/g;
   let m: RegExpExecArray | null;
 
   while ((m = tagRegex.exec(cleaned)) !== null) {

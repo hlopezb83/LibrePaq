@@ -13,7 +13,7 @@ import type {
   Poliza,
   PolizaType
 } from '../../shared/types';
-import { getGuestDemoState } from './guest-demo-store';
+import { assertDemoPeriodOpen, getGuestDemoState } from './guest-demo-store';
 
 export const guestDemoPolizasCfdi = {
   async getPolizas(companyId: string, year?: number, period?: number | 'ALL'): Promise<Poliza[]> {
@@ -42,11 +42,27 @@ export const guestDemoPolizasCfdi = {
     }
     const pFrom = Math.max(1, payload.periodFrom ?? 1);
     const pTo = Math.min(13, payload.periodTo ?? 13);
+
+    const matchingPolizas = s.polizas.filter(
+      (pol) =>
+        pol.companyId === payload.companyId &&
+        pol.ejercicio === payload.ejercicio &&
+        pol.periodo >= pFrom &&
+        pol.periodo <= pTo &&
+        pol.movements.some((m) => m.accountId === fromAcc.id)
+    );
+
+    const checkedPeriods = new Set<number>();
+    for (const pol of matchingPolizas) {
+      if (!checkedPeriods.has(pol.periodo)) {
+        checkedPeriods.add(pol.periodo);
+        assertDemoPeriodOpen(payload.companyId, payload.ejercicio, pol.periodo);
+      }
+    }
+
     let updatedMovementsCount = 0;
     const affectedPolizas = new Set<string>();
-    for (const pol of s.polizas) {
-      if (pol.companyId !== payload.companyId || pol.ejercicio !== payload.ejercicio) continue;
-      if (pol.periodo < pFrom || pol.periodo > pTo) continue;
+    for (const pol of matchingPolizas) {
       for (const m of pol.movements) {
         if (m.accountId === fromAcc.id) {
           m.accountId = toAcc.id;
@@ -66,6 +82,7 @@ export const guestDemoPolizasCfdi = {
     fecha: string;
     concepto: string;
     cfdiUuid?: string | null;
+    cfdiUuids?: string[];
     origin?: 'MANUAL' | 'ADD_AUTO';
     ejercicio?: number;
     periodo?: number;
@@ -75,6 +92,8 @@ export const guestDemoPolizasCfdi = {
     const resolved = resolvePolizaYearPeriod(payload.fecha, payload.periodo);
     const year = payload.ejercicio || resolved.ejercicio;
     const period = resolved.periodo;
+    assertDemoPeriodOpen(payload.companyId, year, period);
+
     const accMap = new Map(s.accounts.filter((a) => a.companyId === payload.companyId).map((a) => [a.id, a]));
     validateDoubleEntryMovements(payload.movements, accMap);
     const folio = s.polizas.filter((p) => p.companyId === payload.companyId && p.tipo === payload.tipo && p.ejercicio === year && p.periodo === period).length + 1;
@@ -91,10 +110,11 @@ export const guestDemoPolizasCfdi = {
       periodo: period,
       concepto: payload.concepto,
       cfdiUuid: payload.cfdiUuid || null,
+      cfdiUuids: payload.cfdiUuids,
       origin: payload.origin || 'MANUAL',
       totalCargos: totC,
       totalAbonos: totA,
-      isBalanced: true,
+      isBalanced: toCents(totC) === toCents(totA),
       createdAt: new Date().toISOString(),
       movements: payload.movements.map((m, i) => {
         const acc = accMap.get(m.accountId);
@@ -116,16 +136,98 @@ export const guestDemoPolizasCfdi = {
     return pol;
   },
 
-  async updatePoliza(polizaId: string, payload: Partial<Poliza>): Promise<{ updated: boolean }> {
+  async updatePoliza(
+    polizaId: string,
+    payload: Partial<Poliza> & { periodo?: number | null }
+  ): Promise<{ updated: boolean }> {
     const s = getGuestDemoState();
     const pol = s.polizas.find((p) => p.id === polizaId);
     if (!pol) throw new Error('Póliza no encontrada');
-    Object.assign(pol, payload);
+
+    assertDemoPeriodOpen(pol.companyId, pol.ejercicio, pol.periodo);
+
+    const nextFecha = payload.fecha ?? pol.fecha;
+    const resolved = resolvePolizaYearPeriod(
+      nextFecha,
+      payload.periodo !== undefined ? payload.periodo : pol.periodo,
+      pol.ejercicio,
+      pol.periodo
+    );
+    const nextYear = payload.ejercicio ?? resolved.ejercicio;
+    const nextPeriod = resolved.periodo;
+    if (nextYear !== pol.ejercicio || nextPeriod !== pol.periodo) {
+      assertDemoPeriodOpen(pol.companyId, nextYear, nextPeriod);
+    }
+
+    const accMap = new Map(
+      s.accounts.filter((a) => a.companyId === pol.companyId).map((a) => [a.id, a])
+    );
+    const rawMovements = payload.movements ?? pol.movements;
+    validateDoubleEntryMovements(rawMovements, accMap);
+
+    const nextTipo = payload.tipo ?? pol.tipo;
+    const nextConcepto = payload.concepto ?? pol.concepto;
+    const nextCfdiUuid = payload.cfdiUuid !== undefined ? (payload.cfdiUuid || null) : pol.cfdiUuid;
+    const nextMovements = rawMovements.map((m, i) => {
+      const acc = accMap.get(m.accountId);
+      return {
+        id: 'id' in m && m.id ? m.id : `mov_${pol.id}_${i + 1}`,
+        polizaId: pol.id,
+        accountId: m.accountId,
+        accountCode: m.accountCode || acc?.code || '',
+        accountName: m.accountName || acc?.name || '',
+        referencia: m.referencia || '',
+        concepto: m.concepto || nextConcepto,
+        cargo: Number(m.cargo || 0),
+        abono: Number(m.abono || 0),
+        cfdiUuid: m.cfdiUuid ?? nextCfdiUuid ?? null
+      };
+    });
+
+    const totC = fromCents(nextMovements.reduce((acc, m) => acc + toCents(m.cargo), 0));
+    const totA = fromCents(nextMovements.reduce((acc, m) => acc + toCents(m.abono), 0));
+    const linkedUuids = new Set<string>(
+      [
+        ...(payload.cfdiUuids ?? pol.cfdiUuids ?? []),
+        ...(nextCfdiUuid ? [nextCfdiUuid] : []),
+        ...nextMovements.map((m) => m.cfdiUuid || '').filter(Boolean)
+      ].map((u) => u.trim().toUpperCase())
+    );
+
+    pol.tipo = nextTipo;
+    pol.fecha = resolved.isoDate;
+    pol.ejercicio = nextYear;
+    pol.periodo = nextPeriod;
+    pol.concepto = nextConcepto;
+    pol.cfdiUuid = nextCfdiUuid;
+    pol.cfdiUuids = Array.from(linkedUuids);
+    pol.movements = nextMovements;
+    pol.totalCargos = totC;
+    pol.totalAbonos = totA;
+    pol.isBalanced = toCents(totC) === toCents(totA);
+
+    const nextFolioLabel = `${pol.tipo.slice(0, 3)}-${pol.folio}`;
+    for (const c of s.cfdis) {
+      if (c.companyId !== pol.companyId) continue;
+      const isLinked = linkedUuids.has(c.uuid.trim().toUpperCase());
+      if (c.polizaId === pol.id && !isLinked) {
+        c.polizaId = null;
+        c.polizaFolio = null;
+      } else if (isLinked) {
+        c.polizaId = pol.id;
+        c.polizaFolio = nextFolioLabel;
+      }
+    }
+
     return { updated: true };
   },
 
   async deletePoliza(polizaId: string): Promise<{ deleted: boolean }> {
     const s = getGuestDemoState();
+    const target = s.polizas.find((p) => p.id === polizaId);
+    if (target) {
+      assertDemoPeriodOpen(target.companyId, target.ejercicio, target.periodo);
+    }
     s.polizas = s.polizas.filter((p) => p.id !== polizaId);
     s.cfdis.forEach((c) => {
       if (c.polizaId === polizaId) {
@@ -148,39 +250,18 @@ export const guestDemoPolizasCfdi = {
     for (const xml of xmlStrings) {
       const p = parseCfdiXmlString(xml);
       if (s.cfdis.some((c) => c.companyId === companyId && c.uuid === p.uuid)) continue;
-      const doc: CfdiDocument = {
-        id: `cfdi_${crypto.randomUUID().slice(0, 10)}`,
-        companyId,
-        uuid: p.uuid,
-        fecha: p.fecha,
-        tipoComprobante: p.tipoComprobante,
+    const doc: CfdiDocument = {
+        id: `cfdi_${crypto.randomUUID().slice(0, 10)}`, companyId, uuid: p.uuid, fecha: p.fecha,
+        fechaPago: p.fechaPago ?? null, tipoComprobante: p.tipoComprobante,
         direction: p.emisorRfc.toUpperCase() === comp.rfc.toUpperCase() ? 'EMITIDO' : 'RECIBIDO',
-        serie: p.serie,
-        folio: p.folio,
-        emisorRfc: p.emisorRfc,
-        emisorNombre: p.emisorNombre,
-        receptorRfc: p.receptorRfc,
-        receptorNombre: p.receptorNombre,
-        conceptoPrincipal: p.conceptoPrincipal,
-        claveProdServ: p.claveProdServ,
-        moneda: p.moneda,
-        tipoCambio: p.tipoCambio,
-        subtotal: p.subtotal,
-        descuento: p.descuento,
-        ivaTrasladado: p.ivaTrasladado,
-        isrRetenido: p.isrRetenido,
-        ivaRetenido: p.ivaRetenido,
-        total: p.total,
-        metodoPago: p.metodoPago,
-        formaPago: p.formaPago,
-        usoCfdi: p.usoCfdi,
-        uuidRelacionado: p.uuidRelacionado,
-        statusSat: 'VIGENTE',
-        polizaId: null,
-        polizaFolio: null,
-        xmlRaw: xml,
-        taxBreakdown: p.taxBreakdown ?? null,
-        relatedDocs: p.relatedDocs ?? null
+        serie: p.serie, folio: p.folio, emisorRfc: p.emisorRfc, emisorNombre: p.emisorNombre,
+        receptorRfc: p.receptorRfc, receptorNombre: p.receptorNombre, conceptoPrincipal: p.conceptoPrincipal,
+        claveProdServ: p.claveProdServ, moneda: p.moneda, tipoCambio: p.tipoCambio, subtotal: p.subtotal,
+        descuento: p.descuento, ivaTrasladado: p.ivaTrasladado, isrRetenido: p.isrRetenido,
+        ivaRetenido: p.ivaRetenido, total: p.total, metodoPago: p.metodoPago, formaPago: p.formaPago,
+        usoCfdi: p.usoCfdi, uuidRelacionado: p.uuidRelacionado, statusSat: 'VIGENTE',
+        polizaId: null, polizaFolio: null, xmlRaw: xml,
+        taxBreakdown: p.taxBreakdown ?? null, relatedDocs: p.relatedDocs ?? null
       };
       s.cfdis.unshift(doc);
       uploaded.push(doc);
@@ -223,11 +304,29 @@ export const guestDemoPolizasCfdi = {
     return pol;
   },
 
-  async batchAutoPolizaFromCfdis(cfdiIds: string[]) {
-    const results: Poliza[] = [];
+  async batchAutoPolizaFromCfdis(
+    cfdiIds: string[],
+    options?: { operationAccountCode?: string; counterAccountCode?: string; deductiblePct?: number }
+  ): Promise<{
+    createdPolizas: Poliza[];
+    count: number;
+    failedCount: number;
+    errors: Array<{ cfdiId: string; error: string }>;
+  }> {
+    const createdPolizas: Poliza[] = [];
+    const errors: Array<{ cfdiId: string; error: string }> = [];
     for (const id of cfdiIds) {
-      results.push(await this.autoPolizaFromCfdi(id));
+      try {
+        createdPolizas.push(await this.autoPolizaFromCfdi(id, options));
+      } catch (err) {
+        errors.push({ cfdiId: id, error: err instanceof Error ? err.message : String(err) });
+      }
     }
-    return { createdCount: results.length, polizas: results };
+    return {
+      createdPolizas,
+      count: createdPolizas.length,
+      failedCount: errors.length,
+      errors
+    };
   }
 };

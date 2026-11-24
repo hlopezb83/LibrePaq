@@ -103,14 +103,15 @@ export async function isWorkspaceSocio(
   if (wsId === ctx.userId || wsId === ctx.defaultWsId) return true;
   const { data } = await supabase
     .from('workspace_members')
-    .select('id, user_id, email')
+    .select('id, user_id, email, access_scope')
     .eq('workspace_id', wsId)
     .eq('status', 'ACTIVO')
     .eq('role', 'SOCIO');
   return (data || []).some(
     (m) =>
-      m.user_id === ctx.userId ||
-      (!m.user_id && ctx.email !== '' && String(m.email || '').trim().toLowerCase() === ctx.email)
+      String(m.access_scope || 'ALL_COMPANIES').toUpperCase() === 'ALL_COMPANIES' &&
+      (m.user_id === ctx.userId ||
+        (!m.user_id && ctx.email !== '' && String(m.email || '').trim().toLowerCase() === ctx.email))
   );
 }
 

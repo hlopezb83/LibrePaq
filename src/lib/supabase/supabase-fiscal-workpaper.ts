@@ -13,6 +13,7 @@ import type {
   TaxParametersRecord
 } from '../../shared/types';
 import { logCompanyAuditEvent } from './audit-logger';
+import { supabaseAccountingRules } from './supabase-accounting-rules';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { supabaseCfdi } from './supabase-cfdi';
 import { supabaseFiscalAndAssets } from './supabase-fiscal-assets';
@@ -151,12 +152,35 @@ export const supabaseFiscalWorkpaper = {
     const ejercicio = year || company.currentYear || 2026;
     const periodo = period || company.currentPeriod || 10;
 
-    const [parameters, trialBalance, cfdis, thirdParties] = await Promise.all([
+    const [parameters, trialBalance, cfdis, thirdParties, rules, periodPolizas] = await Promise.all([
       this.getTaxParameters(company.id, ejercicio, periodo),
       supabaseCompaniesAndAccounts.getAccounts(company.id, ejercicio, periodo),
       supabaseCfdi.getCfdis(company.id),
-      supabaseFiscalAndAssets.getThirdParties(company.id)
+      supabaseFiscalAndAssets.getThirdParties(company.id),
+      supabaseAccountingRules.listAccountingRules(company.id),
+      supabasePolizas.getPolizas(company.id, ejercicio, periodo)
     ]);
+
+    const cutoffPeriod = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
+    const isrFavorIds = trialBalance
+      .filter((a) => a.isAffectable && (a.code === '113-02-001' || a.satGroupCode === '113.02'))
+      .map((a) => a.id);
+    let ytdIsrRetenidoCharges = 0;
+    if (supabase && isrFavorIds.length > 0) {
+      const { data: ytdMovs } = await supabase
+        .from('poliza_movements')
+        .select('cargo, polizas!inner(company_id, ejercicio, periodo)')
+        .in('account_id', isrFavorIds)
+        .eq('polizas.company_id', company.id)
+        .eq('polizas.ejercicio', ejercicio)
+        .gte('polizas.periodo', 1)
+        .lte('polizas.periodo', cutoffPeriod);
+      const ytdCents = (ytdMovs ?? []).reduce(
+        (sum, r) => sum + Math.max(0, toCents(Number((r as { cargo?: number }).cargo ?? 0))),
+        0
+      );
+      ytdIsrRetenidoCharges = fromCents(ytdCents);
+    }
 
     return computeFiscalWorkpaperFromTrialBalance({
       company,
@@ -165,7 +189,10 @@ export const supabaseFiscalWorkpaper = {
       parameters,
       trialBalance,
       cfdis,
-      thirdParties
+      rules,
+      thirdParties,
+      ytdIsrRetenidoCharges,
+      periodPolizas
     });
   },
 
@@ -224,6 +251,21 @@ export const supabaseFiscalWorkpaper = {
     if (!company) throw new Error(`Empresa no encontrada: ${companyId || 'sin ID'}`);
     const ejercicio = year || company.currentYear || 2026;
     const periodo = period || company.currentPeriod || 10;
+
+    const existingPolizas = await supabasePolizas.getPolizas(companyId, ejercicio, periodo);
+    const hasExchangePoliza = existingPolizas.some((p) => {
+      const lower = p.concepto.toLowerCase();
+      return (
+        lower.includes('fluctuación cambiaria') ||
+        lower.includes('fluctuacion cambiaria') ||
+        p.movements.some((m) => m.referencia.startsWith('TC-DOF-'))
+      );
+    });
+    if (hasExchangePoliza) {
+      throw new Error(
+        `Ya existe una póliza de fluctuación cambiaria USD registrada para ${ejercicio}-${String(periodo).padStart(2, '0')}. Elimínala antes de regenerar.`
+      );
+    }
 
     const wp = await this.getFiscalWorkpaper(companyId, ejercicio, periodo);
     const accounts = await supabaseCompaniesAndAccounts.getAccounts(companyId, ejercicio, periodo);

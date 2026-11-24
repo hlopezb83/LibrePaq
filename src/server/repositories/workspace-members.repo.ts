@@ -28,6 +28,49 @@ const VALID_ROLES = new Set<string>(DESPACHO_ROLES);
 /** Crea de forma idempotente las tablas y los índices RBAC de despacho en SQLite. */
 export function ensureDespachoRbacTables(targetDb: Database = db): void {
   targetDb.exec(DESPACHO_RBAC_DDL);
+  const cols = targetDb.query('PRAGMA table_info(workspace_members)').all() as Array<{ name: string }>;
+  if (cols.length > 0 && !cols.some((c) => c.name === 'access_scope')) {
+    targetDb.exec(
+      "ALTER TABLE workspace_members ADD COLUMN access_scope TEXT NOT NULL DEFAULT 'ALL_COMPANIES';"
+    );
+  }
+  targetDb.exec(`
+    UPDATE workspace_members
+    SET access_scope = 'RESTRICTED'
+    WHERE access_scope != 'RESTRICTED'
+      AND (
+        role = 'CLIENTE_LECTURA'
+        OR EXISTS (SELECT 1 FROM company_member_access cma WHERE cma.member_id = workspace_members.id)
+      );
+  `);
+}
+
+function assertCompaniesBelongToWorkspaceRepo(workspaceId: string, companyIds: string[]): void {
+  if (companyIds.length === 0) return;
+  for (const cid of companyIds) {
+    const comp = db
+      .query('SELECT id, user_id FROM companies WHERE id = ?')
+      .get(cid) as { id: string; user_id: string | null } | null;
+    if (!comp) {
+      throw new Error('Una o más empresas seleccionadas no existen.');
+    }
+    const uid = comp.user_id ? comp.user_id.trim() : '';
+    const isDemoComp = !uid || uid === 'demo';
+    const belongs = isDemoComp
+      ? workspaceId === 'ws_demo'
+      : uid === workspaceId ||
+        `ws_${uid.slice(0, 8)}` === workspaceId ||
+        Boolean(
+          db
+            .query(
+              "SELECT 1 FROM workspace_members WHERE workspace_id = ? AND status = 'ACTIVO' AND role IN ('SOCIO', 'CONTADOR') AND user_id = ?"
+            )
+            .get(workspaceId, uid)
+        );
+    if (!belongs) {
+      throw new Error('No tienes autorización sobre una o más empresas seleccionadas en este despacho.');
+    }
+  }
 }
 
 function listAccessByMember(memberIds: string[]): Map<string, AccessDbRow[]> {
@@ -64,6 +107,11 @@ export function inviteWorkspaceMemberRepo(payload: InviteMemberPayload): Workspa
   const now = new Date().toISOString();
   const invitedBy = (payload.invitedBy || 'socio@despacho.local').trim();
   const companyIds = Array.from(new Set((payload.companyIds ?? []).map((c) => c.trim()).filter(Boolean)));
+  if (payload.role === 'CLIENTE_LECTURA' && companyIds.length === 0) {
+    throw new Error('Debes asignar al menos una empresa explícita al invitar a un usuario CLIENTE_LECTURA.');
+  }
+  assertCompaniesBelongToWorkspaceRepo(wsId, companyIds);
+  const accessScope = companyIds.length > 0 || payload.role === 'CLIENTE_LECTURA' ? 'RESTRICTED' : 'ALL_COMPANIES';
 
   const memberId = db.transaction(() => {
     const existing = db
@@ -75,17 +123,17 @@ export function inviteWorkspaceMemberRepo(payload: InviteMemberPayload): Workspa
         throw new Error('Este correo ya tiene una membresía o invitación activa en el despacho.');
       }
       db.prepare(
-        "UPDATE workspace_members SET role = ?, status = 'INVITADO', invited_by = ?, updated_at = ? WHERE id = ?"
-      ).run(payload.role, invitedBy, now, existing.id);
+        "UPDATE workspace_members SET role = ?, access_scope = ?, status = 'INVITADO', invited_by = ?, updated_at = ? WHERE id = ?"
+      ).run(payload.role, accessScope, invitedBy, now, existing.id);
       id = existing.id;
     } else {
       db.prepare(
-        `INSERT INTO workspace_members (id, workspace_id, user_id, email, role, status, invited_by, created_at, updated_at)
-         VALUES (?, ?, NULL, ?, ?, 'INVITADO', ?, ?, ?)`
-      ).run(id, wsId, email, payload.role, invitedBy, now, now);
+        `INSERT INTO workspace_members (id, workspace_id, user_id, email, role, access_scope, status, invited_by, created_at, updated_at)
+         VALUES (?, ?, NULL, ?, ?, ?, 'INVITADO', ?, ?, ?)`
+      ).run(id, wsId, email, payload.role, accessScope, invitedBy, now, now);
     }
+    db.prepare('DELETE FROM company_member_access WHERE member_id = ?').run(id);
     if (companyIds.length > 0) {
-      db.prepare('DELETE FROM company_member_access WHERE member_id = ?').run(id);
       const ins = db.prepare(
         'INSERT INTO company_member_access (id, company_id, member_id, user_id, role_override, created_at) VALUES (?, ?, ?, ?, NULL, ?)'
       );
@@ -108,13 +156,20 @@ export function updateWorkspaceMemberRoleRepo(
 ): WorkspaceMemberRecord {
   ensureDespachoRbacTables(db);
   if (!VALID_ROLES.has(role)) throw new Error('Rol de despacho inválido.');
-  const now = new Date().toISOString();
-  const res = db
-    .prepare('UPDATE workspace_members SET role = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
-    .run(role, now, memberId, workspaceId);
-  if (res.changes === 0) throw new Error('Miembro no encontrado en el despacho.');
-  const row = db.query('SELECT * FROM workspace_members WHERE id = ?').get(memberId) as MemberDbRow;
+  const existing = db
+    .query('SELECT * FROM workspace_members WHERE id = ? AND workspace_id = ?')
+    .get(memberId, workspaceId) as MemberDbRow | null;
+  if (!existing) throw new Error('Miembro no encontrado en el despacho.');
+
   const access = db.query('SELECT * FROM company_member_access WHERE member_id = ?').all(memberId) as AccessDbRow[];
+  if (role === 'CLIENTE_LECTURA' && access.length === 0) {
+    throw new Error('Debes asignar al menos una empresa antes de cambiar el rol a CLIENTE_LECTURA.');
+  }
+  const accessScope = access.length > 0 || role === 'CLIENTE_LECTURA' ? 'RESTRICTED' : 'ALL_COMPANIES';
+  const now = new Date().toISOString();
+  db.prepare('UPDATE workspace_members SET role = ?, access_scope = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+    .run(role, accessScope, now, memberId, workspaceId);
+  const row = db.query('SELECT * FROM workspace_members WHERE id = ?').get(memberId) as MemberDbRow;
   return mapMemberRow(row, access);
 }
 
@@ -140,6 +195,12 @@ export function assignCompanyAccessRepo(payload: AssignCompanyAccessPayload): Co
 
   const now = new Date().toISOString();
   const cids = Array.from(new Set(payload.companyIds.map((c) => c.trim()).filter(Boolean)));
+  if (member.role === 'CLIENTE_LECTURA' && cids.length === 0) {
+    throw new Error('Un usuario CLIENTE_LECTURA requiere al menos una empresa asignada.');
+  }
+  assertCompaniesBelongToWorkspaceRepo(payload.workspaceId, cids);
+  const accessScope = cids.length > 0 || member.role === 'CLIENTE_LECTURA' ? 'RESTRICTED' : 'ALL_COMPANIES';
+
   db.transaction(() => {
     db.prepare('DELETE FROM company_member_access WHERE member_id = ?').run(member.id);
     const ins = db.prepare(
@@ -148,6 +209,11 @@ export function assignCompanyAccessRepo(payload: AssignCompanyAccessPayload): Co
     for (const cid of cids) {
       ins.run(`cma_${crypto.randomUUID().slice(0, 12)}`, cid, member.id, member.user_id ?? null, payload.roleOverride ?? null, now);
     }
+    db.prepare('UPDATE workspace_members SET access_scope = ?, updated_at = ? WHERE id = ?').run(
+      accessScope,
+      now,
+      member.id
+    );
   })();
 
   const rows = db.query('SELECT * FROM company_member_access WHERE member_id = ? ORDER BY created_at ASC').all(member.id) as AccessDbRow[];
@@ -209,9 +275,15 @@ export function isWorkspaceSocioRepo(workspaceId: string, userId?: string | null
   if (workspaceId === userId || workspaceId === `ws_${userId.slice(0, 8)}`) return true;
   const email = (userEmail || '').trim().toLowerCase();
   const rows = db
-    .query("SELECT id, user_id, email FROM workspace_members WHERE workspace_id = ? AND status = 'ACTIVO' AND role = 'SOCIO'")
-    .all(workspaceId) as Array<{ id: string; user_id: string | null; email: string }>;
-  return rows.some((r) => r.user_id === userId || (!r.user_id && email !== '' && r.email.toLowerCase() === email));
+    .query(
+      "SELECT id, user_id, email, access_scope FROM workspace_members WHERE workspace_id = ? AND status = 'ACTIVO' AND role = 'SOCIO'"
+    )
+    .all(workspaceId) as Array<{ id: string; user_id: string | null; email: string; access_scope?: string | null }>;
+  return rows.some(
+    (r) =>
+      (r.access_scope ?? 'ALL_COMPANIES') === 'ALL_COMPANIES' &&
+      (r.user_id === userId || (!r.user_id && email !== '' && r.email.toLowerCase() === email))
+  );
 }
 
 export function getEffectiveCompanyRoleRepo(
@@ -229,18 +301,27 @@ export function getEffectiveCompanyRoleRepo(
   const email = (userEmail || '').trim().toLowerCase();
   if (userId || email) {
     const activeMembers = db
-      .query("SELECT * FROM workspace_members WHERE status = 'ACTIVO' AND (user_id = ? OR (? <> '' AND lower(email) = ?))")
-      .all(userId ?? '', email, email) as MemberDbRow[];
+      .query(
+        "SELECT * FROM workspace_members WHERE status = 'ACTIVO' AND ((? <> '' AND user_id = ?) OR (user_id IS NULL AND ? <> '' AND lower(email) = ?))"
+      )
+      .all(userId ?? '', userId ?? '', email, email) as MemberDbRow[];
     let bestRole: DespachoRole | null = null;
     for (const m of activeMembers) {
+      const compOwner = comp.user_id && comp.user_id !== 'demo' ? comp.user_id : null;
+      const belongsToWorkspace = Boolean(
+        compOwner && (m.workspace_id === compOwner || m.workspace_id === `ws_${compOwner.slice(0, 8)}`)
+      );
       const restricted = db.query('SELECT * FROM company_member_access WHERE member_id = ?').all(m.id) as AccessDbRow[];
       let candidate: DespachoRole | null = null;
       if (restricted.length > 0) {
         const hit = restricted.find((r) => r.company_id === companyId);
-        if (hit) candidate = hit.role_override ?? m.role;
+        if (hit && (belongsToWorkspace || m.workspace_id === 'ws_demo')) {
+          candidate = hit.role_override ?? m.role;
+        }
       } else if (
-        comp.user_id &&
-        (m.workspace_id === comp.user_id || m.workspace_id === `ws_${comp.user_id.slice(0, 8)}` || m.invited_by === comp.user_id)
+        belongsToWorkspace &&
+        (m.access_scope ?? 'ALL_COMPANIES') === 'ALL_COMPANIES' &&
+        m.role !== 'CLIENTE_LECTURA'
       ) {
         candidate = m.role;
       }

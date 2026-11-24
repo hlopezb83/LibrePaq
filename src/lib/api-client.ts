@@ -121,6 +121,14 @@ export const apiClient: typeof rawApiClient = new Proxy(rawApiClient, {
           return (demoFn as (...fnArgs: unknown[]) => unknown).apply(guestDemoApi, args);
         };
       }
+      const targetVal = Reflect.get(target, prop, receiver);
+      if (typeof targetVal === 'function') {
+        return (..._args: unknown[]) =>
+          Promise.reject(
+            new Error(`DEMO_SANDBOX_UNSUPPORTED: La operación "${prop}" requiere una cuenta registrada.`)
+          );
+      }
+      return undefined;
     }
     const value = Reflect.get(target, prop, receiver);
     if (typeof prop === 'string' && typeof value === 'function') {

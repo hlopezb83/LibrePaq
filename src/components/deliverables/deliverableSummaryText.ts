@@ -36,6 +36,8 @@ export function generateDeliverableSummaryText({
 
   const isrNeto = fiscalData?.isrProvisional.isrNetoAPagar ?? 0;
   const ivaNeto = fiscalData?.ivaDefinitivo.ivaNetoAPagar ?? 0;
+  const retIsr = fiscalData?.resumenLineaCapturaSat.retencionesIsrPorEnterar ?? 0;
+  const retIva = fiscalData?.resumenLineaCapturaSat.retencionesIvaPorEnterar ?? 0;
   const totalDia17 = fiscalData?.resumenLineaCapturaSat.totalEstimadoDia17 ?? 0;
   const isLoss = reportsData.incomeStatement.utilidadNeta < 0;
   const isBalanced =
@@ -71,6 +73,8 @@ export function generateDeliverableSummaryText({
     `3. ESTIMACIÓN FISCAL DÍA 17 (SAT):`,
     `   • ISR Pago Provisional:        ${formatCurrency(isrNeto)}`,
     `   • IVA Definitivo:              ${formatCurrency(ivaNeto)}`,
+    `   • Retenciones ISR por Enterar: ${formatCurrency(retIsr)}`,
+    `   • Retenciones IVA por Enterar: ${formatCurrency(retIva)}`,
     `   • Total Línea de Captura:      ${formatCurrency(totalDia17)}`,
     ...(accountantNotes?.trim() ? [`--------------------------------------------------------------------------------`, `NOTAS DEL CONTADOR:`, accountantNotes.trim()] : []),
     `--------------------------------------------------------------------------------`,

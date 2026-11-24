@@ -33,6 +33,7 @@ export const CREATE_TABLES_DDL = `
     company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     uuid TEXT NOT NULL,
     fecha TEXT NOT NULL,
+    fecha_pago TEXT,
     tipo_comprobante TEXT NOT NULL,
     direction TEXT NOT NULL,
     serie TEXT NOT NULL,

@@ -5,6 +5,7 @@ import type { Account, Poliza, PolizaType } from '../../shared/types';
 import { getRequiredSupabase, supabase } from '../supabase';
 import { chunkArray, fetchAllRows } from './supabase-pagination';
 import { mapSupabaseAccount } from './supabase-mappers';
+import { reconcileRemovedPolizaCfdiLinks } from './supabase-polizas-cfdi-helpers';
 
 export interface PolizaMovementInput {
   accountId: string;
@@ -185,21 +186,15 @@ export async function syncUpdatedPolizaCfdiLink(
   const nextSet = new Set(nextUuids);
   const removedUuids = prevUuids.filter((u) => !nextSet.has(u));
 
-  if (removedUuids.length > 0) {
-    const { error: clearCfdiErr } = await supabase
-      .from('cfdi_documents')
-      .update({ poliza_id: null })
-      .eq('company_id', compId)
-      .eq('poliza_id', polizaId)
-      .in('uuid', removedUuids);
-    if (clearCfdiErr) throw new Error(clearCfdiErr.message);
-  }
-
   const { error: delLinksErr } = await supabase
     .from('poliza_cfdis')
     .delete()
     .eq('poliza_id', polizaId);
   if (delLinksErr) throw new Error(delLinksErr.message);
+
+  if (removedUuids.length > 0) {
+    await reconcileRemovedPolizaCfdiLinks(compId, polizaId, removedUuids);
+  }
 
   if (nextUuids.length > 0) {
     const linkRows = nextUuids.map((u) => ({

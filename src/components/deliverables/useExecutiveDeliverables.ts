@@ -234,10 +234,11 @@ export function useExecutiveDeliverables({
 
   const isrSaldoNoAplicado = useMemo(() => {
     if (!fiscalData?.isrProvisional) return 0;
-    const { isrCausado, pagosProvisionalesPrevios, isrRetenidoPeriodo } = fiscalData.isrProvisional;
-    const ded = pagosProvisionalesPrevios + isrRetenidoPeriodo;
+    const { esResico, isrCausado, pagosProvisionalesPrevios, isrRetenidoPeriodo } = fiscalData.isrProvisional;
+    const isResicoPf = Boolean(esResico) && company.rfc.trim().length === 13;
+    const ded = (isResicoPf ? 0 : pagosProvisionalesPrevios) + isrRetenidoPeriodo;
     return ded > isrCausado ? ded - isrCausado : 0;
-  }, [fiscalData]);
+  }, [company.rfc, fiscalData]);
 
   const fechaVencimientoDia17 = useMemo(
     () => calculateDia17Deadline(year, period).formattedSpanish,

@@ -13,6 +13,11 @@ import type {
 const demoMembersByWs = new Map<string, WorkspaceMemberRecord[]>();
 const demoAuditLogsByCompany = new Map<string, CompanyAuditLogRecord[]>();
 
+export function resetGuestDemoRbacState(): void {
+  demoMembersByWs.clear();
+  demoAuditLogsByCompany.clear();
+}
+
 function ensureDemoMembers(workspaceId: string): WorkspaceMemberRecord[] {
   const existing = demoMembersByWs.get(workspaceId);
   if (existing) return existing;

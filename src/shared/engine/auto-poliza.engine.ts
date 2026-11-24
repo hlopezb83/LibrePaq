@@ -64,7 +64,9 @@ export function buildAutoPolizaPlan(
     'No existen cuentas en el catálogo para generar la póliza.'
   );
 
-  const matchedRule = resolveMatchingAccountingRule(cfdi, overrides?.rules);
+  const matchedRule = resolveMatchingAccountingRule(cfdi, overrides?.rules, {
+    relatedIsPpd: overrides?.relatedIsPpd
+  });
   const manualOp =
     (overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId)?.trim() || undefined;
   const manualCounter =
@@ -80,22 +82,39 @@ export function buildAutoPolizaPlan(
       ? ruleCounterRaw
       : undefined;
 
+  const tp = overrides?.thirdParty;
+  const tpRole = tp?.rol;
+  const isTpRoleCompatible =
+    !tpRole ||
+    tpRole === 'AMBOS' ||
+    (cfdi.direction === 'RECIBIDO' && tpRole === 'PROVEEDOR') ||
+    (cfdi.direction === 'EMITIDO' && tpRole === 'CLIENTE');
+
+  const tpOpRaw = isTpRoleCompatible ? tp?.cuentaOperacionCode?.trim() || undefined : undefined;
+  const safeTpOp =
+    tpOpRaw &&
+    !(cfdi.tipoComprobante === 'E' && cfdi.direction === 'EMITIDO' && /^401/.test(tpOpRaw))
+      ? tpOpRaw
+      : undefined;
+  const tpCounterRaw = isTpRoleCompatible ? tp?.cuentaContrapartidaCode?.trim() || undefined : undefined;
+  const safeTpCounter =
+    tpCounterRaw &&
+    !((cfdi.metodoPago === 'PPD' || nonCashNc || isRep) && /^(101|102)/.test(tpCounterRaw))
+      ? tpCounterRaw
+      : undefined;
+
   const effectiveOverrides: AutoPolizaOverrides | undefined =
     overrides || matchedRule
       ? {
           ...overrides,
           operationAccountCode: isRep
-            ? manualOp ?? (overrides?.thirdParty?.cuentaContrapartidaCode?.trim() || undefined)
-            : manualOp ??
-              matchedRule?.operationAccountCode ??
-              overrides?.thirdParty?.cuentaOperacionCode,
+            ? manualOp ?? safeTpCounter
+            : manualOp ?? matchedRule?.operationAccountCode ?? safeTpOp,
           counterAccountCode: isRep
             ? manualCounter
             : manualCounter ??
               safeRuleCounter ??
-              (cfdi.metodoPago === 'PPD' || nonCashNc
-                ? overrides?.thirdParty?.cuentaContrapartidaCode
-                : undefined),
+              (cfdi.metodoPago === 'PPD' || nonCashNc ? safeTpCounter : undefined),
           deductiblePct: isRep
             ? overrides?.deductiblePct
             : overrides?.deductiblePct ?? matchedRule?.deductiblePct

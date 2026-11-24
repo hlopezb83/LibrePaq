@@ -47,6 +47,9 @@ export function useSupportModeExit({
         // best-effort audit
       } finally {
         endSupportSession();
+        queryClient.removeQueries({
+          predicate: (query) => !String(query.queryKey[0] ?? '').startsWith('admin-')
+        });
         void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs'] });
         void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] });
         exitingSupportRef.current = false;

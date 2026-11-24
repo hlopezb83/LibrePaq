@@ -164,7 +164,10 @@ export function usePadronProveedores({
       });
     },
     onSuccess: (saved) => {
-      void queryClient.invalidateQueries({ queryKey: ['third-parties', saved.companyId || companyId] });
+      const targetCompanyId = saved.companyId || companyId;
+      void queryClient.invalidateQueries({ queryKey: ['third-parties', targetCompanyId] });
+      void queryClient.invalidateQueries({ queryKey: ['diot', targetCompanyId] });
+      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', targetCompanyId] });
       resetForm();
       onFeedback(
         `RFC ${saved.rfc} guardado en el Padrón Fiscal con cuenta contable predeterminada ${saved.cuentaOperacionCode}.`
@@ -178,6 +181,8 @@ export function usePadronProveedores({
   const handle69BImportComplete = (count: number) => {
     if (isReadOnlyClient) return;
     void queryClient.invalidateQueries({ queryKey: ['third-parties', companyId] });
+    void queryClient.invalidateQueries({ queryKey: ['diot', companyId] });
+    void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId] });
     onFeedback(`¡Lista 69-B del SAT actualizada con éxito! (${count.toLocaleString()} RFCs procesados)`);
   };
 

@@ -6,6 +6,8 @@ import type {
   FiscalWorkpaperResponse,
   Poliza
 } from '../types';
+import { normalizePostCloseP13Accounts } from './financial-reports-helpers';
+import type { ClosingMovementCents } from './financial-reports-rollup';
 import { fromCents, toCents } from './invariants-and-math';
 
 /**
@@ -34,21 +36,56 @@ export function buildDashboardKpisFromTrialBalance(params: {
   const { trialBalance, polizas, cfdis, year, period, fiscalWorkpaper } = params;
   const byCode = new Map(trialBalance.map((a) => [a.code, a]));
 
-  const ingresosAcc = byCode.get('400-00-000');
-  const costosAcc = byCode.get('500-00-000');
-  const gastosAcc = byCode.get('600-00-000');
-  const isrAcc = byCode.get('800-00-000') || byCode.get('801-00-000') || byCode.get('801-01-000');
+  let closingMap: Map<string, ClosingMovementCents> | undefined;
+  if (period === 13) {
+    const tmp = new Map<string, ClosingMovementCents>();
+    for (const pol of polizas) {
+      if (pol.ejercicio !== year || pol.periodo !== 13) continue;
+      if (String((pol as { origin?: string }).origin || '') !== 'CIERRE_ANUAL') continue;
+      for (const m of pol.movements) {
+        const prev = tmp.get(m.accountId) ?? { cargoCents: 0, abonoCents: 0 };
+        prev.cargoCents += toCents(m.cargo);
+        prev.abonoCents += toCents(m.abono);
+        tmp.set(m.accountId, prev);
+      }
+    }
+    if (tmp.size > 0) closingMap = tmp;
+  }
 
-  const ingresosCents = ingresosAcc
-    ? toCents(ingresosAcc.periodCredits) - toCents(ingresosAcc.periodCharges)
-    : 0;
-  const costosCents = costosAcc
-    ? toCents(costosAcc.periodCharges) - toCents(costosAcc.periodCredits)
-    : 0;
-  const gastosCents = gastosAcc
-    ? toCents(gastosAcc.periodCharges) - toCents(gastosAcc.periodCredits)
-    : 0;
-  const isrCents = isrAcc ? toCents(isrAcc.periodCharges) - toCents(isrAcc.periodCredits) : 0;
+  const erAccounts =
+    period === 13
+      ? normalizePostCloseP13Accounts(trialBalance, period, closingMap).accounts
+      : trialBalance;
+  const erByCode = new Map(erAccounts.map((a) => [a.code, a]));
+
+  const ingresosAcc = erByCode.get('400-00-000');
+  const costosAcc = erByCode.get('500-00-000');
+  const gastosAcc = erByCode.get('600-00-000');
+  const acc800 = erByCode.get('800-00-000');
+  const isrCandidate =
+    (acc800 && acc800.type !== 'ORDEN' ? acc800 : undefined) ||
+    erByCode.get('801-00-000') ||
+    erByCode.get('801-01-000');
+  const isrAcc = isrCandidate && isrCandidate.type !== 'ORDEN' ? isrCandidate : undefined;
+
+  const isP13 = period === 13;
+  const readCreditFlow = (acc?: AccountWithBalance): number =>
+    acc
+      ? isP13
+        ? (acc.nature === 'ACREEDORA' ? 1 : -1) * toCents(acc.finalBalance)
+        : toCents(acc.periodCredits) - toCents(acc.periodCharges)
+      : 0;
+  const readDebitFlow = (acc?: AccountWithBalance): number =>
+    acc
+      ? isP13
+        ? (acc.nature === 'DEUDORA' ? 1 : -1) * toCents(acc.finalBalance)
+        : toCents(acc.periodCharges) - toCents(acc.periodCredits)
+      : 0;
+
+  const ingresosCents = readCreditFlow(ingresosAcc);
+  const costosCents = readDebitFlow(costosAcc);
+  const gastosCents = readDebitFlow(gastosAcc);
+  const isrCents = readDebitFlow(isrAcc);
   const egresosCents = costosCents + gastosCents + isrCents;
 
   // Alinear IVA Neto del Mes con Día 17 (flujo del periodo en vez de acumulado YTD 208-118)
@@ -59,12 +96,24 @@ export function buildDashboardKpisFromTrialBalance(params: {
         ? toCents(fiscalWorkpaper.ivaDefinitivo.ivaNetoAPagar)
         : -toCents(fiscalWorkpaper.ivaDefinitivo.saldoFavorIvaRemanente);
   } else {
-    const ivaCobradoMesCents = toCents(
-      byCode.get('208-01-001')?.periodCredits ?? byCode.get('208-00-000')?.periodCredits
+    const iva208Leafs = trialBalance.filter(
+      (a) =>
+        a.isAffectable !== false &&
+        (a.code.startsWith('208-01') || a.satGroupCode?.startsWith('208.01'))
     );
-    const ivaPagadoMesCents = toCents(
-      byCode.get('118-01-001')?.periodCharges ?? byCode.get('118-00-000')?.periodCharges
+    const iva118Leafs = trialBalance.filter(
+      (a) =>
+        a.isAffectable !== false &&
+        (a.code.startsWith('118-01') || a.satGroupCode?.startsWith('118.01'))
     );
+    const ivaCobradoMesCents =
+      iva208Leafs.length > 0
+        ? iva208Leafs.reduce((sum, a) => sum + toCents(a.periodCredits), 0)
+        : toCents(byCode.get('208-00-000')?.periodCredits);
+    const ivaPagadoMesCents =
+      iva118Leafs.length > 0
+        ? iva118Leafs.reduce((sum, a) => sum + toCents(a.periodCharges), 0)
+        : toCents(byCode.get('118-00-000')?.periodCharges);
     const ivaRetAcredMesCents = toCents(byCode.get('113-01-002')?.periodCharges);
     ivaPorPagarNetoCents = ivaCobradoMesCents - ivaPagadoMesCents - ivaRetAcredMesCents;
   }

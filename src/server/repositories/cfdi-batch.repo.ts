@@ -30,7 +30,7 @@ export function batchUploadCfdiXmlStrings(
       for (const xmlRaw of chunk) {
         if (!xmlRaw) continue;
         try {
-          const parsed = parseCfdiXmlString(xmlRaw);
+          const parsed = parseCfdiXmlString(xmlRaw, { requireStamp: true });
           if (!isCfdiBelongingToCompany(parsed, company.rfc)) {
             rejectedForeign += 1;
             rejectedErrors.push(`RFC ajeno (${parsed.emisorRfc} → ${parsed.receptorRfc}) para UUID ${parsed.uuid}`);

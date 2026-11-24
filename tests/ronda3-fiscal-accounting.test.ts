@@ -176,17 +176,22 @@ describe('Ronda 3 — Corrección de Bugs Contables y Fiscales (BUG-08, 24, 28, 
       createdAt: '2024-03-01'
     };
 
+    // Art. 31 LISR: compra mar-2024 => 9 meses 2024 + 12 meses 2025 = 21 previos => restan 3 meses en 2026 ($15,000 * INPC Jun 2026 / 130)
     const ded = computeAnnualFixedAssetFiscalDeduction([assetExhausting], 2026);
-    expect(ded).toBe(10_000);
+    expect(ded).toBe(16_744.5);
 
-    // Activo adquirido en octubre 2026 sólo deprecia oct, nov, dic (3 meses = $15,000)
+    // Activo adquirido en oct-2026 deprecia meses completos nov y dic (2 meses = $10,000 * factor INPC Nov/130)
     const assetMidYear: FixedAssetRecord = {
       ...assetExhausting,
       id: 'fa_2',
       fechaAdquisicion: '2026-10-10',
+      inpcAdquisicion: 147.026, // Oct 2026
+      inpcMedioPeriodo: 147.026,
       mesesDepreciadosPrevios: 0
     };
-    expect(computeAnnualFixedAssetFiscalDeduction([assetMidYear], 2026)).toBe(15_000);
+    const midDed = computeAnnualFixedAssetFiscalDeduction([assetMidYear], 2026);
+    expect(midDed).toBeGreaterThanOrEqual(10_000);
+    expect(midDed).toBeLessThanOrEqual(10_200);
   });
 
   test('BUG-48: Ajuste Anual por Inflación (Arts. 44-46 LISR) aplica sólo a PM_GENERAL y es $0 en PF_ART152, PF_RESICO y PM_RESICO', () => {

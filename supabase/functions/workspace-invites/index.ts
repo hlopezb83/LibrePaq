@@ -168,6 +168,7 @@ Deno.serve(async (req: Request) => {
         .eq('email', email)
         .maybeSingle();
 
+      const accessScope = cids.length > 0 || role === 'CLIENTE_LECTURA' ? 'RESTRICTED' : 'ALL_COMPANIES';
       let memberRow: Record<string, unknown>;
       if (existing) {
         if (existing.status !== 'REVOCADO') {
@@ -175,7 +176,14 @@ Deno.serve(async (req: Request) => {
         }
         const { data: upd, error: uErr } = await supabase
           .from('workspace_members')
-          .update({ email, role, status: 'INVITADO', invited_by: ctx.email, updated_at: nowIso })
+          .update({
+            email,
+            role,
+            access_scope: accessScope,
+            status: 'INVITADO',
+            invited_by: ctx.email,
+            updated_at: nowIso
+          })
           .eq('id', existing.id)
           .select()
           .single();
@@ -190,6 +198,7 @@ Deno.serve(async (req: Request) => {
             user_id: null,
             email,
             role,
+            access_scope: accessScope,
             status: 'INVITADO',
             invited_by: ctx.email || 'socio',
             created_at: nowIso,
@@ -223,15 +232,38 @@ Deno.serve(async (req: Request) => {
       const mid = String(body.memberId || '').trim();
       const role = String(body.role || '').trim().toUpperCase() as DespachoRole;
       if (!mid || !VALID_ROLES.has(role)) return jsonResponse({ ok: false, error: 'memberId y role válidos requeridos' }, 400, headers);
+
+      const { data: existingMember } = await supabase
+        .from('workspace_members')
+        .select('*')
+        .eq('id', mid)
+        .eq('workspace_id', wsId)
+        .maybeSingle();
+      if (!existingMember) return jsonResponse({ ok: false, error: 'Miembro no encontrado' }, 404, headers);
+
+      const { data: accessRows } = await supabase
+        .from('company_member_access')
+        .select('*')
+        .eq('member_id', mid);
+      const assignedList = accessRows || [];
+      if (role === 'CLIENTE_LECTURA' && assignedList.length === 0) {
+        return jsonResponse(
+          { ok: false, error: 'Debes asignar al menos una empresa antes de cambiar el rol a CLIENTE_LECTURA' },
+          400,
+          headers
+        );
+      }
+
+      const accessScope = assignedList.length > 0 || role === 'CLIENTE_LECTURA' ? 'RESTRICTED' : 'ALL_COMPANIES';
       const { data, error } = await supabase
         .from('workspace_members')
-        .update({ role, updated_at: nowIso })
+        .update({ role, access_scope: accessScope, updated_at: nowIso })
         .eq('id', mid)
         .eq('workspace_id', wsId)
         .select()
         .single();
       if (error || !data) return jsonResponse({ ok: false, error: error?.message || 'Miembro no encontrado' }, 404, headers);
-      return jsonResponse({ ok: true, member: mapMember(data) }, 200, headers);
+      return jsonResponse({ ok: true, member: mapMember(data, assignedList) }, 200, headers);
     }
 
     if (action === 'REVOKE_MEMBER') {
@@ -272,6 +304,10 @@ Deno.serve(async (req: Request) => {
       if (companyAuthErr) return jsonResponse({ ok: false, error: companyAuthErr }, 403, headers);
 
       const roleOverride = body.roleOverride && VALID_ROLES.has(body.roleOverride as DespachoRole) ? body.roleOverride : null;
+      const accessScope =
+        cids.length > 0 || String(member.role || '').toUpperCase() === 'CLIENTE_LECTURA'
+          ? 'RESTRICTED'
+          : 'ALL_COMPANIES';
       await supabase.from('company_member_access').delete().eq('member_id', mid);
       if (cids.length > 0) {
         const { error: insErr } = await supabase.from('company_member_access').insert(
@@ -286,6 +322,11 @@ Deno.serve(async (req: Request) => {
         );
         if (insErr) return jsonResponse({ ok: false, error: insErr.message }, 500, headers);
       }
+      await supabase
+        .from('workspace_members')
+        .update({ access_scope: accessScope, updated_at: nowIso })
+        .eq('id', mid)
+        .eq('workspace_id', wsId);
       const { data: access } = await supabase.from('company_member_access').select('*').eq('member_id', mid);
       return jsonResponse({ ok: true, companyAccess: (access || []).map(mapAccess) }, 200, headers);
     }

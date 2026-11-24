@@ -1,7 +1,15 @@
 import type { CfdiDocument, Company, FiscalWorkpaperResponse, ThirdPartyRecord } from '../types';
 import type { AccountingRuleRecord } from '../types/accounting-rules.types';
 import { parseCalendarDate } from '../date-utils';
-import { fromCents, sumCents, toCents } from './invariants-and-math';
+import {
+  buildResicoAlert,
+  extractBreakdownCents,
+  getCfdiExchangeRate,
+  resolveNonFixedAssetBaseCents,
+  resolveRecibidoDeductiblePct,
+  resolveRepBaseCents
+} from './cash-basis-fiscal.helper';
+import { fromCents, toCents } from './invariants-and-math';
 
 export interface CashBasisFiscalParams {
   company: Company;
@@ -31,113 +39,10 @@ export interface CashBasisFiscalResult {
   ivaRetenidoPorPagarPeriodo: number;
   isrRetenidoPorPagarPeriodo: number;
   isrRetenidoFavorAcumulado?: number;
+  isrRetenidoFavorMesPeriodo?: number;
   cashBasisSummary: NonNullable<FiscalWorkpaperResponse['cashBasisSummary']>;
   resicoThresholdAlert: NonNullable<FiscalWorkpaperResponse['resicoThresholdAlert']>;
   ivaBreakdown: NonNullable<FiscalWorkpaperResponse['ivaBreakdown']>;
-}
-
-function resolveRecibidoDeductiblePct(
-  doc: CfdiDocument,
-  rules?: readonly AccountingRuleRecord[],
-  thirdPartyByRfc?: ReadonlyMap<string, ThirdPartyRecord>
-): number {
-  if (doc.deductiblePct !== undefined && Number.isFinite(Number(doc.deductiblePct))) {
-    return Math.max(0, Math.min(100, Number(doc.deductiblePct)));
-  }
-  if (rules && rules.length > 0) {
-    const rfc = doc.emisorRfc.trim().toUpperCase();
-    const clave = (doc.claveProdServ || '').trim();
-    const uso = (doc.usoCfdi || '').trim().toUpperCase();
-    const sorted = [...rules]
-      .filter((r) => r.direction === 'RECIBIDO')
-      .sort((a, b) => a.priority - b.priority);
-    for (const r of sorted) {
-      if (r.matchRfc && r.matchRfc.trim().toUpperCase() !== rfc) continue;
-      if (r.matchClaveProdServ && r.matchClaveProdServ.trim() !== clave) continue;
-      if (r.matchUsoCfdi && r.matchUsoCfdi.trim().toUpperCase() !== uso) continue;
-      return Math.max(0, Math.min(100, Number(r.deductiblePct ?? 100)));
-    }
-  }
-  const tp = thirdPartyByRfc?.get(doc.emisorRfc.trim().toUpperCase()) as
-    | (ThirdPartyRecord & { deductiblePct?: number })
-    | undefined;
-  if (tp?.deductiblePct !== undefined && Number.isFinite(Number(tp.deductiblePct))) {
-    return Math.max(0, Math.min(100, Number(tp.deductiblePct)));
-  }
-  return 100;
-}
-
-function getRate(doc: CfdiDocument): number {
-  return doc.moneda && doc.moneda.toUpperCase() !== 'MXN' && (doc.tipoCambio || 1) > 0
-    ? doc.tipoCambio
-    : 1;
-}
-
-function resolveRepBaseCents(doc: CfdiDocument, tc: number): number {
-  const tb = doc.taxBreakdown;
-  if (tb) {
-    const tbSum = tb.base16 + tb.base8 + tb.base0 + tb.baseExento;
-    if (tbSum > 0) return toCents(tbSum * tc);
-  }
-  const hasForeignDr = Boolean(doc.relatedDocs?.some((dr) => dr.monedaDr && dr.monedaDr !== 'MXN'));
-  const grossPaidCents =
-    doc.relatedDocs && doc.relatedDocs.length > 0 && !(doc.moneda === 'MXN' && hasForeignDr && doc.total > 0)
-      ? sumCents(doc.relatedDocs.map((dr) => dr.impPagado * tc))
-      : toCents(doc.total * tc);
-  if (doc.subtotal > 0 && toCents(doc.subtotal * tc) <= grossPaidCents) {
-    return toCents(doc.subtotal * tc);
-  }
-  return Math.max(0, grossPaidCents - toCents(doc.ivaTrasladado * tc));
-}
-
-function extractBreakdownCents(doc: CfdiDocument, baseCents: number, tc: number) {
-  const tb = doc.taxBreakdown;
-  const hasTb =
-    tb &&
-    (tb.base16 > 0 || tb.base8 > 0 || tb.base0 > 0 || tb.baseExento > 0 || tb.ieps > 0 || tb.iva16 > 0 || tb.iva8 > 0);
-  if (hasTb) {
-    return {
-      b16: toCents(tb.base16 * tc), i16: toCents(tb.iva16 * tc),
-      b8: toCents(tb.base8 * tc), i8: toCents(tb.iva8 * tc),
-      b0: toCents(tb.base0 * tc), bEx: toCents(tb.baseExento * tc),
-      ieps: toCents(tb.ieps * tc)
-    };
-  }
-  const ivaCents = toCents(doc.ivaTrasladado * tc);
-  if (ivaCents > 0) {
-    const is8 = Math.abs((baseCents > 0 ? ivaCents / baseCents : 0.16) - 0.08) < 0.015;
-    return is8
-      ? { b16: 0, i16: 0, b8: baseCents, i8: ivaCents, b0: 0, bEx: 0, ieps: 0 }
-      : { b16: baseCents, i16: ivaCents, b8: 0, i8: 0, b0: 0, bEx: 0, ieps: 0 };
-  }
-  const isEx = doc.conceptoPrincipal.toLowerCase().includes('exento');
-  return { b16: 0, i16: 0, b8: 0, i8: 0, b0: isEx ? 0 : baseCents, bEx: isEx ? baseCents : 0, ieps: 0 };
-}
-
-function buildResicoAlert(
-  esResico: boolean,
-  isPersonaFisica: boolean,
-  accumulatedRevenueMxn: number
-): NonNullable<FiscalWorkpaperResponse['resicoThresholdAlert']> {
-  const thresholdMxn = esResico ? (isPersonaFisica ? 3_500_000 : 35_000_000) : 0;
-  const utilizationPct =
-    esResico && thresholdMxn > 0 ? Number(((accumulatedRevenueMxn / thresholdMxn) * 100).toFixed(2)) : 0;
-  const status = !esResico
-    ? 'OK'
-    : utilizationPct >= 100
-      ? 'EXCEEDED'
-      : utilizationPct >= 95
-        ? 'CRITICAL_95'
-        : utilizationPct >= 80
-          ? 'WARNING_80'
-          : 'OK';
-  const labels = {
-    OK: esResico ? 'Dentro del límite anual RESICO' : 'No aplica (Régimen distinto a RESICO)',
-    WARNING_80: 'Precaución: >=80% del límite anual RESICO',
-    CRITICAL_95: 'Alerta crítica: >=95% del límite anual RESICO',
-    EXCEEDED: 'Límite anual RESICO excedido (>=100%)'
-  } as const;
-  return { applies: esResico, thresholdMxn, accumulatedRevenueMxn, utilizationPct, status, label: labels[status] };
 }
 
 export function computeCashBasisFiscalSummary({
@@ -169,6 +74,7 @@ export function computeCashBasisFiscalSummary({
   let dedAcumCents = 0;
   let retResico125Cents = 0;
   let isrRetFavorAcumCents = 0;
+  let isrRetFavorMesCents = 0;
   let ivaRetFavorCents = 0;
   let ivaRetPagarCents = 0;
   let isrRetPagarCents = 0;
@@ -180,14 +86,33 @@ export function computeCashBasisFiscalSummary({
   let hasPayrollCashActivity = false;
   let hasUnpaidPpdInScope = false;
 
+  const cfdiByUuid = new Map<string, CfdiDocument>();
   const ppdInvoiceUuids = new Set<string>();
+  const paidPpdUuidsUpToCutoff = new Set<string>();
+
   for (const c of cfdis) {
     if (c.statusSat === 'CANCELADO') continue;
+    const upperUuid = (c.uuid || '').trim().toUpperCase();
+    if (upperUuid && !cfdiByUuid.has(upperUuid)) cfdiByUuid.set(upperUuid, c);
     if (c.tipoComprobante === 'I' && c.metodoPago === 'PPD') {
-      if (c.uuid) ppdInvoiceUuids.add(c.uuid.trim().toUpperCase());
+      if (upperUuid) ppdInvoiceUuids.add(upperUuid);
       const calPpd = parseCalendarDate(c.fecha, ejercicio, targetPeriod);
       if (calPpd.year === ejercicio && calPpd.month <= targetPeriod) {
         hasUnpaidPpdInScope = true;
+      }
+    } else if (c.tipoComprobante === 'P') {
+      const calP = parseCalendarDate(c.fechaPago || c.fecha, ejercicio, targetPeriod);
+      if (calP.year < ejercicio || (calP.year === ejercicio && calP.month <= targetPeriod)) {
+        if (c.uuidRelacionado) {
+          for (const u of c.uuidRelacionado.split(/[\s,;]+/)) {
+            const clean = u.trim().toUpperCase();
+            if (clean) paidPpdUuidsUpToCutoff.add(clean);
+          }
+        }
+        for (const dr of c.relatedDocs ?? []) {
+          const clean = (dr.idDocumento || '').trim().toUpperCase();
+          if (clean) paidPpdUuidsUpToCutoff.add(clean);
+        }
       }
     }
   }
@@ -199,7 +124,7 @@ export function computeCashBasisFiscalSummary({
       if (doc.direction !== 'EMITIDO') continue;
       const calN = parseCalendarDate(doc.fechaPago || doc.fecha, ejercicio, targetPeriod);
       if (calN.year !== ejercicio || calN.month > targetPeriod) continue;
-      const tcN = getRate(doc);
+      const tcN = getCfdiExchangeRate(doc);
       const nominaCents = Math.max(0, toCents((doc.subtotal > 0 ? doc.subtotal : doc.total) * tcN));
       const retIsrNCents = Math.max(0, toCents((doc.isrRetenido || 0) * tcN));
       if (nominaCents <= 0 && retIsrNCents <= 0) continue;
@@ -217,11 +142,13 @@ export function computeCashBasisFiscalSummary({
     if (doc.tipoComprobante === 'I' && doc.metodoPago === 'PPD') continue;
     if (doc.tipoComprobante === 'E') {
       if (doc.metodoPago === 'PPD') continue;
-      const relUuid = doc.uuidRelacionado?.trim().toUpperCase();
-      const relatesToPpd =
-        (relUuid ? ppdInvoiceUuids.has(relUuid) : false) ||
-        Boolean(doc.relatedDocs?.some((dr) => ppdInvoiceUuids.has((dr.idDocumento || '').trim().toUpperCase())));
-      if (relatesToPpd) continue;
+      const relList = [
+        ...(doc.uuidRelacionado || '').split(/[\s,;]+/).map((u) => u.trim().toUpperCase()).filter(Boolean),
+        ...(doc.relatedDocs ?? []).map((dr) => (dr.idDocumento || '').trim().toUpperCase()).filter(Boolean)
+      ];
+      if (relList.some((u) => ppdInvoiceUuids.has(u) && !paidPpdUuidsUpToCutoff.has(u))) {
+        continue;
+      }
     }
 
     const effectiveDate = doc.tipoComprobante === 'P' ? (doc.fechaPago || doc.fecha) : doc.fecha;
@@ -231,7 +158,7 @@ export function computeCashBasisFiscalSummary({
       cal.month === targetPeriod ||
       Boolean(polizaIdsInPeriod && doc.polizaId && polizaIdsInPeriod.has(doc.polizaId));
 
-    const tc = getRate(doc);
+    const tc = getCfdiExchangeRate(doc);
     const isCreditNote = doc.tipoComprobante === 'E';
     const sign = isCreditNote ? -1 : 1;
     const baseCents =
@@ -248,7 +175,9 @@ export function computeCashBasisFiscalSummary({
         else if (isCreditNote) ncIngCents += baseCents;
         else pueIngCents += baseCents;
 
-        if (esResicoPf) retResico125Cents += sign * toCents(doc.isrRetenido * tc);
+        const retMes = sign * toCents(doc.isrRetenido * tc);
+        isrRetFavorMesCents += retMes;
+        if (esResicoPf) retResico125Cents += retMes;
         ivaRetFavorCents += sign * toCents(doc.ivaRetenido * tc);
         const bd = extractBreakdownCents(doc, baseCents, tc);
         emB16 += sign * bd.b16;
@@ -260,13 +189,14 @@ export function computeCashBasisFiscalSummary({
       }
     } else if (doc.direction === 'RECIBIDO') {
       hasRecibidosCashActivity = true;
-      const isFixedAssetUso = /^I0/i.test((doc.usoCfdi || '').trim());
+      const nonFixedBaseCents = resolveNonFixedAssetBaseCents(doc, baseCents, cfdiByUuid);
       const dedPct = resolveRecibidoDeductiblePct(doc, rules, thirdPartyByRfc);
-      const dedBaseCents = isFixedAssetUso
-        ? 0
-        : dedPct === 100
-          ? baseCents
-          : Math.round((baseCents * dedPct) / 100);
+      const dedBaseCents =
+        nonFixedBaseCents === 0
+          ? 0
+          : dedPct === 100
+            ? nonFixedBaseCents
+            : Math.round((nonFixedBaseCents * dedPct) / 100);
       dedAcumCents += sign * dedBaseCents;
       if (inPeriod) {
         dedPerCents += sign * dedBaseCents;
@@ -290,7 +220,11 @@ export function computeCashBasisFiscalSummary({
   const exentosCents = Math.max(0, emBEx);
   const totalActosCents = gravadosCents + exentosCents;
   const prorationFactor =
-    exentosCents > 0 ? (totalActosCents > 0 ? Number((gravadosCents / totalActosCents).toFixed(4)) : 0) : 1;
+    exentosCents > 0
+      ? totalActosCents > 0
+        ? Math.floor((gravadosCents / totalActosCents + 1e-12) * 10000) / 10000
+        : 0
+      : 1;
   const ivaSinCents = Math.max(0, recI16 + recI8);
   const ivaProrrateadoCents = Math.round(ivaSinCents * prorationFactor);
 
@@ -311,6 +245,7 @@ export function computeCashBasisFiscalSummary({
     ivaRetenidoPorPagarPeriodo: fromCents(Math.max(0, ivaRetPagarCents)),
     isrRetenidoPorPagarPeriodo: fromCents(Math.max(0, isrRetPagarCents)),
     isrRetenidoFavorAcumulado: fromCents(Math.max(0, isrRetFavorAcumCents)),
+    isrRetenidoFavorMesPeriodo: fromCents(Math.max(0, isrRetFavorMesCents)),
     cashBasisSummary: {
       isCashBasisRegime,
       baseContableDevengada,

@@ -37,7 +37,7 @@ export function exportActiveReportCsv(params: {
 
     const rows: Array<Array<string | number>> = [
       ...er.ingresos.map((a) => mapRow('INGRESOS', a, 'ACREEDORA')),
-      ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos, '100.0%'],
+      ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos, pct(er.totalIngresos)],
       ...er.costos.map((a) => mapRow('COSTOS', a, 'DEUDORA')),
       ['TOTAL COSTOS', '', 'Costo de Ventas', p?.totalCostos ?? 0, er.totalCostos, pct(er.totalCostos)],
       ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, er.utilidadBruta, pct(er.utilidadBruta)],
@@ -104,11 +104,11 @@ export function exportActiveReportCsv(params: {
           ...(isPfResico
             ? []
             : [
-                ['Base Gravable Persona Física', '(-) Deducciones Autorizadas y PTU Pagada', -(rec.deduccionesFiscalesNoContables + rec.ptuPagadaEjercicio)],
+                ['Base Gravable Persona Física', '(-) Deducciones Autorizadas y PTU Pagada', -(det.ingresosNominales - rec.utilidadFiscal)],
                 ['Base Gravable Persona Física', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
                 ['Base Gravable Persona Física', '(-) Deducciones Personales Aplicadas (Art. 151 LISR)', -(rec.deduccionesPersonalesAplicadas ?? 0)]
               ]),
-          ['Base Gravable Persona Física', '(=) Base / Resultado Fiscal Anual', rec.resultadoFiscal],
+          ['Base Gravable Persona Física', '(=) Base / Resultado Fiscal Anual', isPfResico ? det.ingresosNominales : rec.resultadoFiscal],
           ['Determinación ISR Anual', 'Tasa / Tarifa Aplicable (%)', `${det.tasaAplicablePct.toFixed(2)}%`],
           ['Determinación ISR Anual', 'ISR Anual Causado', det.isrAnualCausado],
           ['Determinación ISR Anual', '(-) Pagos Provisionales Efectuados', -det.pagosProvisionalesEfectuados],

@@ -83,8 +83,8 @@ export function extractCompanyFromCsfText(rawText: string): ExtractedCsfCompany 
 
   // 1. RFC
   const rfcMatch =
-    rawText.match(/(?:RFC|Registro\s+Federal\s+de\s+Contribuyentes)[:\s]+([A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3})/i) ||
-    rawText.match(/\b([A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3})\b/);
+    rawText.match(/(?:RFC|Registro\s+Federal\s+de\s+Contribuyentes)[:\s]+([A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3})(?=$|[^A-Z0-9])/i) ||
+    rawText.match(/(?:^|[^A-Z0-9&Ñ])([A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3})(?=$|[^A-Z0-9])/);
 
   if (!rfcMatch || !rfcMatch[1]) return null;
   const rfc = rfcMatch[1].toUpperCase().trim();

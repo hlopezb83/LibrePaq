@@ -3,6 +3,7 @@ import type { AdminPlatformMetrics, AdminCompanySummary, AdminUserSummary } from
 import { isDemoCompanyRecord, isSatErrorCode } from '../../shared/admin-constants';
 import { adminApi } from '../api/admin.api';
 import { hasPlatformAdminAccess, isSuperAdminEmail, normalizePlatformRole } from '../../shared/superadmin';
+import { fetchAllRows } from './supabase-pagination';
 
 type Row = Record<string, unknown>;
 
@@ -67,19 +68,27 @@ function mapUserProfileRow(p: Row, compList: Row[]): AdminUserSummary {
 
 export const supabaseAdminApi = {
   async getAdminCompanies(): Promise<AdminCompanySummary[]> {
-    if (!supabase) return [];
-    const [compRes, profRes, authRes] = await Promise.all([
-      supabase.from('companies').select('*').order('created_at', { ascending: false }),
-      supabase.from('user_profiles').select('*'),
-      supabase.auth.getUser()
-    ]);
-    if (compRes.error || !compRes.data) {
-      console.warn('Error al consultar empresas en Supabase Cloud:', compRes.error?.message);
+    const client = supabase;
+    if (!client) return [];
+    let compRows: Row[];
+    try {
+      compRows = await fetchAllRows<Row>((from, to) =>
+        client.from('companies').select('*').order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)
+      );
+    } catch (err) {
+      console.warn('Error al consultar empresas en Supabase Cloud:', err instanceof Error ? err.message : String(err));
       return [];
     }
 
+    const [profRows, authRes] = await Promise.all([
+      fetchAllRows<Row>((from, to) =>
+        client.from('user_profiles').select('*').order('id', { ascending: true }).range(from, to)
+      ).catch(() => [] as Row[]),
+      client.auth.getUser()
+    ]);
+
     const profilesById = new Map<string, Row>();
-    for (const p of (profRes.data || []) as Row[]) if (p.id) profilesById.set(String(p.id), p);
+    for (const p of profRows) if (p.id) profilesById.set(String(p.id), p);
     const currentUser = authRes.data?.user;
     const callerProfile = currentUser?.id ? profilesById.get(currentUser.id) : undefined;
     const callerRole = normalizePlatformRole(
@@ -90,20 +99,20 @@ export const supabaseAdminApi = {
 
     let polMap = new Map<string, number>(), cfdiMap = new Map<string, number>();
     const fielMap = new Map<string, string | null>();
-    if (hasAdminAccess && compRes.data.length > 0) {
-      const companyIds = (compRes.data as Row[]).map((c) => String(c.id));
-      const [counts, fielRes] = await Promise.all([
+    if (hasAdminAccess && compRows.length > 0) {
+      const companyIds = compRows.map((c) => String(c.id));
+      const [counts, fielRows] = await Promise.all([
         fetchCompanyCountsBatched(companyIds),
-        supabase.from('fiel_credentials').select('company_id, valid_to')
+        fetchAllRows<Row>((from, to) =>
+          client.from('fiel_credentials').select('company_id, valid_to').order('company_id', { ascending: true }).range(from, to)
+        ).catch(() => [] as Row[])
       ]);
       polMap = counts.polMap;
       cfdiMap = counts.cfdiMap;
-      if (!fielRes.error) {
-        for (const f of fielRes.data || []) if (f.company_id) fielMap.set(String(f.company_id), f.valid_to ? String(f.valid_to) : null);
-      }
+      for (const f of fielRows) if (f.company_id) fielMap.set(String(f.company_id), f.valid_to ? String(f.valid_to) : null);
     }
 
-    return compRes.data.map((c: Row) => {
+    return compRows.map((c: Row) => {
       const id = String(c.id), rawUserId = c.user_id ? String(c.user_id) : undefined, name = String(c.name || '');
       const isDemo = isDemoCompanyRecord({ rfc: c.rfc, name, user_id: rawUserId });
       const base: AdminCompanySummary = {
@@ -141,15 +150,19 @@ export const supabaseAdminApi = {
   },
 
   async getAdminUsers(): Promise<AdminUserSummary[]> {
-    if (!supabase) return [];
-    const [{ data: profiles, error: profErr }, { data: allCompanies }] = await Promise.all([
-      supabase.from('user_profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('companies').select('*')
+    const client = supabase;
+    if (!client) return [];
+    const [profiles, compList] = await Promise.all([
+      fetchAllRows<Row>((from, to) =>
+        client.from('user_profiles').select('*').order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)
+      ).catch(() => [] as Row[]),
+      fetchAllRows<Row>((from, to) =>
+        client.from('companies').select('*').order('id', { ascending: true }).range(from, to)
+      ).catch(() => [] as Row[])
     ]);
-    const compList = (allCompanies || []) as Row[];
-    if (!profErr && profiles && profiles.length > 0) return (profiles as Row[]).map((p) => mapUserProfileRow(p, compList));
+    if (profiles.length > 0) return profiles.map((p) => mapUserProfileRow(p, compList));
 
-    const { data: authData } = await supabase.auth.getUser();
+    const { data: authData } = await client.auth.getUser();
     const u = authData?.user, ownerId = u?.id || 'usr_owner_hlopez';
     const fallbackUsers: AdminUserSummary[] = [{
       id: ownerId, email: u?.email || 'hlopezb@gmail.com', fullName: u?.user_metadata?.full_name || 'Hector Lopez',
@@ -190,21 +203,30 @@ export const supabaseAdminApi = {
       };
     }
 
+    const client = supabase;
     const since7d = Date.now() - 7 * 86400000, since30d = Date.now() - 30 * 86400000;
-    const [usrRes, compRes, satRes] = await Promise.all([
-      supabase.from('user_profiles').select('id, created_at'),
-      supabase.from('companies').select('id, name, rfc, user_id'),
-      supabase.from('sat_download_requests').select('estado_solicitud, codigo_estado_sat').gte('created_at', new Date(since7d).toISOString())
+    const since7dIso = new Date(since7d).toISOString();
+    const [usrRows, compRows, satRows] = await Promise.all([
+      fetchAllRows<Row>((from, to) =>
+        client.from('user_profiles').select('id, created_at').order('id', { ascending: true }).range(from, to)
+      ).catch(() => [] as Row[]),
+      fetchAllRows<Row>((from, to) =>
+        client.from('companies').select('id, name, rfc, user_id').order('id', { ascending: true }).range(from, to)
+      ).catch(() => [] as Row[]),
+      fetchAllRows<Row>((from, to) =>
+        client.from('sat_download_requests').select('id, estado_solicitud, codigo_estado_sat').gte('created_at', since7dIso).order('id', { ascending: true }).range(from, to)
+      ).catch(() => [] as Row[])
     ]);
-    const usrRows = (usrRes.data || []) as Row[];
-    const realCompanies = ((compRes.data || []) as Row[]).filter((c) => !isDemoCompanyRecord({ rfc: c.rfc, name: c.name }));
+    const realCompanies = compRows.filter((c) => !isDemoCompanyRecord({ rfc: c.rfc, name: c.name }));
     const realIds = realCompanies.map((c) => String(c.id));
 
     let totalPolizas = 0, totalCfdis = 0, activeCompaniesCount = 0, companiesWithFielCount = 0;
     if (realIds.length > 0) {
-      const [{ polMap, cfdiMap }, fielRes] = await Promise.all([
+      const [{ polMap, cfdiMap }, fielRows] = await Promise.all([
         fetchCompanyCountsBatched(realIds),
-        supabase.from('fiel_credentials').select('company_id').in('company_id', realIds)
+        fetchAllRows<Row>((from, to) =>
+          client.from('fiel_credentials').select('company_id').in('company_id', realIds).order('company_id', { ascending: true }).range(from, to)
+        ).catch(() => [] as Row[])
       ]);
       for (const cid of realIds) {
         const p = polMap.get(cid) ?? 0, c = cfdiMap.get(cid) ?? 0;
@@ -212,10 +234,10 @@ export const supabaseAdminApi = {
         totalCfdis += c;
         if (p > 0 || c > 0) activeCompaniesCount += 1;
       }
-      companiesWithFielCount = new Set((fielRes.data || []).map((f) => String(f.company_id))).size;
+      companiesWithFielCount = new Set(fielRows.map((f) => String(f.company_id))).size;
     }
 
-    const satErrors7d = (satRes.data || []).filter((r) => isSatErrorCode(r.estado_solicitud, r.codigo_estado_sat)).length;
+    const satErrors7d = satRows.filter((r) => isSatErrorCode(r.estado_solicitud, r.codigo_estado_sat)).length;
     const distinctUsers = new Set(realCompanies.map((c) => String(c.user_id || '')).filter((id) => id && id !== 'demo'));
 
     return {

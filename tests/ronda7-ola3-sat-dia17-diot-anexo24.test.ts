@@ -481,7 +481,8 @@ describe('Ronda 7 Ola 3 — INPC Oficial INEGI, Día 17, DyP Art. 20 CFF, DIOT, 
       ivaNoAcreditable16: 400,
       ivaRetenido: 0
     }).split('|');
-    expect(lineDom[27]).toBe('400');
+    expect(lineDom[27]).toBe('');
+    expect(lineDom[35]).toBe('400');
     expect(lineDom[46]).toBe('');
 
     const lineExtDeu = buildDiot54BatchLine({
@@ -708,7 +709,8 @@ describe('Ronda 7 Ola 3 — INPC Oficial INEGI, Día 17, DyP Art. 20 CFF, DIOT, 
         makeCfdi({ id: 'r_g', uuid: 'RG1', fecha: '2026-06-02', direction: 'RECIBIDO', emisorRfc: 'PRO010101AA1', receptorRfc: 'RPM260101AA1', subtotal: 50_000, ivaTrasladado: 8_000, total: 58_000 })
       ]
     });
-    expect(resicoPmAnnual.reconciliation.resultadoFiscal).toBe(165_000);
+    // 200k ingresos - (50k CFDIs deducibles - 5k manual) = 155k (no resta doblemente 801-01-002 sobre CFDIs pagados)
+    expect(resicoPmAnnual.reconciliation.resultadoFiscal).toBe(155_000);
 
     const resicoPfAnnual = computeAnnualTaxSummary({
       company: makeCompany({ rfc: 'GAPA850101AB1', regimenFiscal: '626' }),

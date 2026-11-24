@@ -10,6 +10,7 @@ import {
 } from './auto-poliza.engine';
 import { roundArt20Cff } from './sat-dyp-formatter';
 import {
+  appendIvaNoAcreditableMovements,
   buildExchangeFluctuationMovements,
   push118WithCap
 } from './tax-provision-helpers';
@@ -36,12 +37,30 @@ export function buildTaxProvisionMovements(
   const isrCausadoCents = toCents(wp.isrProvisional.isrCausado);
   const pagosPreviosCents = toCents(wp.isrProvisional.pagosProvisionalesPrevios);
   const isrRetFavorCents = toCents(wp.isrProvisional.isrRetenidoPeriodo);
+  const isrRetMesRawCents = toCents(
+    wp.isrProvisional.isrRetenidoMesActual ?? wp.isrProvisional.isrRetenidoPeriodo
+  );
+  const accIsrRetFavorRaw =
+    accounts.find((a) => a.isAffectable && (a.code === '113-02-001' || a.satGroupCode === '113.02')) ?? null;
+  const accIsrRetBal = accIsrRetFavorRaw as (Account & Partial<AccountWithBalance>) | null;
+  const has113Activity =
+    accIsrRetBal !== null &&
+    typeof accIsrRetBal.finalBalance === 'number' &&
+    (accIsrRetBal.finalBalance > 0 ||
+      (accIsrRetBal.periodCharges ?? 0) > 0 ||
+      (accIsrRetBal.periodCredits ?? 0) > 0);
+  const remaining113Cents = has113Activity
+    ? Math.max(0, toCents(accIsrRetBal!.finalBalance ?? 0))
+    : Number.MAX_SAFE_INTEGER;
   const isrAntesRetCents =
     isrCausadoCents > 0
       ? Math.max(0, isrCausadoCents - pagosPreviosCents)
       : isrNetoCents + isrRetFavorCents;
-  const isrRetAplicadoCents = isrRetFavorCents > 0 ? Math.min(isrAntesRetCents, isrRetFavorCents) : 0;
-  const isrGastoCents = isrNetoCents + isrRetAplicadoCents;
+  const isrRetAplicadoMesCents =
+    isrRetMesRawCents > 0
+      ? Math.min(isrAntesRetCents, isrRetMesRawCents, remaining113Cents)
+      : 0;
+  const isrGastoCents = isrNetoCents + isrRetAplicadoMesCents;
 
   const ivaCobradoCents = toCents(wp.ivaDefinitivo.ivaTrasladadoCobrado);
   const ivaPagadoCents = toCents(wp.ivaDefinitivo.ivaAcreditablePagado);
@@ -94,7 +113,7 @@ export function buildTaxProvisionMovements(
       cargo: fromCents(isrGastoCents),
       abono: 0
     });
-    if (isrRetAplicadoCents > 0) {
+    if (isrRetAplicadoMesCents > 0) {
       const accIsrRetFavor = resolveFiscalAccount(accounts, 'ISR_ACREDITABLE_RETENIDO');
       movements.push({
         accountId: accIsrRetFavor.id,
@@ -103,7 +122,7 @@ export function buildTaxProvisionMovements(
         referencia: `ISR-M${periodo}`,
         concepto: `Acreditamiento de ISR Retenido por Clientes contra ISR (${periodo}/${ejercicio})`,
         cargo: 0,
-        abono: fromCents(isrRetAplicadoCents)
+        abono: fromCents(isrRetAplicadoMesCents)
       });
     }
     if (isrPayableCents > 0) {
@@ -285,35 +304,28 @@ export function buildTaxProvisionMovements(
           abono: fromCents(retFavorCents)
         });
       }
-    }
-    if (ivaNoAcreditableCents > 0) {
-      const accGastoIvaNoAcred =
-        accounts.find((a) => a.isAffectable && a.code === '601-01-012') ??
-        accounts.find((a) => a.isAffectable && /iva\s*no\s*acreditable/i.test(a.name)) ??
-        accounts.find((a) => a.isAffectable && a.satGroupCode === '601.56') ??
-        resolveFiscalAccount(accounts, 'HONORARIOS_SERVICIOS');
-      const noAcredTransferred = push118WithCap(
-        movements,
-        accIvaPagado,
-        accIvaPendienteRaw,
-        ivaNoAcreditableCents,
-        remaining118Ref,
-        `IVA-M${periodo}`,
-        'Cancelación de IVA no acreditable por prorrateo Art. 5 LIVA',
-        'Cancelación de IVA pendiente no acreditable por prorrateo Art. 5 LIVA'
-      );
-      if (noAcredTransferred > 0) {
+      const uncoveredIvaCents = Math.max(0, ivaCobradoCents - effectiveCreditedCents - retFavorCents);
+      if (uncoveredIvaCents > 0) {
         movements.push({
-          accountId: accGastoIvaNoAcred.id,
-          accountCode: accGastoIvaNoAcred.code,
-          accountName: accGastoIvaNoAcred.name,
+          accountId: accIvaPorPagar.id,
+          accountCode: accIvaPorPagar.code,
+          accountName: accIvaPorPagar.name,
           referencia: `IVA-M${periodo}`,
-          concepto: 'IVA no acreditable por prorrateo Art. 5 LIVA (Gasto deducible Art. 28 LISR)',
-          cargo: fromCents(noAcredTransferred),
-          abono: 0
+          concepto: `IVA trasladado pendiente por diferencia en saldo de 118 (${periodo}/${ejercicio})`,
+          cargo: 0,
+          abono: fromCents(uncoveredIvaCents)
         });
       }
     }
+    appendIvaNoAcreditableMovements(
+      movements,
+      accounts,
+      accIvaPagado,
+      accIvaPendienteRaw,
+      ivaNoAcreditableCents,
+      remaining118Ref,
+      periodo
+    );
   }
 
   return movements;

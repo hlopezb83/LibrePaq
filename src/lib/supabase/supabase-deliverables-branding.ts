@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { isGuestDemoMode } from '../sandbox/guest-demo-mode';
+import { getReadOnlyWriteErrorMessage, isReadOnlyWriteBlocked } from '../support-impersonation';
 
 export interface DeliverableBrandingConfig {
   firmName: string;
@@ -145,6 +146,9 @@ export async function saveDeliverableBranding(
   config: DeliverableBrandingConfig,
   options?: { isReadOnly?: boolean; organizationId?: string | null }
 ): Promise<{ savedToCloud: boolean }> {
+  if (isReadOnlyWriteBlocked()) {
+    throw new Error(getReadOnlyWriteErrorMessage());
+  }
   if (!companyId || options?.isReadOnly) return { savedToCloud: false };
 
   writeLocalDeliverableBranding(companyId, config);

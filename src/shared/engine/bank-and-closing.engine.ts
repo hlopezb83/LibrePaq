@@ -126,7 +126,8 @@ export function buildYearCloseMovements(
     });
   }
 
-  validateDoubleEntryMovements(movements);
+  const accountsById = new Map(tb13.map((a) => [a.id, a]));
+  validateDoubleEntryMovements(movements, accountsById);
   return {
     movements,
     utilidadTraspasada: fromCents(netDiffCents)
@@ -169,6 +170,11 @@ export function buildBankLinePolizaPlan(params: {
   const { accounts, accountId, cargoBanco, abonoBanco, referencia, descripcion } = params;
   const bankAcc =
     accounts.find((a) => a.id === accountId) ?? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL');
+  assertAccountingInvariant(
+    bankAcc.isAffectable,
+    'NON_AFFECTABLE_ACCOUNT',
+    `La cuenta bancaria ${bankAcc.code} (${bankAcc.name}) es acumulativa (de mayor) y no permite cargos ni abonos directos.`
+  );
 
   const isWithdrawal = toCents(cargoBanco) > 0;
   const amountCents = isWithdrawal ? toCents(cargoBanco) : toCents(abonoBanco);
@@ -260,7 +266,8 @@ export function buildBankLinePolizaPlan(params: {
           : [])
       ];
 
-  validateDoubleEntryMovements(movements);
+  const accountsById = new Map(accounts.map((a) => [a.id, a]));
+  validateDoubleEntryMovements(movements, accountsById);
 
   return {
     tipo,

@@ -1,98 +1,36 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeCostOfSales } from '../../shared/engine/cost-of-sales.engine';
-import type { CompanyBackupBundle } from '../../shared/types';
 import type { AccountingRuleDirection, AccountingRuleRecord } from '../../shared/types/accounting-rules.types';
 import type { AnnualTaxInputs } from '../../shared/types/annual-tax.types';
 import type { BankN1MatchRecord } from '../../shared/types/bank-n1.types';
 import type { InventoryMethod, InventoryPeriodRecord } from '../../shared/types/cost-of-sales.types';
-import { chunkArray } from './supabase-pagination';
+import {
+  fetchOptionalTableRows,
+  isMissingTableError,
+  upsertOptionalChunks,
+  type BackupBankReconciliationClosure,
+  type BackupDeliverableBranding,
+  type BackupPayrollPeriodSetting,
+  type BackupPolizaCfdi,
+  type ExportedOptionalBackupTables,
+  type ExtendedBackupBundle
+} from './supabase-backup-optional-types';
 
-export interface BackupPayrollPeriodSetting {
-  companyId: string;
-  ejercicio: number;
-  periodo: number;
-  stateCode: string;
-  isnRate: number;
-  imssPatronal: number;
-  rcv: number;
-  infonavit: number;
-  updatedAt?: string;
-}
-
-export interface BackupPolizaCfdi {
-  id: string;
-  companyId: string;
-  polizaId: string;
-  cfdiUuid: string;
-  createdAt?: string;
-}
-
-export type ExtendedBackupBundle = CompanyBackupBundle & {
-  payrollPeriodSettings?: BackupPayrollPeriodSetting[];
-  polizaCfdis?: BackupPolizaCfdi[];
+export {
+  isMissingTableError,
+  type BackupBankReconciliationClosure,
+  type BackupDeliverableBranding,
+  type BackupPayrollPeriodSetting,
+  type BackupPolizaCfdi,
+  type ExtendedBackupBundle
 };
-
-type UpsertRow = Record<string, unknown>;
-
-export function isMissingTableError(error: { code?: string; message?: string } | null | undefined): boolean {
-  if (!error) return false;
-  const code = error.code || '';
-  const msg = (error.message || '').toLowerCase();
-  return (
-    code === '42P01' ||
-    code === 'PGRST205' ||
-    msg.includes('does not exist') ||
-    msg.includes('could not find the table') ||
-    msg.includes('schema cache')
-  );
-}
-
-async function fetchOptionalTableRows(
-  client: SupabaseClient,
-  table: string,
-  companyId: string,
-  orderColumns: readonly string[] = ['id']
-): Promise<Array<Record<string, unknown>>> {
-  const rows: Array<Record<string, unknown>> = [];
-  let from = 0;
-  const pageSize = 1000;
-  while (true) {
-    let query = client.from(table).select('*').eq('company_id', companyId);
-    for (const col of orderColumns) {
-      query = query.order(col);
-    }
-    const { data, error } = await query.range(from, from + pageSize - 1);
-    if (error) {
-      if (isMissingTableError(error)) return [];
-      throw new Error(`[Export ${table}] ${error.message}`);
-    }
-    if (!data || data.length === 0) break;
-    rows.push(...(data as Array<Record<string, unknown>>));
-    if (data.length < pageSize) break;
-    from += pageSize;
-  }
-  return rows;
-}
-
-async function upsertOptionalChunks(
-  client: SupabaseClient,
-  table: string,
-  rows: UpsertRow[],
-  onConflict: string
-): Promise<void> {
-  for (const chunk of chunkArray(rows, 100)) {
-    const { error } = await client.from(table).upsert(chunk, { onConflict });
-    if (error) {
-      if (isMissingTableError(error)) return;
-      throw new Error(`[Restore ${table}] Error: ${error.message}`);
-    }
-  }
-}
 
 export async function clearOptionalBackupTables(client: SupabaseClient, companyId: string): Promise<void> {
   // Orden FK: bank_statement_matches referencia bank_statement_lines
   const optionalTables = [
     'bank_statement_matches',
+    'bank_reconciliation_closures',
+    'despacho_deliverable_branding',
     'poliza_cfdis',
     'payroll_period_settings',
     'accounting_rules',
@@ -110,22 +48,18 @@ export async function clearOptionalBackupTables(client: SupabaseClient, companyI
 export async function exportOptionalBackupTables(
   client: SupabaseClient,
   companyId: string
-): Promise<{
-  accountingRules: AccountingRuleRecord[];
-  annualTaxSnapshots: AnnualTaxInputs[];
-  inventoryPeriods: InventoryPeriodRecord[];
-  bankStatementMatches: BankN1MatchRecord[];
-  payrollPeriodSettings: BackupPayrollPeriodSetting[];
-  polizaCfdis: BackupPolizaCfdi[];
-}> {
-  const [rawRules, rawSnapshots, rawInventory, rawMatches, rawPayroll, rawPolizaCfdis] = await Promise.all([
-    fetchOptionalTableRows(client, 'accounting_rules', companyId),
-    fetchOptionalTableRows(client, 'annual_tax_snapshots', companyId),
-    fetchOptionalTableRows(client, 'inventory_periods', companyId),
-    fetchOptionalTableRows(client, 'bank_statement_matches', companyId),
-    fetchOptionalTableRows(client, 'payroll_period_settings', companyId, ['ejercicio', 'periodo']),
-    fetchOptionalTableRows(client, 'poliza_cfdis', companyId)
-  ]);
+): Promise<ExportedOptionalBackupTables> {
+  const [rawRules, rawSnapshots, rawInventory, rawMatches, rawPayroll, rawPolizaCfdis, rawClosures, rawBranding] =
+    await Promise.all([
+      fetchOptionalTableRows(client, 'accounting_rules', companyId),
+      fetchOptionalTableRows(client, 'annual_tax_snapshots', companyId),
+      fetchOptionalTableRows(client, 'inventory_periods', companyId),
+      fetchOptionalTableRows(client, 'bank_statement_matches', companyId),
+      fetchOptionalTableRows(client, 'payroll_period_settings', companyId, ['ejercicio', 'periodo']),
+      fetchOptionalTableRows(client, 'poliza_cfdis', companyId),
+      fetchOptionalTableRows(client, 'bank_reconciliation_closures', companyId, ['ejercicio', 'periodo']),
+      fetchOptionalTableRows(client, 'despacho_deliverable_branding', companyId)
+    ]);
 
   const accountingRules: AccountingRuleRecord[] = rawRules.map((r) => ({
     id: String(r.id),
@@ -156,6 +90,7 @@ export async function exportOptionalBackupTables(
     dividendosPagados: Number(r.dividendos_pagados ?? 0),
     ptuPagadaAnterior: Number(r.ptu_pagada_anterior ?? 0),
     noDeduciblesManual: Number(r.no_deducibles_manual ?? 0),
+    deduccionesPersonales: Number(r.deducciones_personales ?? 0),
     updatedAt: r.updated_at ? String(r.updated_at) : undefined
   }));
 
@@ -216,13 +151,42 @@ export async function exportOptionalBackupTables(
     createdAt: r.created_at ? String(r.created_at) : undefined
   }));
 
+  const bankReconciliationClosures: BackupBankReconciliationClosure[] = rawClosures.map((r) => ({
+    id: String(r.id),
+    companyId: String(r.company_id ?? companyId),
+    accountId: String(r.account_id),
+    ejercicio: Number(r.ejercicio),
+    periodo: Number(r.periodo),
+    saldoBancoCierre: Number(r.saldo_banco_cierre ?? 0),
+    updatedAt: r.updated_at ? String(r.updated_at) : undefined
+  }));
+
+  const deliverableBranding: BackupDeliverableBranding[] = rawBranding.map((r) => ({
+    id: String(r.id),
+    scopeKey: String(r.scope_key ?? `comp_${companyId}`),
+    companyId: r.company_id ? String(r.company_id) : companyId,
+    organizationId: r.organization_id ? String(r.organization_id) : null,
+    firmName: String(r.firm_name ?? ''),
+    preparerName: String(r.preparer_name ?? 'Auxiliar Contable'),
+    auditorName: String(r.auditor_name ?? ''),
+    auditorCedula: String(r.auditor_cedula ?? ''),
+    legalRepName: String(r.legal_rep_name ?? ''),
+    legalRepTitle: String(r.legal_rep_title ?? 'Representante Legal'),
+    issuanceCity: String(r.issuance_city ?? 'Ciudad de México'),
+    logoDataUrl: r.logo_data_url ? String(r.logo_data_url) : null,
+    notesText: String(r.notes_text ?? ''),
+    updatedAt: r.updated_at ? String(r.updated_at) : undefined
+  }));
+
   return {
     accountingRules,
     annualTaxSnapshots,
     inventoryPeriods,
     bankStatementMatches,
     payrollPeriodSettings,
-    polizaCfdis
+    polizaCfdis,
+    bankReconciliationClosures,
+    deliverableBranding
   };
 }
 
@@ -265,6 +229,7 @@ export async function restoreOptionalBackupTables(
       dividendos_pagados: Number(s.dividendosPagados ?? 0),
       ptu_pagada_anterior: Number(s.ptuPagadaAnterior ?? 0),
       no_deducibles_manual: Number(s.noDeduciblesManual ?? 0),
+      deducciones_personales: Number(s.deduccionesPersonales ?? 0),
       updated_at: s.updatedAt || new Date().toISOString()
     }));
     await upsertOptionalChunks(client, 'annual_tax_snapshots', rows, 'company_id,ejercicio');
@@ -328,5 +293,38 @@ export async function restoreOptionalBackupTables(
     if (rows.length > 0) {
       await upsertOptionalChunks(client, 'poliza_cfdis', rows, 'poliza_id,cfdi_uuid');
     }
+  }
+
+  if (Array.isArray(bundle.bankReconciliationClosures) && bundle.bankReconciliationClosures.length > 0) {
+    const rows = bundle.bankReconciliationClosures.map((c) => ({
+      id: c.id || `bclose_${companyId}_${c.accountId}_${c.ejercicio}_${c.periodo}`,
+      company_id: companyId,
+      account_id: c.accountId,
+      ejercicio: Number(c.ejercicio),
+      periodo: Number(c.periodo),
+      saldo_banco_cierre: Number(c.saldoBancoCierre ?? 0),
+      updated_at: c.updatedAt || new Date().toISOString()
+    }));
+    await upsertOptionalChunks(client, 'bank_reconciliation_closures', rows, 'company_id,account_id,ejercicio,periodo');
+  }
+
+  if (Array.isArray(bundle.deliverableBranding) && bundle.deliverableBranding.length > 0) {
+    const rows = bundle.deliverableBranding.map((b) => ({
+      id: b.id || `brand_${companyId}`,
+      scope_key: `comp_${companyId}`,
+      company_id: companyId,
+      organization_id: b.organizationId ?? null,
+      firm_name: b.firmName || '',
+      preparer_name: b.preparerName || 'Auxiliar Contable',
+      auditor_name: b.auditorName || '',
+      auditor_cedula: b.auditorCedula || '',
+      legal_rep_name: b.legalRepName || '',
+      legal_rep_title: b.legalRepTitle || 'Representante Legal',
+      issuance_city: b.issuanceCity || 'Ciudad de México',
+      logo_data_url: b.logoDataUrl ?? null,
+      notes_text: b.notesText || '',
+      updated_at: b.updatedAt || new Date().toISOString()
+    }));
+    await upsertOptionalChunks(client, 'despacho_deliverable_branding', rows, 'scope_key');
   }
 }

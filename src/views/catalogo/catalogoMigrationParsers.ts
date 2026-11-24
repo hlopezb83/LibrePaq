@@ -1,3 +1,4 @@
+import { SAFETY_BOUNDS } from '../../shared/sat-constants';
 import type { AccountNature, AccountType } from '../../shared/types';
 import type { CatalogoCsvSkippedRow, ParsedCatalogoCsvRow } from './catalogoCsvIo';
 export { parseAnexo24XmlCatalogOrBalanza } from './catalogoAnexo24XmlParser';
@@ -44,13 +45,15 @@ export function isValidMigrationAccountCode(code: string): boolean {
 
 export function inferTypeFromCode(code: string, rawTypeHint?: string): AccountType {
   const hint = (rawTypeHint || '').trim().toUpperCase();
-  if (hint === 'ACTIVO' || hint.startsWith('A')) return 'ACTIVO';
-  if (hint === 'PASIVO' || hint.startsWith('P')) return 'PASIVO';
-  if (hint === 'CAPITAL' || hint.startsWith('C')) return 'CAPITAL';
-  if (hint === 'INGRESOS' || hint.startsWith('I')) return 'INGRESOS';
-  if (hint === 'COSTOS') return 'COSTOS';
-  if (hint === 'GASTOS' || hint.startsWith('E') || hint.startsWith('G')) return 'GASTOS';
-  if (hint === 'ORDEN' || hint.startsWith('O')) return 'ORDEN';
+  if (hint && hint !== 'A' && hint !== 'D' && hint !== 'ACREEDORA' && hint !== 'DEUDORA') {
+    if (hint === 'ACTIVO' || hint.startsWith('ACT') || /^A[AD]$/.test(hint)) return 'ACTIVO';
+    if (hint === 'PASIVO' || hint.startsWith('P')) return 'PASIVO';
+    if (hint === 'COSTOS' || hint.startsWith('COSTO')) return 'COSTOS';
+    if (hint === 'CAPITAL' || hint.startsWith('C')) return 'CAPITAL';
+    if (hint === 'INGRESOS' || hint.startsWith('I')) return 'INGRESOS';
+    if (hint === 'GASTOS' || hint.startsWith('E') || hint.startsWith('G')) return 'GASTOS';
+    if (hint === 'ORDEN' || hint.startsWith('O')) return 'ORDEN';
+  }
 
   const first = code.charAt(0);
   if (first === '1') return 'ACTIVO';
@@ -72,26 +75,27 @@ export function inferNatureFromType(type: AccountType, rawNat?: string): Account
 }
 
 export function inferLevelFromCode(code: string): number {
-  const parts = code.split('-');
+  const parts = code.split(/[-.]/);
   if (parts.length <= 1) return 1;
   let nonZeroCount = 0;
   for (const seg of parts) {
     if (!/^0+$/.test(seg)) nonZeroCount += 1;
   }
-  return Math.max(1, Math.min(4, nonZeroCount));
+  return Math.max(1, Math.min(SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL, nonZeroCount));
 }
 
 export function inferParentCodeFromSet(code: string, knownCodes: ReadonlySet<string>): string | null {
-  const parts = code.split('-');
+  const sep = code.includes('.') && !code.includes('-') ? '.' : '-';
+  const parts = code.split(sep);
   for (let i = parts.length - 1; i >= 1; i -= 1) {
     if (/^0+$/.test(parts[i]!)) continue;
-    const candidate = parts.map((seg, idx) => (idx >= i ? '0'.repeat(seg.length) : seg)).join('-');
+    const candidate = parts.map((seg, idx) => (idx >= i ? '0'.repeat(seg.length) : seg)).join(sep);
     if (candidate !== code && knownCodes.has(candidate)) {
       return candidate;
     }
   }
   if (parts.length > 3) {
-    const truncated = parts.slice(0, parts.length - 1).join('-');
+    const truncated = parts.slice(0, parts.length - 1).join(sep);
     if (knownCodes.has(truncated)) return truncated;
   }
   return null;
@@ -134,8 +138,10 @@ export function parseContpaqiTxtCatalog(text: string): CatalogoMigrationParseRes
       } else {
         rawParent = normalizeMigrationAccountCode(c3);
         rawTypeOrNat = c4;
-        rawSat = /^\d{3}\.\d{2}/.test(c5) ? c5 : /^\d{3}\.\d{2}/.test(c6) ? c6 : '';
-        rawBal = !rawSat && c5 ? c5 : c6;
+        const c5IsSat = /^\d{3}\.\d{2}/.test(c5);
+        const c6IsSat = !c5IsSat && /^\d{3}\.\d{2}/.test(c6);
+        rawSat = c5IsSat ? c5 : c6IsSat ? c6 : '';
+        rawBal = c5IsSat ? c6 : c6IsSat ? '' : c5 || c6;
       }
     } else {
       const match = rawLine.match(/^C\s+(\S+)\s+(.+)$/i);

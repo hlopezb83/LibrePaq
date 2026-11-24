@@ -4,7 +4,11 @@ import {
   isResultOfExerciseAccount,
   resolveAccumulatedEarningsAccount
 } from '../../shared/engine/financial-reports-helpers';
-import { rollUpTrialBalanceAccounts } from '../../shared/engine/financial-reports.engine';
+import {
+  registerClosingMovementsForTrialBalance,
+  rollUpTrialBalanceAccounts,
+  type ClosingMovementCents
+} from '../../shared/engine/financial-reports-rollup';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { AccountType, AccountWithBalance } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
@@ -83,7 +87,14 @@ export function computeTrialBalance(
     }
     for (const acc of accounts) {
       if (!acc.isAffectable) continue;
-      if (acc.type !== 'INGRESOS' && acc.type !== 'COSTOS' && acc.type !== 'GASTOS') continue;
+      if (
+        acc.type !== 'INGRESOS' &&
+        acc.type !== 'COSTOS' &&
+        acc.type !== 'GASTOS' &&
+        !isResultOfExerciseAccount(acc)
+      ) {
+        continue;
+      }
       const initCents = toCents(acc.initialBalance);
       if (initCents === 0) continue;
       if (acc.nature === 'ACREEDORA') priorRolloverAbonoCents += initCents;
@@ -144,7 +155,7 @@ export function computeTrialBalance(
     creditsCentsByAccountId.set(r.account_id, toCents(r.sum_abono));
   }
 
-  return rollUpTrialBalanceAccounts(
+  const rolled = rollUpTrialBalanceAccounts(
     accounts,
     priorChargesCentsMap,
     priorCreditsCentsMap,
@@ -152,6 +163,34 @@ export function computeTrialBalance(
     creditsCentsByAccountId,
     { zeroResultInitialBalances: hasPriorYearMovements }
   );
+
+  if (periodo === 13) {
+    const cierreRows = db
+      .query(`
+        SELECT m.account_id, COALESCE(SUM(m.cargo), 0) as sum_cargo, COALESCE(SUM(m.abono), 0) as sum_abono
+        FROM poliza_movements m
+        INNER JOIN polizas p ON m.poliza_id = p.id
+        WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo = 13 AND p.origin = 'CIERRE_ANUAL'
+        GROUP BY m.account_id
+      `)
+      .all(companyId, ejercicio) as Array<{
+      account_id: string;
+      sum_cargo: number;
+      sum_abono: number;
+    }>;
+    if (cierreRows.length > 0) {
+      const closingMap = new Map<string, ClosingMovementCents>();
+      for (const r of cierreRows) {
+        closingMap.set(r.account_id, {
+          cargoCents: toCents(r.sum_cargo),
+          abonoCents: toCents(r.sum_abono)
+        });
+      }
+      registerClosingMovementsForTrialBalance(rolled, closingMap);
+    }
+  }
+
+  return rolled;
 }
 
 /**

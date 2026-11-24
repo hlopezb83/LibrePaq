@@ -1,4 +1,5 @@
 import type {
+  CfdiRelatedDocMeta,
   PolizaType,
   ThirdPartyRecord
 } from '../types';
@@ -22,16 +23,23 @@ export interface AutoPolizaOverrides {
   counterAccountCode?: string;
   expenseOrIncomeAccountId?: string;
   bankOrCounterpartyAccountId?: string;
-  thirdParty?: Pick<ThirdPartyRecord, 'cuentaOperacionCode' | 'cuentaContrapartidaCode'> | null;
+  thirdParty?:
+    | (Pick<ThirdPartyRecord, 'cuentaOperacionCode' | 'cuentaContrapartidaCode'> & {
+        rol?: ThirdPartyRecord['rol'];
+      })
+    | null;
   rules?: readonly AccountingRuleRecord[];
   deductiblePct?: number;
   relatedOriginalTipoCambio?: number;
   relatedOriginalTipoCambioByUuid?: Readonly<Record<string, number>>;
+  relatedDocsMetaByUuid?: Readonly<Record<string, CfdiRelatedDocMeta>>;
   relatedIsPpd?: boolean;
   relatedPpdIsrRetenido?: number;
   relatedPpdIvaRetenido?: number;
   relatedPpdTotal?: number;
 }
+
+export type AutoPolizaContextOverrides = AutoPolizaOverrides;
 
 export interface AutoPolizaPlan {
   polizaType: PolizaType;

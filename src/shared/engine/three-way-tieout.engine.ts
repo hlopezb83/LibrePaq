@@ -6,7 +6,12 @@ import type {
   Poliza
 } from '../types';
 import { fromCents, sumCents, toCents } from './invariants-and-math';
-import { computeSatAddPillar, detectManualIvaCauses } from './three-way-tieout.helpers';
+import {
+  computeSatAddPillar,
+  detectManualIvaCauses,
+  isIvaAccount,
+  isMonthlyIvaProvisionPoliza
+} from './three-way-tieout.helpers';
 
 export type TieoutTrafficLight = 'VERDE' | 'AMARILLO' | 'ROJO';
 
@@ -71,7 +76,14 @@ export interface ThreeWayTieoutResult {
   causes: TieoutCause[];
 }
 
-function computeContabilidadPillar(trialBalance: readonly AccountWithBalance[]) {
+function computeContabilidadPillar(params: {
+  trialBalance: readonly AccountWithBalance[];
+  polizas: readonly Poliza[];
+  cfdis: readonly CfdiDocument[];
+  ejercicio: number;
+  periodo: number;
+}) {
+  const { trialBalance, polizas, cfdis, ejercicio, periodo } = params;
   const affectable = trialBalance.filter((a) => a.isAffectable !== false);
   let ingCents = 0;
   let gasCents = 0;
@@ -84,18 +96,72 @@ function computeContabilidadPillar(trialBalance: readonly AccountWithBalance[]) 
     const code = (acc.code || '').trim();
     const charges = toCents(acc.periodCharges);
     const credits = toCents(acc.periodCredits);
+    const ivaKind = isIvaAccount(code, acc.satGroupCode);
 
     if (code.startsWith('401') || code.startsWith('402')) {
       ingCents += credits - charges;
     } else if (code.startsWith('501') || code.startsWith('601')) {
       gasCents += charges - credits;
-    } else if (code.startsWith('208-01') || acc.satGroupCode?.startsWith('208.01') || code.startsWith('208')) {
+    } else if (ivaKind === 'IVA_208') {
       iva208Cents += credits - charges;
-    } else if (code.startsWith('118-01') || acc.satGroupCode?.startsWith('118.01') || code.startsWith('118')) {
+    } else if (ivaKind === 'IVA_118') {
       iva118Cents += charges - credits;
     } else if (code.startsWith('102')) {
       bancosCargosCents += charges;
       bancosAbonosCents += credits;
+    }
+  }
+
+  const nominaUuids = new Set<string>();
+  const nominaPolizaIds = new Set<string>();
+  for (const doc of cfdis) {
+    if (doc.statusSat === 'CANCELADO' || doc.tipoComprobante !== 'N') continue;
+    const upper = (doc.uuid || '').trim().toUpperCase();
+    if (upper) nominaUuids.add(upper);
+    if (doc.polizaId) nominaPolizaIds.add(doc.polizaId);
+  }
+
+  for (const pol of polizas) {
+    if (pol.ejercicio !== ejercicio || pol.periodo !== periodo) continue;
+
+    if (isMonthlyIvaProvisionPoliza(pol)) {
+      for (const m of pol.movements) {
+        const ivaKind = isIvaAccount((m.accountCode || '').trim());
+        if (ivaKind === 'IVA_208') {
+          iva208Cents -= toCents(m.abono) - toCents(m.cargo);
+        } else if (ivaKind === 'IVA_118') {
+          iva118Cents -= toCents(m.cargo) - toCents(m.abono);
+        }
+      }
+    }
+
+    const origin = String((pol as { origin?: string }).origin || '');
+    if (periodo === 13 && origin === 'CIERRE_ANUAL') {
+      for (const m of pol.movements) {
+        const code = (m.accountCode || '').trim();
+        if (code.startsWith('401') || code.startsWith('402')) {
+          ingCents -= toCents(m.abono) - toCents(m.cargo);
+        } else if (code.startsWith('501') || code.startsWith('601')) {
+          gasCents -= toCents(m.cargo) - toCents(m.abono);
+        }
+      }
+      continue;
+    }
+
+    const polUuids = [pol.cfdiUuid, ...(pol.cfdiUuids ?? [])]
+      .map((u) => (u || '').trim().toUpperCase())
+      .filter(Boolean);
+    const isPolNomina =
+      nominaPolizaIds.has(pol.id) || polUuids.some((u) => nominaUuids.has(u));
+
+    for (const m of pol.movements) {
+      const movUuid = (m.cfdiUuid || '').trim().toUpperCase();
+      const isMovNomina = movUuid ? nominaUuids.has(movUuid) : isPolNomina;
+      if (!isMovNomina) continue;
+      const code = (m.accountCode || '').trim();
+      if (code.startsWith('501') || code.startsWith('601')) {
+        gasCents -= toCents(m.cargo) - toCents(m.abono);
+      }
     }
   }
 
@@ -122,7 +188,13 @@ export function computeThreeWayTieout({
   diotReport
 }: ThreeWayTieoutInput): ThreeWayTieoutResult {
   const sat = computeSatAddPillar(cfdis, ejercicio, periodo);
-  const libros = computeContabilidadPillar(trialBalance);
+  const libros = computeContabilidadPillar({
+    trialBalance,
+    polizas,
+    cfdis,
+    ejercicio,
+    periodo
+  });
 
   const diotRows = diotReport?.rows ?? [];
   const diotActosTotalCents =
@@ -147,7 +219,7 @@ export function computeThreeWayTieout({
   const deltaIvaDiotCents = libros.iva118Cents - diotIvaCents;
 
   const causes: TieoutCause[] = [];
-  const manualIva = detectManualIvaCauses(polizas);
+  const manualIva = detectManualIvaCauses(polizas, ejercicio, periodo);
   if (manualIva.count > 0) {
     causes.push({
       code: 'MANUAL_IVA_SIN_CFDI',

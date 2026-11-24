@@ -2,13 +2,17 @@ import { getRequiredSupabase, supabase } from '../supabase';
 import { assertAccountingInvariant, toCents, validateAccountHierarchy } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import {
+  assertAccountHasNoBankLinesInSupabase,
+  assertAccountHasNoMovementsInSupabase,
+  assertNoLockedPeriodsInSupabase
+} from './supabase-accounts-guards';
+import {
   deleteCompanyFallbackInSupabase,
   propagateOpenAccountNameToMovements,
   resolveActiveOrganizationId
 } from './supabase-accounts-helpers';
 import { mapSupabaseCompany, mapSupabaseAccount } from './supabase-mappers';
 import { fetchAllRows } from './supabase-pagination';
-import { assertSupabasePeriodOpen } from './supabase-polizas';
 import { seedCompanyDefaultsInSupabase } from './supabase-company-seeder';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
 
@@ -41,21 +45,12 @@ export const supabaseCompaniesAndAccounts = {
   },
 
   async createCompany(payload: {
-    name: string;
-    rfc: string;
-    regimenFiscal: string;
-    codigoPostal: string;
-    currentYear?: number;
-    currentPeriod?: number;
+    name: string; rfc: string; regimenFiscal: string; codigoPostal: string;
+    currentYear?: number; currentPeriod?: number;
     catalogPreset?: 'SAT_STANDARD' | 'RESICO_SIMPLIFIED' | 'CUSTOM';
-    initialBankName?: string;
-    initialBankAccount?: string;
-    initialBankBalance?: number;
-    createOpeningEntry?: boolean;
-    fielCerBase64?: string;
-    fielKeyBase64?: string;
-    fielPassword?: string;
-    organizationId?: string | null;
+    initialBankName?: string; initialBankAccount?: string; initialBankBalance?: number;
+    createOpeningEntry?: boolean; fielCerBase64?: string; fielKeyBase64?: string;
+    fielPassword?: string; organizationId?: string | null;
   }): Promise<Company> {
     if (!supabase) throw new Error('Supabase no está configurado');
 
@@ -66,46 +61,27 @@ export const supabaseCompaniesAndAccounts = {
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData?.user?.id || null;
     const organizationId = await resolveActiveOrganizationId(
-      supabase,
-      userId,
-      payload.organizationId,
-      authData?.user?.user_metadata?.workspace_id
+      supabase, userId, payload.organizationId, authData?.user?.user_metadata?.workspace_id
     );
 
     const { data, error } = await supabase
       .from('companies')
       .insert({
-        id: companyId,
-        name: payload.name.trim(),
-        rfc: cleanRfc,
-        regimen_fiscal: payload.regimenFiscal.trim(),
-        codigo_postal: payload.codigoPostal.trim(),
-        mask_format: 'XXX-XX-XXX',
-        current_year: currentYear,
-        current_period: currentPeriod,
-        created_at: new Date().toISOString(),
-        user_id: userId,
-        organization_id: organizationId
+        id: companyId, name: payload.name.trim(), rfc: cleanRfc,
+        regimen_fiscal: payload.regimenFiscal.trim(), codigo_postal: payload.codigoPostal.trim(),
+        mask_format: 'XXX-XX-XXX', current_year: currentYear, current_period: currentPeriod,
+        created_at: new Date().toISOString(), user_id: userId, organization_id: organizationId
       })
-      .select()
-      .single();
+      .select().single();
 
     if (error) throw new Error(`Error al registrar empresa en la nube: ${error.message}`);
 
     await seedCompanyDefaultsInSupabase(supabase, {
-      companyId,
-      cleanRfc,
-      name: payload.name,
-      currentYear,
-      currentPeriod,
-      catalogPreset: payload.catalogPreset,
-      initialBankName: payload.initialBankName,
-      initialBankAccount: payload.initialBankAccount,
-      initialBankBalance: payload.initialBankBalance,
-      createOpeningEntry: payload.createOpeningEntry,
-      fielCerBase64: payload.fielCerBase64,
-      fielKeyBase64: payload.fielKeyBase64,
-      fielPassword: payload.fielPassword
+      companyId, cleanRfc, name: payload.name, currentYear, currentPeriod,
+      catalogPreset: payload.catalogPreset, initialBankName: payload.initialBankName,
+      initialBankAccount: payload.initialBankAccount, initialBankBalance: payload.initialBankBalance,
+      createOpeningEntry: payload.createOpeningEntry, fielCerBase64: payload.fielCerBase64,
+      fielKeyBase64: payload.fielKeyBase64, fielPassword: payload.fielPassword
     });
 
     return mapSupabaseCompany(data);
@@ -113,25 +89,16 @@ export const supabaseCompaniesAndAccounts = {
 
   async updateCompany(
     companyId: string,
-    payload: {
-      name: string;
-      rfc: string;
-      regimenFiscal: string;
-      codigoPostal: string;
-    }
+    payload: { name: string; rfc: string; regimenFiscal: string; codigoPostal: string }
   ): Promise<Company> {
     if (!supabase) throw new Error('Supabase no disponible');
     const { data, error } = await supabase
       .from('companies')
       .update({
-        name: payload.name.trim(),
-        rfc: payload.rfc.trim().toUpperCase(),
-        regimen_fiscal: payload.regimenFiscal.trim(),
-        codigo_postal: payload.codigoPostal.trim()
+        name: payload.name.trim(), rfc: payload.rfc.trim().toUpperCase(),
+        regimen_fiscal: payload.regimenFiscal.trim(), codigo_postal: payload.codigoPostal.trim()
       })
-      .eq('id', companyId)
-      .select()
-      .single();
+      .eq('id', companyId).select().single();
     if (error) throw new Error(error.message);
     return mapSupabaseCompany(data);
   },
@@ -224,12 +191,10 @@ export const supabaseCompaniesAndAccounts = {
 
     const initialBalanceNum = Number(payload.initialBalance || 0);
     if (toCents(initialBalanceNum) !== 0) {
-      const { data: comp } = await supabase
-        .from('companies')
-        .select('current_year')
-        .eq('id', payload.companyId)
-        .maybeSingle();
-      await assertSupabasePeriodOpen(payload.companyId, comp?.current_year || 2026, 1);
+      await assertNoLockedPeriodsInSupabase(
+        payload.companyId,
+        'crear cuentas con saldo inicial distinto de cero'
+      );
     }
 
     const hierarchy = validateAccountHierarchy(existingAccounts, cleanParent, cleanCode);
@@ -244,9 +209,9 @@ export const supabaseCompaniesAndAccounts = {
           .select('id', { count: 'exact', head: true })
           .eq('account_id', parentAccount.id);
         if (parentMovErr) throw new Error(parentMovErr.message);
-        if (parentMovCount && parentMovCount > 0) {
+        if ((parentMovCount && parentMovCount > 0) || toCents(parentAccount.initialBalance) !== 0) {
           throw new Error(
-            `No se pueden crear subcuentas bajo la cuenta afectable ${parentAccount.code} porque ya tiene movimientos contables registrados.`
+            `No se pueden crear subcuentas bajo la cuenta afectable ${parentAccount.code} porque ya tiene movimientos contables o saldo inicial registrados.`
           );
         }
         affectableParentIdToDisable = parentAccount.id;
@@ -275,7 +240,10 @@ export const supabaseCompaniesAndAccounts = {
         .from('accounts')
         .update({ is_affectable: false })
         .eq('id', affectableParentIdToDisable);
-      if (parentUpdErr) throw new Error(parentUpdErr.message);
+      if (parentUpdErr) {
+        await supabase.from('accounts').delete().eq('id', id);
+        throw new Error(parentUpdErr.message);
+      }
     }
     return { id, code: cleanCode, name: payload.name };
   },
@@ -287,12 +255,22 @@ export const supabaseCompaniesAndAccounts = {
     if (!supabase) return { updated: false };
     const { data: ex } = await supabase
       .from('accounts')
-      .select('company_id, name, initial_balance, nature')
+      .select('company_id, name, initial_balance, nature, type')
       .eq('id', accountId)
       .maybeSingle();
-    if (ex && (Math.abs(Number(ex.initial_balance) - Number(payload.initialBalance || 0)) > 0.001 || ex.nature !== payload.nature)) {
-      const { data: comp } = await supabase.from('companies').select('current_year').eq('id', ex.company_id).maybeSingle();
-      await assertSupabasePeriodOpen(String(ex.company_id), comp?.current_year || 2026, 1);
+    if (ex) {
+      const isBalanceDiff = toCents(Number(ex.initial_balance || 0)) !== toCents(Number(payload.initialBalance || 0));
+      const isNatureDiff = ex.nature !== payload.nature;
+      const isTypeDiff = ex.type !== payload.type;
+      if (isNatureDiff || isTypeDiff) {
+        await assertAccountHasNoMovementsInSupabase(accountId);
+      }
+      if (isBalanceDiff || isNatureDiff || isTypeDiff) {
+        await assertNoLockedPeriodsInSupabase(
+          String(ex.company_id),
+          'modificar el saldo inicial, naturaleza o rubro de cuentas'
+        );
+      }
     }
     const cleanName = payload.name.trim();
     const { error } = await supabase.from('accounts').update({
@@ -312,12 +290,15 @@ export const supabaseCompaniesAndAccounts = {
     const { count: movCount } = await supabase.from('poliza_movements').select('id', { count: 'exact', head: true }).eq('account_id', accountId);
     if (movCount && movCount > 0) return { deleted: false, hasMovements: true };
 
+    await assertAccountHasNoBankLinesInSupabase(accountId);
+
     const { data: acc } = await supabase
       .from('accounts')
       .select('code, company_id, initial_balance')
       .eq('id', accountId)
       .maybeSingle();
     if (acc) {
+      await assertNoLockedPeriodsInSupabase(String(acc.company_id), 'eliminar cuentas');
       if (toCents(Number(acc.initial_balance ?? 0)) !== 0) {
         throw new Error(
           `No se puede eliminar la cuenta ${acc.code} porque tiene saldo inicial distinto de cero.`

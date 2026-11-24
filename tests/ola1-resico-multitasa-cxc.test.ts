@@ -140,7 +140,8 @@ describe('Ola 1 Bloque 1A — Multi-tasa, Flujo RESICO, Prorrateo IVA, CxC/CxP y
       impPagado: 11475,
       impSaldoInsoluto: 11725,
       monedaDr: 'MXN',
-      equivalenciaDr: 1
+      equivalenciaDr: 1,
+      fechaPago: '2026-10-20'
     });
     expect(parsed.taxBreakdown).toEqual({
       base16: 10000,

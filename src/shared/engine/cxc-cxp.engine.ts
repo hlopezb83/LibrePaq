@@ -1,38 +1,17 @@
 import type {
   CfdiDocument,
-  CfdiRelatedDoc,
   CxcCxpAgingBucket,
   CxcCxpAgingResponse,
   CxcCxpDocumentRow
 } from '../types';
 import { getTodayLocalIso, parseCalendarDate } from '../date-utils';
 import { fromCents, sumCents, toCents } from './invariants-and-math';
-
-interface ParcialidadEntry {
-  paymentUuid: string;
-  fechaPago: string;
-  numParcialidad: number;
-  impPagadoMxn: number;
-  impPagadoOrig?: number;
-  impSaldoInsolutoDr?: number;
-  drIsValidZero?: boolean;
-  drCurrency?: string;
-  paymentTc?: number;
-}
-
-function resolveCurrencyRate(doc: Pick<CfdiDocument, 'moneda' | 'tipoCambio'>): number {
-  return doc.moneda && doc.moneda.toUpperCase() !== 'MXN' && (doc.tipoCambio || 1) > 0
-    ? doc.tipoCambio
-    : 1;
-}
-
-function diffCalendarDays(fromIso: string, toIso: string): number {
-  const a = parseCalendarDate(fromIso);
-  const b = parseCalendarDate(toIso);
-  const utcA = Date.UTC(a.year, a.month - 1, a.day);
-  const utcB = Date.UTC(b.year, b.month - 1, b.day);
-  return Math.max(0, Math.round((utcB - utcA) / 86_400_000));
-}
+import {
+  diffCalendarDays,
+  resolveCurrencyRate,
+  resolveDrPaymentInfo,
+  type ParcialidadEntry
+} from './cxc-cxp-helpers';
 
 function classifyBucket(daysPast: number): CxcCxpAgingBucket {
   if (daysPast <= 30) return '0_30';
@@ -43,51 +22,6 @@ function classifyBucket(daysPast: number): CxcCxpAgingBucket {
 
 function emptyBuckets(): Record<CxcCxpAgingBucket, number> {
   return { '0_30': 0, '31_60': 0, '61_90': 0, '90_PLUS': 0 };
-}
-
-function resolveDrPaymentInfo(
-  paymentDoc: CfdiDocument,
-  dr: CfdiRelatedDoc,
-  targetDoc: CfdiDocument | undefined,
-  singleRelatedDoc: boolean
-): { paidMxn: number; paidOrig: number | undefined; effectiveTc: number; drCurrency: string } {
-  const pCurrency = (dr.pagoMoneda || paymentDoc.moneda || 'MXN').toUpperCase();
-  const pTc = dr.pagoMoneda
-    ? pCurrency !== 'MXN' && (dr.pagoTipoCambio || 1) > 0
-      ? dr.pagoTipoCambio!
-      : 1
-    : resolveCurrencyRate(paymentDoc);
-  const drCurrency = (dr.monedaDr || pCurrency).toUpperCase();
-  const invCurrency = (targetDoc?.moneda || 'MXN').toUpperCase();
-  const invTc = targetDoc ? resolveCurrencyRate(targetDoc) : 1;
-
-  let paidMxn: number;
-  if (drCurrency === 'MXN') {
-    paidMxn = dr.impPagado;
-  } else if (drCurrency === pCurrency) {
-    const rate = pTc > 1 ? pTc : invCurrency === drCurrency ? invTc : pTc;
-    paidMxn = dr.impPagado * rate;
-  } else if (singleRelatedDoc && paymentDoc.total > 0 && pCurrency === 'MXN') {
-    paidMxn = paymentDoc.total;
-  } else if (dr.equivalenciaDr && dr.equivalenciaDr > 0) {
-    paidMxn = (dr.impPagado / dr.equivalenciaDr) * pTc;
-  } else {
-    paidMxn = dr.impPagado * invTc;
-  }
-
-  let paidOrig: number | undefined;
-  if (invCurrency !== 'MXN') {
-    if (drCurrency === invCurrency) {
-      paidOrig = dr.impPagado;
-    } else if (drCurrency === 'MXN' && pCurrency === invCurrency && dr.equivalenciaDr && dr.equivalenciaDr > 0) {
-      paidOrig = dr.impPagado / dr.equivalenciaDr;
-    } else {
-      paidOrig = invTc > 0 ? paidMxn / invTc : 0;
-    }
-  }
-
-  const effectiveTc = pTc > 1 ? pTc : drCurrency === invCurrency && invTc > 1 ? invTc : 1;
-  return { paidMxn, paidOrig, effectiveTc, drCurrency };
 }
 
 export function computeCxcCxpAging(params: {
@@ -121,12 +55,12 @@ export function computeCxcCxpAging(params: {
   };
 
   for (const doc of companyCfdis) {
-    const fechaPago = parseCalendarDate(doc.fechaPago || doc.fecha).isoDate;
-    if (fechaPago > asOfDate) continue;
     if (doc.tipoComprobante === 'P') {
       if (doc.relatedDocs && doc.relatedDocs.length > 0) {
         const singleDoc = doc.relatedDocs.length === 1;
         for (const dr of doc.relatedDocs) {
+          const drFechaPago = parseCalendarDate(dr.fechaPago ?? doc.fechaPago ?? doc.fecha).isoDate;
+          if (drFechaPago > asOfDate) continue;
           const targetUuid = (dr.idDocumento || '').trim().toUpperCase();
           if (!targetUuid) continue;
           const targetDoc = ppdByUuid.get(targetUuid);
@@ -135,27 +69,31 @@ export function computeCxcCxpAging(params: {
             dr.impSaldoInsoluto === 0 && (dr.impSaldoAnt <= 0 || dr.impPagado >= dr.impSaldoAnt - 0.01);
           pushParcialidad(targetUuid, {
             paymentUuid: doc.uuid,
-            fechaPago,
+            fechaPago: drFechaPago,
             numParcialidad: dr.numParcialidad || 1,
             impPagadoMxn: fromCents(toCents(info.paidMxn)),
             impPagadoOrig: info.paidOrig !== undefined ? fromCents(toCents(info.paidOrig)) : undefined,
             impSaldoInsolutoDr: dr.impSaldoInsoluto,
             drIsValidZero: isValidZero,
             drCurrency: info.drCurrency,
-            paymentTc: info.effectiveTc
+            paymentTc: info.effectiveTc,
+            paymentCurrency: info.paymentCurrency
           });
         }
       } else if (doc.uuidRelacionado) {
+        const fechaPago = parseCalendarDate(doc.fechaPago || doc.fecha).isoDate;
+        if (fechaPago > asOfDate) continue;
         const targetUuid = doc.uuidRelacionado.trim().toUpperCase();
         const targetDoc = ppdByUuid.get(targetUuid);
+        const docCur = (doc.moneda || 'MXN').toUpperCase();
         const docRate = resolveCurrencyRate(doc);
         const paidMxn = doc.total * docRate;
         const invCur = (targetDoc?.moneda || 'MXN').toUpperCase();
         const paidOrig =
           invCur !== 'MXN'
-            ? (doc.moneda || 'MXN').toUpperCase() === invCur
+            ? docCur === invCur
               ? doc.total
-              : paidMxn / resolveCurrencyRate(targetDoc!)
+              : paidMxn / (targetDoc ? resolveCurrencyRate(targetDoc) : 1)
             : undefined;
         pushParcialidad(targetUuid, {
           paymentUuid: doc.uuid,
@@ -163,20 +101,24 @@ export function computeCxcCxpAging(params: {
           numParcialidad: 1,
           impPagadoMxn: fromCents(toCents(paidMxn)),
           impPagadoOrig: paidOrig !== undefined ? fromCents(toCents(paidOrig)) : undefined,
-          paymentTc: docRate
+          paymentTc: docRate,
+          paymentCurrency: docCur
         });
       }
     } else if (doc.tipoComprobante === 'E' && doc.uuidRelacionado) {
+      const fechaPago = parseCalendarDate(doc.fechaPago || doc.fecha).isoDate;
+      if (fechaPago > asOfDate) continue;
       const targetUuid = doc.uuidRelacionado.trim().toUpperCase();
       const targetDoc = ppdByUuid.get(targetUuid);
+      const docCur = (doc.moneda || 'MXN').toUpperCase();
       const docRate = resolveCurrencyRate(doc);
       const creditMxn = doc.total * docRate;
       const invCur = (targetDoc?.moneda || 'MXN').toUpperCase();
       const paidOrig =
         invCur !== 'MXN'
-          ? (doc.moneda || 'MXN').toUpperCase() === invCur
+          ? docCur === invCur
             ? doc.total
-            : creditMxn / resolveCurrencyRate(targetDoc!)
+            : creditMxn / (targetDoc ? resolveCurrencyRate(targetDoc) : 1)
           : undefined;
       pushParcialidad(targetUuid, {
         paymentUuid: doc.uuid,
@@ -184,7 +126,8 @@ export function computeCxcCxpAging(params: {
         numParcialidad: 0,
         impPagadoMxn: fromCents(toCents(creditMxn)),
         impPagadoOrig: paidOrig !== undefined ? fromCents(toCents(paidOrig)) : undefined,
-        paymentTc: docRate
+        paymentTc: docRate,
+        paymentCurrency: docCur
       });
     }
   }
@@ -214,7 +157,14 @@ export function computeCxcCxpAging(params: {
       let minInsolutoOrigCents: number | undefined;
       let latestPaymentTc = 0;
       for (const e of entries) {
-        if (e.paymentTc && e.paymentTc > 1) latestPaymentTc = e.paymentTc;
+        if (
+          invCurrency !== 'MXN' &&
+          e.paymentCurrency === invCurrency &&
+          e.paymentTc &&
+          e.paymentTc > 0
+        ) {
+          latestPaymentTc = e.paymentTc;
+        }
         if (
           e.drCurrency === invCurrency &&
           e.impSaldoInsolutoDr !== undefined &&
@@ -228,7 +178,7 @@ export function computeCxcCxpAging(params: {
       if (minInsolutoOrigCents !== undefined) {
         remainingOrigCents = Math.min(remainingOrigCents, minInsolutoOrigCents);
       }
-      const effectiveRate = latestPaymentTc > 1 ? latestPaymentTc : tc;
+      const effectiveRate = invCurrency !== 'MXN' && latestPaymentTc > 0 ? latestPaymentTc : tc;
       saldoInsolutoCents = remainingOrigCents <= 0 ? 0 : Math.round(remainingOrigCents * effectiveRate);
     } else {
       saldoInsolutoCents = Math.max(0, totalOriginalCents - totalPagadoCents);
@@ -286,16 +236,13 @@ export function computeCxcCxpAging(params: {
     '90_PLUS': fromCents(b['90_PLUS'])
   });
 
-  const cxcBuckets = toBucketsMxn(cxcBucketsCents);
-  const cxpBuckets = toBucketsMxn(cxpBucketsCents);
-
   return {
     companyId,
     asOfDate,
     cxcTotal: fromCents(sumCents(cxcItems.map((i) => i.saldoInsolutoMxn))),
     cxpTotal: fromCents(sumCents(cxpItems.map((i) => i.saldoInsolutoMxn))),
-    cxcBuckets,
-    cxpBuckets,
+    cxcBuckets: toBucketsMxn(cxcBucketsCents),
+    cxpBuckets: toBucketsMxn(cxpBucketsCents),
     cxcItems,
     cxpItems
   };

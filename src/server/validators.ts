@@ -39,7 +39,7 @@ export const AccountCreatePayloadSchema = z.object({
   code: z.string().trim().min(1),
   name: z.string().trim().min(1),
   parentCode: z.string().trim().nullable().optional(),
-  type: z.enum(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS']).default('GASTOS'),
+  type: z.enum(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS', 'ORDEN']).default('GASTOS'),
   nature: z.enum(['DEUDORA', 'ACREEDORA']).default('DEUDORA'),
   level: z.number().int().min(1).max(5).default(3),
   isAffectable: z.boolean().optional(),
@@ -51,7 +51,7 @@ export const AccountUpdatePayloadSchema = z.object({
   name: z.string().trim().min(1),
   satGroupCode: z.string().trim().default('601.84'),
   nature: z.enum(['DEUDORA', 'ACREEDORA']).default('DEUDORA'),
-  type: z.enum(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS']).default('GASTOS'),
+  type: z.enum(['ACTIVO', 'PASIVO', 'CAPITAL', 'INGRESOS', 'COSTOS', 'GASTOS', 'ORDEN']).default('GASTOS'),
   initialBalance: z.number().default(0)
 });
 

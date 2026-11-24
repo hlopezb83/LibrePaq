@@ -5,6 +5,10 @@ import {
   validateDoubleEntryMovements,
   type AutoPolizaOverrides
 } from '../../shared/accounting-engine';
+import {
+  buildRelatedCfdiOverridesFromRows,
+  type RelatedCfdiDbRowLike
+} from '../../shared/engine/auto-poliza-related';
 import type { ParsedCfdiPayload } from '../../shared/cfdi-xml';
 import { parseCalendarDate } from '../../shared/date-utils';
 import { isCfdiBelongingToCompany } from '../../shared/xml-utils';
@@ -20,7 +24,7 @@ import { listAccountingRulesRepo } from './accounting-rules.repo';
 export function getCfdiDocuments(companyId: string, opts?: { includeXml?: boolean }): CfdiDocument[] {
   const projection = opts?.includeXml
     ? 'c.*'
-    : `c.id, c.company_id, c.uuid, c.fecha, c.tipo_comprobante, c.direction, c.serie, c.folio,
+    : `c.id, c.company_id, c.uuid, c.fecha, c.fecha_pago, c.tipo_comprobante, c.direction, c.serie, c.folio,
        c.emisor_rfc, c.emisor_nombre, c.receptor_rfc, c.receptor_nombre, c.concepto_principal,
        c.clave_prod_serv, c.moneda, c.tipo_cambio, c.subtotal, c.descuento, c.iva_trasladado,
        c.isr_retenido, c.iva_retenido, c.total, c.metodo_pago, c.forma_pago, c.uso_cfdi,
@@ -64,13 +68,13 @@ const insertCfdiStmt = {
     if (!_insertCfdiStmt) {
       _insertCfdiStmt = db.prepare(`
         INSERT INTO cfdi_documents (
-          id, company_id, uuid, fecha, tipo_comprobante, direction, serie, folio,
+          id, company_id, uuid, fecha, fecha_pago, tipo_comprobante, direction, serie, folio,
           emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre,
           concepto_principal, clave_prod_serv, moneda, tipo_cambio,
           subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total,
           metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id,
           tax_breakdown, related_docs, xml_raw
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'VIGENTE', NULL, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'VIGENTE', NULL, ?, ?, ?)
       `);
     }
     return (_insertCfdiStmt as any).run(...args);
@@ -105,6 +109,7 @@ export function insertParsedCfdiRecord(
     company.id,
     parsed.uuid,
     parsed.fecha,
+    parsed.fechaPago ?? null,
     parsed.tipoComprobante,
     direction,
     parsed.serie,
@@ -181,8 +186,12 @@ export function generateAutoPolizaFromCfdiId(
   const company = getCompanyById(cfdi.companyId);
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
+  const accountingDate =
+    (cfdi.tipoComprobante === 'P' || cfdi.tipoComprobante === 'N') && cfdi.fechaPago
+      ? cfdi.fechaPago
+      : cfdi.fecha;
   const { year: cfdiYear, month: cfdiPeriod } = parseCalendarDate(
-    cfdi.fecha,
+    accountingDate,
     company.currentYear,
     company.currentPeriod
   );
@@ -198,13 +207,11 @@ export function generateAutoPolizaFromCfdiId(
   const thirdParty = getThirdPartyByRfc(company.id, counterpartyRfc);
   const rules = overrides?.rules ?? listAccountingRulesRepo(company.id);
 
-  let relatedOriginalTipoCambioByUuid = overrides?.relatedOriginalTipoCambioByUuid;
-  let relatedOriginalTipoCambio = overrides?.relatedOriginalTipoCambio;
-  let relatedIsPpd = overrides?.relatedIsPpd;
-  let relatedPpdIsrRetenido = overrides?.relatedPpdIsrRetenido;
-  let relatedPpdIvaRetenido = overrides?.relatedPpdIvaRetenido;
-  let relatedPpdTotal = overrides?.relatedPpdTotal;
-  if ((cfdi.tipoComprobante === 'P' || cfdi.tipoComprobante === 'E') && (!relatedOriginalTipoCambioByUuid || relatedIsPpd === undefined)) {
+  let derivedRelated: Partial<AutoPolizaOverrides> = {};
+  if (
+    (cfdi.tipoComprobante === 'P' || cfdi.tipoComprobante === 'E') &&
+    (!overrides?.relatedOriginalTipoCambioByUuid || !overrides?.relatedDocsMetaByUuid || overrides?.relatedIsPpd === undefined)
+  ) {
     const relUuids = Array.from(
       new Set(
         [
@@ -219,47 +226,18 @@ export function generateAutoPolizaFromCfdiId(
       const ph = relUuids.map(() => '?').join(',');
       const relRows = db
         .query(
-          `SELECT uuid, moneda, tipo_cambio, metodo_pago, isr_retenido, iva_retenido, total FROM cfdi_documents WHERE company_id = ? AND UPPER(uuid) IN (${ph})`
+          `SELECT uuid, moneda, tipo_cambio, metodo_pago, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, concepto_principal, clave_prod_serv, emisor_nombre, uso_cfdi, xml_raw FROM cfdi_documents WHERE company_id = ? AND UPPER(uuid) IN (${ph})`
         )
-        .all(company.id, ...relUuids) as Array<{
-        uuid: string;
-        moneda: string;
-        tipo_cambio: number;
-        metodo_pago: string;
-        isr_retenido: number;
-        iva_retenido: number;
-        total: number;
-      }>;
-      const tcMap: Record<string, number> = {};
-      for (const r of relRows) {
-        const key = String(r.uuid ?? '').trim().toUpperCase();
-        if (key && String(r.moneda || 'MXN').toUpperCase() !== 'MXN' && Number(r.tipo_cambio) > 0) {
-          tcMap[key] = Number(r.tipo_cambio);
-          if (relatedOriginalTipoCambio === undefined) relatedOriginalTipoCambio = Number(r.tipo_cambio);
-        }
-        if (relatedIsPpd === undefined && String(r.metodo_pago || '').toUpperCase() === 'PPD') {
-          relatedIsPpd = true;
-        }
-        if (cfdi.tipoComprobante === 'P' && String(r.metodo_pago || '').toUpperCase() === 'PPD') {
-          relatedPpdIsrRetenido = (relatedPpdIsrRetenido ?? 0) + Number(r.isr_retenido || 0);
-          relatedPpdIvaRetenido = (relatedPpdIvaRetenido ?? 0) + Number(r.iva_retenido || 0);
-          relatedPpdTotal = (relatedPpdTotal ?? 0) + Number(r.total || 0);
-        }
-      }
-      if (Object.keys(tcMap).length > 0) relatedOriginalTipoCambioByUuid = tcMap;
+        .all(company.id, ...relUuids) as RelatedCfdiDbRowLike[];
+      derivedRelated = buildRelatedCfdiOverridesFromRows(relRows, cfdi.tipoComprobante, relUuids.length);
     }
   }
 
   const plan = buildAutoPolizaPlan(cfdi, accounts, {
+    ...derivedRelated,
     ...overrides,
     rules,
-    thirdParty: overrides?.thirdParty ?? thirdParty,
-    ...(relatedOriginalTipoCambio !== undefined ? { relatedOriginalTipoCambio } : {}),
-    ...(relatedOriginalTipoCambioByUuid ? { relatedOriginalTipoCambioByUuid } : {}),
-    ...(relatedIsPpd !== undefined ? { relatedIsPpd } : {}),
-    ...(relatedPpdIsrRetenido ? { relatedPpdIsrRetenido } : {}),
-    ...(relatedPpdIvaRetenido ? { relatedPpdIvaRetenido } : {}),
-    ...(relatedPpdTotal ? { relatedPpdTotal } : {})
+    thirdParty: overrides?.thirdParty ?? thirdParty
   });
   validateDoubleEntryMovements(plan.movements, accById);
 
@@ -279,7 +257,7 @@ export function generateAutoPolizaFromCfdiId(
       company.id,
       plan.polizaType,
       nextFolio,
-      cfdi.fecha,
+      accountingDate,
       cfdiYear,
       cfdiPeriod,
       plan.polizaConcept,
@@ -306,6 +284,9 @@ export function generateAutoPolizaFromCfdiId(
     }
 
     db.prepare('UPDATE cfdi_documents SET poliza_id = ? WHERE id = ?').run(polizaId, cfdi.id);
+    db.prepare(
+      'INSERT OR IGNORE INTO poliza_cfdis (id, company_id, poliza_id, cfdi_uuid) VALUES (?, ?, ?, ?)'
+    ).run(`pc_${crypto.randomUUID().slice(0, 12)}`, company.id, polizaId, cfdi.uuid);
   });
 
   tx();

@@ -3,20 +3,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCompany } from '../../context/CompanyContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { isSupabaseConfigured } from '../../lib/supabase';
-import { supabaseFiscalAndAssets } from '../../lib/supabase/supabase-fiscal-assets';
-import {
-  computeFixedAssetWithDepreciation,
-  hasExistingDepreciationPoliza
-} from '../../shared/engine/fixed-assets.engine';
-import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
-import { getInpcForIsoDate, getInpcMedioPeriodo } from '../../shared/sat-inpc-catalog';
-import { FISCAL_ACCOUNT_ROLES } from '../../shared/sat-constants';
+import { hasExistingDepreciationPoliza } from '../../shared/engine/fixed-assets.engine';
+import { getInpcForIsoDate } from '../../shared/sat-inpc-catalog';
 import type {
   AccountWithBalance,
   FixedAssetCategory,
   FixedAssetRecord,
   FixedAssetWithCalculation
 } from '../../shared/types';
+import {
+  adjustLocalAssetsForPostedPeriod,
+  resolveAssetInpcMedioForForm,
+  resolveFixedAssetDefaultAccounts
+} from './activosFijosHelpers';
 
 interface UseActivosFijosParams {
   companyId: string;
@@ -69,34 +68,14 @@ export function useActivosFijos({
   });
 
   const hasDepPolizaThisPeriod = hasExistingDepreciationPoliza(periodPolizas);
+  const usingCloud =
+    typeof window !== 'undefined' &&
+    isSupabaseConfigured &&
+    (window.location.hostname !== 'localhost' || window.location.search.includes('cloud=true'));
 
   const fixedAssetsData =
-    rawFixedAssetsData && hasDepPolizaThisPeriod && !isSupabaseConfigured
-      ? (() => {
-          const adjusted = rawFixedAssetsData.assets.map((a) =>
-            computeFixedAssetWithDepreciation(a, {
-              ejercicio: year,
-              periodo: activePeriod,
-              alreadyDepreciatedThisPeriod: true
-            })
-          );
-          return {
-            assets: adjusted,
-            totals: {
-              totalMoi: fromCents(sumCents(adjusted.map((a) => a.montoOriginalInversion))),
-              totalDepreciacionMensualContable: fromCents(
-                sumCents(adjusted.map((a) => a.depreciacionMensualContable))
-              ),
-              totalDepreciacionMensualFiscal: fromCents(
-                sumCents(adjusted.map((a) => a.depreciacionMensualFiscalActualizada))
-              ),
-              totalDepreciacionAcumulada: fromCents(
-                sumCents(adjusted.map((a) => a.depreciacionAcumuladaTotal))
-              ),
-              totalValorNetoEnLibros: fromCents(sumCents(adjusted.map((a) => a.valorNetoEnLibros)))
-            }
-          };
-        })()
+    rawFixedAssetsData && hasDepPolizaThisPeriod && !usingCloud
+      ? adjustLocalAssetsForPostedPeriod(rawFixedAssetsData, periodPolizas, year, activePeriod)
       : rawFixedAssetsData;
 
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
@@ -119,7 +98,9 @@ export function useActivosFijos({
   const [mesesDepreciadosPrevios, setMesesDepreciadosPrevios] = useState(0);
   const [assetStatus, setAssetStatus] = useState<FixedAssetRecord['estatus']>('ACTIVO');
   const [assetInpcAdq, setAssetInpcAdq] = useState(() => getInpcForIsoDate(`${year}-01-15`));
-  const [assetInpcUso, setAssetInpcUso] = useState(() => getInpcMedioPeriodo(year));
+  const [assetInpcUso, setAssetInpcUso] = useState(() =>
+    resolveAssetInpcMedioForForm(`${year}-01-15`, year)
+  );
   const [isInpcModalOpen, setIsInpcModalOpen] = useState(false);
 
   const resetForm = () => {
@@ -134,7 +115,7 @@ export function useActivosFijos({
     setMesesDepreciadosPrevios(0);
     setAssetStatus('ACTIVO');
     setAssetInpcAdq(getInpcForIsoDate(nextDate));
-    setAssetInpcUso(getInpcMedioPeriodo(year));
+    setAssetInpcUso(resolveAssetInpcMedioForForm(nextDate, year));
   };
 
   useEffect(() => {
@@ -150,7 +131,7 @@ export function useActivosFijos({
   const handleDateChange = (val: string) => {
     setAssetDate(val);
     setAssetInpcAdq(getInpcForIsoDate(val));
-    setAssetInpcUso(getInpcMedioPeriodo(year));
+    setAssetInpcUso(resolveAssetInpcMedioForForm(val, year));
   };
 
   const startEditAsset = (asset: FixedAssetWithCalculation) => {
@@ -168,32 +149,19 @@ export function useActivosFijos({
     setTimeout(() => document.getElementById('asset-name')?.focus(), 0);
   };
 
+  const invalidateAssetSideEffects = (scopes: ReadonlyArray<'fixed-assets' | 'annual-tax' | 'fiscal-workpaper'>) => {
+    invalidateAccountingQueries(queryClient, scopes, companyId);
+    void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+  };
+
   const createAssetMutation = useMutation({
     mutationFn: () => {
       if (isWriteLocked) throw new Error(lockMsg);
       const cleanMoi = sanitizeFinitePositive(Number.parseFloat(assetMoi), 0);
-      const cleanRate = sanitizeFinitePositive(assetRate, 0);
-      const cleanMonths = Math.floor(sanitizeFinitePositive(mesesDepreciadosPrevios, 0));
-      const cleanInpcAdq = sanitizeFinitePositive(assetInpcAdq, 0);
-      const cleanInpcUso = sanitizeFinitePositive(assetInpcUso, 0);
       if (cleanMoi <= 0) throw new Error('El MOI debe ser un importe numérico mayor a cero.');
 
-      const assetAcc =
-        affectableAccounts.find((a) => a.code === '154-01-001')?.code ??
-        affectableAccounts[0]?.code ??
-        '154-01-001';
-      const depAcumCode =
-        affectableAccounts.find(
-          (a) =>
-            a.code === FISCAL_ACCOUNT_ROLES.DEPRECIACION_ACUMULADA.code ||
-            a.satGroupCode?.startsWith('171')
-        )?.code ?? FISCAL_ACCOUNT_ROLES.DEPRECIACION_ACUMULADA.code;
-      const gastoDepCode =
-        affectableAccounts.find(
-          (a) =>
-            a.code === FISCAL_ACCOUNT_ROLES.GASTO_DEPRECIACION.code ||
-            a.satGroupCode?.startsWith('601.84')
-        )?.code ?? FISCAL_ACCOUNT_ROLES.GASTO_DEPRECIACION.code;
+      const { cuentaActivoCode, cuentaDepAcumCode, cuentaGastoDepCode } =
+        resolveFixedAssetDefaultAccounts(assetCat, affectableAccounts);
 
       return apiClient.createFixedAsset({
         companyId,
@@ -202,17 +170,17 @@ export function useActivosFijos({
         categoria: assetCat,
         fechaAdquisicion: assetDate,
         montoOriginalInversion: cleanMoi,
-        tasaAnualPct: cleanRate,
-        mesesDepreciadosPrevios: cleanMonths,
-        inpcAdquisicion: cleanInpcAdq,
-        inpcMedioPeriodo: cleanInpcUso,
-        cuentaActivoCode: assetAcc,
-        cuentaDepAcumCode: depAcumCode,
-        cuentaGastoDepCode: gastoDepCode
+        tasaAnualPct: sanitizeFinitePositive(assetRate, 0),
+        mesesDepreciadosPrevios: Math.floor(sanitizeFinitePositive(mesesDepreciadosPrevios, 0)),
+        inpcAdquisicion: sanitizeFinitePositive(assetInpcAdq, 0),
+        inpcMedioPeriodo: sanitizeFinitePositive(assetInpcUso, 0),
+        cuentaActivoCode,
+        cuentaDepAcumCode,
+        cuentaGastoDepCode
       });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+      invalidateAssetSideEffects(['fixed-assets', 'annual-tax', 'fiscal-workpaper']);
       resetForm();
       onFeedback('Activo fijo registrado con INPC oficial y meses depreciados previos.');
     },
@@ -223,12 +191,9 @@ export function useActivosFijos({
     mutationFn: () => {
       if (isWriteLocked) throw new Error(lockMsg);
       if (!editingAssetId) throw new Error('No hay activo seleccionado para editar.');
-      if (!isSupabaseConfigured) {
-        throw new Error('La edición de activos fijos requiere conexión activa en la nube.');
-      }
       const cleanMoi = sanitizeFinitePositive(Number.parseFloat(assetMoi), 0);
       if (cleanMoi <= 0) throw new Error('El MOI debe ser un importe numérico mayor a cero.');
-      return supabaseFiscalAndAssets.updateFixedAsset(
+      return apiClient.updateFixedAsset(
         editingAssetId,
         {
           codigo: assetCode,
@@ -247,7 +212,7 @@ export function useActivosFijos({
       );
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+      invalidateAssetSideEffects(['fixed-assets', 'annual-tax', 'fiscal-workpaper']);
       resetForm();
       onFeedback('Activo fijo actualizado correctamente.');
     },
@@ -257,13 +222,10 @@ export function useActivosFijos({
   const retireAssetMutation = useMutation({
     mutationFn: (assetId: string) => {
       if (isWriteLocked) throw new Error(lockMsg);
-      if (!isSupabaseConfigured) {
-        throw new Error('La baja de activos fijos requiere conexión activa en la nube.');
-      }
-      return supabaseFiscalAndAssets.updateFixedAsset(assetId, { estatus: 'BAJA' }, year, activePeriod);
+      return apiClient.updateFixedAsset(assetId, { estatus: 'BAJA' }, year, activePeriod);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+      invalidateAssetSideEffects(['fixed-assets', 'annual-tax', 'fiscal-workpaper']);
       onFeedback('Activo fijo dado de baja (BAJA). Dejará de depreciarse en periodos posteriores.');
     },
     onError: (err: Error) => onFeedback(`Error al dar de baja activo fijo: ${err.message}`, 'error')
@@ -275,7 +237,7 @@ export function useActivosFijos({
       return apiClient.deleteFixedAsset(id);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+      invalidateAssetSideEffects(['fixed-assets', 'annual-tax', 'fiscal-workpaper']);
       onFeedback('Activo fijo eliminado del catálogo.');
     },
     onError: (err: Error) => onFeedback(`Error al eliminar activo fijo: ${err.message}`, 'error')
@@ -289,7 +251,18 @@ export function useActivosFijos({
     onSuccess: () => {
       invalidateAccountingQueries(
         queryClient,
-        ['fixed-assets', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        [
+          'fixed-assets',
+          'polizas',
+          'accounts',
+          'account-ledger',
+          'reports',
+          'dashboard',
+          'annual-tax',
+          'auxiliares-diario',
+          'fiscal-workpaper',
+          'sat-xml'
+        ],
         companyId
       );
       void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });

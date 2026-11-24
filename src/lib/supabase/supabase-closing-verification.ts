@@ -40,7 +40,16 @@ export const supabaseClosingAndVerification = {
     const ejercicio = company.currentYear || 2026;
     await assertSupabasePeriodOpen(companyId, ejercicio, 13);
 
-    // Preservar pólizas manuales/ajuste en Periodo 13: borrar únicamente pólizas previas de CIERRE_ANUAL
+    // Calcular balanza pre-cierre (ignorando pólizas CIERRE_ANUAL previas) y validar cuentas/movimientos ANTES de borrar
+    const reports = await supabaseReportsAndDashboard.getReports(companyId, ejercicio, 13, {
+      ignoreCierreAnual: true
+    });
+    const { movements, utilidadTraspasada } = buildYearCloseMovements(
+      reports.trialBalance,
+      ejercicio,
+      'finalBalance'
+    );
+
     const { data: oldPols, error: oldPolsErr } = await supabase
       .from('polizas')
       .select('id')
@@ -50,19 +59,7 @@ export const supabaseClosingAndVerification = {
       .eq('origin', 'CIERRE_ANUAL');
     if (oldPolsErr) throw new Error(oldPolsErr.message);
 
-    if (oldPols && oldPols.length > 0) {
-      for (const p of oldPols) {
-        await supabasePolizas.deletePoliza(p.id);
-      }
-    }
-
-    const reports = await supabaseReportsAndDashboard.getReports(companyId, ejercicio, 13);
-    const { movements, utilidadTraspasada } = buildYearCloseMovements(
-      reports.trialBalance,
-      ejercicio,
-      'finalBalance'
-    );
-
+    // Crear nueva póliza primero; si falla, el cierre previo permanece intacto
     const createdPol = await supabasePolizas.createPoliza({
       companyId,
       tipo: 'DIARIO',
@@ -74,6 +71,17 @@ export const supabaseClosingAndVerification = {
       periodo: 13,
       movements
     });
+
+    if (oldPols && oldPols.length > 0) {
+      try {
+        for (const p of oldPols) {
+          await supabasePolizas.deletePoliza(p.id);
+        }
+      } catch (delErr) {
+        await supabasePolizas.deletePoliza(createdPol.id).catch(() => {});
+        throw delErr;
+      }
+    }
 
     if (switchToPeriod13) {
       const { error: updErr } = await supabase

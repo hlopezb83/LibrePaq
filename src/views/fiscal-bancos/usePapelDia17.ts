@@ -37,6 +37,15 @@ export function parseDraftNumber(raw: string, max?: number): number {
   return max !== undefined ? Math.min(n, max) : n;
 }
 
+const EMPTY_DRAFT_PARAMS: Dia17DraftParams = {
+  coefUtilidad: '0',
+  perdidasAmortizar: '0',
+  pagosPrevios: '0',
+  ivaSaldoFavor: '0',
+  tcCierreUsd: '0',
+  ptuPagadaEjercicio: '0'
+};
+
 export function usePapelDia17({
   companyId,
   year,
@@ -63,20 +72,21 @@ export function usePapelDia17({
     enabled: Boolean(companyId)
   });
 
-  const [draftParams, setDraftParams] = useState<Dia17DraftParams>({
-    coefUtilidad: '0',
-    perdidasAmortizar: '0',
-    pagosPrevios: '0',
-    ivaSaldoFavor: '0',
-    tcCierreUsd: '0',
-    ptuPagadaEjercicio: '0'
-  });
+  const [draftParams, setDraftParams] = useState<Dia17DraftParams>(EMPTY_DRAFT_PARAMS);
 
   const { copiedKey, copy: copySatDyp } = useCopyToClipboard<'sat-dyp'>(2500);
   const copiedSatDyp = copiedKey === 'sat-dyp';
 
   const syncFromWorkpaper = useCallback(() => {
-    if (!workpaper?.parameters) return;
+    if (
+      !workpaper?.parameters ||
+      workpaper.company.id !== companyId ||
+      workpaper.ejercicio !== year ||
+      workpaper.periodo !== period
+    ) {
+      setDraftParams(EMPTY_DRAFT_PARAMS);
+      return;
+    }
     const p = workpaper.parameters;
     setDraftParams({
       coefUtilidad: String(p.coeficienteUtilidad),
@@ -86,7 +96,11 @@ export function usePapelDia17({
       tcCierreUsd: String(p.tipoCambioDofCierre),
       ptuPagadaEjercicio: String(p.ptuPagadaEjercicio ?? 0)
     });
-  }, [workpaper?.parameters]);
+  }, [companyId, period, workpaper, year]);
+
+  useEffect(() => {
+    setDraftParams(EMPTY_DRAFT_PARAMS);
+  }, [companyId, year, period]);
 
   useEffect(() => {
     syncFromWorkpaper();
@@ -156,7 +170,8 @@ export function usePapelDia17({
       });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
+      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year] });
+      void queryClient.invalidateQueries({ queryKey: ['annual-tax', companyId, year] });
       onFeedback('Parámetros fiscales del mes actualizados y cédula Día 17 recalculada.');
     },
     onError: (err: Error) => {
@@ -172,10 +187,11 @@ export function usePapelDia17({
     onSuccess: () => {
       invalidateAccountingQueries(
         queryClient,
-        ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard', 'auxiliares-diario', 'sat-xml'],
         companyId
       );
-      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
+      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year] });
+      void queryClient.invalidateQueries({ queryKey: ['annual-tax', companyId, year] });
       onFeedback('¡Póliza de Provisión Mensual de ISR e IVA generada y aplicada en el Libro Diario!');
     },
     onError: (err: Error) => {
@@ -191,10 +207,11 @@ export function usePapelDia17({
     onSuccess: () => {
       invalidateAccountingQueries(
         queryClient,
-        ['fiscal-workpaper', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard', 'auxiliares-diario', 'sat-xml'],
         companyId
       );
-      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year, period] });
+      void queryClient.invalidateQueries({ queryKey: ['fiscal-workpaper', companyId, year] });
+      void queryClient.invalidateQueries({ queryKey: ['annual-tax', companyId, year] });
       onFeedback('¡Póliza de Fluctuación Cambiaria USD (Art. 8 CFF / NIF B-15) generada y aplicada en libros!');
     },
     onError: (err: Error) => {

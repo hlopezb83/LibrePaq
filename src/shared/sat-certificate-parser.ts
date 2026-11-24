@@ -76,6 +76,102 @@ function extractSerialNumber(bytes: Uint8Array, offset: number, len: number): st
     .toUpperCase();
 }
 
+function decodeAsn1String(bytes: Uint8Array, tag: number): string {
+  if (tag === 0x0c) {
+    return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  }
+  if (tag === 0x1e) {
+    let out = '';
+    for (let i = 0; i + 1 < bytes.length; i += 2) {
+      out += String.fromCharCode(((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0));
+    }
+    return out;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('latin1').decode(bytes);
+  }
+}
+
+const RFC_BOUNDARY_REGEX = /(?:^|[^A-Z0-9&Ñ])([A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3})(?=$|[^A-Z0-9])/i;
+
+function parseSubjectRdn(
+  bytes: Uint8Array,
+  subValOffset: number,
+  subLength: number
+): { rfc?: string; cn?: string } {
+  const subEnd = Math.min(bytes.length, subValOffset + subLength);
+  let pos = subValOffset;
+  let foundRdnNodes = false;
+  let rfcFromOid: string | undefined;
+  let rfcSecondary: string | undefined;
+  let cnFromOid: string | undefined;
+
+  while (pos < subEnd) {
+    if (bytes[pos] !== 0x31) break;
+    const setLen = parseAsn1Length(bytes, pos + 1);
+    const setStart = pos + 1 + setLen.headerSize;
+    const setEnd = Math.min(subEnd, setStart + setLen.length);
+    if (setLen.length <= 0 || setStart >= subEnd) break;
+
+    let setPos = setStart;
+    while (setPos < setEnd && bytes[setPos] === 0x30) {
+      const seqLen = parseAsn1Length(bytes, setPos + 1);
+      const seqStart = setPos + 1 + seqLen.headerSize;
+      const seqEnd = Math.min(setEnd, seqStart + seqLen.length);
+      if (seqLen.length <= 0 || seqStart >= setEnd) break;
+
+      if (bytes[seqStart] === 0x06) {
+        const oidLen = parseAsn1Length(bytes, seqStart + 1);
+        const oidStart = seqStart + 1 + oidLen.headerSize;
+        const oidEnd = Math.min(seqEnd, oidStart + oidLen.length);
+        if (oidEnd < seqEnd) {
+          foundRdnNodes = true;
+          const valTag = bytes[oidEnd] ?? 0x0c;
+          const valLen = parseAsn1Length(bytes, oidEnd + 1);
+          const strStart = oidEnd + 1 + valLen.headerSize;
+          const strEnd = Math.min(seqEnd, strStart + valLen.length);
+          const decoded = decodeAsn1String(bytes.subarray(strStart, strEnd), valTag).trim();
+
+          const isAttrOid = oidEnd - oidStart === 3 && bytes[oidStart] === 0x55 && bytes[oidStart + 1] === 0x04;
+          const attrCode = isAttrOid ? bytes[oidStart + 2] : undefined;
+
+          if (attrCode === 0x2d) {
+            const m = RFC_BOUNDARY_REGEX.exec(decoded.toUpperCase());
+            if (m?.[1]) rfcFromOid = m[1].toUpperCase();
+          } else if (attrCode === 0x03) {
+            if (decoded) cnFromOid = decoded;
+          } else if (attrCode !== 0x05 && !rfcSecondary) {
+            const m = RFC_BOUNDARY_REGEX.exec(decoded.toUpperCase());
+            if (m?.[1]) rfcSecondary = m[1].toUpperCase();
+          }
+        }
+      }
+      setPos = seqEnd;
+    }
+    pos = setEnd;
+  }
+
+  if (foundRdnNodes) {
+    return { rfc: rfcFromOid ?? rfcSecondary, cn: cnFromOid };
+  }
+
+  const subSlice = bytes.subarray(subValOffset, subEnd);
+  let subText: string;
+  try {
+    subText = new TextDecoder('utf-8', { fatal: true }).decode(subSlice);
+  } catch {
+    subText = new TextDecoder('latin1').decode(subSlice);
+  }
+  const rfcMatch = RFC_BOUNDARY_REGEX.exec(subText.toUpperCase());
+  const cnMatch = subText.match(/CN=([^,\n/]+)/i);
+  return {
+    rfc: rfcMatch?.[1]?.toUpperCase(),
+    cn: cnMatch?.[1]?.trim()
+  };
+}
+
 export async function computeDerSha1(bytes: Uint8Array): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     const buffer = await crypto.subtle.digest('SHA-1', bytes as unknown as BufferSource);
@@ -212,18 +308,9 @@ export async function parseSatCertificate(
   if (bytes[cursor] === 0x30) {
     const subLen = parseAsn1Length(bytes, cursor + 1);
     const subValOffset = cursor + 1 + subLen.headerSize;
-    const subSlice = bytes.subarray(subValOffset, subValOffset + subLen.length);
-    const subText = new TextDecoder('latin1').decode(subSlice);
-
-    const rfcMatch = subText.match(/([A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3})/i);
-    if (rfcMatch && rfcMatch[1]) {
-      rfcTitular = rfcMatch[1].toUpperCase();
-    }
-
-    const cnMatch = subText.match(/CN=([^,\n/]+)/i);
-    if (cnMatch && cnMatch[1]) {
-      nombreTitular = cnMatch[1].trim();
-    }
+    const { rfc, cn } = parseSubjectRdn(bytes, subValOffset, subLen.length);
+    if (rfc) rfcTitular = rfc;
+    if (cn) nombreTitular = cn;
   }
 
   const sha1Fingerprint = await computeDerSha1(bytes);

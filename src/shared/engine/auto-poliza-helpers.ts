@@ -41,8 +41,8 @@ export function extractCfdiRuleContext(cfdi: CfdiDocument, overrides?: AutoPoliz
   const explicitIepsCents = cfdi.taxBreakdown?.ieps
     ? Math.max(0, toMxnCents(cfdi.taxBreakdown.ieps, cfdi))
     : 0;
-  const iepsCents = Math.min(nonIvaTaxCents, explicitIepsCents);
-  const localTrasladadoCents = Math.min(nonIvaTaxCents - iepsCents, explicitLocalTrasCents);
+  const localTrasladadoCents = Math.min(nonIvaTaxCents, explicitLocalTrasCents);
+  const iepsCents = Math.min(nonIvaTaxCents - localTrasladadoCents, explicitIepsCents);
   const esPagado =
     cfdi.tipoComprobante === 'E'
       ? !isNonCashCreditNote(cfdi, overrides)
@@ -118,7 +118,7 @@ export function computeNonIvaTaxCents(
   const explicitTotalCents = explicitIepsCents + localTrasladadoCents;
 
   if (explicitTotalCents > 0) {
-    return rawFiscalDiffCents >= explicitTotalCents ? rawFiscalDiffCents : explicitTotalCents;
+    return rawFiscalDiffCents;
   }
 
   return rawFiscalDiffCents > 5 ? rawFiscalDiffCents : 0;

@@ -5,7 +5,7 @@ import { toast as sonnerToast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { setApiAuthUser } from '../lib/api/api-helpers';
 import { captureAdAttributionOnLanding, trackAnalyticsEvent } from '../lib/analytics';
-import { endSupportSession } from '../lib/support-impersonation';
+import { endSupportSession, setSupportActorAllowed } from '../lib/support-impersonation';
 import { resetGuestDemoState } from '../lib/sandbox/guest-demo-store';
 import { setGuestDemoMode } from '../lib/sandbox/guest-demo-mode';
 import { hasPlatformAdminAccess } from '../shared/superadmin';
@@ -79,6 +79,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const enforceSuspension = useCallback(
     async (client: NonNullable<typeof supabase>) => {
       activeUserIdRef.current = null;
+      setGuestDemoMode(false);
+      try {
+        localStorage.removeItem(GUEST_DEMO_KEY);
+      } catch { /* Ignorar errores de almacenamiento */ }
+      setSupportActorAllowed(false);
+      endSupportSession();
       setIsSuspended(true);
       setSuspendedMessage(SUSPENDED_ACCOUNT_MESSAGE);
       setPlatformRole('NONE');
@@ -99,6 +105,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isGuestActive = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
 
     const activateGuestDemo = () => {
+      setSupportActorAllowed(false);
+      endSupportSession();
       setGuestDemoMode(true);
       activeUserIdRef.current = GUEST_DEMO_USER.id;
       setPlatformRole('NONE');
@@ -120,7 +128,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const wasGuest = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
       setGuestDemoMode(false);
       localStorage.removeItem(GUEST_DEMO_KEY);
-      if (wasGuest) queryClient.clear();
+      const hasAdmin = checkIsSuperAdmin(activeSession.user) || hasPlatformAdminAccess(role);
+      setSupportActorAllowed(hasAdmin);
+      if (!hasAdmin) {
+        endSupportSession();
+      }
+      if (wasGuest || (activeUserIdRef.current && activeUserIdRef.current !== activeSession.user.id)) {
+        queryClient.clear();
+      }
       clearSuspension();
       activeUserIdRef.current = activeSession.user.id;
       setPlatformRole(role);
@@ -188,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         activateGuestDemo();
       } else if (event === 'SIGNED_OUT') {
         setGuestDemoMode(false);
+        setSupportActorAllowed(null);
         endSupportSession();
         activeUserIdRef.current = null;
         setPlatformRole('NONE');
@@ -208,6 +224,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const startGuestDemo = useCallback(async () => {
     authCheckSeqRef.current += 1;
     clearSuspension();
+    setSupportActorAllowed(false);
+    endSupportSession();
     resetGuestDemoState();
     setGuestDemoMode(true);
     localStorage.setItem(GUEST_DEMO_KEY, 'true');
@@ -253,6 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearSuspension();
     setGuestDemoMode(false);
     localStorage.removeItem(GUEST_DEMO_KEY);
+    setSupportActorAllowed(null);
     endSupportSession();
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {

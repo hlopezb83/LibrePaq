@@ -3,7 +3,13 @@ import type { Poliza, PolizaType } from '../../shared/types';
 import { resolvePolizaYearPeriod } from '../../shared/date-utils';
 import { validateDoubleEntryMovements } from '../../shared/accounting-engine';
 import { logCompanyAuditEvent } from './audit-logger';
-import { fetchAllRows } from './supabase-pagination';
+import { chunkArray, fetchAllRows } from './supabase-pagination';
+import {
+  cleanupDeletedPolizaLinks,
+  insertPolizaHeaderWithFolioRetry,
+  restorePolizaHeaderRow,
+  updatePolizaHeaderWithFolioRetry
+} from './supabase-polizas-cfdi-helpers';
 import {
   assertSupabasePeriodOpen,
   buildPolizaMovementInsertRows,
@@ -81,24 +87,22 @@ export const supabasePolizas = {
     const allUuids = collectPolizaCfdiUuids(payload.cfdiUuid, payload.cfdiUuids, payload.movements);
     const primaryUuid = payload.cfdiUuid?.trim().toUpperCase() || allUuids[0] || null;
     const polizaId = `pol_${crypto.randomUUID().slice(0, 12)}`;
-    const nextFolio = await resolveNextSupabasePolizaFolio(payload.companyId, payload.tipo, year, period);
     const now = new Date().toISOString();
-
-    const { error: polErr } = await supabase.from('polizas').insert({
-      id: polizaId,
-      company_id: payload.companyId,
+    const initialFolio = await resolveNextSupabasePolizaFolio(payload.companyId, payload.tipo, year, period);
+    const nextFolio = await insertPolizaHeaderWithFolioRetry({
+      polizaId,
+      companyId: payload.companyId,
       tipo: payload.tipo,
-      folio: nextFolio,
+      initialFolio,
       fecha: payload.fecha,
-      ejercicio: year,
-      periodo: period,
+      year,
+      period,
       concepto: payload.concepto.trim(),
-      cfdi_uuid: primaryUuid,
+      primaryUuid,
       origin: payload.origin || 'MANUAL',
-      created_at: now
+      createdAt: now,
+      resolveNextFolio: () => resolveNextSupabasePolizaFolio(payload.companyId, payload.tipo, year, period)
     });
-
-    if (polErr) throw new Error(polErr.message);
 
     const movementsToInsert = buildPolizaMovementInsertRows(
       polizaId,
@@ -203,20 +207,24 @@ export const supabasePolizas = {
 
     const periodOrTypeChanged =
       payload.tipo !== existingPol.tipo || newYear !== origYear || newPeriod !== origPeriod;
-    const nextFolio = periodOrTypeChanged
+    const initialFolio = periodOrTypeChanged
       ? await resolveNextSupabasePolizaFolio(compId, payload.tipo, newYear, newPeriod)
       : Number(existingPol.folio);
 
-    const { data: oldMovs } = await supabase
-      .from('poliza_movements')
-      .select('*')
-      .eq('poliza_id', polizaId);
+    const oldMovs = (await fetchAllRows(async (from, to) =>
+      getRequiredSupabase()
+        .from('poliza_movements')
+        .select('*')
+        .eq('poliza_id', polizaId)
+        .order('id', { ascending: true })
+        .range(from, to)
+    )) as Array<Record<string, unknown>>;
     const prevLinksMap = await fetchPolizaCfdisMap([polizaId]);
     const prevUuids = collectPolizaCfdiUuids(
       existingPol.cfdi_uuid ? String(existingPol.cfdi_uuid) : null,
       prevLinksMap.get(polizaId),
-      ((oldMovs || []) as Array<{ cfdi_uuid?: string | null }>).map((m) => ({
-        cfdiUuid: m.cfdi_uuid
+      oldMovs.map((m) => ({
+        cfdiUuid: m.cfdi_uuid ? String(m.cfdi_uuid) : null
       }))
     );
     const nextUuids = collectPolizaCfdiUuids(
@@ -226,26 +234,25 @@ export const supabasePolizas = {
     );
     const primaryNextUuid = payload.cfdiUuid?.trim().toUpperCase() || nextUuids[0] || null;
 
-    const { error: polErr } = await supabase
-      .from('polizas')
-      .update({
-        tipo: payload.tipo,
-        folio: nextFolio,
-        concepto: payload.concepto.trim(),
-        fecha: payload.fecha,
-        ejercicio: newYear,
-        periodo: newPeriod,
-        cfdi_uuid: primaryNextUuid
-      })
-      .eq('id', polizaId);
+    const nextFolio = await updatePolizaHeaderWithFolioRetry({
+      polizaId,
+      tipo: payload.tipo,
+      initialFolio,
+      concepto: payload.concepto.trim(),
+      fecha: payload.fecha,
+      year: newYear,
+      period: newPeriod,
+      primaryUuid: primaryNextUuid,
+      allowFolioRetry: periodOrTypeChanged,
+      resolveNextFolio: () => resolveNextSupabasePolizaFolio(compId, payload.tipo, newYear, newPeriod)
+    });
 
-    if (polErr) throw new Error(polErr.message);
-
-    const oldMovIds = ((oldMovs || []) as Array<{ id: string }>).map((m) => m.id);
-    await clearSupabaseBankMatchesForPoliza(polizaId, oldMovIds);
-
+    const oldMovIds = oldMovs.map((m) => String(m.id));
     const { error: delErr } = await supabase.from('poliza_movements').delete().eq('poliza_id', polizaId);
-    if (delErr) throw new Error(delErr.message);
+    if (delErr) {
+      await restorePolizaHeaderRow(polizaId, existingPol);
+      throw new Error(delErr.message);
+    }
 
     const movementsToInsert = buildPolizaMovementInsertRows(
       polizaId,
@@ -256,27 +263,20 @@ export const supabasePolizas = {
     );
 
     if (movementsToInsert.length > 0) {
-      const { error: insErr } = await supabase.from('poliza_movements').insert(movementsToInsert);
-      if (insErr) {
-        if (oldMovs && oldMovs.length > 0) {
-          await supabase.from('poliza_movements').insert(oldMovs);
+      for (const chunk of chunkArray(movementsToInsert, 200)) {
+        const { error: insErr } = await supabase.from('poliza_movements').insert(chunk);
+        if (insErr) {
+          await supabase.from('poliza_movements').delete().eq('poliza_id', polizaId);
+          for (const oldChunk of chunkArray(oldMovs, 200)) {
+            await supabase.from('poliza_movements').insert(oldChunk);
+          }
+          await restorePolizaHeaderRow(polizaId, existingPol);
+          throw new Error(`Error al insertar nuevos movimientos: ${insErr.message}. Se restauró la póliza previa.`);
         }
-        await supabase
-          .from('polizas')
-          .update({
-            tipo: existingPol.tipo,
-            folio: existingPol.folio,
-            concepto: existingPol.concepto,
-            fecha: existingPol.fecha,
-            ejercicio: existingPol.ejercicio,
-            periodo: existingPol.periodo,
-            cfdi_uuid: existingPol.cfdi_uuid
-          })
-          .eq('id', polizaId);
-        throw new Error(`Error al insertar nuevos movimientos: ${insErr.message}. Se restauró la póliza previa.`);
       }
     }
 
+    await clearSupabaseBankMatchesForPoliza(polizaId, oldMovIds);
     await syncUpdatedPolizaCfdiLink(compId, polizaId, prevUuids, nextUuids);
 
     logCompanyAuditEvent({
@@ -303,30 +303,14 @@ export const supabasePolizas = {
       throw new Error('Póliza no encontrada.');
     }
 
+    const compId = String(existingPol.company_id);
     await assertSupabasePeriodOpen(
-      String(existingPol.company_id),
+      compId,
       Number(existingPol.ejercicio),
       Number(existingPol.periodo)
     );
 
-    const { error: unlinkErr } = await supabase
-      .from('cfdi_documents')
-      .update({ poliza_id: null })
-      .eq('poliza_id', polizaId);
-    if (unlinkErr) throw new Error(unlinkErr.message);
-
-    const { error: unlinkLinksErr } = await supabase
-      .from('poliza_cfdis')
-      .delete()
-      .eq('poliza_id', polizaId);
-    if (unlinkLinksErr) throw new Error(unlinkLinksErr.message);
-
-    const { data: movs, error: movSelErr } = await supabase
-      .from('poliza_movements')
-      .select('id')
-      .eq('poliza_id', polizaId);
-    if (movSelErr) throw new Error(movSelErr.message);
-    const movIds = ((movs || []) as Array<{ id: string }>).map((m) => m.id);
+    const movIds = await cleanupDeletedPolizaLinks(compId, polizaId);
     await clearSupabaseBankMatchesForPoliza(polizaId, movIds);
 
     const { error } = await supabase.from('polizas').delete().eq('id', polizaId);

@@ -1,7 +1,7 @@
 import { db, mapFixedAssetRow, type FixedAssetDbRow } from '../connection';
 import { assertAccountingInvariant } from '../../shared/accounting-engine';
-import type { Company, CompanyBackupBundle, PeriodLock } from '../../shared/types';
-import { batchImportAccountsCatalog, getAccounts } from './accounts.repo';
+import type { Company, CompanyBackupBundle, PeriodLock, TaxParametersRecord } from '../../shared/types';
+import { getAccounts } from './accounts.repo';
 import { getCompanyById } from './companies.repo';
 import { getCfdiDocuments } from './cfdi.repo';
 import { getPolizas } from './polizas.repo';
@@ -10,8 +10,17 @@ import { getTaxParameters, saveTaxParameters } from './fiscal.repo';
 import {
   clearOptionalSqliteBackupTables,
   exportOptionalSqliteBackupTables,
-  restoreOptionalSqliteBackupTables
+  restoreOptionalSqliteBackupTables,
+  type SqliteExtendedBackupBundle
 } from './backup-restore-optional.repo';
+import {
+  assertNoCrossTenantRowId,
+  ensureBackupSqliteColumns,
+  restoreSqliteAccounts,
+  restoreSqliteCfdis,
+  restoreSqlitePolizas,
+  restoreSqliteThirdPartiesAndBank
+} from './backup-restore-helpers.repo';
 
 export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUserId?: string | null): Company {
   assertAccountingInvariant(Boolean(bundle && bundle.company && bundle.company.rfc), 'INVALID_BACKUP_BUNDLE', 'El archivo de respaldo JSON no tiene una estructura válida de LibrePaq.');
@@ -19,6 +28,7 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
   const comp = bundle.company;
   let resolvedOwner: string | null = null;
   const tx = db.transaction(() => {
+    ensureBackupSqliteColumns();
     const existingCompany = db.query('SELECT user_id FROM companies WHERE id = ?').get(comp.id) as { user_id?: string } | null;
     assertAccountingInvariant(!existingCompany || getCompanyById(comp.id, actorUserId) !== null, 'FORBIDDEN_RESTORE', 'No tienes autorización para restaurar esta empresa.');
     const resolvedUserId = actorUserId || existingCompany?.user_id || comp.userId || 'demo';
@@ -48,7 +58,6 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
       resolvedUserId
     );
 
-    // R6-CRIT-02: Limpieza atómica de registros hijos previos para evitar datos zombie combinados
     clearOptionalSqliteBackupTables(comp.id);
     db.prepare('DELETE FROM polizas WHERE company_id = ?').run(comp.id);
     db.prepare('DELETE FROM cfdi_documents WHERE company_id = ?').run(comp.id);
@@ -56,9 +65,11 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
     db.prepare('DELETE FROM fixed_assets WHERE company_id = ?').run(comp.id);
     db.prepare('DELETE FROM third_parties WHERE company_id = ?').run(comp.id);
     db.prepare('DELETE FROM period_locks WHERE company_id = ?').run(comp.id);
+    db.prepare('DELETE FROM tax_parameters WHERE company_id = ?').run(comp.id);
+    db.prepare('DELETE FROM accounts WHERE company_id = ?').run(comp.id);
 
     if (Array.isArray(bundle.accounts) && bundle.accounts.length > 0) {
-      batchImportAccountsCatalog(comp.id, bundle.accounts);
+      restoreSqliteAccounts(comp.id, bundle.accounts);
     }
 
     if (Array.isArray(bundle.taxParameters)) {
@@ -70,92 +81,11 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
     }
 
     if (Array.isArray(bundle.polizas) && bundle.polizas.length > 0) {
-      const insertPol = db.prepare(`
-        INSERT OR REPLACE INTO polizas (id, company_id, tipo, folio, fecha, ejercicio, periodo, concepto, cfdi_uuid, origin, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      const insertMov = db.prepare(`
-        INSERT OR REPLACE INTO poliza_movements (id, poliza_id, account_id, account_code, account_name, referencia, concepto, cargo, abono, cfdi_uuid)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const p of bundle.polizas) {
-        insertPol.run(
-          p.id,
-          comp.id,
-          p.tipo,
-          p.folio,
-          p.fecha,
-          p.ejercicio,
-          p.periodo,
-          p.concepto,
-          p.cfdiUuid || null,
-          p.origin || 'MANUAL',
-          p.createdAt || new Date().toISOString()
-        );
-        if (Array.isArray(p.movements)) {
-          for (const m of p.movements) {
-            insertMov.run(
-              m.id,
-              p.id,
-              m.accountId,
-              m.accountCode || '',
-              m.accountName || '',
-              m.referencia || '',
-              m.concepto || '',
-              m.cargo || 0,
-              m.abono || 0,
-              m.cfdiUuid || null
-            );
-          }
-        }
-      }
+      restoreSqlitePolizas(comp.id, bundle.polizas);
     }
 
     if (Array.isArray(bundle.cfdis) && bundle.cfdis.length > 0) {
-      const insertCfdi = db.prepare(`
-        INSERT OR REPLACE INTO cfdi_documents (
-          id, company_id, uuid, fecha, tipo_comprobante, direction, serie, folio,
-          emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre,
-          concepto_principal, clave_prod_serv, moneda, tipo_cambio,
-          subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total,
-          metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs, xml_raw
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const c of bundle.cfdis) {
-        insertCfdi.run(
-          c.id,
-          comp.id,
-          c.uuid,
-          c.fecha,
-          c.tipoComprobante,
-          c.direction,
-          c.serie || '',
-          c.folio || '',
-          c.emisorRfc,
-          c.emisorNombre,
-          c.receptorRfc,
-          c.receptorNombre,
-          c.conceptoPrincipal,
-          c.claveProdServ || '01010101',
-          c.moneda || 'MXN',
-          c.tipoCambio || 1,
-          c.subtotal || 0,
-          c.descuento || 0,
-          c.ivaTrasladado || 0,
-          c.isrRetenido || 0,
-          c.ivaRetenido || 0,
-          c.total || 0,
-          c.metodoPago || 'PUE',
-          c.formaPago || '03',
-          c.usoCfdi || 'G03',
-          c.uuidRelacionado || null,
-          c.statusSat || 'VIGENTE',
-          c.polizaId || null,
-          c.taxBreakdown ? JSON.stringify(c.taxBreakdown) : null,
-          c.relatedDocs ? JSON.stringify(c.relatedDocs) : null,
-          c.xmlRaw || ''
-        );
-      }
+      restoreSqliteCfdis(comp.id, bundle.cfdis);
     }
 
     if (Array.isArray(bundle.fixedAssets) && bundle.fixedAssets.length > 0) {
@@ -167,6 +97,7 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const fa of bundle.fixedAssets) {
+        assertNoCrossTenantRowId('fixed_assets', fa.id, comp.id);
         insertFa.run(
           fa.id, comp.id, fa.codigo, fa.nombre, fa.categoria, fa.fechaAdquisicion,
           fa.cfdiUuid || null, fa.montoOriginalInversion, fa.tasaAnualPct,
@@ -194,48 +125,8 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
       }
     }
 
-    if (Array.isArray(bundle.thirdParties) && bundle.thirdParties.length > 0) {
-      const insertTp = db.prepare(`
-        INSERT OR REPLACE INTO third_parties (
-          id, company_id, rfc, nombre, rol, cuenta_operacion_code, cuenta_contrapartida_code,
-          tipo_tercero_diot, tipo_operacion_diot, tasa_iva_default, estatus_69b, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const tp of bundle.thirdParties) {
-        insertTp.run(
-          tp.id,
-          comp.id,
-          tp.rfc,
-          tp.nombre,
-          tp.rol || 'PROVEEDOR',
-          tp.cuentaOperacionCode,
-          tp.cuentaContrapartidaCode,
-          tp.tipoTerceroDiot || '04',
-          tp.tipoOperacionDiot || '85',
-          tp.tasaIvaDefault || 16,
-          tp.estatus69B || 'LIMPIO',
-          tp.updatedAt || new Date().toISOString()
-        );
-      }
-    }
-
-    if (Array.isArray(bundle.bankStatementLines) && bundle.bankStatementLines.length > 0) {
-      const insertBsl = db.prepare(`
-        INSERT OR REPLACE INTO bank_statement_lines (
-          id, company_id, account_id, fecha, ejercicio, periodo, referencia, descripcion,
-          cargo_banco, abono_banco, matched_movement_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const b of bundle.bankStatementLines) {
-        insertBsl.run(
-          b.id, comp.id, b.accountId, b.fecha, b.ejercicio || comp.currentYear,
-          b.periodo || comp.currentPeriod, b.referencia || '', b.descripcion || '',
-          b.cargoBanco || 0, b.abonoBanco || 0, b.matchedMovementId || null
-        );
-      }
-    }
-
-    restoreOptionalSqliteBackupTables(comp.id, bundle);
+    restoreSqliteThirdPartiesAndBank(comp.id, bundle);
+    restoreOptionalSqliteBackupTables(comp.id, bundle as SqliteExtendedBackupBundle);
   });
 
   tx();
@@ -261,14 +152,24 @@ interface BankStatementDbRow {
 export function exportCompanyBackupBundle(
   companyId: string,
   userId?: string | null
-): CompanyBackupBundle {
+): SqliteExtendedBackupBundle {
+  ensureBackupSqliteColumns();
   const company = getCompanyById(companyId, userId);
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
   const accounts = getAccounts(company.id);
   const cfdis = getCfdiDocuments(company.id, { includeXml: true });
   const polizas = getPolizas(company.id);
-  const thirdParties = syncThirdPartiesFromCfdis(company.id);
+  const syncedThirdParties = syncThirdPartiesFromCfdis(company.id);
+  const tpExtraRows = db
+    .query('SELECT id, deductible_pct FROM third_parties WHERE company_id = ?')
+    .all(company.id) as Array<{ id: string; deductible_pct?: number }>;
+  const tpDedMap = new Map(tpExtraRows.map((r) => [r.id, Number(r.deductible_pct ?? 100)]));
+  const thirdParties = syncedThirdParties.map((tp) => ({
+    ...tp,
+    deductiblePct: tpDedMap.get(tp.id) ?? 100
+  }));
+
   const fixedAssets = (
     db.query('SELECT * FROM fixed_assets WHERE company_id = ?').all(company.id) as FixedAssetDbRow[]
   ).map(mapFixedAssetRow);
@@ -291,13 +192,24 @@ export function exportCompanyBackupBundle(
     notes: r.notes
   }));
 
-  const taxYearRows = db
-    .query('SELECT DISTINCT ejercicio FROM tax_parameters WHERE company_id = ? ORDER BY ejercicio ASC')
-    .all(company.id) as Array<{ ejercicio: number }>;
-  const taxYears = taxYearRows.length > 0
-    ? taxYearRows.map((r) => Number(r.ejercicio))
-    : [company.currentYear];
-  const taxParameters = taxYears.map((yr) => getTaxParameters(company.id, yr));
+  const rawTaxRows = db
+    .query('SELECT * FROM tax_parameters WHERE company_id = ? ORDER BY ejercicio ASC, periodo ASC')
+    .all(company.id) as Array<Record<string, unknown>>;
+  const taxParameters: TaxParametersRecord[] =
+    rawTaxRows.length > 0
+      ? rawTaxRows.map((r) => ({
+          companyId: String(r.company_id),
+          ejercicio: Number(r.ejercicio),
+          periodo: Number(r.periodo ?? 0),
+          coeficienteUtilidad: Number(r.coeficiente_utilidad ?? 0),
+          perdidasFiscalesPendientes: Number(r.perdidas_fiscales_pendientes ?? 0),
+          pagosProvisionalesAnteriores: Number(r.pagos_provisionales_anteriores ?? 0),
+          saldoFavorIvaAnterior: Number(r.saldo_favor_iva_anterior ?? 0),
+          tipoCambioDofCierre: Number(r.tipo_cambio_dof_cierre ?? 0),
+          ptuPagadaEjercicio: Number(r.ptu_pagada_ejercicio ?? 0)
+        }))
+      : [getTaxParameters(company.id, company.currentYear, 0)];
+
   const bankRows = db
     .query('SELECT * FROM bank_statement_lines WHERE company_id = ?')
     .all(company.id) as BankStatementDbRow[];

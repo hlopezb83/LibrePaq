@@ -31,11 +31,11 @@ export function buildCreditNoteEgresoMovements(
 
   if (esRecibido) {
     const accGasto = inferExpenseAccountForCfdi(cfdi, accounts, opOverride);
-    const accContrapartida = counterOverride
-      ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL', counterOverride)
-      : esPagado
-        ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL')
-        : resolveFiscalAccount(accounts, 'PROVEEDORES_NACIONALES');
+    const accContrapartida = resolveFiscalAccount(
+      accounts,
+      esPagado ? 'BANCO_PRINCIPAL' : 'PROVEEDORES_NACIONALES',
+      counterOverride
+    );
     const accIva = esPagado
       ? resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO')
       : resolveFiscalAccount(accounts, 'IVA_PENDIENTE_PAGO');
@@ -79,11 +79,11 @@ export function buildCreditNoteEgresoMovements(
   }
 
   const accDevoluciones = resolveFiscalAccount(accounts, 'DEVOLUCIONES_DESCUENTOS', opOverride);
-  const accContrapartida = counterOverride
-    ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL', counterOverride)
-    : esPagado
-      ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL')
-      : resolveFiscalAccount(accounts, 'CLIENTES_NACIONALES');
+  const accContrapartida = resolveFiscalAccount(
+    accounts,
+    esPagado ? 'BANCO_PRINCIPAL' : 'CLIENTES_NACIONALES',
+    counterOverride
+  );
   const accIva = esPagado
     ? resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO')
     : resolveFiscalAccount(accounts, 'IVA_TRASLADADO_NO_COBRADO');
@@ -141,11 +141,11 @@ export function buildStandardIngresoMovements(
 
   if (esRecibido) {
     const accGasto = inferExpenseAccountForCfdi(cfdi, accounts, opOverride);
-    const accContrapartida = counterOverride
-      ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL', counterOverride)
-      : esPagado
-        ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL')
-        : resolveFiscalAccount(accounts, 'PROVEEDORES_NACIONALES');
+    const accContrapartida = resolveFiscalAccount(
+      accounts,
+      esPagado ? 'BANCO_PRINCIPAL' : 'PROVEEDORES_NACIONALES',
+      counterOverride
+    );
     const accIva = esPagado
       ? resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO')
       : resolveFiscalAccount(accounts, 'IVA_PENDIENTE_PAGO');
@@ -194,11 +194,11 @@ export function buildStandardIngresoMovements(
   }
 
   const accIngreso = resolveFiscalAccount(accounts, 'INGRESOS_TASA_16', opOverride);
-  const accContrapartida = counterOverride
-    ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL', counterOverride)
-    : esPagado
-      ? resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL')
-      : resolveFiscalAccount(accounts, 'CLIENTES_NACIONALES');
+  const accContrapartida = resolveFiscalAccount(
+    accounts,
+    esPagado ? 'BANCO_PRINCIPAL' : 'CLIENTES_NACIONALES',
+    counterOverride
+  );
   const accIva = esPagado
     ? resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO')
     : resolveFiscalAccount(accounts, 'IVA_TRASLADADO_NO_COBRADO');

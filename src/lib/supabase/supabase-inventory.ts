@@ -24,12 +24,29 @@ export const supabaseInventory = {
 
     const targetYear = ejercicio && ejercicio >= 2000 ? Math.round(ejercicio) : company.currentYear;
     const targetPeriod = periodo && periodo >= 1 && periodo <= 13 ? Math.round(periodo) : company.currentPeriod;
-    const prevYear = targetPeriod > 1 ? targetYear : targetYear - 1;
-    const prevPeriod = targetPeriod > 1 ? targetPeriod - 1 : 12;
+
+    const prevQuery =
+      targetPeriod === 1
+        ? sb
+            .from('inventory_periods')
+            .select('final_inventory')
+            .eq('company_id', company.id)
+            .eq('ejercicio', targetYear - 1)
+            .in('periodo', [12, 13])
+            .order('periodo', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : sb
+            .from('inventory_periods')
+            .select('final_inventory')
+            .eq('company_id', company.id)
+            .eq('ejercicio', targetYear)
+            .eq('periodo', targetPeriod - 1)
+            .maybeSingle();
 
     const [curRes, prevRes, rawAccounts, movs] = await Promise.all([
       sb.from('inventory_periods').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).eq('periodo', targetPeriod).maybeSingle(),
-      sb.from('inventory_periods').select('final_inventory').eq('company_id', company.id).eq('ejercicio', prevYear).eq('periodo', prevPeriod).maybeSingle(),
+      prevQuery,
       fetchAllRows(async (from, to) =>
         sb.from('accounts').select('*').eq('company_id', company.id).order('code', { ascending: true }).range(from, to)
       ),

@@ -6,19 +6,12 @@ import { getDefaultDateForPeriod } from '../../lib/formatters';
 import type { Poliza, PolizaType } from '../../shared/types';
 import { exportPolizasCsv } from './exportPolizasCsv';
 import {
-  buildPlanDraftsFromCfdi,
-  collectPolizaUniqueUuids,
-  computePolizasTotals,
-  filterPolizas,
-  formatPolizaCopyText,
-  isPolizaDateInDifferentPeriod,
-  parsePolizasUrlSearch
+  buildPlanDraftsFromCfdi, collectPolizaUniqueUuids, computePolizasTotals,
+  filterPolizas, formatPolizaCopyText, isPolizaDateInDifferentPeriod, parsePolizasUrlSearch
 } from './filterPolizas';
 import {
-  buildInitialPolizaMovements,
-  createPolizaSnapshot,
-  mapPolizaMovementsToDraft,
-  type PolizaEditorSnapshot
+  buildInitialPolizaMovements, createPolizaSnapshot,
+  mapPolizaMovementsToDraft, type PolizaEditorSnapshot
 } from './polizaDirtyCheck';
 import { useDraftPolizaMovements } from './useDraftPolizaMovements';
 import { usePolizasDataQueries } from './usePolizasDataQueries';
@@ -65,6 +58,7 @@ export function usePolizasManager() {
 
   useEffect(() => {
     setEditingPolizaId(null);
+    setEditingPolizaPeriodo(null);
     setTipo('DIARIO');
     setFecha(defaultPeriodDate);
     setConcepto('');
@@ -81,6 +75,18 @@ export function usePolizasManager() {
 
   // Form State
   const [editingPolizaId, setEditingPolizaId] = useState<string | null>(null);
+  const [editingPolizaPeriodo, setEditingPolizaPeriodo] = useState<number | null>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const handleDialogClose = () => {
+      setEditingPolizaId(null);
+      setEditingPolizaPeriodo(null);
+    };
+    dialog.addEventListener('close', handleDialogClose);
+    return () => dialog.removeEventListener('close', handleDialogClose);
+  }, []);
   const [editorSessionId, setEditorSessionId] = useState(0);
   const [initialSnapshot, setInitialSnapshot] = useState<PolizaEditorSnapshot | null>(null);
   const [tipo, setTipo] = useState<PolizaType>('DIARIO');
@@ -90,12 +96,7 @@ export function usePolizasManager() {
   const cfdiUuid = cfdiUuids[0] || '';
 
   const queries = usePolizasDataQueries(
-    activeCompanyId,
-    currentYear,
-    currentPeriod,
-    periodScope,
-    periodFrom,
-    periodTo
+    activeCompanyId, currentYear, currentPeriod, periodScope, periodFrom, periodTo
   );
   const {
     polizas, accounts, cfdis, isLoadingAccounts, isLoadingPeriodLock,
@@ -107,16 +108,10 @@ export function usePolizasManager() {
     const existingSameType = polizas.filter(
       (p) => p.tipo === tipo && (!currentPeriod || p.periodo === currentPeriod)
     );
-    const maxFolio = existingSameType.reduce((max, p) => Math.max(max, p.folio), 0);
-    return maxFolio + 1;
+    return existingSameType.reduce((max, p) => Math.max(max, p.folio), 0) + 1;
   }, [polizas, tipo, currentPeriod]);
 
-  const draft = useDraftPolizaMovements(
-    accounts,
-    predictedNextFolio,
-    setTipo,
-    setConcepto
-  );
+  const draft = useDraftPolizaMovements(accounts, predictedNextFolio, setTipo, setConcepto);
   const { movements, setMovements, resetDraftMovements } = draft;
 
   useEffect(() => {
@@ -124,50 +119,28 @@ export function usePolizasManager() {
   }, [activeCompanyId]);
 
   const {
-    savePolizaMutation,
-    deletePolizaMutation,
-    closeYearMutation,
-    createPedimentoMutation,
-    reversePolizaMutation
+    savePolizaMutation, deletePolizaMutation, closeYearMutation,
+    createPedimentoMutation, reversePolizaMutation
   } = usePolizasMutations({
-    activeCompanyId,
-    currentYear,
-    currentPeriod,
-    isPeriodLocked,
-    isPeriod13Locked,
-    isReadOnlyClient,
-    editingPolizaId,
-    tipo,
-    fecha,
-    concepto,
-    cfdiUuid,
-    cfdiUuids,
-    movements,
-    accounts,
-    dialogRef,
+    activeCompanyId, currentYear, currentPeriod, isPeriodLocked, isPeriod13Locked,
+    isReadOnlyClient, editingPolizaId, editingPolizaPeriodo, tipo, fecha, concepto,
+    cfdiUuid, cfdiUuids, movements, accounts, dialogRef,
+    onSaveSuccess: () => { setEditingPolizaId(null); setEditingPolizaPeriodo(null); },
     onPedimentoSuccess: () => setIsPedimentoModalOpen(false),
-    setFormError,
-    setConfirmDeleteId,
-    setConfirmReverseId
+    setFormError, setConfirmDeleteId, setConfirmReverseId
   });
 
   const filteredPolizas = useMemo(
-    () =>
-      filterPolizas(polizas, filterTipo, originFilter, searchQuery, {
-        minAmount: parsedMin,
-        maxAmount: parsedMax
-      }),
+    () => filterPolizas(polizas, filterTipo, originFilter, searchQuery, { minAmount: parsedMin, maxAmount: parsedMax }),
     [polizas, filterTipo, originFilter, searchQuery, parsedMin, parsedMax]
   );
 
-  const filteredPolizasTotals = useMemo(
-    () => computePolizasTotals(filteredPolizas),
-    [filteredPolizas]
-  );
+  const filteredPolizasTotals = useMemo(() => computePolizasTotals(filteredPolizas), [filteredPolizas]);
 
   const openEditorWithDraft = useCallback(
     (params: {
       editId: string | null;
+      editPeriodo?: number | null;
       nextTipo: PolizaType;
       nextFecha: string;
       nextConcepto: string;
@@ -175,6 +148,7 @@ export function usePolizasManager() {
       nextMovements: ReturnType<typeof buildInitialPolizaMovements>;
     }) => {
       setEditingPolizaId(params.editId);
+      setEditingPolizaPeriodo(params.editPeriodo ?? null);
       setTipo(params.nextTipo);
       setFecha(params.nextFecha);
       setConcepto(params.nextConcepto);
@@ -201,6 +175,7 @@ export function usePolizasManager() {
     if (isWriteBlocked) return;
     openEditorWithDraft({
       editId: null,
+      editPeriodo: null,
       nextTipo: 'DIARIO',
       nextFecha: defaultPeriodDate,
       nextConcepto: '',
@@ -213,6 +188,7 @@ export function usePolizasManager() {
     if (isWriteBlocked) return;
     openEditorWithDraft({
       editId: pol.id,
+      editPeriodo: pol.periodo,
       nextTipo: pol.tipo,
       nextFecha: pol.fecha,
       nextConcepto: pol.concepto,
@@ -225,6 +201,7 @@ export function usePolizasManager() {
     if (isWriteBlocked) return;
     openEditorWithDraft({
       editId: null,
+      editPeriodo: null,
       nextTipo: pol.tipo,
       nextFecha: defaultPeriodDate,
       nextConcepto: `${pol.concepto} (Copia)`,

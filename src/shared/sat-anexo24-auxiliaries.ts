@@ -15,6 +15,7 @@ export interface Anexo24AuxOptions {
   tipoSolicitud?: SatSolicitudTipo;
   numOrden?: string;
   numTramite?: string;
+  strictSolicitud?: boolean;
   counterpartRfc?: string;
   cfdiLookup?: ReadonlyMap<string, Anexo24AuxCfdiMeta>;
 }
@@ -93,6 +94,53 @@ export function buildAnexo24SolicitudAttrs(options?: {
   return { tipoSolicitud, reqSolicitudAttr: ` NumTramite="${numTramite}"`, missingRequiredAttr: false };
 }
 
+export function assertSolicitudAttrsIfStrict(
+  attrs: { tipoSolicitud: SatSolicitudTipo; missingRequiredAttr: boolean },
+  strict?: boolean
+): void {
+  if (!strict || !attrs.missingRequiredAttr) return;
+  if (attrs.tipoSolicitud === 'AF' || attrs.tipoSolicitud === 'FC') {
+    throw new Error(
+      `Para TipoSolicitud="${attrs.tipoSolicitud}" el SAT Anexo 24 exige capturar NumOrden válido.`
+    );
+  }
+  throw new Error(
+    `Para TipoSolicitud="${attrs.tipoSolicitud}" el SAT Anexo 24 exige capturar NumTramite válido.`
+  );
+}
+
+export function computeCatalogoRetainedTree(
+  trialBalance: readonly AccountWithBalance[]
+): Array<{ acc: AccountWithBalance; nivel: number; subCtaDe: string | null }> {
+  const retained = trialBalance.filter((acc) => !isLevel1StructuralRubro(acc));
+  const byCode = new Map(retained.map((acc) => [acc.code, acc]));
+  const depthMemo = new Map<string, number>();
+
+  const getDepth = (code: string, visiting: Set<string>): number => {
+    const cached = depthMemo.get(code);
+    if (cached !== undefined) return cached;
+    const acc = byCode.get(code);
+    if (!acc || !acc.parentCode || !byCode.has(acc.parentCode) || visiting.has(code)) {
+      depthMemo.set(code, 1);
+      return 1;
+    }
+    visiting.add(code);
+    const depth = 1 + getDepth(acc.parentCode, visiting);
+    visiting.delete(code);
+    depthMemo.set(code, depth);
+    return depth;
+  };
+
+  return retained.map((acc) => {
+    const hasRetainedParent = Boolean(acc.parentCode && byCode.has(acc.parentCode));
+    return {
+      acc,
+      nivel: getDepth(acc.code, new Set<string>()),
+      subCtaDe: hasRetainedParent ? acc.parentCode! : null
+    };
+  });
+}
+
 const UUID_V4_LIKE_REGEX = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
 const RFC_EXTRACT_REGEX = /[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}/i;
 
@@ -111,7 +159,9 @@ export function buildAuxiliarFoliosXml(
   const mesStr = String(mes).padStart(2, '0');
   const cleanRfc = (company.rfc || '').trim().toUpperCase();
   const safeRfc = truncXml(cleanRfc, 13);
-  const { tipoSolicitud, reqSolicitudAttr } = buildAnexo24SolicitudAttrs(options);
+  const solicitudAttrs = buildAnexo24SolicitudAttrs(options);
+  assertSolicitudAttrsIfStrict(solicitudAttrs, options?.strictSolicitud);
+  const { tipoSolicitud, reqSolicitudAttr } = solicitudAttrs;
 
   const detNodes: string[] = [];
   for (const p of polizas) {
@@ -120,28 +170,35 @@ export function buildAuxiliarFoliosXml(
     const compNodes: string[] = [];
     const seenUuids = new Set<string>();
 
-    const movements = p.movements || [];
-    for (const m of movements) {
-      const rawUuid = (m.cfdiUuid || p.cfdiUuid || '').trim();
+    const appendCfdiNode = (
+      rawUuidInput: string,
+      fallbackAmount: number,
+      movConcepto?: string | null,
+      movRfc?: string | null,
+      movMoneda?: string | null,
+      movTipoCambio?: number | null,
+      movCfdiTotal?: number | null
+    ) => {
+      const rawUuid = rawUuidInput.trim();
       const upperUuid = rawUuid.toUpperCase();
-      if (!upperUuid || seenUuids.has(upperUuid)) continue;
+      if (!upperUuid || seenUuids.has(upperUuid)) return;
       seenUuids.add(upperUuid);
 
       const cfdiInfo = options?.cfdiLookup?.get(upperUuid);
       const extractedRfc =
-        m.concepto?.match(RFC_EXTRACT_REGEX)?.[0] ||
+        movConcepto?.match(RFC_EXTRACT_REGEX)?.[0] ||
         p.concepto?.match(RFC_EXTRACT_REGEX)?.[0];
       const rawRfc = (
         cfdiInfo?.rfcContraparte ||
-        m.rfcContraparte ||
+        movRfc ||
         options?.counterpartRfc ||
         extractedRfc ||
         'XAXX010101000'
       ).toUpperCase();
       const thirdPartyRfc =
         rawRfc === company.rfc.toUpperCase() ? 'XAXX010101000' : truncXml(rawRfc, 13);
-      const monedaRaw = (cfdiInfo?.moneda || m.cfdiMoneda || 'MXN').toUpperCase();
-      const tcVal = cfdiInfo?.tipoCambio || m.cfdiTipoCambio || 1;
+      const monedaRaw = (cfdiInfo?.moneda || movMoneda || 'MXN').toUpperCase();
+      const tcVal = cfdiInfo?.tipoCambio || movTipoCambio || 1;
       const fxAttrs =
         monedaRaw !== 'MXN' && monedaRaw !== 'XXX'
           ? ` Moneda="${truncXml(monedaRaw, 3)}" TipCamb="${tcVal.toFixed(4)}"`
@@ -149,11 +206,9 @@ export function buildAuxiliarFoliosXml(
       const montoReal =
         cfdiInfo?.total && cfdiInfo.total > 0
           ? cfdiInfo.total
-          : m.cfdiTotal && m.cfdiTotal > 0
-            ? m.cfdiTotal
-            : m.cargo > 0
-              ? m.cargo
-              : m.abono;
+          : movCfdiTotal && movCfdiTotal > 0
+            ? movCfdiTotal
+            : fallbackAmount;
       const monto = (Number.isFinite(montoReal) ? montoReal : 0).toFixed(2);
 
       if (UUID_V4_LIKE_REGEX.test(upperUuid)) {
@@ -163,11 +218,31 @@ export function buildAuxiliarFoliosXml(
           `    <RepAux:ComprNal UUID_CFDI="${truncXml(upperUuid, 36)}" MontoTotal="${monto}" RFC="${thirdPartyRfc}"${metPagoAttr}${fxAttrs}/>`
         );
       } else {
-        const extMoneda = monedaRaw !== 'MXN' && monedaRaw !== 'XXX' ? truncXml(monedaRaw, 3) : 'USD';
         compNodes.push(
-          `    <RepAux:ComprExt NumFactExt="${truncXml(rawUuid, 36)}" TaxID="${thirdPartyRfc}" MontoTotal="${monto}" Moneda="${extMoneda}" TipCamb="${tcVal.toFixed(4)}"/>`
+          `    <RepAux:ComprExt NumFactExt="${truncXml(rawUuid, 36)}" TaxID="${thirdPartyRfc}" MontoTotal="${monto}"${fxAttrs}/>`
         );
       }
+    };
+
+    const movements = p.movements || [];
+    for (const m of movements) {
+      const rawUuid = (m.cfdiUuid || p.cfdiUuid || '').trim();
+      if (!rawUuid) continue;
+      appendCfdiNode(
+        rawUuid,
+        m.cargo > 0 ? m.cargo : m.abono,
+        m.concepto,
+        m.rfcContraparte,
+        m.cfdiMoneda,
+        m.cfdiTipoCambio,
+        m.cfdiTotal
+      );
+    }
+
+    const extraHeaderUuids = [...(p.cfdiUuids || []), ...(p.cfdiUuid ? [p.cfdiUuid] : [])];
+    for (const rawHeaderUuid of extraHeaderUuids) {
+      if (!rawHeaderUuid) continue;
+      appendCfdiNode(rawHeaderUuid, p.totalCargos || p.totalAbonos || 0);
     }
 
     if (compNodes.length > 0) {
@@ -205,7 +280,9 @@ export function buildAuxiliarCuentasXml(
   const mesStr = String(mes).padStart(2, '0');
   const cleanRfc = (company.rfc || '').trim().toUpperCase();
   const safeRfc = truncXml(cleanRfc, 13);
-  const { tipoSolicitud, reqSolicitudAttr } = buildAnexo24SolicitudAttrs(options);
+  const solicitudAttrs = buildAnexo24SolicitudAttrs(options);
+  assertSolicitudAttrsIfStrict(solicitudAttrs, options?.strictSolicitud);
+  const { tipoSolicitud, reqSolicitudAttr } = solicitudAttrs;
 
   const movsByAccount = new Map<
     string,

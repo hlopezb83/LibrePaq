@@ -123,3 +123,41 @@ export function buildExchangeFluctuationMovements(
     concept: `Póliza de Fluctuación Cambiaria USD (T.C. DOF $${tcStr})`
   };
 }
+
+export function appendIvaNoAcreditableMovements(
+  movements: AutoPolizaMovementDraft[],
+  accounts: readonly Account[],
+  accIvaPagado: Account,
+  accIvaPendienteRaw: Account | null,
+  ivaNoAcreditableCents: number,
+  remaining118Ref: { cents: number },
+  periodo: number
+): void {
+  if (ivaNoAcreditableCents <= 0) return;
+  const accGastoIvaNoAcred =
+    accounts.find((a) => a.isAffectable && a.code === '601-01-012') ??
+    accounts.find((a) => a.isAffectable && /iva\s*no\s*acreditable/i.test(a.name)) ??
+    accounts.find((a) => a.isAffectable && a.satGroupCode === '601.56') ??
+    resolveFiscalAccount(accounts, 'HONORARIOS_SERVICIOS');
+  const noAcredTransferred = push118WithCap(
+    movements,
+    accIvaPagado,
+    accIvaPendienteRaw,
+    ivaNoAcreditableCents,
+    remaining118Ref,
+    `IVA-M${periodo}`,
+    'Cancelación de IVA no acreditable por prorrateo Art. 5 LIVA',
+    'Cancelación de IVA pendiente no acreditable por prorrateo Art. 5 LIVA'
+  );
+  if (noAcredTransferred > 0) {
+    movements.push({
+      accountId: accGastoIvaNoAcred.id,
+      accountCode: accGastoIvaNoAcred.code,
+      accountName: accGastoIvaNoAcred.name,
+      referencia: `IVA-M${periodo}`,
+      concepto: 'IVA no acreditable por prorrateo Art. 5 LIVA (Gasto deducible Art. 28 LISR)',
+      cargo: fromCents(noAcredTransferred),
+      abono: 0
+    });
+  }
+}

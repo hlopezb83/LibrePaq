@@ -1,5 +1,6 @@
 import type { CfdiDocument, CfdiRelatedDoc, ThirdPartyRecord } from '../types';
 import { fromCents, toCents } from './invariants-and-math';
+import { roundArt20Cff } from './sat-dyp-formatter';
 
 export type DiotTipoTercero = '04' | '05' | '15';
 
@@ -50,7 +51,9 @@ export interface DiotTxtRowInput {
  * 12 (`cols[11]`): Actos pagados 16% nacional | 13 (`cols[12]`): Devoluciones/descuentos 16%
  * 14 (`cols[13]`): Importaciones tangibles 16% | 16 (`cols[15]`): Importaciones intangibles y servicios 16%
  * 18 (`cols[17]`): IVA acreditable 8% FN | 20 (`cols[19]`): IVA acreditable 8% FS | 22 (`cols[21]`): IVA acreditable 16%
- * 47 (`cols[46]`): IVA no acreditable total | 48 (`cols[47]`): IVA retenido por el contribuyente
+ * 28-31 (`cols[27..30]`): IVA no acreditable FN 8% | 32-35 (`cols[31..34]`): IVA no acreditable FS 8%
+ * 36-39 (`cols[35..38]`): IVA no acreditable Tasa 16%
+ * 47 (`cols[46]`): IVA no acreditable importaciones intangibles | 48 (`cols[47]`): IVA retenido por el contribuyente
  * 49 (`cols[48]`): Importaciones exentas | 50 (`cols[49]`): Actos exentos | 51 (`cols[50]`): Actos pagados 0%
  * 54 (`cols[53]`): Manifestación efectos fiscales ('01')
  */
@@ -58,7 +61,7 @@ export function buildDiot54BatchLine(row: DiotTxtRowInput): string {
   const cols = new Array<string>(54).fill('');
   const safeStr = (val: string | undefined) => (val || '').replace(/\|/g, ' ').trim();
   const roundAmt = (val: number | undefined) => {
-    const rounded = Math.round(val || 0);
+    const rounded = roundArt20Cff(val || 0);
     return rounded > 0 ? String(rounded) : '';
   };
 
@@ -80,12 +83,12 @@ export function buildDiot54BatchLine(row: DiotTxtRowInput): string {
     cols[9] = roundAmt(row.actosPagados8);
     cols[10] = roundAmt(row.devoluciones8);
     cols[19] = roundAmt(row.ivaAcreditable8);
-    cols[29] = roundAmt(row.ivaNoAcreditable8);
+    cols[31] = roundAmt(row.ivaNoAcreditable8);
   } else {
     cols[7] = roundAmt(row.actosPagados8);
     cols[8] = roundAmt(row.devoluciones8);
     cols[17] = roundAmt(row.ivaAcreditable8);
-    cols[28] = roundAmt(row.ivaNoAcreditable8);
+    cols[27] = roundAmt(row.ivaNoAcreditable8);
   }
 
   cols[11] = roundAmt(row.actosPagados16);
@@ -93,7 +96,7 @@ export function buildDiot54BatchLine(row: DiotTxtRowInput): string {
   cols[13] = roundAmt(row.importacionesTangibles16);
   cols[15] = roundAmt(row.importacionesIntangibles16);
   cols[21] = roundAmt(row.ivaAcreditable16 > 0 ? row.ivaAcreditable16 : 0);
-  cols[27] = roundAmt(row.ivaNoAcreditable16);
+  cols[35] = roundAmt(row.ivaNoAcreditable16);
 
   cols[46] = roundAmt(row.ivaNoAcreditableImportacionesIntangibles);
   cols[47] = roundAmt(row.ivaRetenido);
@@ -114,10 +117,18 @@ export function generateDiotTxt(rows: readonly DiotTxtRowInput[]): string {
 export function resolveDrPaidMxnForDiot(dr: CfdiRelatedDoc, doc: CfdiDocument, fallbackTc: number): number {
   const imp = Number(dr.impPagado || 0);
   if (imp <= 0) return 0;
-  if (dr.monedaDr === 'MXN') return imp;
-  if (dr.pagoMoneda && dr.pagoMoneda !== 'MXN' && (dr.pagoTipoCambio || 0) > 0) {
+  const monedaDr = dr.monedaDr?.toUpperCase();
+  if (monedaDr === 'MXN') return imp;
+  const pagoMoneda = (dr.pagoMoneda || doc.moneda || 'MXN').toUpperCase();
+  if (pagoMoneda === 'MXN') {
+    if (monedaDr && monedaDr !== 'MXN' && dr.equivalenciaDr && dr.equivalenciaDr > 0) {
+      return imp / dr.equivalenciaDr;
+    }
+    return imp;
+  }
+  if ((dr.pagoTipoCambio || 0) > 0) {
     const tcP = dr.pagoTipoCambio!;
-    if (!dr.monedaDr || dr.monedaDr === dr.pagoMoneda) return imp * tcP;
+    if (!monedaDr || monedaDr === pagoMoneda) return imp * tcP;
     if (dr.equivalenciaDr && dr.equivalenciaDr > 0) {
       return (imp / dr.equivalenciaDr) * tcP;
     }
@@ -171,7 +182,6 @@ export function resolveDiotDocAmounts(doc: CfdiDocument, thirdParty?: ThirdParty
   const isCreditNote = doc.tipoComprobante === 'E';
   const tb = doc.taxBreakdown;
   const hasBreakdown =
-    !isCreditNote &&
     tb != null &&
     (tb.base16 > 0 || tb.base8 > 0 || tb.base0 > 0 || tb.baseExento > 0 || tb.ieps > 0);
 
@@ -202,27 +212,35 @@ export function resolveDiotDocAmounts(doc: CfdiDocument, thirdParty?: ThirdParty
     Math.abs(inferredRatio - 0.08) < 0.015 ||
     (thirdParty?.tasaIvaDefault === 8 && rawIvaMxn > 0 && Math.abs(inferredRatio - 0.16) >= 0.015);
 
-  const subtotal16 = hasBreakdown
-    ? tb.base16 * tc
-    : !isCreditNote && !isExemptOrZero && !inferredIsRate8
-      ? netBase
-      : 0;
-  const subtotal8 = hasBreakdown
-    ? tb.base8 * tc
-    : !isCreditNote && !isExemptOrZero && inferredIsRate8
-      ? netBase
-      : 0;
-  const baseCero = hasBreakdown
-    ? tb.base0 * tc
-    : isExemptOrZero && !concLower.includes('exento')
-      ? netBase
-      : 0;
-  const baseExenta = hasBreakdown
-    ? tb.baseExento * tc
-    : isExemptOrZero && concLower.includes('exento')
-      ? netBase
-      : 0;
-  const iepsPagado = hasBreakdown ? tb.ieps * tc : 0;
+  const subtotal16 = isCreditNote
+    ? 0
+    : hasBreakdown
+      ? tb.base16 * tc
+      : !isExemptOrZero && !inferredIsRate8
+        ? netBase
+        : 0;
+  const subtotal8 = isCreditNote
+    ? 0
+    : hasBreakdown
+      ? tb.base8 * tc
+      : !isExemptOrZero && inferredIsRate8
+        ? netBase
+        : 0;
+  const baseCero = isCreditNote
+    ? 0
+    : hasBreakdown
+      ? tb.base0 * tc
+      : isExemptOrZero && !concLower.includes('exento')
+        ? netBase
+        : 0;
+  const baseExenta = isCreditNote
+    ? 0
+    : hasBreakdown
+      ? tb.baseExento * tc
+      : isExemptOrZero && concLower.includes('exento')
+        ? netBase
+        : 0;
+  const iepsPagado = !isCreditNote && hasBreakdown ? tb.ieps * tc : 0;
 
   let iva16Mxn = 0;
   let iva8Mxn = 0;
@@ -235,7 +253,23 @@ export function resolveDiotDocAmounts(doc: CfdiDocument, thirdParty?: ThirdParty
     else iva16Mxn = rawIvaMxn;
   }
 
-  const ncIsRate8 = isCreditNote && ((tb != null && tb.iva8 > 0 && tb.iva16 === 0) || inferredIsRate8);
+  const ncIsRate8 =
+    isCreditNote &&
+    (hasBreakdown ? tb.iva8 > 0 && tb.iva16 === 0 && tb.base8 > 0 && tb.base16 === 0 : inferredIsRate8);
+  const devolucion16 = !isCreditNote
+    ? 0
+    : hasBreakdown
+      ? (tb.base16 + tb.base0 + tb.baseExento) * tc
+      : !ncIsRate8
+        ? netBase
+        : 0;
+  const devolucion8 = !isCreditNote
+    ? 0
+    : hasBreakdown
+      ? tb.base8 * tc
+      : ncIsRate8
+        ? netBase
+        : 0;
 
   return {
     isCreditNote,
@@ -244,8 +278,8 @@ export function resolveDiotDocAmounts(doc: CfdiDocument, thirdParty?: ThirdParty
     baseCero,
     baseExenta,
     iepsPagado,
-    devolucion16: isCreditNote && !ncIsRate8 ? netBase : 0,
-    devolucion8: isCreditNote && ncIsRate8 ? netBase : 0,
+    devolucion16,
+    devolucion8,
     iva16Mxn,
     iva8Mxn,
     ivaRetenidoMxn: doc.ivaRetenido * tc,

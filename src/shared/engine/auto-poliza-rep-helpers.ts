@@ -1,6 +1,7 @@
-import type { Account, CfdiDocument, PolizaType } from '../types';
+import type { Account, CfdiDocument, CfdiRelatedDocMeta, PolizaType } from '../types';
 import { stripXmlAddenda } from '../xml-utils';
 import { resolveFiscalAccount } from './auto-poliza-account-resolver';
+import { computeRepDocBreakdown, extractRegimenEmisorFromXml } from './auto-poliza-related';
 import type { AutoPolizaMovementDraft, AutoPolizaOverrides } from './auto-poliza-types';
 import { fromCents, toCents } from './invariants-and-math';
 
@@ -32,42 +33,39 @@ export function toMxnCents(amount: number, cfdi: CfdiDocument): number {
 
 export function resolveRecibidoIsrRetentionAccount(
   cfdi: CfdiDocument,
-  accounts: readonly Account[]
+  accounts: readonly Account[],
+  relatedMeta?: CfdiRelatedDocMeta
 ): Account {
   const findByCodeOrSat = (code: string, sat: string): Account | undefined =>
     accounts.find((a) => a.isAffectable && a.code === code) ??
     accounts.find((a) => a.isAffectable && a.satGroupCode === sat);
 
-  const netSub = Math.max(0, cfdi.subtotal - (cfdi.descuento || 0));
-  const rate = netSub > 0 ? cfdi.isrRetenido / netSub : 0;
-  const text = `${cfdi.conceptoPrincipal} ${cfdi.emisorNombre}`.toLowerCase();
-  const clave = (cfdi.claveProdServ || '').trim();
-  const uso = (cfdi.usoCfdi || '').trim().toUpperCase();
+  const regimen = (relatedMeta?.regimenEmisor || extractRegimenEmisorFromXml(cfdi.xmlRaw) || '').trim();
+  const netSub =
+    relatedMeta?.subtotalMxn && relatedMeta.subtotalMxn > 0
+      ? relatedMeta.subtotalMxn
+      : relatedMeta?.totalMxn && relatedMeta.totalMxn > 0
+        ? (relatedMeta.totalMxn + (relatedMeta.isrRetenidoMxn ?? 0) + (relatedMeta.ivaRetenidoMxn ?? 0)) / 1.16
+        : Math.max(0, cfdi.subtotal - (cfdi.descuento || 0));
+  const isrAmount = relatedMeta?.isrRetenidoMxn !== undefined ? relatedMeta.isrRetenidoMxn : cfdi.isrRetenido;
+  const rate = netSub > 0 ? isrAmount / netSub : 0;
+  const text = `${relatedMeta?.conceptoPrincipal || cfdi.conceptoPrincipal} ${relatedMeta?.emisorNombre || cfdi.emisorNombre}`.toLowerCase();
+  const clave = (relatedMeta?.claveProdServ || cfdi.claveProdServ || '').trim();
+  const uso = (relatedMeta?.usoCfdi || cfdi.usoCfdi || '').trim().toUpperCase();
 
-  if (Math.abs(rate - 0.0125) < 0.0025 || /resico|r[eé]gimen simplificado/i.test(text)) {
+  if (regimen === '626' || Math.abs(rate - 0.0125) < 0.0025 || /resico|r[eé]gimen simplificado/i.test(text)) {
     return findByCodeOrSat('216-01-005', '216.09') ?? resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
   }
-  if (
-    /arrendamiento|renta|alquiler|inmueble|local comercial|oficina/i.test(text) ||
-    clave.startsWith('801315')
-  ) {
+  if (regimen === '606' || /arrendamiento|renta|alquiler|inmueble|local comercial|oficina/i.test(text) || clave.startsWith('801315')) {
     return findByCodeOrSat('216-01-003', '216.03') ?? resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
   }
-  if (
-    Math.abs(rate - 0.1) < 0.01 ||
-    /honorario|servicio|profesional|consultor|asesor|contable|legal|m[eé]dic/i.test(text) ||
-    /^(801|841|851)/.test(clave) ||
-    uso === 'G03'
-  ) {
+  if (Math.abs(rate - 0.1) < 0.01 || /honorario|servicio|profesional|consultor|asesor|contable|legal|m[eé]dic/i.test(text) || /^(801|841|851)/.test(clave) || uso === 'G03') {
     return findByCodeOrSat('216-01-004', '216.04') ?? resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
   }
   return resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
 }
 
-export function findPendingRetentionAccount(
-  accounts: readonly Account[],
-  kind: 'ISR' | 'IVA'
-): Account | undefined {
+export function findPendingRetentionAccount(accounts: readonly Account[], kind: 'ISR' | 'IVA'): Account | undefined {
   const targetCode = kind === 'ISR' ? '216-02-001' : '216-02-002';
   const nameRe = kind === 'ISR' ? /isr/i : /iva/i;
   return (
@@ -77,10 +75,7 @@ export function findPendingRetentionAccount(
   );
 }
 
-export function resolvePendingIsrRetentionAccount(
-  cfdi: CfdiDocument,
-  accounts: readonly Account[]
-): Account {
+export function resolvePendingIsrRetentionAccount(cfdi: CfdiDocument, accounts: readonly Account[]): Account {
   return findPendingRetentionAccount(accounts, 'ISR') ?? resolveRecibidoIsrRetentionAccount(cfdi, accounts);
 }
 
@@ -120,80 +115,99 @@ export function extractNominaPayrollSplits(xmlRaw: string): {
     const attrs = m[1] ?? '';
     const tipo = /TipoDeduccion=["']([^"']+)["']/i.exec(attrs)?.[1] ?? '';
     const imp = Number.parseFloat(/Importe=["']([0-9]+(?:\.[0-9]+)?)["']/i.exec(attrs)?.[1] ?? '0') || 0;
-    if (tipo === '002') continue; // ISR ya viene en isrRetenido
+    if (tipo === '002') continue;
     if (tipo === '001') imssObreroCents += toCents(imp);
     else otherNonIsrDeduccionesCents += toCents(imp);
   }
-  return {
-    hasOtroPagoTags,
-    subsidioCents,
-    otherPagosCents,
-    hasDeduccionTags,
-    imssObreroCents,
-    otherNonIsrDeduccionesCents
-  };
+  return { hasOtroPagoTags, subsidioCents, otherPagosCents, hasDeduccionTags, imssObreroCents, otherNonIsrDeduccionesCents };
 }
 
-function resolveRepCounterpartyMxnCents(
+function appendRepRetentions(
   cfdi: CfdiDocument,
-  bankMxnCents: number,
+  accounts: readonly Account[],
+  movements: AutoPolizaMovementDraft[],
+  ref: string,
+  totalCents: number,
+  counterpartyCents: number,
+  breakdown: ReturnType<typeof computeRepDocBreakdown>,
   overrides?: AutoPolizaOverrides
-): number {
-  const docs = cfdi.relatedDocs;
-  const headerCur = (cfdi.moneda || 'MXN').toUpperCase();
-  const headerTc = headerCur !== 'MXN' && cfdi.tipoCambio > 0 ? cfdi.tipoCambio : 1;
+): { histIsr: number; payIsr: number; histIva: number; payIva: number } {
+  const accPendIsr = findPendingRetentionAccount(accounts, 'ISR');
+  const accPendIva = findPendingRetentionAccount(accounts, 'IVA');
+  let histIsr = 0;
+  let payIsr = 0;
+  let histIva = 0;
+  let payIva = 0;
 
-  if (!docs || docs.length === 0) {
-    if (headerCur !== 'MXN') {
-      const relKey = (cfdi.uuidRelacionado || '').trim().toUpperCase();
-      const origTc =
-        (relKey ? overrides?.relatedOriginalTipoCambioByUuid?.[relKey] : undefined) ??
-        overrides?.relatedOriginalTipoCambio;
-      if (origTc && origTc > 0) return Math.round(toCents(cfdi.total) * origTc);
-    }
-    return bankMxnCents;
-  }
-
-  let sumCounterCents = 0;
-  let hasForeignDoc = false;
-  for (const dr of docs) {
-    const pCur = (dr.pagoMoneda || headerCur).toUpperCase();
-    const pTc =
-      dr.pagoTipoCambio && dr.pagoTipoCambio > 0
-        ? dr.pagoTipoCambio
-        : pCur !== 'MXN'
-          ? headerTc
-          : 1;
-    const drCur = (dr.monedaDr || pCur).toUpperCase();
-    if (drCur !== 'MXN' || pCur !== 'MXN') hasForeignDoc = true;
-    if (drCur === 'MXN') {
-      sumCounterCents += toCents(dr.impPagado);
-      continue;
-    }
-    const docUuid = (dr.idDocumento || '').trim().toUpperCase();
-    const origTc =
-      (docUuid ? overrides?.relatedOriginalTipoCambioByUuid?.[docUuid] : undefined) ??
-      overrides?.relatedOriginalTipoCambio;
-    if (origTc && origTc > 0) {
-      sumCounterCents += Math.round(toCents(dr.impPagado) * origTc);
-      continue;
-    }
-    if (dr.equivalenciaDr && dr.equivalenciaDr > 0 && Math.abs(dr.equivalenciaDr - 1) > 0.0001) {
-      sumCounterCents += Math.round((toCents(dr.impPagado) / dr.equivalenciaDr) * pTc);
-    } else if (
-      dr.pagoTipoCambio &&
-      dr.pagoTipoCambio > 0 &&
-      headerTc > 1 &&
-      Math.abs(dr.pagoTipoCambio - headerTc) > 0.0001
-    ) {
-      sumCounterCents += Math.round(toCents(dr.impPagado) * dr.pagoTipoCambio);
+  const pushPair = (
+    pend: Account | undefined,
+    payAcc: Account,
+    hCents: number,
+    pCents: number,
+    label: string,
+    isIsr: boolean
+  ) => {
+    if (!pend || (hCents <= 0 && pCents <= 0)) return;
+    movements.push(
+      makeDraft(pend, ref, hCents, 0, `Reclasificación ${label} Retenido Pagado REP ${ref}`),
+      makeDraft(payAcc, ref, 0, pCents, `${label} Retenido Exigible REP ${ref}`)
+    );
+    if (isIsr) {
+      histIsr += hCents;
+      payIsr += pCents;
     } else {
-      sumCounterCents += Math.round(toCents(dr.impPagado) * pTc);
+      histIva += hCents;
+      payIva += pCents;
     }
+  };
+
+  const hasPerDocRetMeta = breakdown.entries.some(
+    (e) => (e.meta?.isrRetenidoMxn ?? 0) > 0 || (e.meta?.ivaRetenidoMxn ?? 0) > 0
+  );
+
+  if (hasPerDocRetMeta) {
+    const singleDoc = breakdown.entries.length === 1;
+    for (const e of breakdown.entries) {
+      const docRatio =
+        e.meta?.totalMxn && e.meta.totalMxn > 0
+          ? Math.min(1, Math.max(0, e.histMxnCents / toCents(e.meta.totalMxn)))
+          : 1;
+      const fxScale = e.histMxnCents > 0 ? e.payMxnCents / e.histMxnCents : 1;
+      const rawIsrMxn = e.meta?.isrRetenidoMxn ?? 0;
+      const rawIvaMxn = e.meta?.ivaRetenidoMxn ?? 0;
+
+      if (rawIsrMxn > 0 || (singleDoc && cfdi.isrRetenido > 0)) {
+        const p = singleDoc && cfdi.isrRetenido > 0 ? toMxnCents(cfdi.isrRetenido, cfdi) : Math.round(toCents(rawIsrMxn) * docRatio * fxScale);
+        const h = singleDoc && cfdi.isrRetenido > 0 && e.payMxnCents > 0 ? Math.round(p * (e.histMxnCents / e.payMxnCents)) : Math.round(toCents(rawIsrMxn) * docRatio);
+        pushPair(accPendIsr, resolveRecibidoIsrRetentionAccount(cfdi, accounts, e.meta), h, p, 'ISR', true);
+      }
+      if (rawIvaMxn > 0 || (singleDoc && cfdi.ivaRetenido > 0)) {
+        const p = singleDoc && cfdi.ivaRetenido > 0 ? toMxnCents(cfdi.ivaRetenido, cfdi) : Math.round(toCents(rawIvaMxn) * docRatio * fxScale);
+        const h = singleDoc && cfdi.ivaRetenido > 0 && e.payMxnCents > 0 ? Math.round(p * (e.histMxnCents / e.payMxnCents)) : Math.round(toCents(rawIvaMxn) * docRatio);
+        pushPair(accPendIva, resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR'), h, p, 'IVA', false);
+      }
+    }
+    return { histIsr, payIsr, histIva, payIva };
   }
-  if (!hasForeignDoc || sumCounterCents <= 0) return bankMxnCents;
-  if (Math.abs(bankMxnCents - sumCounterCents) <= 5) return bankMxnCents;
-  return sumCounterCents;
+
+  const singleMeta =
+    breakdown.entries[0]?.meta ??
+    (cfdi.uuidRelacionado ? overrides?.relatedDocsMetaByUuid?.[cfdi.uuidRelacionado.trim().toUpperCase()] : undefined);
+  const ratio =
+    overrides?.relatedPpdTotal && overrides.relatedPpdTotal > 0
+      ? Math.min(1, Math.max(0, counterpartyCents / toCents(overrides.relatedPpdTotal)))
+      : 1;
+  const payScale = counterpartyCents > 0 ? totalCents / counterpartyCents : 1;
+  const histScale = totalCents > 0 ? counterpartyCents / totalCents : 1;
+
+  const pIsr = cfdi.isrRetenido > 0 ? toMxnCents(cfdi.isrRetenido, cfdi) : overrides?.relatedPpdIsrRetenido ? Math.round(toCents(overrides.relatedPpdIsrRetenido) * ratio * payScale) : 0;
+  const hIsr = cfdi.isrRetenido > 0 ? Math.round(pIsr * histScale) : overrides?.relatedPpdIsrRetenido ? Math.round(toCents(overrides.relatedPpdIsrRetenido) * ratio) : 0;
+  const pIva = cfdi.ivaRetenido > 0 ? toMxnCents(cfdi.ivaRetenido, cfdi) : overrides?.relatedPpdIvaRetenido ? Math.round(toCents(overrides.relatedPpdIvaRetenido) * ratio * payScale) : 0;
+  const hIva = cfdi.ivaRetenido > 0 ? Math.round(pIva * histScale) : overrides?.relatedPpdIvaRetenido ? Math.round(toCents(overrides.relatedPpdIvaRetenido) * ratio) : 0;
+
+  pushPair(accPendIsr, resolveRecibidoIsrRetentionAccount(cfdi, accounts, singleMeta), hIsr, pIsr, 'ISR', true);
+  pushPair(accPendIva, resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR'), hIva, pIva, 'IVA', false);
+  return { histIsr, payIsr, histIva, payIva };
 }
 
 export function buildPaymentRepMovements(
@@ -204,12 +218,10 @@ export function buildPaymentRepMovements(
   const esRecibido = cfdi.direction === 'RECIBIDO';
   const ref = `${cfdi.serie}-${cfdi.folio}`;
   const totalCents = toMxnCents(cfdi.total, cfdi);
-  const counterpartyCents = resolveRepCounterpartyMxnCents(cfdi, totalCents, overrides);
   const ivaCents = toMxnCents(cfdi.ivaTrasladado, cfdi);
-  const historicalIvaCents =
-    ivaCents > 0 && totalCents > 0 && counterpartyCents !== totalCents
-      ? Math.round(ivaCents * (counterpartyCents / totalCents))
-      : ivaCents;
+  const breakdown = computeRepDocBreakdown(cfdi, totalCents, ivaCents, overrides);
+  const counterpartyCents = breakdown.counterpartyCents;
+  const historicalIvaCents = breakdown.totalHistIvaCents;
   const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;
   const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
 
@@ -225,53 +237,17 @@ export function buildPaymentRepMovements(
       makeDraft(accProveedores, ref, counterpartyCents, 0, `Liquidación a proveedor REP ${ref} - ${cfdi.emisorNombre}`),
       makeDraft(accBancos, ref, 0, totalCents, `Pago bancario REP ${ref}`)
     );
-    if (ivaCents > 0) {
+    if (breakdown.deductiblePayIvaCents > 0 || breakdown.deductibleHistIvaCents > 0) {
       movements.push(
-        makeDraft(accIvaPagado, ref, ivaCents, 0, `IVA Efectivamente Pagado REP ${ref}`),
-        makeDraft(accIvaPorAcreditar, ref, 0, historicalIvaCents, `Reclasificación IVA Pendiente REP ${ref}`)
+        makeDraft(accIvaPagado, ref, breakdown.deductiblePayIvaCents, 0, `IVA Efectivamente Pagado REP ${ref}`),
+        makeDraft(accIvaPorAcreditar, ref, 0, breakdown.deductibleHistIvaCents, `Reclasificación IVA Pendiente REP ${ref}`)
       );
     }
 
-    // Reclasificación proporcional de retenciones PPD pendientes (216-02-* -> 216-01-*)
-    const ratio =
-      overrides?.relatedPpdTotal && overrides.relatedPpdTotal > 0
-        ? Math.min(1, Math.max(0, counterpartyCents / toCents(overrides.relatedPpdTotal)))
-        : 1;
-    const isrRetCents =
-      cfdi.isrRetenido > 0
-        ? toMxnCents(cfdi.isrRetenido, cfdi)
-        : overrides?.relatedPpdIsrRetenido
-          ? Math.round(toCents(overrides.relatedPpdIsrRetenido) * ratio)
-          : 0;
-    const ivaRetCents =
-      cfdi.ivaRetenido > 0
-        ? toMxnCents(cfdi.ivaRetenido, cfdi)
-        : overrides?.relatedPpdIvaRetenido
-          ? Math.round(toCents(overrides.relatedPpdIvaRetenido) * ratio)
-          : 0;
-
-    if (isrRetCents > 0) {
-      const accPendIsr = findPendingRetentionAccount(accounts, 'ISR');
-      if (accPendIsr) {
-        const accPayIsr = resolveRecibidoIsrRetentionAccount(cfdi, accounts);
-        movements.push(
-          makeDraft(accPendIsr, ref, isrRetCents, 0, `Reclasificación ISR Retenido Pagado REP ${ref}`),
-          makeDraft(accPayIsr, ref, 0, isrRetCents, `ISR Retenido Exigible REP ${ref}`)
-        );
-      }
-    }
-    if (ivaRetCents > 0) {
-      const accPendIva = findPendingRetentionAccount(accounts, 'IVA');
-      if (accPendIva) {
-        const accPayIva = resolveFiscalAccount(accounts, 'IVA_RETENIDO_POR_PAGAR');
-        movements.push(
-          makeDraft(accPendIva, ref, ivaRetCents, 0, `Reclasificación IVA Retenido Pagado REP ${ref}`),
-          makeDraft(accPayIva, ref, 0, ivaRetCents, `IVA Retenido Exigible REP ${ref}`)
-        );
-      }
-    }
-
-    const fxDiffCents = counterpartyCents + ivaCents - (totalCents + historicalIvaCents);
+    const ret = appendRepRetentions(cfdi, accounts, movements, ref, totalCents, counterpartyCents, breakdown, overrides);
+    const fxDiffCents =
+      counterpartyCents + breakdown.deductiblePayIvaCents + ret.histIsr + ret.histIva -
+      (totalCents + breakdown.deductibleHistIvaCents + ret.payIsr + ret.payIva);
     if (fxDiffCents < 0) {
       movements.push(makeDraft(resolveFiscalAccount(accounts, 'PERDIDA_CAMBIARIA'), ref, Math.abs(fxDiffCents), 0, `Pérdida cambiaria realizada REP ${ref}`));
     } else if (fxDiffCents > 0) {

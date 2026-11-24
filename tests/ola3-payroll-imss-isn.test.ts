@@ -158,7 +158,8 @@ describe('Ola 3C — Nómina 1.2, Amarre ISR (216-01-001), Provisión SUA e ISN 
     expect(summary.totalPercepciones).toBe(25000);
     expect(summary.totalSubsidioEmpleo).toBe(500);
     expect(summary.isrRetenidoCfdis).toBe(2271.25);
-    expect(summary.imssObreroEstimado).toBe(760.25);
+    // n2 no trae TipoDeduccion="001" en xmlRaw; cfdi.descuento no se asume como IMSS (solo n1: 310.25)
+    expect(summary.imssObreroEstimado).toBe(310.25);
     expect(summary.totalNetoPagado).toBe(22468.5);
     expect(summary.isrRetenidoLibros).toBe(2271.25);
     expect(summary.diferenciaIsrAmarre).toBe(0);

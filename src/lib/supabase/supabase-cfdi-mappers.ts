@@ -2,6 +2,10 @@ import { supabase } from '../supabase';
 import { chunkArray } from '../../shared/array-utils';
 import type { parseCfdiXmlString } from '../../shared/cfdi-xml';
 import { extractCfdiFechaPago } from '../../shared/xml-utils';
+import {
+  buildRelatedCfdiOverridesFromRows,
+  type RelatedCfdiDbRowLike
+} from '../../shared/engine/auto-poliza-related';
 import type { CfdiDocument, CfdiRelatedDoc, CfdiTaxBreakdown } from '../../shared/types';
 
 function parseJsonField<T>(raw: unknown): T | null {
@@ -155,12 +159,6 @@ export async function fetchRelatedCfdiOverrides(
   client: import('@supabase/supabase-js').SupabaseClient,
   cfdi: Pick<CfdiDocument, 'companyId' | 'tipoComprobante' | 'relatedDocs' | 'uuidRelacionado'>
 ) {
-  let relatedOriginalTipoCambioByUuid: Record<string, number> | undefined;
-  let relatedOriginalTipoCambio: number | undefined;
-  let relatedIsPpd: boolean | undefined;
-  let relatedPpdIsrRetenido = 0;
-  let relatedPpdIvaRetenido = 0;
-  let relatedPpdTotal = 0;
   if (cfdi.tipoComprobante !== 'P' && cfdi.tipoComprobante !== 'E') {
     return {};
   }
@@ -175,37 +173,14 @@ export async function fetchRelatedCfdiOverrides(
   const lookupKeys = Array.from(new Set(relUuids.flatMap((u) => [u, u.toUpperCase(), u.toLowerCase()])));
   const { data: relRows } = await client
     .from('cfdi_documents')
-    .select('uuid, moneda, tipo_cambio, metodo_pago, isr_retenido, iva_retenido, total')
+    .select(
+      'uuid, moneda, tipo_cambio, metodo_pago, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, concepto_principal, clave_prod_serv, emisor_nombre, uso_cfdi, xml_raw'
+    )
     .eq('company_id', cfdi.companyId)
     .in('uuid', lookupKeys);
-  const tcMap: Record<string, number> = {};
-  for (const r of (relRows ?? []) as Array<{
-    uuid?: string; moneda?: string; tipo_cambio?: number;
-    metodo_pago?: string; isr_retenido?: number; iva_retenido?: number; total?: number;
-  }>) {
-    const key = String(r.uuid ?? '').trim().toUpperCase();
-    const cur = String(r.moneda ?? 'MXN').toUpperCase();
-    const tc = Number(r.tipo_cambio ?? 0);
-    if (key && cur !== 'MXN' && tc > 0) {
-      tcMap[key] = tc;
-      if (relatedOriginalTipoCambio === undefined) relatedOriginalTipoCambio = tc;
-    }
-    if (String(r.metodo_pago ?? '').toUpperCase() === 'PPD') {
-      relatedIsPpd = true;
-      if (cfdi.tipoComprobante === 'P') {
-        relatedPpdIsrRetenido += Number(r.isr_retenido ?? 0);
-        relatedPpdIvaRetenido += Number(r.iva_retenido ?? 0);
-        relatedPpdTotal += Number(r.total ?? 0);
-      }
-    }
-  }
-  if (Object.keys(tcMap).length > 0) relatedOriginalTipoCambioByUuid = tcMap;
-  return {
-    ...(relatedOriginalTipoCambio !== undefined ? { relatedOriginalTipoCambio } : {}),
-    ...(relatedOriginalTipoCambioByUuid ? { relatedOriginalTipoCambioByUuid } : {}),
-    ...(relatedIsPpd !== undefined ? { relatedIsPpd } : {}),
-    ...(relatedPpdIsrRetenido > 0 ? { relatedPpdIsrRetenido } : {}),
-    ...(relatedPpdIvaRetenido > 0 ? { relatedPpdIvaRetenido } : {}),
-    ...(relatedPpdTotal > 0 ? { relatedPpdTotal } : {})
-  };
+  return buildRelatedCfdiOverridesFromRows(
+    (relRows ?? []) as RelatedCfdiDbRowLike[],
+    cfdi.tipoComprobante,
+    relUuids.length
+  );
 }

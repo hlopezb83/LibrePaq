@@ -120,10 +120,32 @@ export function parseCfdiXmlString(
   let moneda = rawMonedaHeader && rawMonedaHeader !== 'XXX' ? rawMonedaHeader : 'MXN';
   let tipoCambio = parseFloat(getAttr(comprobante, 'TipoCambio') || '1') || 1;
 
-  const cfdiRelNodes = findNodes(comprobante, 'CfdiRelacionado');
-  const headerUuidsRel = cfdiRelNodes
-    .map((n) => getAttr(n, 'UUID').toUpperCase())
-    .filter(Boolean);
+  const relGroups = findNodes(comprobante, 'CfdiRelacionados');
+  const relEntries: Array<{ tipoRelacion: string; uuid: string }> = [];
+  if (relGroups.length > 0) {
+    for (const g of relGroups) {
+      const tipoRel = getAttr(g, 'TipoRelacion').trim();
+      for (const n of findNodes(g, 'CfdiRelacionado')) {
+        const u = getAttr(n, 'UUID').toUpperCase();
+        if (u) relEntries.push({ tipoRelacion: tipoRel, uuid: u });
+      }
+    }
+  } else {
+    for (const n of findNodes(comprobante, 'CfdiRelacionado')) {
+      const u = getAttr(n, 'UUID').toUpperCase();
+      if (u) relEntries.push({ tipoRelacion: '', uuid: u });
+    }
+  }
+  const PRIORITY_E_RELS = new Set(['01', '02', '03']);
+  const prioritizedEntries =
+    tipoComprobante === 'E'
+      ? [
+          ...relEntries.filter((e) => PRIORITY_E_RELS.has(e.tipoRelacion)),
+          ...relEntries.filter((e) => !PRIORITY_E_RELS.has(e.tipoRelacion) && e.tipoRelacion !== '04'),
+          ...relEntries.filter((e) => e.tipoRelacion === '04')
+        ]
+      : relEntries;
+  const headerUuidsRel = Array.from(new Set(prioritizedEntries.map((e) => e.uuid)));
   let uuidRelacionado: string | null = headerUuidsRel[0] || null;
   let uuidsRelacionados: string[] | undefined =
     headerUuidsRel.length > 0 ? headerUuidsRel : undefined;

@@ -1,6 +1,14 @@
 import type { Account, AccountType, AccountWithBalance } from '../types';
 import { resolveFiscalAccount } from './auto-poliza.engine';
+import {
+  backOutClosingMovementsFromAccounts,
+  getRegisteredClosingMovements,
+  isResultOfExerciseAccount,
+  type ClosingMovementCents
+} from './financial-reports-rollup';
 import { fromCents, toCents } from './invariants-and-math';
+
+export { isResultOfExerciseAccount };
 
 export type PnlBucket =
   | 'INGRESOS'
@@ -15,15 +23,6 @@ export function getCodePrefixNumber(acc: Pick<Account, 'code' | 'satGroupCode'>)
   if (codeMatch?.[1]) return Number(codeMatch[1]);
   const satMatch = (acc.satGroupCode || '').trim().match(/^(\d{3})/);
   return satMatch?.[1] ? Number(satMatch[1]) : 0;
-}
-
-export function isResultOfExerciseAccount(
-  acc: Pick<Account, 'type' | 'code' | 'satGroupCode'>
-): boolean {
-  return (
-    acc.type === 'CAPITAL' &&
-    (acc.code.startsWith('305') || acc.satGroupCode.startsWith('305'))
-  );
 }
 
 /**
@@ -61,8 +60,9 @@ export function isNonDeductible801Account(
 }
 
 export function isIsrExpenseAccount(
-  acc: Pick<Account, 'code' | 'satGroupCode'>
+  acc: Pick<Account, 'code' | 'satGroupCode'> & { type?: AccountType }
 ): boolean {
+  if (acc.type === 'ORDEN') return false;
   if (isNonDeductible801Account(acc)) return false;
   if (acc.satGroupCode.startsWith('611')) return true;
   if (acc.code.startsWith('801-01-001')) return true;
@@ -95,14 +95,29 @@ export function getLeafIds(accounts: readonly AccountWithBalance[]): Set<string>
 }
 
 /**
- * Detecta cuando Periodo 13 tiene cuentas de resultados saldadas en $0.00 tras póliza CIERRE_ANUAL
+ * Detecta cuando Periodo 13 tiene póliza CIERRE_ANUAL (o cuentas de resultados saldadas en $0.00)
  * y reconstruye sus saldos pre-cierre para que ER, NIF B-2/B-4 y Comparativo muestren cifras reales.
  */
 export function normalizePostCloseP13Accounts(
   accounts: readonly AccountWithBalance[],
-  periodo: number
+  periodo: number,
+  closingMovementsByAccountId?: ReadonlyMap<string, ClosingMovementCents>
 ): { isPreCloseP13: boolean; accounts: AccountWithBalance[] } {
   if (periodo !== 13) return { isPreCloseP13: false, accounts: [...accounts] };
+
+  const effectiveClosing = closingMovementsByAccountId ?? getRegisteredClosingMovements(accounts);
+  if (effectiveClosing && effectiveClosing.size > 0) {
+    const hasMatchingNonZero = accounts.some((a) => {
+      const cm = effectiveClosing.get(a.id);
+      return Boolean(cm && (cm.cargoCents !== 0 || cm.abonoCents !== 0));
+    });
+    if (hasMatchingNonZero) {
+      return {
+        isPreCloseP13: true,
+        accounts: backOutClosingMovementsFromAccounts(accounts, effectiveClosing)
+      };
+    }
+  }
 
   const pnl = accounts.filter(
     (a) =>
@@ -214,14 +229,15 @@ export function isCapitalGanadoAccount(
   acc: Pick<Account, 'code' | 'satGroupCode' | 'name'>
 ): boolean {
   const lower = acc.name.toLowerCase();
+  const sat = (acc.satGroupCode || '').trim();
   return (
-    acc.code.startsWith('301-02') ||
-    acc.satGroupCode.startsWith('304') ||
+    (acc.code.startsWith('301-02') && sat.startsWith('304')) ||
+    sat.startsWith('304') ||
     acc.code.startsWith('303') ||
-    acc.satGroupCode.startsWith('303') ||
+    sat.startsWith('303') ||
     acc.code.startsWith('304') ||
     acc.code.startsWith('305') ||
-    acc.satGroupCode.startsWith('305') ||
+    sat.startsWith('305') ||
     lower.includes('resultado') ||
     lower.includes('utilidades acumuladas') ||
     lower.includes('reserva')
@@ -241,13 +257,25 @@ export function buildScopedBucketRows(
   );
   if (matchingLeaves.length === 0) return [];
 
-  const leafCodesByParent = new Map<string, AccountWithBalance[]>();
-  for (const leaf of matchingLeaves) {
-    if (!leaf.parentCode) continue;
-    const list = leafCodesByParent.get(leaf.parentCode) ?? [];
-    list.push(leaf);
-    leafCodesByParent.set(leaf.parentCode, list);
-  }
+  const byCode = new Map(accounts.map((a) => [a.code, a]));
+  const hasAncestor = (leaf: AccountWithBalance, targetCode: string): boolean => {
+    let currParent = leaf.parentCode;
+    for (let step = 0; step < 16 && currParent; step += 1) {
+      if (currParent === targetCode) return true;
+      currParent = byCode.get(currParent)?.parentCode ?? null;
+    }
+    return false;
+  };
+  const hasLevel2Ancestor = (leaf: AccountWithBalance): boolean => {
+    let currParent = leaf.parentCode;
+    for (let step = 0; step < 16 && currParent; step += 1) {
+      const pNode = byCode.get(currParent);
+      if (!pNode) break;
+      if (pNode.level === 2) return true;
+      currParent = pNode.parentCode ?? null;
+    }
+    return false;
+  };
 
   const rows: AccountWithBalance[] = [];
   for (const acc of accounts) {
@@ -261,17 +289,17 @@ export function buildScopedBucketRows(
 
     if (acc.level === 2) {
       const descendants = matchingLeaves.filter(
-        (l) => l.parentCode === acc.code || l.code.startsWith(acc.code.slice(0, 4))
+        (l) =>
+          hasAncestor(l, acc.code) ||
+          (!hasLevel2Ancestor(l) && l.code.startsWith(acc.code.slice(0, 4)))
       );
-      const directChildren = leafCodesByParent.get(acc.code) ?? [];
-      const scopedLeaves = directChildren.length > 0 ? directChildren : descendants;
-      if (scopedLeaves.length === 0) continue;
+      if (descendants.length === 0) continue;
 
       let initC = 0;
       let chgC = 0;
       let credC = 0;
       let finC = 0;
-      for (const l of scopedLeaves) {
+      for (const l of descendants) {
         const sign = acc.nature === l.nature ? 1 : -1;
         initC += sign * toCents(l.initialBalanceComputed);
         chgC += toCents(l.periodCharges);

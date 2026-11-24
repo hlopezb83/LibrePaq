@@ -53,6 +53,7 @@ export function computeFiscalWorkpaper(params: {
   isrRetenidoPorPagar: number;
   ivaRetenidoPorPagar: number;
   isrRetenidoFavorPeriodo: number;
+  isrRetenidoMesActual?: number;
   ivaRetenidoFavorPeriodo?: number;
   usdCfdis: readonly UsdMonetaryItemInput[];
   cashBasisSummary?: FiscalWorkpaperResponse['cashBasisSummary'];
@@ -238,6 +239,9 @@ export function computeFiscalWorkpaper(params: {
       isrCausado: fromCents(isrCausadoCents),
       pagosProvisionalesPrevios: fromCents(pagosPreviosCents),
       isrRetenidoPeriodo: fromCents(isrRetenidoAcreditableCents),
+      ...(params.isrRetenidoMesActual !== undefined
+        ? { isrRetenidoMesActual: fromCents(Math.max(0, toCents(params.isrRetenidoMesActual))) }
+        : {}),
       isrNetoAPagar: fromCents(isrNetoAPagarCents)
     },
     ivaDefinitivo: {

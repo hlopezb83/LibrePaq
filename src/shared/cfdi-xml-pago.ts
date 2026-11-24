@@ -14,7 +14,12 @@ interface ExplicitTaxAccum {
 }
 
 function collectExplicitNodeTaxes(
-  pagoGroups: Array<{ pNode: XmlNode | null; pagoMoneda: string; pagoTipoCambio: number }>,
+  pagoGroups: Array<{
+    pNode: XmlNode | null;
+    pagoMoneda: string;
+    pagoTipoCambio: number;
+    drNodes: XmlNode[];
+  }>,
   headerMoneda: string
 ): ExplicitTaxAccum {
   const acc: ExplicitTaxAccum = {
@@ -28,18 +33,14 @@ function collectExplicitNodeTaxes(
     isrRet: 0,
     ivaRet: 0
   };
-  for (const g of pagoGroups) {
-    if (!g.pNode) continue;
-    const mult = headerMoneda === 'MXN' && g.pagoMoneda !== 'MXN' ? g.pagoTipoCambio : 1;
-    const pTras = [...findNodes(g.pNode, 'TrasladoP'), ...findNodes(g.pNode, 'Traslado')];
-    const drTras = pTras.length === 0 ? findNodes(g.pNode, 'TrasladoDR') : [];
-    for (const t of [...pTras, ...drTras]) {
+  const accumTraslados = (nodes: XmlNode[], factorMult: number) => {
+    for (const t of nodes) {
       acc.hasExplicit = true;
       const imp = getAttr(t, 'ImpuestoP') || getAttr(t, 'ImpuestoDR') || getAttr(t, 'Impuesto');
       const factor = getAttr(t, 'TipoFactorP') || getAttr(t, 'TipoFactorDR') || getAttr(t, 'TipoFactor');
       const tasa = parseFloat(getAttr(t, 'TasaOCuotaP') || getAttr(t, 'TasaOCuotaDR') || getAttr(t, 'TasaOCuota') || '0') || 0;
-      const base = (parseFloat(getAttr(t, 'BaseP') || getAttr(t, 'BaseDR') || getAttr(t, 'Base') || '0') || 0) * mult;
-      const importe = (parseFloat(getAttr(t, 'ImporteP') || getAttr(t, 'ImporteDR') || getAttr(t, 'Importe') || '0') || 0) * mult;
+      const base = (parseFloat(getAttr(t, 'BaseP') || getAttr(t, 'BaseDR') || getAttr(t, 'Base') || '0') || 0) * factorMult;
+      const importe = (parseFloat(getAttr(t, 'ImporteP') || getAttr(t, 'ImporteDR') || getAttr(t, 'Importe') || '0') || 0) * factorMult;
       if (imp !== '002' && imp !== '') continue;
       if (factor === 'Exento') {
         acc.baseExento += base;
@@ -56,13 +57,46 @@ function collectExplicitNodeTaxes(
         acc.base16 += base > 0 ? base : importe / 0.16;
       }
     }
-    const pRet = [...findNodes(g.pNode, 'RetencionP'), ...findNodes(g.pNode, 'Retencion')];
-    const drRet = pRet.length === 0 ? findNodes(g.pNode, 'RetencionDR') : [];
-    for (const r of [...pRet, ...drRet]) {
+  };
+  const accumRetenciones = (nodes: XmlNode[], factorMult: number) => {
+    for (const r of nodes) {
       const imp = getAttr(r, 'ImpuestoP') || getAttr(r, 'ImpuestoDR') || getAttr(r, 'Impuesto');
-      const importe = (parseFloat(getAttr(r, 'ImporteP') || getAttr(r, 'ImporteDR') || getAttr(r, 'Importe') || '0') || 0) * mult;
+      const importe = (parseFloat(getAttr(r, 'ImporteP') || getAttr(r, 'ImporteDR') || getAttr(r, 'Importe') || '0') || 0) * factorMult;
       if (imp === '001') acc.isrRet += importe;
       else if (imp === '002') acc.ivaRet += importe;
+    }
+  };
+  const resolveDrMult = (dr: XmlNode, pagoMoneda: string, pagoMult: number) => {
+    const monedaDr = (getAttr(dr, 'MonedaDR') || pagoMoneda).toUpperCase();
+    const rawEq = getAttr(dr, 'EquivalenciaDR') || getAttr(dr, 'TipoCambioDR');
+    const eqDr = rawEq ? parseFloat(rawEq) : NaN;
+    const drToPago = Number.isFinite(eqDr) && eqDr > 0 && pagoMoneda !== monedaDr ? 1 / eqDr : 1;
+    return drToPago * pagoMult;
+  };
+
+  for (const g of pagoGroups) {
+    if (!g.pNode) continue;
+    const mult = headerMoneda === 'MXN' && g.pagoMoneda !== 'MXN' ? g.pagoTipoCambio : 1;
+    const pTras = [...findNodes(g.pNode, 'TrasladoP'), ...findNodes(g.pNode, 'Traslado')];
+    if (pTras.length > 0) {
+      accumTraslados(pTras, mult);
+    } else if (g.drNodes.length > 0) {
+      for (const dr of g.drNodes) {
+        accumTraslados(findNodes(dr, 'TrasladoDR'), resolveDrMult(dr, g.pagoMoneda, mult));
+      }
+    } else {
+      accumTraslados(findNodes(g.pNode, 'TrasladoDR'), mult);
+    }
+
+    const pRet = [...findNodes(g.pNode, 'RetencionP'), ...findNodes(g.pNode, 'Retencion')];
+    if (pRet.length > 0) {
+      accumRetenciones(pRet, mult);
+    } else if (g.drNodes.length > 0) {
+      for (const dr of g.drNodes) {
+        accumRetenciones(findNodes(dr, 'RetencionDR'), resolveDrMult(dr, g.pagoMoneda, mult));
+      }
+    } else {
+      accumRetenciones(findNodes(g.pNode, 'RetencionDR'), mult);
     }
   }
   return acc;
@@ -80,12 +114,15 @@ export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | nu
     const pagoTipoCambio =
       pagoMoneda === 'MXN' ? 1 : Number.isFinite(parsedTcP) && parsedTcP > 0 ? parsedTcP : 1;
     const monto = parseFloat(getAttr(pNode, 'Monto') || '0') || 0;
+    const rawGroupFechaPago = getAttr(pNode, 'FechaPago');
+    const groupFechaPago = rawGroupFechaPago ? rawGroupFechaPago.slice(0, 10) : null;
     const drNodes = pNode ? findNodes(pNode, 'DoctoRelacionado') : allDoctosRel;
     return {
       pNode,
       pagoMoneda,
       pagoTipoCambio,
       monto,
+      fechaPago: groupFechaPago,
       drNodes: idx === 0 && pNode && drNodes.length === 0 ? allDoctosRel : drNodes
     };
   });
@@ -172,6 +209,7 @@ export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | nu
         impSaldoAnt,
         impPagado,
         impSaldoInsoluto,
+        ...(g.fechaPago ? { fechaPago: g.fechaPago } : {}),
         ...(monedaDr ? { monedaDr } : {}),
         ...(equivalenciaDr !== undefined ? { equivalenciaDr } : {}),
         ...(g.pagoMoneda !== 'MXN'

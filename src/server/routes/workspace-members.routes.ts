@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono';
-import { resolveRequestActor, resolveRequestActorAsync } from '../auth-actor';
+import { isUserSuspended, resolveRequestActor, resolveRequestActorAsync } from '../auth-actor';
 import {
   acceptPendingInvitesRepo,
   assignCompanyAccessRepo,
@@ -20,6 +20,9 @@ export const workspaceMembersRoutes = new Hono();
 workspaceMembersRoutes.use('*', async (c, next) => {
   const actor = await resolveRequestActorAsync(c);
   if (actor.authError) return c.json({ error: actor.authError }, 401);
+  if (isUserSuspended(actor.userId, actor.userEmail)) {
+    return c.json({ error: 'USER_SUSPENDED: Tu cuenta ha sido suspendida por un administrador.' }, 403);
+  }
   return next();
 });
 
@@ -34,7 +37,13 @@ workspaceMembersRoutes.get('/workspaces/:workspaceId/members', (c) => {
   const members = listWorkspaceMembersRepo(workspaceId);
   const ok =
     isWorkspaceSocioRepo(workspaceId, userId, userEmail) ||
-    members.some((m) => m.status === 'ACTIVO' && ((userId && m.userId === userId) || (userEmail && m.email === userEmail.toLowerCase())));
+    members.some(
+      (m) =>
+        m.status === 'ACTIVO' &&
+        m.role !== 'CLIENTE_LECTURA' &&
+        ((userId && m.userId === userId) ||
+          (!m.userId && userEmail && m.email.toLowerCase() === userEmail.toLowerCase()))
+    );
   return ok ? c.json(members) : c.json({ error: 'No perteneces a este despacho' }, 403);
 });
 

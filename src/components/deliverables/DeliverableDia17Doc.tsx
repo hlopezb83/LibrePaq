@@ -128,6 +128,12 @@ export function DeliverableDia17Doc({
 
               {!isResicoPf && (
                 <>
+                  {(fiscalData.isrProvisional.ptuPagadaAplicada ?? 0) > 0 && (
+                    <div className="flex justify-between gap-3 text-slate-700 dia17-row">
+                      <span>(−) PTU pagada deducible</span>
+                      <span className="font-mono">-{formatCurrency(fiscalData.isrProvisional.ptuPagadaAplicada ?? 0)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-3 text-slate-900 font-semibold dia17-row">
                     <span>(=) Utilidad fiscal estimada</span>
                     <span className="font-mono">{formatCurrency(fiscalData.isrProvisional.utilidadFiscalEstimada)}</span>

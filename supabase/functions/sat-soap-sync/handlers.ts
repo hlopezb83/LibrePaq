@@ -432,6 +432,7 @@ interface IngestPackageResult {
   totalParsed: number;
   hadInsertErrors: boolean;
   truncatedAtLimit: boolean;
+  downloadedZip: boolean;
 }
 
 const MAX_XML_FILES_PER_PACKAGE = 2500;
@@ -469,16 +470,17 @@ async function ingestSatPackage(params: {
     }
   );
   if (!descRes.ok) {
-    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true, truncatedAtLimit: false };
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true, truncatedAtLimit: false, downloadedZip: false };
   }
 
   const descText = await descRes.text();
   const paqMatch = descText.match(/<(?:[\w-]+:)?Paquete\b[^>]*>([^<]+)<\/(?:[\w-]+:)?Paquete>/i);
   if (!paqMatch?.[1]) {
-    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true, truncatedAtLimit: false };
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true, truncatedAtLimit: false, downloadedZip: false };
   }
 
   const zipBuf = Buffer.from(paqMatch[1], 'base64');
+  const downloadedZip = zipBuf.length > 0;
   let xmlEntryCount = 0;
   let totalUncompressedBytes = 0;
   let truncatedAtLimit = false;
@@ -509,7 +511,7 @@ async function ingestSatPackage(params: {
     if (parsed?.uuid) parsedList.push({ parsed, xmlRaw });
   }
   if (parsedList.length === 0) {
-    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: false, truncatedAtLimit };
+    return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: false, truncatedAtLimit, downloadedZip };
   }
 
   const uuids = Array.from(new Set(parsedList.map((p) => p.parsed.uuid)));
@@ -545,6 +547,7 @@ async function ingestSatPackage(params: {
       serie: p.serie || '',
       folio: p.folio || '',
       fecha: p.fecha || new Date().toISOString(),
+      fecha_pago: p.fechaPago ?? null,
       emisor_rfc: p.emisorRfc,
       emisor_nombre: p.emisorNombre || 'PROVEEDOR SAT',
       receptor_rfc: p.receptorRfc,
@@ -587,7 +590,8 @@ async function ingestSatPackage(params: {
     skippedDuplicates,
     totalParsed: parsedList.length,
     hadInsertErrors,
-    truncatedAtLimit
+    truncatedAtLimit,
+    downloadedZip
   };
 }
 
@@ -620,35 +624,54 @@ export async function handleVerificaDescarga(
   }
 
   const rawToken = await getSatAuthToken(cerBase64, privateKeyPem);
-  const authHeader = rawToken.startsWith('WRAP') ? rawToken : `WRAP access_token="${rawToken}"`;
+  let authHeader = rawToken.startsWith('WRAP') ? rawToken : `WRAP access_token="${rawToken}"`;
+  let refreshedToken = false;
   const results = [];
 
   for (const reqItem of pendingRequests) {
     try {
-      const { soapXml: verXml } = buildSatVerificaDescargaSoapXml({
-        rfcSolicitante: companyRfc,
-        idSolicitudSat: reqItem.id_solicitud_sat,
-        certificateBase64: cerBase64,
-        privateKeyPem
-      });
+      const callVerifica = async (tokenHeader: string) => {
+        const { soapXml: verXml } = buildSatVerificaDescargaSoapXml({
+          rfcSolicitante: companyRfc,
+          idSolicitudSat: reqItem.id_solicitud_sat,
+          certificateBase64: cerBase64,
+          privateKeyPem
+        });
+        return await fetch(
+          'https://cfdidescargamasivasolicitud.clouda.sat.gob.mx/VerificaSolicitudDescargaService.svc',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'text/xml;charset=UTF-8',
+              SOAPAction: 'http://DescargaMasivaTerceros.sat.gob.mx/IVerificaSolicitudDescargaService/VerificaSolicitudDescarga',
+              Authorization: tokenHeader
+            },
+            body: verXml,
+            signal: AbortSignal.timeout(10000)
+          }
+        );
+      };
 
-      const verRes = await fetch(
-        'https://cfdidescargamasivasolicitud.clouda.sat.gob.mx/VerificaSolicitudDescargaService.svc',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/xml;charset=UTF-8',
-            SOAPAction: 'http://DescargaMasivaTerceros.sat.gob.mx/IVerificaSolicitudDescargaService/VerificaSolicitudDescarga',
-            Authorization: authHeader
-          },
-          body: verXml,
-          signal: AbortSignal.timeout(10000)
-        }
-      );
-
+      let verRes = await callVerifica(authHeader);
       if (!verRes.ok) continue;
-      const verText = await verRes.text();
-      const estadoSol = verText.match(/EstadoSolicitud="(\d+)"/i)?.[1] || '2';
+      let verText = await verRes.text();
+      let estadoSol = verText.match(/EstadoSolicitud="(\d+)"/i)?.[1] || '2';
+
+      if (estadoSol === '0' && !refreshedToken) {
+        try {
+          const nextRawToken = await getSatAuthToken(cerBase64, privateKeyPem);
+          authHeader = nextRawToken.startsWith('WRAP') ? nextRawToken : `WRAP access_token="${nextRawToken}"`;
+          refreshedToken = true;
+          verRes = await callVerifica(authHeader);
+          if (verRes.ok) {
+            verText = await verRes.text();
+            estadoSol = verText.match(/EstadoSolicitud="(\d+)"/i)?.[1] || '2';
+          }
+        } catch {
+          // Mantener EN_PROCESO si falla renovación temporal
+        }
+      }
+
       const numCfdis = parseInt(verText.match(/NumeroCFDIs="(\d+)"/i)?.[1] || '0', 10);
       const codEstatus = verText.match(/CodEstatus="(\d+)"/i)?.[1] || '5000';
       const codigoEstadoSol = verText.match(/CodigoEstadoSolicitud="(\d+)"/i)?.[1] || codEstatus;
@@ -673,6 +696,8 @@ export async function handleVerificaDescarga(
           if (idsPaquetes.length === 0) idsPaquetes.push(`${reqItem.id_solicitud_sat}_01`);
 
           let skippedDuplicatesTotal = 0;
+          let totalParsedAll = 0;
+          let downloadedAnyNonEmptyZip = false;
           for (const idPaq of idsPaquetes) {
             try {
               const pkgRes = await ingestSatPackage({
@@ -686,6 +711,8 @@ export async function handleVerificaDescarga(
               });
               totalIngested += pkgRes.insertedCount;
               skippedDuplicatesTotal += pkgRes.skippedDuplicates;
+              totalParsedAll += pkgRes.totalParsed;
+              if (pkgRes.downloadedZip) downloadedAnyNonEmptyZip = true;
               if (pkgRes.hadInsertErrors) hadAnyPackageError = true;
               if (pkgRes.truncatedAtLimit) truncatedAtLimitAny = true;
             } catch (paqErr) {
@@ -709,19 +736,22 @@ export async function handleVerificaDescarga(
           } else if (skippedDuplicatesTotal > 0) {
             nuevoEstado = 'TERMINADA';
             nuevoMensaje = `SAT 5000: Paquete procesado; los ${skippedDuplicatesTotal} comprobantes ya existían en la Bóveda ADD.`;
+          } else if (downloadedAnyNonEmptyZip && totalParsedAll === 0) {
+            nuevoEstado = 'ERROR';
+            nuevoMensaje = `SAT ${codigoEstadoSol}: Se descargó el archivo ZIP del SAT (${numCfdis} comprobantes reportados), pero no contenía CFDIs XML válidos o legibles (0 comprobantes extraídos).`;
           } else {
             nuevoEstado = 'EN_PROCESO';
             nuevoMensaje = `SAT 5000: ${numCfdis} comprobantes listos en servidores del SAT. Reintentando descarga e integración a Bóveda ADD...`;
           }
         }
-      } else if (['0', '4', '5', '6'].includes(estadoSol) || codEstatus === '5004' || codigoEstadoSol === '5004') {
+      } else if (estadoSol === '0') {
+        nuevoEstado = 'EN_PROCESO';
+        nuevoMensaje = `SAT ${codigoEstadoSol}: Token de sesión expirado ante el SAT (EstadoSolicitud 0). Vuelve a verificar para reintentar sin perder tu solicitud.`;
+      } else if (['4', '5', '6'].includes(estadoSol) || codEstatus === '5004' || codigoEstadoSol === '5004') {
         nuevoEstado = 'ERROR';
-        nuevoMensaje =
-          estadoSol === '0'
-            ? `SAT ${codigoEstadoSol}: Token de sesión inválido o expirado ante el SAT (EstadoSolicitud 0). Reintenta la verificación con tu e.firma.`
-            : satMsg
-            ? `SAT ${codigoEstadoSol}: ${satMsg}`
-            : `SAT: Solicitud no encontrada, rechazada o vencida en servidores del SAT (Código ${codigoEstadoSol || estadoSol}).`;
+        nuevoMensaje = satMsg
+          ? `SAT ${codigoEstadoSol}: ${satMsg}`
+          : `SAT: Solicitud no encontrada, rechazada o vencida en servidores del SAT (Código ${codigoEstadoSol || estadoSol}).`;
       }
 
       const accumulatedCfdis = (Number(reqItem.cfdis_descargados) || 0) + totalIngested;

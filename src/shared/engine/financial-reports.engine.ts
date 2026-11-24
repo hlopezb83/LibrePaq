@@ -1,5 +1,11 @@
 import { fromCents, toCents } from './invariants-and-math';
-import { rollUpTrialBalanceAccounts } from './financial-reports-rollup';
+import {
+  computeTrialBalanceTotals,
+  registerClosingMovementsForTrialBalance,
+  rollUpTrialBalanceAccounts,
+  sumResultOfExerciseCents,
+  type ClosingMovementCents
+} from './financial-reports-rollup';
 import {
   buildScopedBucketRows,
   classifyPnlBucket,
@@ -25,8 +31,8 @@ export interface JoinedPolizaMovementInput {
   cargo: number;
   abono: number;
   polizas:
-    | { company_id: string; ejercicio: number; periodo: number }
-    | { company_id: string; ejercicio: number; periodo: number }[]
+    | { company_id: string; ejercicio: number; periodo: number; origin?: string | null }
+    | { company_id: string; ejercicio: number; periodo: number; origin?: string | null }[]
     | null;
 }
 
@@ -55,6 +61,7 @@ export function computeFinancialStatementsData(
   const priorCreditsMap = new Map<string, number>();
   const currentChargesMap = new Map<string, number>();
   const currentCreditsMap = new Map<string, number>();
+  const closingMovementsMap = new Map<string, ClosingMovementCents>();
   let priorUnclosedCargoCents = 0;
   let priorUnclosedAbonoCents = 0;
   let hasPriorYearMovements = false;
@@ -82,16 +89,29 @@ export function computeFinancialStatementsData(
       } else if (p.periodo === periodo) {
         currentChargesMap.set(accId, (currentChargesMap.get(accId) || 0) + cargoCents);
         currentCreditsMap.set(accId, (currentCreditsMap.get(accId) || 0) + abonoCents);
+        if (periodo === 13 && p.origin === 'CIERRE_ANUAL') {
+          const prev = closingMovementsMap.get(accId) ?? { cargoCents: 0, abonoCents: 0 };
+          prev.cargoCents += cargoCents;
+          prev.abonoCents += abonoCents;
+          closingMovementsMap.set(accId, prev);
+        }
       }
     }
   }
 
-  // Cuando zeroResultInitialBalances anula initialBalance de cuentas P&L entre ejercicios,
-  // trasladar el neto de esos saldos iniciales P&L a Utilidades Acumuladas para mantener A = P + C.
+  // Cuando zeroResultInitialBalances anula initialBalance de cuentas P&L y 305-* entre ejercicios,
+  // trasladar el neto de esos saldos iniciales a Utilidades Acumuladas para mantener A = P + C.
   if (hasPriorYearMovements) {
     for (const acc of accounts) {
       if (!acc.isAffectable) continue;
-      if (acc.type !== 'INGRESOS' && acc.type !== 'COSTOS' && acc.type !== 'GASTOS') continue;
+      if (
+        acc.type !== 'INGRESOS' &&
+        acc.type !== 'COSTOS' &&
+        acc.type !== 'GASTOS' &&
+        !isResultOfExerciseAccount(acc)
+      ) {
+        continue;
+      }
       const initCents = toCents(acc.initialBalance);
       if (initCents === 0) continue;
       if (acc.nature === 'ACREEDORA') {
@@ -120,11 +140,15 @@ export function computeFinancialStatementsData(
     currentCreditsMap,
     { zeroResultInitialBalances: hasPriorYearMovements }
   );
+  if (closingMovementsMap.size > 0) {
+    registerClosingMovementsForTrialBalance(computedAccounts, closingMovementsMap);
+  }
   return buildFinancialStatementsFromTrialBalance(
     company,
     computedAccounts,
     ejercicio,
-    periodo
+    periodo,
+    closingMovementsMap.size > 0 ? { closingMovementsByAccountId: closingMovementsMap } : undefined
   );
 }
 
@@ -136,31 +160,15 @@ export function buildFinancialStatementsFromTrialBalance(
   company: Company,
   computedAccounts: AccountWithBalance[],
   ejercicio: number,
-  periodo: number
+  periodo: number,
+  options?: { closingMovementsByAccountId?: ReadonlyMap<string, ClosingMovementCents> }
 ): FinancialStatementsResponse {
-  const tbRoots = computedAccounts.filter((a) => a.level === 1 || !a.parentCode);
-  let totalChgCents = 0;
-  let totalCredCents = 0;
-  let initDeudorCents = 0;
-  let initAcreedorCents = 0;
-  let finalDeudorCents = 0;
-  let finalAcreedorCents = 0;
-
-  for (const a of tbRoots) {
-    totalChgCents += toCents(a.periodCharges);
-    totalCredCents += toCents(a.periodCredits);
-    if (a.nature === 'DEUDORA') {
-      initDeudorCents += toCents(a.initialBalanceComputed);
-      finalDeudorCents += toCents(a.finalBalance);
-    } else {
-      initAcreedorCents += toCents(a.initialBalanceComputed);
-      finalAcreedorCents += toCents(a.finalBalance);
-    }
-  }
+  const totals = computeTrialBalanceTotals(computedAccounts);
 
   const { isPreCloseP13, accounts: erSourceAccounts } = normalizePostCloseP13Accounts(
     computedAccounts,
-    periodo
+    periodo,
+    options?.closingMovementsByAccountId
   );
   const erLeafIds = getLeafIds(erSourceAccounts);
 
@@ -204,26 +212,28 @@ export function buildFinancialStatementsFromTrialBalance(
   const isVisibleBsRow = (a: AccountWithBalance, targetType: 'ACTIVO' | 'PASIVO' | 'CAPITAL') =>
     a.type === targetType && (a.level >= 2 || (!a.parentCode && a.isAffectable));
 
+  const erAccById = new Map(erSourceAccounts.map((a) => [a.id, a]));
+  const resolveCapitalRow = (a: AccountWithBalance): AccountWithBalance | null => {
+    if (!isResultOfExerciseAccount(a)) return a;
+    const effective = isPreCloseP13 ? (erAccById.get(a.id) ?? a) : a;
+    return toCents(effective.finalBalance) !== 0 ? effective : null;
+  };
   const activosAccs = computedAccounts.filter((a) => isVisibleBsRow(a, 'ACTIVO'));
   const pasivosAccs = computedAccounts.filter((a) => isVisibleBsRow(a, 'PASIVO'));
-  const capitalAccs = computedAccounts.filter(
-    (a) => isVisibleBsRow(a, 'CAPITAL') && !isResultOfExerciseAccount(a)
-  );
+  const capitalAccs = computedAccounts
+    .filter((a) => isVisibleBsRow(a, 'CAPITAL'))
+    .map(resolveCapitalRow)
+    .filter((a): a is AccountWithBalance => a !== null);
 
   const totalActivoCents = sumRootByTypeCents(computedAccounts, 'ACTIVO', 'DEUDORA');
   const totalPasivoCents = sumRootByTypeCents(computedAccounts, 'PASIVO', 'ACREEDORA');
   const totalCapitalAllCents = sumRootByTypeCents(computedAccounts, 'CAPITAL', 'ACREEDORA');
 
-  const res305Cents = computedAccounts
-    .filter((a) => isResultOfExerciseAccount(a) && bsLeafIds.has(a.id))
-    .reduce(
-      (s, a) => s + (a.nature === 'ACREEDORA' ? 1 : -1) * toCents(a.finalBalance),
-      0
-    );
+  const postClose305Cents = sumResultOfExerciseCents(computedAccounts, bsLeafIds);
+  const preClose305Cents = sumResultOfExerciseCents(erSourceAccounts, erLeafIds);
 
-  const totalCapitalBaseCents = isPreCloseP13
-    ? totalCapitalAllCents - res305Cents
-    : totalCapitalAllCents;
+  const closingDelta305Cents = isPreCloseP13 ? postClose305Cents - preClose305Cents : 0;
+  const totalCapitalBaseCents = totalCapitalAllCents - closingDelta305Cents;
   const totalPasivoMasCapitalCents =
     totalPasivoCents + totalCapitalBaseCents + utilidadNetaCents;
 
@@ -242,9 +252,10 @@ export function buildFinancialStatementsFromTrialBalance(
     .reduce((s, a) => s + (a.nature === 'ACREEDORA' ? 1 : -1) * toCents(a.finalBalance), 0);
   const totalPasivoLpCents = totalPasivoCents - totalPasivoCpCents;
 
-  const capitalLeafs = computedAccounts.filter(
-    (a) => a.type === 'CAPITAL' && bsLeafIds.has(a.id) && !isResultOfExerciseAccount(a)
-  );
+  const capitalLeafs = computedAccounts
+    .filter((a) => a.type === 'CAPITAL' && bsLeafIds.has(a.id))
+    .map(resolveCapitalRow)
+    .filter((a): a is AccountWithBalance => a !== null);
   const capitalContribuido = capitalLeafs.filter((a) => !isCapitalGanadoAccount(a));
   const capitalGanado = capitalLeafs.filter((a) => isCapitalGanadoAccount(a));
   const totalCapContribCents = capitalContribuido.reduce(
@@ -264,14 +275,7 @@ export function buildFinancialStatementsFromTrialBalance(
     ejercicio,
     periodo,
     trialBalance: computedAccounts,
-    totals: {
-      initialDeudor: fromCents(initDeudorCents),
-      initialAcreedor: fromCents(initAcreedorCents),
-      totalCargos: fromCents(totalChgCents),
-      totalAbonos: fromCents(totalCredCents),
-      finalDeudor: fromCents(finalDeudorCents),
-      finalAcreedor: fromCents(finalAcreedorCents)
-    },
+    totals,
     incomeStatement: {
       ingresos: buildScopedBucketRows(erSourceAccounts, 'INGRESOS', erLeafIds),
       totalIngresos: fromCents(ing.ytd),

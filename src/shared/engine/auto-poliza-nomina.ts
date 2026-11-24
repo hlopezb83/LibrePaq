@@ -102,7 +102,7 @@ export function buildPayrollNominaMovements(
         `Saldo a cargo de empleado / Deudores diversos nómina ${ref} - ${cfdi.receptorNombre}`
       )
     );
-  } else {
+  } else if (totalCents > 0) {
     movements.push(
       makeDraft(accBancos, ref, 0, totalCents, `Pago neto nómina ${ref} - ${cfdi.receptorNombre}`)
     );

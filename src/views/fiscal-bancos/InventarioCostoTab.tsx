@@ -1,16 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Boxes, CheckCircle2, Loader2, RefreshCw, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
-import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
-import { inventoryClient } from '../../lib/inventory-client';
-import { buildCostOfSalesPolizaPlan, computeCostOfSales } from '../../shared/engine/cost-of-sales.engine';
 import { toCents } from '../../shared/engine/invariants-and-math';
 import type { AccountWithBalance } from '../../shared/types';
 import type { InventoryMethod } from '../../shared/types/cost-of-sales.types';
 import { InventarioCostoPolizaPreview } from './InventarioCostoPolizaPreview';
+import { useInventarioCosto } from './useInventarioCosto';
 
 export interface InventarioCostoTabProps {
   companyId?: string;
@@ -22,20 +18,20 @@ export interface InventarioCostoTabProps {
   onFeedback?: (msg: string, type?: 'success' | 'error') => void;
 }
 
-function parseNonNeg(val: string): number {
-  const n = Number.parseFloat(val);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
-}
-
 export function InventarioCostoTab({
-  companyId, year, period, accounts: accountsProp, isPeriodLocked = false, isReadOnlyClient: isReadOnlyClientProp = false, onFeedback
+  companyId,
+  year,
+  period,
+  accounts: accountsProp,
+  isPeriodLocked = false,
+  isReadOnlyClient: isReadOnlyClientProp = false,
+  onFeedback
 }: InventarioCostoTabProps) {
   const { activeCompanyId, activeCompany, isReadOnlyClient, isReadOnlySupportMode } = useCompany();
   const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
   const isLocked = isPeriodLocked || isReadOnly;
   const lockReason = isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : isReadOnly ? 'Modo solo lectura' : null;
   const toast = useToast();
-  const queryClient = useQueryClient();
 
   const targetCompanyId = companyId ?? activeCompanyId;
   const targetYear = year ?? activeCompany?.currentYear ?? 2026;
@@ -48,153 +44,41 @@ export function InventarioCostoTab({
     else toast.success(msg);
   };
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['inventory-cost', targetCompanyId, targetYear, targetPeriod],
-    queryFn: () => inventoryClient.getInventoryPeriod(targetCompanyId, targetYear, targetPeriod),
-    enabled: Boolean(targetCompanyId)
-  });
-
-  const { data: fetchedAccounts = [] } = useQuery({
-    queryKey: ['accounts', targetCompanyId],
-    queryFn: () => apiClient.getAccounts(targetCompanyId),
-    enabled: Boolean(targetCompanyId) && !(accountsProp && accountsProp.length > 0)
-  });
-
-  const resolvedAccounts = accountsProp && accountsProp.length > 0 ? accountsProp : fetchedAccounts;
-  const [method, setMethod] = useState<InventoryMethod>('ANALITICO');
-  const [initialInput, setInitialInput] = useState<string>('0');
-  const [purchasesInput, setPurchasesInput] = useState<string>('');
-  const [finalInput, setFinalInput] = useState<string>('0');
-  const [isDirty, setIsDirty] = useState<boolean>(false);
-  const [confirmPoliza, setConfirmPoliza] = useState<boolean>(false);
-
-  const contextKey = `${targetCompanyId}::${targetYear}::${targetPeriod}`;
-  const hydratedKeyRef = useRef<string>('');
-  const isDirtyRef = useRef(isDirty);
-  isDirtyRef.current = isDirty;
-
-  useEffect(() => {
-    setIsDirty(false);
-    setConfirmPoliza(false);
-  }, [contextKey]);
-
-  useEffect(() => {
-    if (!data) return;
-    const keyChanged = hydratedKeyRef.current !== contextKey;
-    if (!keyChanged && isDirtyRef.current) return;
-    hydratedKeyRef.current = contextKey;
-    setMethod(data.method);
-    setInitialInput(String(data.initialInventory));
-    setPurchasesInput(data.purchasesOverride !== null ? String(data.purchasesOverride) : '');
-    setFinalInput(String(data.finalInventory));
-    setIsDirty(false);
-    setConfirmPoliza(false);
-  }, [contextKey, data]);
-
-  const purchasesFromBalance = data?.purchasesFromBalance ?? 0;
-  const hasOverride = purchasesInput.trim() !== '';
-  const effectivePurchases = hasOverride ? parseNonNeg(purchasesInput) : purchasesFromBalance;
-
-  const liveCost = useMemo(
-    () => computeCostOfSales({
-      initialInventory: parseNonNeg(initialInput),
-      purchasesPeriod: effectivePurchases,
-      finalInventory: parseNonNeg(finalInput)
-    }),
-    [initialInput, effectivePurchases, finalInput]
-  );
-
-  const exceedsAvailable = parseNonNeg(finalInput) > liveCost.availableMerchandise;
-
-  const hasAnalyticalAdjustment =
-    method === 'ANALITICO' &&
-    (toCents(liveCost.initialInventory) > 0 || toCents(liveCost.finalInventory) > 0);
-
-  const { polizaPlan, polizaError } = useMemo(() => {
-    if (!targetCompanyId || resolvedAccounts.length === 0 || (toCents(liveCost.costOfSales) <= 0 && !hasAnalyticalAdjustment)) {
-      return { polizaPlan: null, polizaError: null };
-    }
-    try {
-      const plan = buildCostOfSalesPolizaPlan({
-        companyId: targetCompanyId,
-        year: targetYear,
-        period: targetPeriod,
-        costOfSales: liveCost.costOfSales,
-        accounts: resolvedAccounts,
-        method,
-        initialInventory: liveCost.initialInventory,
-        purchasesPeriod: liveCost.purchasesPeriod,
-        finalInventory: liveCost.finalInventory
-      });
-      return { polizaPlan: plan, polizaError: null };
-    } catch (err) {
-      return { polizaPlan: null, polizaError: err instanceof Error ? err.message : 'Error al preparar póliza.' };
-    }
-  }, [targetCompanyId, targetYear, targetPeriod, liveCost.costOfSales, liveCost.initialInventory, liveCost.purchasesPeriod, liveCost.finalInventory, method, resolvedAccounts]);
-
-  const buildSavePayload = (polizaId?: string | null) => ({
-    ejercicio: targetYear,
-    periodo: targetPeriod,
-    initialInventory: parseNonNeg(initialInput),
-    purchasesOverride: hasOverride ? parseNonNeg(purchasesInput) : null,
-    finalInventory: parseNonNeg(finalInput),
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
     method,
-    ...(polizaId !== undefined ? { polizaId } : {})
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: () => {
-      if (isLocked) throw new Error('Periodo bloqueado o modo solo lectura: no es posible guardar inventarios.');
-      return inventoryClient.saveInventoryPeriod(targetCompanyId, buildSavePayload());
-    },
-    onSuccess: (updated) => {
-      setIsDirty(false);
-      queryClient.setQueryData(['inventory-cost', targetCompanyId, targetYear, targetPeriod], updated);
-      notify(`Inventario y Costo de Ventas ${periodLabel} guardado.`);
-    },
-    onError: (err: Error) => notify(`Error al guardar inventario: ${err.message}`, 'error')
-  });
-
-  const createPolizaMutation = useMutation({
-    mutationFn: async () => {
-      if (isLocked) {
-        throw new Error('Periodo bloqueado o modo solo lectura: no es posible generar pólizas.');
-      }
-      if (!polizaPlan) throw new Error('No hay un borrador de póliza válido para registrar.');
-      if (data?.polizaId) {
-        try {
-          await apiClient.deletePoliza(data.polizaId);
-        } catch (delErr) {
-          const msg = delErr instanceof Error ? delErr.message.toLowerCase() : '';
-          if (!msg.includes('no encontrad') && !msg.includes('not found')) {
-            throw delErr;
-          }
-        }
-      }
-      const poliza = await apiClient.createPoliza({
-        companyId: polizaPlan.companyId, tipo: polizaPlan.tipo, fecha: polizaPlan.fecha,
-        concepto: polizaPlan.concepto, origin: polizaPlan.origin,
-        ejercicio: targetYear, periodo: targetPeriod,
-        movements: polizaPlan.movements.map(({ accountId, referencia, concepto, cargo, abono }) => ({
-          accountId, referencia, concepto, cargo, abono
-        }))
-      });
-      try {
-        await inventoryClient.saveInventoryPeriod(targetCompanyId, buildSavePayload(poliza.id));
-      } catch (saveErr) {
-        await apiClient.deletePoliza(poliza.id).catch(() => {});
-        throw saveErr;
-      }
-      return { poliza, targetCompanyId, targetYear, targetPeriod };
-    },
-    onSuccess: ({ poliza, targetCompanyId: cid, targetYear: y, targetPeriod: p }) => {
-      setIsDirty(false);
-      setConfirmPoliza(false);
-      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'], cid);
-      void queryClient.invalidateQueries({ queryKey: ['inventory-cost', cid, y, p] });
-      notify(`Póliza de Costo de Ventas (Diario #${poliza.folio}) registrada y cuadrada.`);
-    },
-    onError: (err: Error) => notify(`Error al registrar póliza de costo: ${err.message}`, 'error')
+    handleMethodChange,
+    initialInput,
+    setInitialInput,
+    purchasesInput,
+    setPurchasesInput,
+    finalInput,
+    setFinalInput,
+    isDirty,
+    setIsDirty,
+    confirmPoliza,
+    setConfirmPoliza,
+    purchasesFromBalance,
+    hasOverride,
+    liveCost,
+    exceedsAvailable,
+    hasAnalyticalAdjustment,
+    polizaPlan,
+    polizaError,
+    saveMutation,
+    createPolizaMutation
+  } = useInventarioCosto({
+    targetCompanyId,
+    targetYear,
+    targetPeriod,
+    periodLabel,
+    accountsProp,
+    isLocked,
+    notify
   });
 
   if (isError) {
@@ -282,7 +166,7 @@ export function InventarioCostoTab({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1">
             <label htmlFor="inv-method" className="block text-xs font-bold text-slate-700">Método de Registro</label>
-            <select id="inv-method" value={method} disabled={isLocked} onChange={(e) => { setMethod(e.target.value as InventoryMethod); setIsDirty(true); setConfirmPoliza(false); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white disabled:bg-slate-100">
+            <select id="inv-method" value={method} disabled={isLocked} onChange={(e) => handleMethodChange(e.target.value as InventoryMethod)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white disabled:bg-slate-100">
               <option value="ANALITICO">Analítico / Pormenorizado</option>
               <option value="PERPETUO">Inventarios Perpetuos</option>
             </select>

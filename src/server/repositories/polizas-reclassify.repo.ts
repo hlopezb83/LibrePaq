@@ -1,6 +1,7 @@
 import { db } from '../connection';
 import { assertAccountingInvariant } from '../../shared/accounting-engine';
 import { getAccounts } from './accounts.repo';
+import { ensureBankN1MatchesTable } from './bank-n1.repo';
 import { assertPeriodOpen } from './period-locks.repo';
 
 export interface ReclassifyAccountInput {
@@ -98,6 +99,10 @@ export function reclassifyAccountMovements(
 
   const polizaIds = Array.from(new Set(matchingRows.map((r) => r.poliza_id)));
   const movementIds = matchingRows.map((r) => r.movement_id);
+  const isFromBankAccount = fromAcc!.code.trim().startsWith('102');
+  if (isFromBankAccount) {
+    ensureBankN1MatchesTable(db);
+  }
 
   const tx = db.transaction(() => {
     const updStmt = db.prepare(
@@ -105,6 +110,27 @@ export function reclassifyAccountMovements(
     );
     for (const movId of movementIds) {
       updStmt.run(toAcc!.id, toAcc!.code, toAcc!.name, movId);
+    }
+
+    if (isFromBankAccount && movementIds.length > 0) {
+      for (let i = 0; i < movementIds.length; i += 100) {
+        const chunk = movementIds.slice(i, i + 100);
+        const ph = chunk.map(() => '?').join(',');
+        const matchRows = db
+          .prepare(`SELECT DISTINCT bank_line_id FROM bank_statement_matches WHERE movement_id IN (${ph})`)
+          .all(...chunk) as Array<{ bank_line_id: string }>;
+        if (matchRows.length > 0) {
+          const lineIds = matchRows.map((r) => r.bank_line_id);
+          const linePh = lineIds.map(() => '?').join(',');
+          db.prepare(
+            `UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE id IN (${linePh})`
+          ).run(...lineIds);
+        }
+        db.prepare(
+          `UPDATE bank_statement_lines SET matched_movement_id = NULL WHERE matched_movement_id IN (${ph})`
+        ).run(...chunk);
+        db.prepare(`DELETE FROM bank_statement_matches WHERE movement_id IN (${ph})`).run(...chunk);
+      }
     }
   });
   tx();

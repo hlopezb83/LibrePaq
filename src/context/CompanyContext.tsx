@@ -269,16 +269,16 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, [isReadOnlyClient]);
 
   const periodMutation = useMutation({
-    mutationFn: ({ year, period }: { year: number; period: number }) =>
-      apiClient.updateCompanyPeriod(resolvedActiveCompanyId, year, period),
-    onSuccess: (updatedCompany) => {
+    mutationFn: ({ companyId, year, period }: { companyId: string; year: number; period: number }) =>
+      apiClient.updateCompanyPeriod(companyId, year, period),
+    onSuccess: (updatedCompany, vars) => {
       if (updatedCompany) {
         queryClient.setQueryData<Company[]>(['companies', userScope], (prev = []) =>
           prev.map((c) => (c.id === updatedCompany.id ? updatedCompany : c))
         );
       }
-      if (resolvedActiveCompanyId) {
-        invalidateAccountingQueries(queryClient, resolvedActiveCompanyId);
+      if (vars.companyId) {
+        invalidateAccountingQueries(queryClient, vars.companyId);
       }
     }
   });
@@ -296,7 +296,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       invalidateAccountingQueries(queryClient, resolvedActiveCompanyId);
       // Solo persistimos periodo compartido en BD si tiene permiso de escritura en ficha (y sin bloquear si falla)
       if (!isReadOnlySupportMode && !isReadOnlyClient && effectiveCompanyRole !== 'AUXILIAR') {
-        mutatePeriod({ year, period });
+        mutatePeriod({ companyId: resolvedActiveCompanyId, year, period });
       }
     },
     [isReadOnlySupportMode, isReadOnlyClient, effectiveCompanyRole, resolvedActiveCompanyId, userScope, queryClient, mutatePeriod]

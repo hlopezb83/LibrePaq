@@ -1,5 +1,10 @@
 import { Hono } from 'hono';
-import { resolveRequestActor } from '../auth-actor';
+import {
+  readBodyCompanyId,
+  readQueryCompanyId,
+  rejectNonStringBodyCompanyId,
+  resolveRequestActor
+} from '../auth-actor';
 import {
   batchGenerateAutoPolizasFromCfdiIds,
   batchUploadCfdiXmlStrings,
@@ -98,17 +103,21 @@ function buildSimulatedCfdiPayload(
 }
 
 cfdiRoutes.get('/cfdis', (c) => {
-  const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  return c.json(getCfdiDocuments(companyId));
+  const q = readQueryCompanyId(c);
+  if (!q.ok) return q.response;
+  const denied = assertRouteCompanyAccess(c, q.companyId);
+  if (denied) return denied;
+  return c.json(getCfdiDocuments(q.companyId));
 });
 
 cfdiRoutes.post('/cfdis/upload', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
-    const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
+    const cid = readBodyCompanyId(c, body);
+    if (!cid.ok) return cid.response;
+    const denied = assertRouteCompanyAccess(c, cid.companyId, { requireWrite: true });
     if (denied) return denied;
-    const company = getAuthorizedCompanyForRoute(c, companyId);
+    const company = getAuthorizedCompanyForRoute(c, cid.companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const parsed =
@@ -127,10 +136,11 @@ cfdiRoutes.post('/cfdis/upload', async (c) => {
 cfdiRoutes.post('/cfdis/batch-upload', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
-    const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
+    const cid = readBodyCompanyId(c, body);
+    if (!cid.ok) return cid.response;
+    const denied = assertRouteCompanyAccess(c, cid.companyId, { requireWrite: true });
     if (denied) return denied;
-    const company = getAuthorizedCompanyForRoute(c, companyId);
+    const company = getAuthorizedCompanyForRoute(c, cid.companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const xmlList = Array.isArray(body.xmlList)
@@ -161,6 +171,8 @@ function parseAutoPolizaOverrides(body: Record<string, unknown>) {
 cfdiRoutes.post('/cfdis/batch-auto-poliza', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
+    const nonStr = rejectNonStringBodyCompanyId(c, body);
+    if (nonStr) return nonStr;
     const cfdiIds = Array.isArray(body.cfdiIds)
       ? body.cfdiIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
       : [];
@@ -187,7 +199,16 @@ cfdiRoutes.post('/cfdis/batch-auto-poliza', async (c) => {
 cfdiRoutes.post('/cfdis/:id/auto-poliza', async (c) => {
   try {
     const cfdiId = c.req.param('id');
+    const row = db
+      .query('SELECT company_id FROM cfdi_documents WHERE id = ?')
+      .get(cfdiId) as { company_id?: string } | null;
+    if (!row?.company_id) return c.json({ error: 'CFDI no encontrado en el ADD.' }, 404);
+    const denied = assertRouteCompanyAccess(c, row.company_id, { requireWrite: true });
+    if (denied) return denied;
+
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const nonStr = rejectNonStringBodyCompanyId(c, body);
+    if (nonStr) return nonStr;
     const created = generateAutoPolizaFromCfdiId(cfdiId, parseAutoPolizaOverrides(body));
     return c.json(created, 201);
   } catch (err) {
@@ -199,6 +220,13 @@ cfdiRoutes.post('/cfdis/:id/auto-poliza', async (c) => {
 cfdiRoutes.delete('/cfdis/:id', (c) => {
   try {
     const cfdiId = c.req.param('id');
+    const row = db
+      .query('SELECT company_id FROM cfdi_documents WHERE id = ?')
+      .get(cfdiId) as { company_id?: string } | null;
+    if (!row?.company_id) return c.json({ error: 'CFDI no encontrado en el ADD.' }, 404);
+    const denied = assertRouteCompanyAccess(c, row.company_id, { requireWrite: true });
+    if (denied) return denied;
+
     const res = deleteCfdiRecord(cfdiId);
     if (!res.found) return c.json({ error: 'CFDI no encontrado en el ADD.' }, 404);
     if (res.hasPoliza) {
@@ -219,6 +247,13 @@ cfdiRoutes.delete('/cfdis/:id', (c) => {
 
 cfdiRoutes.get('/cfdis/:id/xml', (c) => {
   const cfdiId = c.req.param('id');
+  const row = db
+    .query('SELECT company_id FROM cfdi_documents WHERE id = ?')
+    .get(cfdiId) as { company_id?: string } | null;
+  if (!row?.company_id) return c.json({ error: 'CFDI o XML no encontrado.' }, 404);
+  const denied = assertRouteCompanyAccess(c, row.company_id);
+  if (denied) return denied;
+
   const xml = getCfdiXml(cfdiId);
   if (!xml) return c.json({ error: 'CFDI o XML no encontrado.' }, 404);
   return c.json({ xmlRaw: xml });
@@ -227,6 +262,13 @@ cfdiRoutes.get('/cfdis/:id/xml', (c) => {
 cfdiRoutes.post('/cfdis/:id/verify-sat', async (c) => {
   try {
     const cfdiId = c.req.param('id');
+    const row = db
+      .query('SELECT company_id FROM cfdi_documents WHERE id = ?')
+      .get(cfdiId) as { company_id?: string } | null;
+    if (!row?.company_id) return c.json({ error: 'CFDI no encontrado en el ADD.' }, 404);
+    const denied = assertRouteCompanyAccess(c, row.company_id, { requireWrite: true });
+    if (denied) return denied;
+
     const res = await verifyCfdiStatusViaSatSoap(cfdiId);
     return c.json(res);
   } catch (err) {

@@ -1,7 +1,7 @@
-import type { AccountWithBalance, CfdiDocument } from '../types';
+import type { AccountWithBalance, CfdiDocument, Poliza } from '../types';
 import { parseCalendarDate } from '../date-utils';
 import type { UsdMonetaryItemInput } from './fiscal.engine';
-import { fromCents, toCents } from './invariants-and-math';
+import { fromCents, sumCents, toCents } from './invariants-and-math';
 
 export function resolveOpenUsdPpdCfdis(
   cfdis: readonly CfdiDocument[],
@@ -103,4 +103,151 @@ export function isNonCfdiCashDeductionAccount(a: AccountWithBalance): boolean {
   return /imss|infonavit|\bsar\b|\brcv\b|\bisn\b|impuesto sobre n[oó]mina|cuota.*patron|depreciaci[oó]n\s*(fiscal|autorizada)|deducci[oó]n\s*(fiscal|de\s*inversiones)/i.test(
     lower
   );
+}
+
+export function hasUnpaidPpdInvoicesByDirection(
+  cfdis: readonly CfdiDocument[],
+  ejercicio: number,
+  periodo: number
+): { hasUnpaidEmitidos: boolean; hasUnpaidRecibidos: boolean } {
+  const targetPeriod = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
+  const settledCentsByUuid = new Map<string, number>();
+  const settledZeroInsoluto = new Set<string>();
+
+  for (const c of cfdis) {
+    if (c.statusSat === 'CANCELADO') continue;
+    if (c.tipoComprobante !== 'P' && c.tipoComprobante !== 'E') continue;
+    const effDate = c.tipoComprobante === 'P' ? (c.fechaPago || c.fecha) : c.fecha;
+    const cal = parseCalendarDate(effDate, ejercicio, targetPeriod);
+    if (cal.year > ejercicio || (cal.year === ejercicio && cal.month > targetPeriod)) continue;
+
+    if (c.relatedDocs && c.relatedDocs.length > 0) {
+      for (const dr of c.relatedDocs) {
+        const u = (dr.idDocumento || '').trim().toUpperCase();
+        if (!u) continue;
+        settledCentsByUuid.set(u, (settledCentsByUuid.get(u) ?? 0) + Math.max(0, toCents(dr.impPagado)));
+        if (c.tipoComprobante === 'P' && dr.impSaldoInsoluto <= 0.01 && dr.impPagado > 0) {
+          settledZeroInsoluto.add(u);
+        }
+      }
+    } else if (c.uuidRelacionado) {
+      for (const rawU of c.uuidRelacionado.split(/[\s,;]+/)) {
+        const u = rawU.trim().toUpperCase();
+        if (!u) continue;
+        settledCentsByUuid.set(u, (settledCentsByUuid.get(u) ?? 0) + Math.max(0, toCents(c.total)));
+      }
+    }
+  }
+
+  let hasUnpaidEmitidos = false;
+  let hasUnpaidRecibidos = false;
+  for (const c of cfdis) {
+    if (c.statusSat === 'CANCELADO' || c.tipoComprobante !== 'I' || c.metodoPago !== 'PPD') continue;
+    const cal = parseCalendarDate(c.fecha, ejercicio, targetPeriod);
+    if (cal.year > ejercicio || (cal.year === ejercicio && cal.month > targetPeriod)) continue;
+    const u = (c.uuid || '').trim().toUpperCase();
+    const isSettled = u
+      ? settledZeroInsoluto.has(u) || (settledCentsByUuid.get(u) ?? 0) >= Math.max(0, toCents(c.total) - 1)
+      : false;
+    if (!isSettled) {
+      if (c.direction === 'EMITIDO') hasUnpaidEmitidos = true;
+      else if (c.direction === 'RECIBIDO') hasUnpaidRecibidos = true;
+    }
+  }
+  return { hasUnpaidEmitidos, hasUnpaidRecibidos };
+}
+
+export function reconstructGrossIvaAfterProvision(
+  trialBalance: readonly AccountWithBalance[],
+  ivaCobradoAccounts: readonly AccountWithBalance[],
+  ivaPagadoAccounts: readonly AccountWithBalance[],
+  periodPolizas?: readonly Poliza[]
+): { tbIvaCobrado: number; tbIvaPagado: number } {
+  const netCobradoCents = sumCents(ivaCobradoAccounts.map((a) => a.periodCredits - a.periodCharges));
+  const netPagadoCents = sumCents(ivaPagadoAccounts.map((a) => a.periodCharges - a.periodCredits));
+
+  if (periodPolizas && periodPolizas.length > 0) {
+    const cobradoIds = new Set(ivaCobradoAccounts.map((a) => a.id));
+    const pagadoIds = new Set(ivaPagadoAccounts.map((a) => a.id));
+    const targetIds = new Set(
+      trialBalance
+        .filter(
+          (a) =>
+            a.isAffectable &&
+            (a.code === '213-01-001' || a.code === '113-01-001' || a.satGroupCode === '213.01' || a.satGroupCode === '113.01')
+        )
+        .map((a) => a.id)
+    );
+    let prov208CargoCents = 0;
+    let prov118AbonoCents = 0;
+    for (const p of periodPolizas) {
+      const hasIvaRef = p.movements.some((m) => /^IVA-M\d+/i.test(m.referencia || ''));
+      const hasIvaAcc = p.movements.some(
+        (m) =>
+          cobradoIds.has(m.accountId) ||
+          pagadoIds.has(m.accountId) ||
+          m.accountCode?.startsWith('208-01') ||
+          m.accountCode?.startsWith('118-01') ||
+          m.accountCode?.startsWith('118-02')
+      );
+      const hasOffsetAcc = p.movements.some(
+        (m) => targetIds.has(m.accountId) || m.accountCode === '213-01-001' || m.accountCode === '113-01-001'
+      );
+      if (!hasIvaRef && !(hasIvaAcc && hasOffsetAcc)) continue;
+      for (const m of p.movements) {
+        if (cobradoIds.has(m.accountId) || m.accountCode?.startsWith('208-01')) {
+          prov208CargoCents += toCents(m.cargo);
+        } else if (pagadoIds.has(m.accountId) || m.accountCode?.startsWith('118-01') || m.accountCode?.startsWith('118-02')) {
+          prov118AbonoCents += toCents(m.abono);
+        }
+      }
+    }
+    return {
+      tbIvaCobrado: fromCents(Math.max(0, netCobradoCents + prov208CargoCents)),
+      tbIvaPagado: fromCents(Math.max(0, netPagadoCents + prov118AbonoCents))
+    };
+  }
+
+  const sum208ChargesCents = sumCents(ivaCobradoAccounts.map((a) => a.periodCharges));
+  const sum118CreditsCents = sumCents(ivaPagadoAccounts.map((a) => a.periodCredits));
+  const prov213CreditCents = sumCents(
+    trialBalance
+      .filter((a) => a.isAffectable && (a.code === '213-01-001' || a.satGroupCode === '213.01'))
+      .map((a) => a.periodCredits)
+  );
+  const prov113DebitCents = sumCents(
+    trialBalance
+      .filter((a) => a.isAffectable && (a.code === '113-01-001' || a.satGroupCode === '113.01'))
+      .map((a) => a.periodCharges)
+  );
+  const matchesOffset =
+    (prov213CreditCents > 0 || prov113DebitCents > 0) &&
+    (sum208ChargesCents > 0 || sum118CreditsCents > 0) &&
+    Math.abs(sum208ChargesCents - sum118CreditsCents - (prov213CreditCents - prov113DebitCents)) <= 100;
+
+  return {
+    tbIvaCobrado: fromCents(Math.max(0, netCobradoCents + (matchesOffset ? sum208ChargesCents : 0))),
+    tbIvaPagado: fromCents(Math.max(0, netPagadoCents + (matchesOffset ? sum118CreditsCents : 0)))
+  };
+}
+
+export function isIvaRetentionAccount(a: AccountWithBalance): boolean {
+  const sat = (a.satGroupCode ?? '').trim();
+  if (sat === '216.10') return true;
+  if (sat.startsWith('216.') && sat !== '216.10') return false;
+  if (a.code === '216-01-002') return true;
+  const lower = a.name.toLowerCase();
+  return lower.includes('iva') && !lower.includes('isr');
+}
+
+export function isImss216Account(a: AccountWithBalance): boolean {
+  const sat = (a.satGroupCode ?? '').trim();
+  const lower = a.name.toLowerCase();
+  return sat === '216.11' && (!lower.includes('isr') || lower.includes('imss'));
+}
+
+export function isPpdPendingRetentionAccount(a: AccountWithBalance): boolean {
+  const code = a.code.trim();
+  const lower = a.name.toLowerCase();
+  return code.startsWith('216-02') || lower.includes('ppd') || lower.includes('pendiente de pago');
 }

@@ -236,29 +236,32 @@ export interface RetencionDesgloseItem {
   amount: number;
 }
 
+export interface IsrProvisionalSummary {
+  regimenClave: string;
+  esResico: boolean;
+  ingresosPeriodo: number;
+  ingresosAcumuladosEjercicio: number;
+  deduccionesAutorizadasPeriodo: number;
+  deduccionesAcumuladasEjercicio?: number;
+  coeficienteUtilidadAplicado: number;
+  ptuPagadaAplicada?: number;
+  utilidadFiscalEstimada: number;
+  perdidasFiscalesAplicadas: number;
+  baseGravableIsr: number;
+  tasaIsrPct: number;
+  isrCausado: number;
+  pagosProvisionalesPrevios: number;
+  isrRetenidoPeriodo: number;
+  isrRetenidoMesActual?: number;
+  isrNetoAPagar: number;
+}
+
 export interface FiscalWorkpaperResponse {
   company: Company;
   ejercicio: number;
   periodo: number;
   parameters: TaxParametersRecord;
-  isrProvisional: {
-    regimenClave: string;
-    esResico: boolean;
-    ingresosPeriodo: number;
-    ingresosAcumuladosEjercicio: number;
-    deduccionesAutorizadasPeriodo: number;
-    deduccionesAcumuladasEjercicio?: number;
-    coeficienteUtilidadAplicado: number;
-    ptuPagadaAplicada?: number;
-    utilidadFiscalEstimada: number;
-    perdidasFiscalesAplicadas: number;
-    baseGravableIsr: number;
-    tasaIsrPct: number;
-    isrCausado: number;
-    pagosProvisionalesPrevios: number;
-    isrRetenidoPeriodo: number;
-    isrNetoAPagar: number;
-  };
+  isrProvisional: IsrProvisionalSummary;
   ivaDefinitivo: {
     actosGravadosCobrado16: number;
     ivaTrasladadoCobrado: number;

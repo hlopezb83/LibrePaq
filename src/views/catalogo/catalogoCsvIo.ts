@@ -56,6 +56,21 @@ function parseBoolColumn(raw: string | undefined): boolean | undefined {
   return undefined;
 }
 
+function detectCatalogoCsvDelimiter(sampleLine: string): ',' | ';' {
+  let commas = 0;
+  let semicolons = 0;
+  let inQuotes = false;
+  for (let i = 0; i < sampleLine.length; i += 1) {
+    const ch = sampleLine[i];
+    if (ch === '"') inQuotes = !inQuotes;
+    else if (!inQuotes) {
+      if (ch === ';') semicolons += 1;
+      else if (ch === ',') commas += 1;
+    }
+  }
+  return semicolons > commas ? ';' : ',';
+}
+
 export function parseCatalogoCsvWithReport(text: string): {
   rows: ParsedCatalogoCsvRow[];
   skipped: CatalogoCsvSkippedRow[];
@@ -67,7 +82,8 @@ export function parseCatalogoCsvWithReport(text: string): {
     .filter((entry) => Boolean(entry.text));
   if (indexedLines.length === 0) return { rows: [], skipped: [] };
 
-  const firstCols = splitCsvLine(indexedLines[0]!.text).map((c) => c.trim().toLowerCase());
+  const delimiter = detectCatalogoCsvDelimiter(indexedLines[0]!.text);
+  const firstCols = splitCsvLine(indexedLines[0]!.text, delimiter).map((c) => c.trim().toLowerCase());
   const hasHeader =
     firstCols[0]?.includes('código') ||
     firstCols[0]?.includes('codigo') ||
@@ -101,7 +117,7 @@ export function parseCatalogoCsvWithReport(text: string): {
   const skipped: CatalogoCsvSkippedRow[] = [];
   for (let i = startIdx; i < indexedLines.length; i += 1) {
     const { text: rawLine, lineNumber } = indexedLines[i]!;
-    const cols = splitCsvLine(rawLine);
+    const cols = splitCsvLine(rawLine, delimiter);
     const rawCode = normalizeMigrationAccountCode(cols[colCode] ?? '');
     const rawName = (cols[colName] ?? '').trim();
     if (!isValidAccountMask(rawCode)) {
@@ -125,7 +141,11 @@ export function parseCatalogoCsvWithReport(text: string): {
     const parsedType = VALID_TYPES.has(rawType) ? rawType : undefined;
     const rawNature = (cols[colNature] ?? '').trim().toUpperCase();
     const parsedNature: AccountNature | undefined =
-      rawNature === 'ACREEDORA' ? 'ACREEDORA' : rawNature === 'DEUDORA' ? 'DEUDORA' : undefined;
+      rawNature === 'ACREEDORA' || rawNature === 'ACREEDOR' || rawNature === 'A'
+        ? 'ACREEDORA'
+        : rawNature === 'DEUDORA' || rawNature === 'DEUDOR' || rawNature === 'D'
+          ? 'DEUDORA'
+          : undefined;
 
     const parsedLevelNum = Number((cols[colLevel] ?? '').trim());
     const level =

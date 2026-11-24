@@ -18,6 +18,17 @@ export function seedAccountsForCompany(companyId: string, scale = 1): Map<string
   return seedAccountsForCompanyOnDb(db, companyId, scale);
 }
 
+export function assertNoLockedPeriodsSqlite(companyId: string): void {
+  const lockedRow = db
+    .query(
+      'SELECT ejercicio, periodo FROM period_locks WHERE company_id = ? AND is_locked = 1 ORDER BY ejercicio ASC, periodo ASC LIMIT 1'
+    )
+    .get(companyId) as { ejercicio: number; periodo: number } | null;
+  if (lockedRow) {
+    assertPeriodOpen(companyId, Number(lockedRow.ejercicio), Number(lockedRow.periodo));
+  }
+}
+
 export function getAccounts(companyId: string): Account[] {
   const rows = db
     .query('SELECT * FROM accounts WHERE company_id = ? ORDER BY code ASC')
@@ -44,6 +55,9 @@ export function createAccountRecord(input: {
     'DUPLICATE_ACCOUNT_CODE',
     `Ya existe una cuenta con el código ${input.code}.`
   );
+  if (toCents(input.initialBalance) !== 0) {
+    assertNoLockedPeriodsSqlite(input.companyId);
+  }
 
   // NASA Power of 10 - Reglas 1 y 2 (H-11): Verificar jerarquía sin ciclos y <= 5 niveles
   const hierarchy = validateAccountHierarchy(accounts, input.parentCode, input.code);
@@ -98,16 +112,24 @@ export function updateAccountRecord(
   }
 ): boolean {
   const existing = db
-    .prepare('SELECT company_id, initial_balance, nature FROM accounts WHERE id = ?')
-    .get(id) as { company_id: string; initial_balance: number; nature: string } | undefined;
+    .prepare('SELECT company_id, initial_balance, nature, type FROM accounts WHERE id = ?')
+    .get(id) as { company_id: string; initial_balance: number; nature: string; type: string } | undefined;
   if (existing) {
     const isBalanceDiff = toCents(existing.initial_balance) !== toCents(input.initialBalance);
     const isNatureDiff = existing.nature !== input.nature;
-    if (isBalanceDiff || isNatureDiff) {
-      const comp = db
-        .prepare('SELECT id, current_year FROM companies WHERE id = ?')
-        .get(existing.company_id) as { id: string; current_year: number } | undefined;
-      if (comp) assertPeriodOpen(comp.id, comp.current_year, 1);
+    const isTypeDiff = existing.type !== input.type;
+    if (isNatureDiff || isTypeDiff) {
+      const movRow = db
+        .query('SELECT COUNT(*) as c FROM poliza_movements WHERE account_id = ?')
+        .get(id) as { c: number } | null;
+      assertAccountingInvariant(
+        (movRow?.c ?? 0) === 0,
+        'ACCOUNT_HAS_MOVEMENTS',
+        'No se puede cambiar la naturaleza o rubro de una cuenta que ya tiene movimientos contables registrados.'
+      );
+    }
+    if (isBalanceDiff || isNatureDiff || isTypeDiff) {
+      assertNoLockedPeriodsSqlite(existing.company_id);
     }
   }
 
@@ -127,10 +149,21 @@ export function updateAccountRecord(
         id
       );
     if (res.changes === 0) return false;
-    db.prepare('UPDATE poliza_movements SET account_name = ? WHERE account_id = ?').run(
-      input.name,
-      id
-    );
+    db.prepare(`
+      UPDATE poliza_movements
+      SET account_name = ?
+      WHERE account_id = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM polizas p
+          INNER JOIN period_locks pl
+            ON pl.company_id = p.company_id
+           AND pl.ejercicio = p.ejercicio
+           AND pl.periodo = p.periodo
+          WHERE p.id = poliza_movements.poliza_id
+            AND pl.is_locked = 1
+        )
+    `).run(input.name, id);
     return true;
   });
   return tx();
@@ -138,17 +171,24 @@ export function updateAccountRecord(
 
 export function deleteAccountRecord(
   id: string
-): { deleted: boolean; hasMovements: boolean; hasChildren?: boolean; hasInitialBalance?: boolean } {
+): { deleted: boolean; hasMovements: boolean; hasChildren?: boolean; hasInitialBalance?: boolean; hasBankLines?: boolean } {
   const hasMovs = db
     .query('SELECT COUNT(*) as c FROM poliza_movements WHERE account_id = ?')
     .get(id) as { c: number } | null;
   if (hasMovs && hasMovs.c > 0) {
     return { deleted: false, hasMovements: true };
   }
+  const hasBankLines = db
+    .query('SELECT COUNT(*) as c FROM bank_statement_lines WHERE account_id = ?')
+    .get(id) as { c: number } | null;
+  if (hasBankLines && hasBankLines.c > 0) {
+    return { deleted: false, hasMovements: true, hasBankLines: true };
+  }
   const accRow = db
     .query('SELECT company_id, code, initial_balance FROM accounts WHERE id = ?')
     .get(id) as { company_id: string; code: string; initial_balance: number } | null;
   if (accRow) {
+    assertNoLockedPeriodsSqlite(accRow.company_id);
     if (toCents(accRow.initial_balance) !== 0) {
       return { deleted: false, hasMovements: true, hasInitialBalance: true };
     }
@@ -196,10 +236,7 @@ export function batchImportAccountsCatalog(
 
   const existingAccounts = getAccounts(companyId);
   const existingByCode = new Map(existingAccounts.map((a) => [a.code, a]));
-  const compRow = db
-    .prepare('SELECT current_year FROM companies WHERE id = ?')
-    .get(companyId) as { current_year: number } | undefined;
-  let checkedPeriod1Lock = false;
+  let checkedAllLocks = false;
 
   const tx = db.transaction(() => {
     for (let i = 0; i < bound; i += 1) {
@@ -245,13 +282,27 @@ export function batchImportAccountsCatalog(
       const nextBalCents = toCents(r.initialBalance ?? 0);
 
       const prev = existingByCode.get(code);
-      if (prev && !checkedPeriod1Lock) {
+      if (prev) {
         const diffBal = toCents(prev.initialBalance) !== nextBalCents;
         const diffNat = prev.nature !== inferredNature;
-        if ((diffBal || diffNat) && compRow) {
-          assertPeriodOpen(companyId, compRow.current_year, 1);
-          checkedPeriod1Lock = true;
+        const diffType = prev.type !== inferredType;
+        if (diffNat || diffType) {
+          const movRow = db
+            .query('SELECT COUNT(*) as c FROM poliza_movements WHERE account_id = ?')
+            .get(prev.id) as { c: number } | null;
+          assertAccountingInvariant(
+            (movRow?.c ?? 0) === 0,
+            'ACCOUNT_HAS_MOVEMENTS',
+            `No se puede cambiar la naturaleza o rubro de la cuenta ${code} porque ya tiene movimientos contables registrados.`
+          );
         }
+        if ((diffBal || diffNat || diffType) && !checkedAllLocks) {
+          assertNoLockedPeriodsSqlite(companyId);
+          checkedAllLocks = true;
+        }
+      } else if (nextBalCents !== 0 && !checkedAllLocks) {
+        assertNoLockedPeriodsSqlite(companyId);
+        checkedAllLocks = true;
       }
 
       upsertAcc.run(

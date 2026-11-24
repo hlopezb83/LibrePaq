@@ -23,6 +23,10 @@ export async function clearCompanyChildTables(
   client: SupabaseClient,
   companyId: string
 ): Promise<void> {
+  // Eliminar period_locks PRIMERO para evitar disparos de PERIOD_LOCKED en triggers al limpiar tablas hijas
+  const { error: lockErr } = await client.from('period_locks').delete().eq('company_id', companyId);
+  if (lockErr) throw new Error(`[Clear period_locks] ${lockErr.message}`);
+
   await clearOptionalBackupTables(client, companyId);
   const tables = [
     'bank_statement_lines',
@@ -30,7 +34,6 @@ export async function clearCompanyChildTables(
     'polizas',
     'fixed_assets',
     'third_parties',
-    'period_locks',
     'tax_parameters'
   ];
   for (const table of tables) {
@@ -52,24 +55,28 @@ export async function restoreBackupChildTables(
     await batchImportAccounts(companyId, bundle.accounts);
   }
 
-  if (Array.isArray(bundle.taxParameters)) {
+  if (Array.isArray(bundle.taxParameters) && bundle.taxParameters.length > 0) {
+    const dedupTax = new Map<string, UpsertRow>();
     for (const tp of bundle.taxParameters) {
       if (!tp) continue;
-      await assertTableUpsert(
-        client,
-        'tax_parameters',
-        {
-          company_id: companyId,
-          ejercicio: tp.ejercicio || bundle.company.currentYear || getCurrentFiscalPeriod().year,
-          periodo: tp.periodo ?? 0,
-          coeficiente_utilidad: tp.coeficienteUtilidad,
-          perdidas_fiscales_pendientes: tp.perdidasFiscalesPendientes,
-          pagos_provisionales_anteriores: tp.pagosProvisionalesAnteriores,
-          saldo_favor_iva_anterior: tp.saldoFavorIvaAnterior,
-          tipo_cambio_dof_cierre: tp.tipoCambioDofCierre
-        },
-        { onConflict: 'company_id,ejercicio,periodo' }
-      );
+      const ej = tp.ejercicio || bundle.company.currentYear || getCurrentFiscalPeriod().year;
+      const per = tp.periodo ?? 0;
+      dedupTax.set(`${ej}:${per}`, {
+        company_id: companyId,
+        ejercicio: ej,
+        periodo: per,
+        coeficiente_utilidad: tp.coeficienteUtilidad,
+        perdidas_fiscales_pendientes: tp.perdidasFiscalesPendientes,
+        pagos_provisionales_anteriores: tp.pagosProvisionalesAnteriores,
+        saldo_favor_iva_anterior: tp.saldoFavorIvaAnterior,
+        tipo_cambio_dof_cierre: tp.tipoCambioDofCierre,
+        ptu_pagada_ejercicio: Number(tp.ptuPagadaEjercicio ?? 0)
+      });
+    }
+    for (const chunk of chunkArray(Array.from(dedupTax.values()), 100)) {
+      await assertTableUpsert(client, 'tax_parameters', chunk, {
+        onConflict: 'company_id,ejercicio,periodo'
+      });
     }
   }
 
@@ -116,6 +123,7 @@ export async function restoreBackupChildTables(
       company_id: companyId,
       uuid: c.uuid,
       fecha: c.fecha,
+      fecha_pago: c.fechaPago || null,
       tipo_comprobante: c.tipoComprobante,
       direction: c.direction,
       serie: c.serie || '',
@@ -169,21 +177,9 @@ export async function restoreBackupChildTables(
       estatus: fa.estatus || 'ACTIVO',
       created_at: fa.createdAt || new Date().toISOString()
     }));
-    await assertTableUpsert(client, 'fixed_assets', faToUpsert, { onConflict: 'id' });
-  }
-
-  if (Array.isArray(bundle.periodLocks) && bundle.periodLocks.length > 0) {
-    const locksToUpsert = bundle.periodLocks.map((pl) => ({
-      company_id: companyId,
-      ejercicio: pl.ejercicio,
-      periodo: pl.periodo,
-      is_locked: pl.isLocked,
-      locked_at: pl.lockedAt || null,
-      notes: pl.notes || ''
-    }));
-    await assertTableUpsert(client, 'period_locks', locksToUpsert, {
-      onConflict: 'company_id, ejercicio, periodo'
-    });
+    for (const chunk of chunkArray(faToUpsert, 100)) {
+      await assertTableUpsert(client, 'fixed_assets', chunk, { onConflict: 'id' });
+    }
   }
 
   if (Array.isArray(bundle.thirdParties) && bundle.thirdParties.length > 0) {
@@ -191,6 +187,7 @@ export async function restoreBackupChildTables(
       const ext = tp as unknown as Record<string, unknown>;
       const estatus = (tp.estatus69B || ext.estatus69b || 'LIMPIO') as string;
       const deductiblePct = Math.max(0, Math.min(100, Number(ext.deductiblePct ?? 100)));
+      const cleanPais = tp.pais?.trim().toUpperCase() || null;
       return {
         id: tp.id,
         company_id: companyId,
@@ -203,10 +200,15 @@ export async function restoreBackupChildTables(
         tipo_operacion_diot: tp.tipoOperacionDiot || '85',
         tasa_iva_default: Number(tp.tasaIvaDefault ?? 16),
         deductible_pct: deductiblePct,
-        estatus_69b: estatus
+        estatus_69b: estatus,
+        id_fiscal: tp.idFiscal?.trim() || null,
+        pais: cleanPais,
+        jurisdiccion_fiscal: cleanPais === 'ZZZ' ? (tp.jurisdiccionFiscal?.trim() || null) : null
       };
     });
-    await assertTableUpsert(client, 'third_parties', tpToUpsert, { onConflict: 'id' });
+    for (const chunk of chunkArray(tpToUpsert, 100)) {
+      await assertTableUpsert(client, 'third_parties', chunk, { onConflict: 'id' });
+    }
   }
 
   if (Array.isArray(bundle.bankStatementLines) && bundle.bankStatementLines.length > 0) {
@@ -223,8 +225,27 @@ export async function restoreBackupChildTables(
       abono_banco: Number(b.abonoBanco || 0),
       matched_movement_id: b.matchedMovementId || null
     }));
-    await assertTableUpsert(client, 'bank_statement_lines', bLinesToUpsert, { onConflict: 'id' });
+    for (const chunk of chunkArray(bLinesToUpsert, 150)) {
+      await assertTableUpsert(client, 'bank_statement_lines', chunk, { onConflict: 'id' });
+    }
   }
 
   await restoreOptionalBackupTables(client, companyId, bundle);
+
+  // Restaurar period_locks AL FINAL para no bloquear triggers de inserción en tablas hijas/opcionales
+  if (Array.isArray(bundle.periodLocks) && bundle.periodLocks.length > 0) {
+    const locksToUpsert = bundle.periodLocks.map((pl) => ({
+      company_id: companyId,
+      ejercicio: pl.ejercicio,
+      periodo: pl.periodo,
+      is_locked: pl.isLocked,
+      locked_at: pl.lockedAt || null,
+      notes: pl.notes || ''
+    }));
+    for (const chunk of chunkArray(locksToUpsert, 100)) {
+      await assertTableUpsert(client, 'period_locks', chunk, {
+        onConflict: 'company_id,ejercicio,periodo'
+      });
+    }
+  }
 }

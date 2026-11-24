@@ -1,6 +1,51 @@
 import type { CfdiDocument, Poliza } from '../types';
-import { parseCalendarDate } from '../date-utils';
 import { sumCents, toCents } from './invariants-and-math';
+
+export function isIvaAccount(
+  code: string,
+  satGroupCode?: string | null
+): 'IVA_118' | 'IVA_208' | null {
+  const cleanCode = (code || '').trim();
+  const cleanSat = (satGroupCode || '').trim();
+  if (cleanCode.startsWith('208-01') || cleanCode.startsWith('208.01') || cleanSat.startsWith('208.01')) {
+    return 'IVA_208';
+  }
+  if (cleanCode.startsWith('118-01') || cleanCode.startsWith('118.01') || cleanSat.startsWith('118.01')) {
+    return 'IVA_118';
+  }
+  return null;
+}
+
+export function isMonthlyIvaProvisionPoliza(pol: Poliza): boolean {
+  const origin = String((pol as { origin?: string }).origin || '');
+  if (origin === 'CIERRE_MENSUAL' || origin === 'FISCAL_PROVISION') return true;
+  if (pol.movements.some((m) => /^IVA-M\d*/i.test((m.referencia || '').trim()))) return true;
+
+  const polHasCfdi = Boolean(pol.cfdiUuid || (pol.cfdiUuids && pol.cfdiUuids.length > 0));
+  if (polHasCfdi) return false;
+
+  let hasIva208 = false;
+  let hasIva118 = false;
+  let has213or113 = false;
+  let has119 = false;
+  for (const m of pol.movements) {
+    const code = (m.accountCode || '').trim();
+    const ivaKind = isIvaAccount(code);
+    if (ivaKind === 'IVA_208') hasIva208 = true;
+    else if (ivaKind === 'IVA_118') hasIva118 = true;
+    else if (
+      code.startsWith('213-01') ||
+      code.startsWith('213.01') ||
+      code.startsWith('113-01') ||
+      code.startsWith('113.01')
+    ) {
+      has213or113 = true;
+    } else if (code.startsWith('119-01') || code.startsWith('119.01')) {
+      has119 = true;
+    }
+  }
+  return (hasIva208 || hasIva118) && (has213or113 || (hasIva208 && (hasIva118 || has119)));
+}
 
 function getRate(doc: CfdiDocument): number {
   return doc.moneda && doc.moneda.toUpperCase() !== 'MXN' && (doc.tipoCambio || 1) > 0
@@ -37,11 +82,30 @@ function resolveDocIvaMxnCents(doc: CfdiDocument): number {
   return toCents((doc.ivaTrasladado || 0) * tc);
 }
 
+function parseDocYearMonth(dateStr: string | null | undefined): { year: number; month: number } | null {
+  const clean = (dateStr ?? '').trim();
+  const match = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/.exec(clean);
+  if (!match) return null;
+  const year = Number.parseInt(match[1] ?? '', 10);
+  const month = Number.parseInt(match[2] ?? '', 10);
+  if (year < 1990 || year > 2100 || month < 1 || month > 12) return null;
+  return { year, month };
+}
+
 function isInTargetPeriod(doc: CfdiDocument, ejercicio: number, periodo: number): boolean {
+  if (periodo < 1 || periodo > 12) return false;
   const effectiveDate = doc.tipoComprobante === 'P' ? (doc.fechaPago || doc.fecha) : doc.fecha;
-  const targetPeriod = periodo === 13 ? 12 : periodo;
-  const cal = parseCalendarDate(effectiveDate, ejercicio, targetPeriod);
-  return cal.year === ejercicio && cal.month === targetPeriod;
+  const ym = parseDocYearMonth(effectiveDate);
+  return Boolean(ym && ym.year === ejercicio && ym.month === periodo);
+}
+
+function isOnOrBeforeTargetPeriod(doc: CfdiDocument, ejercicio: number, periodo: number): boolean {
+  if (periodo < 1) return false;
+  const effectivePeriod = Math.min(12, periodo);
+  const effectiveDate = doc.tipoComprobante === 'P' ? (doc.fechaPago || doc.fecha) : doc.fecha;
+  const ym = parseDocYearMonth(effectiveDate);
+  if (!ym) return false;
+  return ym.year < ejercicio || (ym.year === ejercicio && ym.month <= effectivePeriod);
 }
 
 export function computeSatAddPillar(
@@ -56,21 +120,21 @@ export function computeSatAddPillar(
   let pendingCfdisCount = 0;
 
   const ppdUuids = new Set<string>();
-  const paidUuidsInPeriod = new Set<string>();
+  const paidUuidsUpToPeriod = new Set<string>();
   for (const doc of cfdis) {
     if (doc.statusSat === 'CANCELADO') continue;
     const upper = (doc.uuid || '').trim().toUpperCase();
     if (doc.metodoPago === 'PPD' && doc.tipoComprobante !== 'E' && upper) {
       ppdUuids.add(upper);
     }
-    if (!isInTargetPeriod(doc, ejercicio, periodo)) continue;
+    if (!isOnOrBeforeTargetPeriod(doc, ejercicio, periodo)) continue;
     if (doc.tipoComprobante === 'P') {
-      if (doc.uuidRelacionado) paidUuidsInPeriod.add(doc.uuidRelacionado.trim().toUpperCase());
+      if (doc.uuidRelacionado) paidUuidsUpToPeriod.add(doc.uuidRelacionado.trim().toUpperCase());
       for (const dr of doc.relatedDocs ?? []) {
-        if (dr.idDocumento) paidUuidsInPeriod.add(dr.idDocumento.trim().toUpperCase());
+        if (dr.idDocumento) paidUuidsUpToPeriod.add(dr.idDocumento.trim().toUpperCase());
       }
     } else if (doc.metodoPago === 'PUE' && doc.tipoComprobante !== 'E' && upper) {
-      paidUuidsInPeriod.add(upper);
+      paidUuidsUpToPeriod.add(upper);
     }
   }
 
@@ -93,7 +157,7 @@ export function computeSatAddPillar(
         .split(/[\s,;]+/)
         .map((u) => u.trim().toUpperCase())
         .filter(Boolean);
-      if (relList.some((u) => ppdUuids.has(u) && !paidUuidsInPeriod.has(u))) continue;
+      if (relList.some((u) => ppdUuids.has(u) && !paidUuidsUpToPeriod.has(u))) continue;
     }
 
     const sign = isCreditNote ? -1 : 1;
@@ -112,7 +176,11 @@ export function computeSatAddPillar(
   return { ingCents, gasCents, ivaTrasCents, ivaAcredCents, pendingCfdisCount };
 }
 
-export function detectManualIvaCauses(polizas: readonly Poliza[]): {
+export function detectManualIvaCauses(
+  polizas: readonly Poliza[],
+  ejercicio?: number,
+  periodo?: number
+): {
   count: number;
   impactCents: number;
 } {
@@ -120,12 +188,16 @@ export function detectManualIvaCauses(polizas: readonly Poliza[]): {
   let impactCents = 0;
 
   for (const pol of polizas) {
+    if (ejercicio !== undefined && periodo !== undefined) {
+      if (pol.ejercicio !== ejercicio || pol.periodo !== periodo) continue;
+    }
+    if (isMonthlyIvaProvisionPoliza(pol)) continue;
+
     const polHasCfdi = Boolean(pol.cfdiUuid || (pol.cfdiUuids && pol.cfdiUuids.length > 0));
     let polManualIvaCents = 0;
     for (const mov of pol.movements) {
       const code = (mov.accountCode || '').trim();
-      const isIvaAcc = code.startsWith('118') || code.startsWith('208');
-      if (!isIvaAcc) continue;
+      if (!isIvaAccount(code)) continue;
       const movHasCfdi = polHasCfdi || Boolean(mov.cfdiUuid);
       if (!movHasCfdi) {
         polManualIvaCents += Math.max(toCents(mov.cargo), toCents(mov.abono));

@@ -239,14 +239,30 @@ export const supabaseSoapDownload = {
 
       if (data?.ok) {
         for (const r of data.results || []) {
-          if (r.estadoSat === '0' || r.estadoSat === '4' || r.estadoSat === '5' || r.estadoSat === '6') {
+          if (r.estadoSat === '0') {
+            r.estadoSolicitud = 'EN_PROCESO';
+            const resolvedSatCode = r.codigoEstadoSat || r.estadoSat;
+            const resolvedMsg =
+              r.mensajeSat ||
+              `SAT ${resolvedSatCode}: Token de sesión inválido o expirado ante el SAT (EstadoSolicitud 0). Reintenta la verificación con tu e.firma.`;
+            r.mensajeSat = resolvedMsg;
+            if (r.id) {
+              await supabase
+                .from('sat_download_requests')
+                .update({
+                  estado_solicitud: 'EN_PROCESO',
+                  codigo_estado_sat: resolvedSatCode,
+                  mensaje_sat: resolvedMsg
+                })
+                .eq('id', r.id);
+            }
+          } else if (r.estadoSat === '4' || r.estadoSat === '5' || r.estadoSat === '6') {
             r.estadoSolicitud = 'ERROR';
             const resolvedSatCode = r.codigoEstadoSat || r.estadoSat;
             const resolvedMsg =
               r.mensajeSat ||
-              (r.estadoSat === '0'
-                ? `SAT ${resolvedSatCode}: Token de sesión inválido o expirado ante el SAT (EstadoSolicitud 0). Reintenta la verificación con tu e.firma.`
-                : `SAT ${resolvedSatCode}: Solicitud rechazada, con error o vencida en servidores del SAT.`);
+              `SAT ${resolvedSatCode}: Solicitud rechazada, con error o vencida en servidores del SAT.`;
+            r.mensajeSat = resolvedMsg;
             if (r.id) {
               await supabase
                 .from('sat_download_requests')

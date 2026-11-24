@@ -164,10 +164,20 @@ export function parseCfdiPreview(cfdi: CfdiDocument): CfdiPreviewData {
     objetoImp: getAttr(c, 'ObjetoImp') || '02'
   }));
 
+  const tipoComp = getAttr(comprobante, 'TipoDeComprobante').toUpperCase() || fb.comprobante.tipoDeComprobante;
   const rawImp = Object.hasOwn(comprobante, 'Impuestos') ? comprobante.Impuestos : null;
   const compImp = Array.isArray(rawImp) ? ((rawImp[0] as XmlNode) ?? null) : (rawImp && typeof rawImp === 'object' ? (rawImp as XmlNode) : null);
   const locales = extractImpuestosLocales(comprobante);
-  let impuestos: CfdiPreviewData['impuestos'] = { ...fb.impuestos, ...(locales.length > 0 ? { locales } : {}) };
+  let impuestos: CfdiPreviewData['impuestos'] =
+    !compImp && (tipoComp === 'P' || tipoComp === 'N')
+      ? {
+          totalImpuestosTrasladados: 0,
+          totalImpuestosRetenidos: 0,
+          traslados: [],
+          retenciones: [],
+          ...(locales.length > 0 ? { locales } : {})
+        }
+      : { ...fb.impuestos, ...(locales.length > 0 ? { locales } : {}) };
   if (compImp) {
     const traslados = compImp.Traslados ? findNodes(compImp.Traslados, 'Traslado').map(mapTaxNode) : [];
     const retenciones = compImp.Retenciones ? findNodes(compImp.Retenciones, 'Retencion').map(mapTaxNode) : [];

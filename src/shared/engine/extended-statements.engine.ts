@@ -51,6 +51,7 @@ function computeNetIncomeFromInitialCents(accounts: readonly AccountWithBalance[
   let isrCents = 0;
 
   for (const a of leaves) {
+    if (a.type === 'ORDEN') continue;
     const balCents = toCents(a.initialBalanceComputed);
     if (a.type === 'INGRESOS') {
       ingresosCents += (a.nature === 'ACREEDORA' ? 1 : -1) * balCents;
@@ -88,8 +89,10 @@ function buildAccountPairs(
 }
 
 function resolveEquityBucket(acc: AccountWithBalance): EquityBucket {
+  if (acc.code.startsWith('301-02')) {
+    return (acc.satGroupCode || '').startsWith('304') ? 'resultadosAcumulados' : 'capitalSocial';
+  }
   const prefix = getSatPrefixNum(acc);
-  if (prefix === 301 && acc.code.startsWith('301-02')) return 'resultadosAcumulados';
   if (prefix === 301) return 'capitalSocial';
   if (prefix === 303) return 'reservaLegal';
   if (prefix === 304) return 'resultadosAcumulados';
@@ -273,11 +276,12 @@ function buildComparativeRows(
 
 function hasNonZeroTrialActivity(accounts: readonly AccountWithBalance[] | null | undefined): boolean {
   if (!accounts || accounts.length === 0) return false;
-  return accounts.some(
+  return selectLeafAccounts(accounts).some(
     (a) =>
-      Math.abs(a.finalBalance) >= 0.01 ||
       Math.abs(a.periodCharges) >= 0.01 ||
-      Math.abs(a.periodCredits) >= 0.01
+      Math.abs(a.periodCredits) >= 0.01 ||
+      Math.abs(a.initialBalanceComputed - a.initialBalance) >= 0.01 ||
+      Math.abs(a.finalBalance - a.initialBalance) >= 0.01
   );
 }
 

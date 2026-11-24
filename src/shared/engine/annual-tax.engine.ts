@@ -3,11 +3,14 @@ import type {
   AnnualTaxDetermination, AnnualTaxInputs, AnnualTaxRegimeType, AnnualTaxSummaryResponse
 } from '../types/annual-tax.types';
 import type { AccountWithBalance, CfdiDocument, Company } from '../types/core.types';
+import type { AccountingRuleRecord } from '../types/accounting-rules.types';
+import { getInpcMedioPeriodo } from '../sat-inpc-catalog';
 import { calculateArt106PfIsr } from './art106-tax.engine';
 import {
   computeAnnualInflation,
   pickEvalAccounts,
   resolveAnnualInpcPair,
+  sumMonthlyIsrRetentionChargesCents,
   truncate4
 } from './annual-tax-balances.helper';
 import { computeCashBasisFiscalSummary } from './cash-basis-fiscal.engine';
@@ -32,6 +35,7 @@ export interface ComputeAnnualTaxParams {
   perdidasFiscalesPendientes?: number;
   isrRetenidoAcreditable?: number;
   cfdis?: readonly CfdiDocument[];
+  rules?: readonly AccountingRuleRecord[];
 }
 
 export function getOfficialUmaAnual(ejercicio: number): number {
@@ -63,7 +67,7 @@ function summarizeLedgerAndReconcile(params: {
   noDeduciblesManual: number;
   deduccionesPersonales: number;
   perdidasPendientes: number;
-  factorActualizacionInpc: number;
+  factorActualizacionPerdidas: number;
   cashOverride?: { ingresosCents: number; deduccionesCents: number; isPfResico: boolean } | null;
 }): {
   ingresosContablesCents: number;
@@ -133,7 +137,7 @@ function summarizeLedgerAndReconcile(params: {
   const dedFiscNoContCents = depFiscalCents + ajusteDedCents;
   const cashOv = params.cashOverride;
   const netCashDeductiblesCents = cashOv
-    ? Math.max(0, cashOv.deduccionesCents + nonCfdiImssIsnCents - noDedManualCents - noDeducibles801Cents)
+    ? Math.max(0, cashOv.deduccionesCents + nonCfdiImssIsnCents - noDedManualCents)
     : 0;
   const utilidadFiscalAntesPtuCents = cashOv
     ? cashOv.isPfResico
@@ -147,7 +151,7 @@ function summarizeLedgerAndReconcile(params: {
   const utilidadFiscalCents = cashOv?.isPfResico
     ? utilidadFiscalAntesPtuCents
     : utilidadFiscalAntesPtuCents - ptuPagadaCents;
-  const perdidasActCents = Math.round(perdidasPendCents * params.factorActualizacionInpc);
+  const perdidasActCents = Math.round(perdidasPendCents * params.factorActualizacionPerdidas);
   const perdidasAplicadasCents =
     !cashOv?.isPfResico && utilidadFiscalCents > 0
       ? Math.min(utilidadFiscalCents, perdidasActCents)
@@ -229,10 +233,15 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
     ? inflation.inpcCierreActual / inflation.inpcCierreAnterior
     : 1;
   const factorActualizacionInpc = Math.max(1, truncate4(rawUpdateFactor));
+  const inpcJunio = getInpcMedioPeriodo(ejercicio, 6);
+  const rawLossFactor = inflation.inpcCierreAnterior > 0 && inpcJunio >= inflation.inpcCierreAnterior
+    ? inpcJunio / inflation.inpcCierreAnterior
+    : 1;
+  const factorActualizacionPerdidas = Math.max(1, truncate4(rawLossFactor));
   const resolvedInputs = buildResolvedInputs(company.id, ejercicio, inflation, inputs);
   const cashSummary =
     tipoRegimenAnual !== 'PM_GENERAL' && params.cfdis && params.cfdis.length > 0
-      ? computeCashBasisFiscalSummary({ company, ejercicio, periodo: 12, cfdis: params.cfdis })
+      ? computeCashBasisFiscalSummary({ company, ejercicio, periodo: 12, cfdis: params.cfdis, rules: params.rules })
       : null;
 
   const { ingresosContablesCents, noDeduciblesManualCents, noDeducibles801Cents, ptuBaseOverrideCents, reconciliation } =
@@ -247,7 +256,7 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
       noDeduciblesManual: resolvedInputs.noDeduciblesManual,
       deduccionesPersonales: resolvedInputs.deduccionesPersonales ?? 0,
       perdidasPendientes: params.perdidasFiscalesPendientes ?? 0,
-      factorActualizacionInpc,
+      factorActualizacionPerdidas,
       cashOverride: cashSummary
         ? {
             ingresosCents: toCents(cashSummary.ingresosAcumulados),
@@ -274,7 +283,12 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
 
   const pagosPreviosCents = Math.max(0, toCents(paymentsProvisioned));
   const cashRetCents = cashSummary ? toCents(cashSummary.isrRetenidoFavorAcumulado ?? 0) : 0;
-  const isrRetenidoCents = Math.max(toCents(params.isrRetenidoAcreditable ?? 0), cashRetCents);
+  const tbRetChargesCents = sumMonthlyIsrRetentionChargesCents(monthlyBalancesByPeriod);
+  const isrRetenidoCents = Math.max(
+    toCents(params.isrRetenidoAcreditable ?? 0),
+    cashRetCents,
+    tbRetChargesCents
+  );
   const isrCargoFavorCents = isrAnualCausadoCents - pagosPreviosCents - isrRetenidoCents;
   const ptuBaseCents = ptuBaseOverrideCents ?? Math.max(0, toCents(reconciliation.utilidadFiscalAntesPtu));
   const utilidadFiscalCents = toCents(reconciliation.utilidadFiscal);

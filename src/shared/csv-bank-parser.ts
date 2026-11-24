@@ -125,14 +125,17 @@ export interface ParsedBankStatementRow {
 
 function parseCleanMoney(val: string | undefined): number {
   if (!val) return 0;
-  let clean = val.trim();
+  let clean = val.replace(/(?:usd|eur|mxn)/gi, '').replace(/[$,\s]/g, '');
+  if (!clean || clean === '-') return 0;
   const isParensNegative = /^\(.*\)$/.test(clean);
   if (isParensNegative) clean = clean.slice(1, -1);
-  clean = clean.replace(/[$,\s]|mxn/gi, '');
+  const isTrailingNegative = clean.endsWith('-') && clean.length > 1;
+  if (isTrailingNegative) clean = clean.slice(0, -1);
   if (!clean || clean === '-') return 0;
   const num = Number(clean);
   if (!Number.isFinite(num)) return 0;
-  const signed = isParensNegative ? -Math.abs(num) : num;
+  const isNegative = isParensNegative || isTrailingNegative || num < 0;
+  const signed = isNegative ? -Math.abs(num) : Math.abs(num);
   return Number(signed.toFixed(2));
 }
 
@@ -201,7 +204,7 @@ function buildSignedAmountRow(
  */
 export function parseBankStatementCsv(
   csvText: string,
-  fallbackDate: string,
+  _fallbackDate: string,
   maxRows: number = SAFETY_BOUNDS.MAX_CSV_ROWS
 ): ParsedBankStatementRow[] {
   const rawLines = csvText
@@ -252,7 +255,8 @@ export function parseBankStatementCsv(
     if (cols.length < 3) continue;
 
     if (colMap) {
-      const fecha = parseBankCsvDate(cols[colMap.fechaIdx], fallbackDate);
+      const fecha = parseBankCsvDate(cols[colMap.fechaIdx], '');
+      if (!fecha) continue;
       const descripcion = (colMap.descIdx >= 0 ? cols[colMap.descIdx] : '') || `Movimiento importado CSV #${i}`;
       const referencia = (colMap.refIdx >= 0 ? cols[colMap.refIdx] : '') || `CSV-${100 + i}`;
 
@@ -269,7 +273,8 @@ export function parseBankStatementCsv(
       continue;
     }
 
-    const fecha = parseBankCsvDate(cols[0], fallbackDate);
+    const fecha = parseBankCsvDate(cols[0], '');
+    if (!fecha) continue;
     if (cols.length >= 5) {
       const cargoBanco = Math.abs(parseCleanMoney(cols[3]));
       const abonoBanco = Math.abs(parseCleanMoney(cols[4]));

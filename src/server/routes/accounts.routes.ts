@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
+import { readBodyCompanyId, readQueryCompanyId, rejectNonStringBodyCompanyId } from '../auth-actor';
 import {
   batchImportAccountsCatalog,
   computeTrialBalance,
   createAccountRecord,
+  db,
   deleteAccountRecord,
   getAccountLedger,
   updateAccountRecord
@@ -12,14 +14,17 @@ import {
   validateAccountCreatePayload,
   validateAccountUpdatePayload
 } from '../validators';
-import { errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
+import { assertRouteCompanyAccess, errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
 import type { AccountNature, AccountType } from '../../shared/types';
 
 export const accountsRoutes = new Hono();
 
 accountsRoutes.get('/accounts', (c) => {
-  const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getAuthorizedCompanyForRoute(c, companyId);
+  const q = readQueryCompanyId(c);
+  if (!q.ok) return q.response;
+  const denied = assertRouteCompanyAccess(c, q.companyId);
+  if (denied) return denied;
+  const company = getAuthorizedCompanyForRoute(c, q.companyId);
   if (!company) return c.json([], 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -32,8 +37,11 @@ accountsRoutes.get('/accounts', (c) => {
 
 accountsRoutes.get('/accounts/:id/ledger', (c) => {
   const accountId = c.req.param('id');
-  const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getAuthorizedCompanyForRoute(c, companyId);
+  const q = readQueryCompanyId(c);
+  if (!q.ok) return q.response;
+  const denied = assertRouteCompanyAccess(c, q.companyId);
+  if (denied) return denied;
+  const company = getAuthorizedCompanyForRoute(c, q.companyId);
   if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
   const { year, period } = resolveYearAndPeriod(
@@ -54,7 +62,12 @@ accountsRoutes.get('/accounts/:id/ledger', (c) => {
 
 accountsRoutes.post('/accounts', async (c) => {
   try {
-    const payload = validateAccountCreatePayload(await c.req.json());
+    const raw = (await c.req.json()) as Record<string, unknown>;
+    const nonStr = rejectNonStringBodyCompanyId(c, raw);
+    if (nonStr) return nonStr;
+    const payload = validateAccountCreatePayload(raw);
+    const denied = assertRouteCompanyAccess(c, payload.companyId, { requireWrite: true });
+    if (denied) return denied;
     const created = createAccountRecord(payload);
     return c.json(created, 201);
   } catch (err) {
@@ -66,7 +79,17 @@ accountsRoutes.post('/accounts', async (c) => {
 accountsRoutes.put('/accounts/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const payload = validateAccountUpdatePayload(await c.req.json());
+    const raw = (await c.req.json()) as Record<string, unknown>;
+    const nonStr = rejectNonStringBodyCompanyId(c, raw);
+    if (nonStr) return nonStr;
+    const row = db
+      .query('SELECT company_id FROM accounts WHERE id = ?')
+      .get(id) as { company_id?: string } | null;
+    if (!row?.company_id) return c.json({ error: 'Cuenta no encontrada.' }, 404);
+    const denied = assertRouteCompanyAccess(c, row.company_id, { requireWrite: true });
+    if (denied) return denied;
+
+    const payload = validateAccountUpdatePayload(raw);
     const updated = updateAccountRecord(id, payload);
     if (!updated) return c.json({ error: 'Cuenta no encontrada.' }, 404);
     return c.json({ updated: true });
@@ -78,6 +101,13 @@ accountsRoutes.put('/accounts/:id', async (c) => {
 
 accountsRoutes.delete('/accounts/:id', (c) => {
   const id = c.req.param('id');
+  const row = db
+    .query('SELECT company_id FROM accounts WHERE id = ?')
+    .get(id) as { company_id?: string } | null;
+  if (!row?.company_id) return c.json({ error: 'Cuenta no encontrada.' }, 404);
+  const denied = assertRouteCompanyAccess(c, row.company_id, { requireWrite: true });
+  if (denied) return denied;
+
   const res = deleteAccountRecord(id);
   if (res.hasMovements) {
     return c.json(
@@ -100,7 +130,11 @@ accountsRoutes.delete('/accounts/:id', (c) => {
 accountsRoutes.post('/accounts/batch-import', async (c) => {
   try {
     const body = (await c.req.json()) as Record<string, unknown>;
-    const companyId = String(body.companyId ?? 'comp_tnn_01');
+    const cid = readBodyCompanyId(c, body);
+    if (!cid.ok) return cid.response;
+    const denied = assertRouteCompanyAccess(c, cid.companyId, { requireWrite: true });
+    if (denied) return denied;
+
     const rows = Array.isArray(body.rows)
       ? (body.rows as Array<{
           code: string;
@@ -113,7 +147,7 @@ accountsRoutes.post('/accounts/batch-import', async (c) => {
           initialBalance?: number;
         }>)
       : [];
-    const res = batchImportAccountsCatalog(companyId, rows);
+    const res = batchImportAccountsCatalog(cid.companyId, rows);
     return c.json(res, 201);
   } catch (err) {
     const { message, status } = errorStatus(err);

@@ -2,6 +2,36 @@ import { db, type PolizaDbRow, type PolizaMovementDbRow } from '../connection';
 import { fromCents, sumCents } from '../../shared/accounting-engine';
 import type { Poliza, PolizaMovement } from '../../shared/types';
 
+export function reconcileRemovedPolizaCfdisTx(
+  dbConn: typeof db,
+  companyId: string,
+  polizaId: string,
+  removedUuids: ReadonlyArray<string>
+): void {
+  if (removedUuids.length === 0) return;
+  const findRemainingFromLinks = dbConn.prepare(
+    'SELECT poliza_id FROM poliza_cfdis WHERE company_id = ? AND UPPER(cfdi_uuid) = ? AND poliza_id != ? LIMIT 1'
+  );
+  const findRemainingFromPolizas = dbConn.prepare(
+    'SELECT id FROM polizas WHERE company_id = ? AND UPPER(cfdi_uuid) = ? AND id != ? LIMIT 1'
+  );
+  const updateCfdiDoc = dbConn.prepare(
+    'UPDATE cfdi_documents SET poliza_id = ? WHERE company_id = ? AND poliza_id = ? AND UPPER(uuid) = ?'
+  );
+  for (const rawUuid of removedUuids) {
+    const clean = rawUuid.trim().toUpperCase();
+    if (!clean) continue;
+    const linkRow = findRemainingFromLinks.get(companyId, clean, polizaId) as
+      | { poliza_id: string }
+      | undefined;
+    const headerRow = !linkRow
+      ? (findRemainingFromPolizas.get(companyId, clean, polizaId) as { id: string } | undefined)
+      : undefined;
+    const remainingPolizaId = linkRow?.poliza_id ?? headerRow?.id ?? null;
+    updateCfdiDoc.run(remainingPolizaId, companyId, polizaId, clean);
+  }
+}
+
 export function syncPolizaCfdisTx(
   dbConn: typeof db,
   companyId: string,
@@ -11,18 +41,15 @@ export function syncPolizaCfdisTx(
 ): void {
   const nextSet = new Set(nextUuids);
   const removed = prevUuids.filter((u) => !nextSet.has(u));
-  if (removed.length > 0) {
-    const ph = removed.map(() => '?').join(',');
-    dbConn
-      .prepare(`UPDATE cfdi_documents SET poliza_id = NULL WHERE company_id = ? AND poliza_id = ? AND uuid IN (${ph})`)
-      .run(companyId, polizaId, ...removed);
-  }
   dbConn.prepare('DELETE FROM poliza_cfdis WHERE poliza_id = ?').run(polizaId);
+  if (removed.length > 0) {
+    reconcileRemovedPolizaCfdisTx(dbConn, companyId, polizaId, removed);
+  }
   const ins = dbConn.prepare(
     'INSERT OR IGNORE INTO poliza_cfdis (id, company_id, poliza_id, cfdi_uuid) VALUES (?, ?, ?, ?)'
   );
   const upd = dbConn.prepare(
-    'UPDATE cfdi_documents SET poliza_id = ? WHERE company_id = ? AND uuid = ?'
+    'UPDATE cfdi_documents SET poliza_id = ? WHERE company_id = ? AND UPPER(uuid) = ?'
   );
   for (const uuid of nextUuids) {
     ins.run(`pc_${crypto.randomUUID().slice(0, 12)}`, companyId, polizaId, uuid);

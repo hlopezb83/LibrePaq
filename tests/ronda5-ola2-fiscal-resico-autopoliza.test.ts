@@ -419,7 +419,8 @@ describe('Ronda 5 Ola 2 — Día 17 PyME/RESICO, Anual en Flujo, Auto-Póliza FX
       estatus: 'TOTALMENTE_DEPRECIADO',
       createdAt: '2024-07-01'
     };
-    expect(computeAnnualFixedAssetFiscalDeduction([assetFinished2026], 2026)).toBe(30_000);
+    // Art. 31 LISR: 6 meses en 2026 ($30,000) * factor INPC Jun 2026 (145.131 / 130 = 1.1163) = 33,489
+    expect(computeAnnualFixedAssetFiscalDeduction([assetFinished2026], 2026)).toBe(33_489);
     expect(computeAnnualFixedAssetFiscalDeduction([assetFinished2026], 2027)).toBe(0);
 
     // C) buildAnnualMonthlyBalancesFromMovements con movimientos previos usa zeroResultInitialBalances

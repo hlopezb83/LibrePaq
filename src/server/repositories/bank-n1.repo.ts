@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import { db } from '../connection';
-import { fromCents, toCents } from '../../shared/accounting-engine';
+import { fromCents } from '../../shared/accounting-engine';
 import { findManyToOneBankMatches } from '../../shared/engine/bank-n1-matcher';
 import type {
   BankN1ApplyItem,
@@ -12,6 +12,10 @@ import type {
 import { getBankReconciliation } from './bank.repo';
 import { getCompanyById } from './companies.repo';
 import { assertPeriodOpen } from './period-locks.repo';
+import {
+  collectAllMatchedMovementIdsSqlite,
+  isCompatibleBankMovementSign
+} from './bank-reconciliation-helpers';
 
 interface BankN1MatchDbRow {
   id: string;
@@ -89,8 +93,9 @@ export function proposeManyToOneMatchesRepo(
     .all(companyId) as BankN1MatchDbRow[];
 
   const matches = listBankN1MatchesRepo(companyId);
+  const globallyMatchedMovIds = collectAllMatchedMovementIdsSqlite(db, companyId);
   const matchedLineMap = new Map<string, string>();
-  const matchedMovSet = new Set<string>();
+  const matchedMovSet = new Set<string>(globallyMatchedMovIds);
   for (const r of activeRows) {
     if (!matchedLineMap.has(r.bank_line_id)) {
       matchedLineMap.set(r.bank_line_id, r.movement_id);
@@ -133,13 +138,13 @@ export function applyManyToOneMatchesRepo(
   assertPeriodOpen(companyId, effectiveYear, effectivePeriod);
 
   const selectLineStmt = db.prepare(
-    'SELECT id, matched_movement_id FROM bank_statement_lines WHERE id = ? AND company_id = ?'
+    'SELECT id, ejercicio, periodo, cargo_banco, abono_banco, matched_movement_id FROM bank_statement_lines WHERE id = ? AND company_id = ? AND account_id = ?'
   );
   const selectMovStmt = db.prepare(`
     SELECT m.id as movement_id, m.poliza_id, m.cargo, m.abono
     FROM poliza_movements m
     INNER JOIN polizas p ON p.id = m.poliza_id
-    WHERE m.id = ? AND p.company_id = ?
+    WHERE m.id = ? AND p.company_id = ? AND m.account_id = ?
   `);
   const insertMatchStmt = db.prepare(`
     INSERT INTO bank_statement_matches (
@@ -151,10 +156,11 @@ export function applyManyToOneMatchesRepo(
       created_at = datetime('now')
   `);
   const updateLineStmt = db.prepare(
-    'UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ? AND company_id = ?'
+    'UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ? AND company_id = ? AND matched_movement_id IS NULL'
   );
 
   const matchedLineIds: string[] = [];
+  const globallyMatchedMovIds = collectAllMatchedMovementIdsSqlite(db, companyId);
 
   const tx = db.transaction(() => {
     for (const item of items) {
@@ -163,31 +169,68 @@ export function applyManyToOneMatchesRepo(
       const uniqueIds = [...new Set(movementIds.filter(Boolean))];
       if (uniqueIds.length < 2) continue;
 
-      const lineRow = selectLineStmt.get(item.bankLineId, companyId) as {
+      const lineRow = selectLineStmt.get(item.bankLineId, companyId, accountId) as {
         id: string;
+        ejercicio: number;
+        periodo: number;
+        cargo_banco: number;
+        abono_banco: number;
         matched_movement_id: string | null;
       } | null;
       if (!lineRow || lineRow.matched_movement_id) continue;
 
-      const resolvedMovs: Array<{ movementId: string; polizaId: string; amount: number }> = [];
+      assertPeriodOpen(companyId, Number(lineRow.ejercicio), Number(lineRow.periodo));
+
+      const lineSign = isCompatibleBankMovementSign({
+        cargoBanco: Number(lineRow.cargo_banco),
+        abonoBanco: Number(lineRow.abono_banco),
+        cargoContable: Number(lineRow.abono_banco) > 0 ? 1 : 0,
+        abonoContable: Number(lineRow.cargo_banco) > 0 ? 1 : 0
+      });
+      if (!lineSign.direction || lineSign.bankAmountCents <= 0) continue;
+
+      const resolvedMovs: Array<{ movementId: string; polizaId: string; amount: number; cents: number }> = [];
+      let allValid = true;
       for (const movId of uniqueIds) {
-        const movRow = selectMovStmt.get(movId, companyId) as {
+        if (globallyMatchedMovIds.has(movId)) {
+          allValid = false;
+          break;
+        }
+        const movRow = selectMovStmt.get(movId, companyId, accountId) as {
           movement_id: string;
           poliza_id: string;
           cargo: number;
           abono: number;
         } | null;
-        if (!movRow) continue;
-        const cents = toCents(movRow.cargo) > 0 ? toCents(movRow.cargo) : toCents(movRow.abono);
-        if (cents <= 0) continue;
+        if (!movRow) {
+          allValid = false;
+          break;
+        }
+        const signCheck = isCompatibleBankMovementSign({
+          cargoBanco: Number(lineRow.cargo_banco),
+          abonoBanco: Number(lineRow.abono_banco),
+          cargoContable: Number(movRow.cargo),
+          abonoContable: Number(movRow.abono)
+        });
+        if (!signCheck.compatible || signCheck.bookAmountCents <= 0) {
+          allValid = false;
+          break;
+        }
         resolvedMovs.push({
           movementId: movRow.movement_id,
           polizaId: movRow.poliza_id,
-          amount: fromCents(cents)
+          amount: fromCents(signCheck.bookAmountCents),
+          cents: signCheck.bookAmountCents
         });
       }
 
-      if (resolvedMovs.length < 2) continue;
+      if (!allValid || resolvedMovs.length < 2) continue;
+
+      const totalMovCents = resolvedMovs.reduce((acc, m) => acc + m.cents, 0);
+      if (Math.abs(totalMovCents - lineSign.bankAmountCents) > 5) continue;
+
+      const updRes = updateLineStmt.run(resolvedMovs[0]?.movementId ?? null, item.bankLineId, companyId);
+      if (updRes.changes === 0) continue;
 
       for (const mov of resolvedMovs) {
         insertMatchStmt.run(
@@ -198,8 +241,8 @@ export function applyManyToOneMatchesRepo(
           mov.polizaId,
           mov.amount
         );
+        globallyMatchedMovIds.add(mov.movementId);
       }
-      updateLineStmt.run(resolvedMovs[0]?.movementId ?? null, item.bankLineId, companyId);
       matchedLineIds.push(item.bankLineId);
     }
   });

@@ -6,6 +6,7 @@ import type {
 import { isDemoCompanyRecord, isSatErrorCode } from '../../shared/admin-constants';
 import { normalizePlatformRole } from '../../shared/superadmin';
 import { invokeAdminEdge } from './supabase-edge-helper';
+import { fetchAllRows } from './supabase-pagination';
 
 type Row = Record<string, unknown>;
 
@@ -33,22 +34,27 @@ async function insertAuditFallback(payload: {
 }
 
 async function buildSatHealthFallback(): Promise<AdminSatHealthResponse> {
-  if (!supabase) throw new Error('Supabase no disponible');
+  const client = supabase;
+  if (!client) throw new Error('Supabase no disponible');
   const since7dIso = new Date(Date.now() - 7 * 86400000).toISOString();
-  const [req7dRes, recentRes, compRes, fielRes] = await Promise.all([
-    supabase.from('sat_download_requests').select('*').gte('created_at', since7dIso),
-    supabase.from('sat_download_requests').select('*').order('created_at', { ascending: false }).limit(25),
-    supabase.from('companies').select('id, name, rfc'),
-    supabase.from('fiel_credentials').select('company_id, rfc_titular, numero_serie, valid_to')
+  const [reqs7d, recentRes, compRows, fielRows] = await Promise.all([
+    fetchAllRows<Row>((from, to) =>
+      client.from('sat_download_requests').select('*').gte('created_at', since7dIso).order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)
+    ),
+    client.from('sat_download_requests').select('*').order('created_at', { ascending: false }).limit(25),
+    fetchAllRows<Row>((from, to) =>
+      client.from('companies').select('id, name, rfc').order('id', { ascending: true }).range(from, to)
+    ).catch(() => [] as Row[]),
+    fetchAllRows<Row>((from, to) =>
+      client.from('fiel_credentials').select('company_id, rfc_titular, numero_serie, valid_to').order('company_id', { ascending: true }).range(from, to)
+    ).catch(() => [] as Row[])
   ]);
-  if (req7dRes.error) throw new Error(req7dRes.error.message);
 
   const compMap = new Map<string, { name: string; rfc: string }>();
-  for (const c of (compRes.data || []) as Row[]) compMap.set(String(c.id), { name: String(c.name || ''), rfc: String(c.rfc || '') });
+  for (const c of compRows) compMap.set(String(c.id), { name: String(c.name || ''), rfc: String(c.rfc || '') });
 
   let completed = 0, pending = 0, failed = 0;
   const errCounts = new Map<string, number>();
-  const reqs7d = (req7dRes.data || []) as Row[];
   for (const r of reqs7d) {
     const st = String(r.estado_solicitud || '').toUpperCase();
     const code = String(r.codigo_estado_sat || '').trim() || 'UNKNOWN';
@@ -58,7 +64,7 @@ async function buildSatHealthFallback(): Promise<AdminSatHealthResponse> {
     if (isSatErrorCode(r.estado_solicitud, r.codigo_estado_sat)) errCounts.set(code, (errCounts.get(code) || 0) + 1);
   }
 
-  const expiringFiels = ((fielRes.data || []) as Row[])
+  const expiringFiels = fielRows
     .filter((f) => Boolean(f.valid_to))
     .map((f) => {
       const cid = String(f.company_id), validTo = String(f.valid_to);

@@ -30,7 +30,7 @@ import type {
   TaxParametersRecord,
   ThirdPartyRecord
 } from '../../shared/types';
-import { getGuestDemoState } from './guest-demo-store';
+import { assertDemoPeriodOpen, getGuestDemoState } from './guest-demo-store';
 
 function getComp(companyId: string) {
   const s = getGuestDemoState();
@@ -78,6 +78,7 @@ export const guestDemoExtras = {
   async saveTaxParameters(payload: TaxParametersRecord): Promise<TaxParametersRecord> {
     const s = getGuestDemoState();
     const p = payload.periodo ?? 0;
+    if (p > 0) assertDemoPeriodOpen(payload.companyId, payload.ejercicio, p);
     s.taxParameters = s.taxParameters.filter((t) => !(t.companyId === payload.companyId && t.ejercicio === payload.ejercicio && (t.periodo ?? 0) === p));
     const saved = { ...payload, periodo: p };
     s.taxParameters.push(saved);
@@ -154,6 +155,8 @@ export const guestDemoExtras = {
         referencia: m.referencia, concepto: m.concepto, cargoContable: m.cargo, abonoContable: m.abono,
         isMatched: matchedIds.has(m.id) || lines.some((l) => l.matchedMovementId === m.id)
       })));
+    const closureKey = `${comp.id}:${bankAcc.id}:${y}:${p}`;
+    const saldoBancoCierre = closureKey in s.bankClosures ? s.bankClosures[closureKey] : null;
     return {
       account: resolvedBankAcc,
       ejercicio: y, periodo: p, statementLines: lines, bookMovements,
@@ -164,7 +167,8 @@ export const guestDemoExtras = {
         totalRetirosBanco: fromCents(lines.reduce((acc, l) => acc + toCents(l.cargoBanco), 0)),
         movimientosConciliados: lines.filter((l) => l.matchedMovementId).length,
         movimientosPendientesBanco: lines.filter((l) => !l.matchedMovementId).length,
-        movimientosPendientesLibros: bookMovements.filter((b) => !b.isMatched).length
+        movimientosPendientesLibros: bookMovements.filter((b) => !b.isMatched).length,
+        saldoBancoCierre
       }
     };
   },
@@ -245,6 +249,7 @@ export const guestDemoExtras = {
   },
 
   async saveAnnualTaxInputs(companyId: string, payload: AnnualTaxInputs) {
+    assertDemoPeriodOpen(companyId, payload.ejercicio, 12);
     const s = getGuestDemoState();
     s.annualSnapshots = [...s.annualSnapshots.filter((sn) => !(sn.companyId === companyId && sn.ejercicio === payload.ejercicio)), payload];
     return this.getAnnualTaxSummary(companyId, payload.ejercicio);
@@ -274,6 +279,7 @@ export const guestDemoExtras = {
     const comp = getComp(companyId);
     const y = payload.ejercicio || comp.currentYear;
     const p = payload.periodo || comp.currentPeriod;
+    assertDemoPeriodOpen(companyId, y, p);
     const initInv = Number(payload.initialInventory ?? 0);
     const finInv = Number(payload.finalInventory ?? 0);
     const ov = payload.purchasesOverride ?? null;

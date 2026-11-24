@@ -1,5 +1,5 @@
 import writeXlsx, { type SheetData } from 'write-excel-file/browser';
-import { sanitizeSpreadsheetText } from '../shared/date-utils';
+import { getFirstDateForPeriod, sanitizeSpreadsheetText } from '../shared/date-utils';
 import type { Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../shared/types';
 import type { ExtendedFinancialStatementsResponse } from '../shared/types/extended-statements.types';
 import {
@@ -76,7 +76,7 @@ export async function exportAccountLedgerXlsx(
       { value: 'Saldo Progresivo', fontWeight: 'bold', align: 'right' }
     ],
     [
-      sCell(`${data.ejercicio}-${String(data.periodo).padStart(2, '0')}-01`),
+      sCell(getFirstDateForPeriod(data.ejercicio, data.periodo)),
       sCell('SALDO INICIAL'),
       sCell(data.account.code),
       sCell(data.account.name),

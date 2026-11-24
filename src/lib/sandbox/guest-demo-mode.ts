@@ -4,6 +4,13 @@ let guestDemoEnabled = false;
 
 export function setGuestDemoMode(enabled: boolean): void {
   guestDemoEnabled = enabled;
+  if (!enabled && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(GUEST_DEMO_STORAGE_KEY);
+    } catch {
+      // Ignorar errores de almacenamiento en contextos restringidos
+    }
+  }
 }
 
 export function isGuestDemoMode(): boolean {

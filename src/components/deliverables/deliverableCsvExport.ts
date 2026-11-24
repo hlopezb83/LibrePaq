@@ -72,32 +72,34 @@ export function exportAllDeliverablesCsv({
     const rifNeto = er.rifNeto ?? 0;
     const uai = er.utilidadAntesImpuestos ?? utilOp + rifNeto;
     const totalIsr = er.totalIsr ?? 0;
+    const safePct = (val: number) =>
+      !er.totalIngresos || Math.abs(er.totalIngresos) < 0.01 ? '0.0%' : formatVerticalPct(val, er.totalIngresos);
     const filterEr = (list: AccountWithBalance[], expected: 'DEUDORA' | 'ACREEDORA') =>
       hideZeroAccounts ? list.filter((a) => Math.abs(a.finalBalance) >= 0.01 || Math.abs(signedMes(a, expected)) >= 0.01) : list;
     const mapEr = (rubro: string, a: AccountWithBalance, expected: 'DEUDORA' | 'ACREEDORA') => {
       const ytd = signedBal(a, expected);
-      return [rubro, a.code, a.name, signedMes(a, expected), ytd, formatVerticalPct(ytd, er.totalIngresos)];
+      return [rubro, a.code, a.name, signedMes(a, expected), ytd, safePct(ytd)];
     };
 
     const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Del Mes MXN', 'Acum. Ejercicio MXN', '% s/Ventas'];
     const erRows: Array<Array<string | number>> = [
       ...filterEr(er.ingresos, 'ACREEDORA').map((a) => mapEr('INGRESOS', a, 'ACREEDORA')),
-      ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos, '100.0%'],
+      ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos, safePct(er.totalIngresos)],
       ...filterEr(er.costos, 'DEUDORA').map((a) => mapEr('COSTOS', a, 'DEUDORA')),
-      ['TOTAL COSTOS', '', 'Costo de Ventas', p?.totalCostos ?? 0, er.totalCostos, formatVerticalPct(er.totalCostos, er.totalIngresos)],
-      ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, er.utilidadBruta, formatVerticalPct(er.utilidadBruta, er.totalIngresos)],
+      ['TOTAL COSTOS', '', 'Costo de Ventas', p?.totalCostos ?? 0, er.totalCostos, safePct(er.totalCostos)],
+      ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, er.utilidadBruta, safePct(er.utilidadBruta)],
       ...filterEr(er.gastos, 'DEUDORA').map((a) => mapEr('GASTOS', a, 'DEUDORA')),
-      ['TOTAL GASTOS', '', 'Gastos Generales de Operación', p?.totalGastos ?? 0, er.totalGastos, formatVerticalPct(er.totalGastos, er.totalIngresos)],
-      ['UTILIDAD OPERACION', '', 'Utilidad de Operación (NIF B-3)', p?.utilidadOperativa ?? 0, utilOp, formatVerticalPct(utilOp, er.totalIngresos)],
+      ['TOTAL GASTOS', '', 'Gastos Generales de Operación', p?.totalGastos ?? 0, er.totalGastos, safePct(er.totalGastos)],
+      ['UTILIDAD OPERACION', '', 'Utilidad de Operación (NIF B-3)', p?.utilidadOperativa ?? 0, utilOp, safePct(utilOp)],
       ...filterEr(er.rifProductos ?? [], 'ACREEDORA').map((a) => mapEr('RIF PRODUCTOS', a, 'ACREEDORA')),
       ...filterEr(er.rifGastos ?? [], 'DEUDORA').map((a) => mapEr('RIF GASTOS', a, 'DEUDORA')),
-      ['RIF NETO', '', 'Resultado Integral de Financiamiento', p?.rifNeto ?? 0, rifNeto, formatVerticalPct(rifNeto, er.totalIngresos)],
-      ['UAI', '', 'Utilidad antes de Impuestos', p?.utilidadAntesImpuestos ?? 0, uai, formatVerticalPct(uai, er.totalIngresos)],
+      ['RIF NETO', '', 'Resultado Integral de Financiamiento', p?.rifNeto ?? 0, rifNeto, safePct(rifNeto)],
+      ['UAI', '', 'Utilidad antes de Impuestos', p?.utilidadAntesImpuestos ?? 0, uai, safePct(uai)],
       ...filterEr(er.isrEjercicio ?? [], 'DEUDORA').map((a) => mapEr('ISR EJERCICIO', a, 'DEUDORA')),
       ...(totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
-        ? [['PROVISION ISR', '', 'Provisión ISR del Ejercicio (NIF D-4)', p?.totalIsr ?? 0, totalIsr, formatVerticalPct(totalIsr, er.totalIngresos)]]
+        ? [['PROVISION ISR', '', 'Provisión ISR del Ejercicio (NIF D-4)', p?.totalIsr ?? 0, totalIsr, safePct(totalIsr)]]
         : []),
-      ['UTILIDAD NETA', '', 'Utilidad Neta del Ejercicio (NIF B-3)', p?.utilidadNeta ?? 0, er.utilidadNeta, formatVerticalPct(er.utilidadNeta, er.totalIngresos)]
+      ['UTILIDAD NETA', '', 'Utilidad Neta del Ejercicio (NIF B-3)', p?.utilidadNeta ?? 0, er.utilidadNeta, safePct(er.utilidadNeta)]
     ];
     files['Estado_Resultados.csv'] = strToU8(buildCsvContent(erHeaders, erRows));
   }
@@ -155,30 +157,45 @@ export function buildPapelFiscalCsvRows(
 
   const isrRows: Array<Array<string | number>> = [
     ['Régimen Fiscal', company.regimenFiscal, ''],
-    ['Ingresos Cobrados / Nominales Periodo', isResico ? 'Flujo de Efectivo RESICO' : isPfGeneral ? 'Art. 106 LISR' : 'Art. 16 / 17 LISR', isr.ingresosPeriodo],
-    ['Ingresos Acumulados del Ejercicio', 'Acumulado Anual', isr.ingresosAcumuladosEjercicio]
+    [
+      'Ingresos Cobrados / Nominales Periodo',
+      isResicoPf ? 'Art. 113-E LISR (Flujo Mensual)' : isResico ? 'Flujo de Efectivo RESICO' : isPfGeneral ? 'Art. 106 LISR' : 'Art. 16 / 17 LISR',
+      isr.ingresosPeriodo
+    ],
+    ...(!isResicoPf
+      ? [['Ingresos Acumulados del Ejercicio', 'Acumulado Anual', isr.ingresosAcumuladosEjercicio] as Array<string | number>]
+      : [])
   ];
 
   if (isResicoPm || isPfGeneral) {
     isrRows.push(
       ['(-) Deducciones Autorizadas Periodo', 'Flujo de Efectivo', -isr.deduccionesAutorizadasPeriodo],
       ['(-) Deducciones Acumuladas Ejercicio', 'Acumulado Anual', -dedAcum],
+      ...((isr.ptuPagadaAplicada ?? 0) > 0
+        ? [['(-) PTU Pagada Deducible', 'Art. 14 / 106 LISR', -(isr.ptuPagadaAplicada ?? 0)] as Array<string | number>]
+        : []),
       ['(=) Utilidad Fiscal (Ingresos - Deducciones)', 'Base Gravable', isr.utilidadFiscalEstimada]
     );
   } else if (!isResicoPf) {
     isrRows.push(
       ['Coeficiente de Utilidad Aplicado', 'Art. 14 LISR', (isr.coeficienteUtilidadAplicado * 100).toFixed(4) + '%'],
+      ...((isr.ptuPagadaAplicada ?? 0) > 0
+        ? [['(-) PTU Pagada Deducible', 'Art. 14 / 106 LISR', -(isr.ptuPagadaAplicada ?? 0)] as Array<string | number>]
+        : []),
       ['Utilidad Fiscal Estimada', 'Base Gravable', isr.utilidadFiscalEstimada]
     );
   }
 
   if (!isResicoPf) isrRows.push(['(-) Pérdidas Fiscales Aplicadas', 'Art. 57 LISR', -isr.perdidasFiscalesAplicadas]);
 
-  isrRows.push([
-    'ISR Causado Periodo',
-    isResico ? `RESICO Tasa ${isr.tasaIsrPct}%` : isPfGeneral ? 'Tarifa Art. 106 LISR' : `Tasa ${isr.tasaIsrPct}% Art. 9 LISR`,
-    isr.isrCausado
-  ]);
+  isrRows.push(
+    ['(=) Base Gravable ISR', isResicoPf ? 'Art. 113-E LISR (Mensual)' : isPfGeneral ? 'Tarifa Art. 106 LISR' : 'Base Gravable ISR', isr.baseGravableIsr],
+    [
+      'ISR Causado Periodo',
+      isResicoPf ? `RESICO PF Mensual Tasa ${isr.tasaIsrPct}%` : isResico ? `RESICO Tasa ${isr.tasaIsrPct}%` : isPfGeneral ? 'Tarifa Art. 106 LISR' : `Tasa ${isr.tasaIsrPct}% Art. 9 LISR`,
+      isr.isrCausado
+    ]
+  );
 
   if (!isResicoPf) isrRows.push(['(-) Pagos Provisionales Previos', 'Acreditamiento', -isr.pagosProvisionalesPrevios]);
 

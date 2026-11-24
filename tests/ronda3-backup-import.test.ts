@@ -422,6 +422,17 @@ describe('Ronda 3 — BUG-06 Backup/Restore SQLite & Supabase Mappers', () => {
             }
           };
         }
+        if (table === 'poliza_movements') {
+          return {
+            select() {
+              return {
+                async in() {
+                  return { data: [], error: null };
+                }
+              };
+            }
+          };
+        }
         if (table === 'companies') {
           return {
             select() {

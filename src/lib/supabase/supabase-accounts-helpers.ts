@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunkArray, fetchAllRows } from './supabase-pagination';
+import { isMissingTableError } from './supabase-backup-optional';
 
 /**
  * Resuelve el `organization_id` activo de despacho para una nueva empresa,
@@ -115,8 +116,20 @@ export async function deleteCompanyFallbackInSupabase(
   client: SupabaseClient,
   companyId: string
 ): Promise<void> {
-  const { data: pols } = await client.from('polizas').select('id').eq('company_id', companyId);
-  const polIds = (pols || []).map((p: { id: string }) => p.id);
+  const { error: lockDelErr } = await client.from('period_locks').delete().eq('company_id', companyId);
+  if (lockDelErr && !isMissingTableError(lockDelErr)) {
+    throw new Error(`[Delete period_locks] ${lockDelErr.message}`);
+  }
+
+  const pols = await fetchAllRows<{ id: string }>((from, to) =>
+    client
+      .from('polizas')
+      .select('id')
+      .eq('company_id', companyId)
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  const polIds = pols.map((p) => p.id);
   for (const idChunk of chunkArray(polIds, 100)) {
     const { error: movErr } = await client.from('poliza_movements').delete().in('poliza_id', idChunk);
     if (movErr) throw new Error(movErr.message);
@@ -125,6 +138,8 @@ export async function deleteCompanyFallbackInSupabase(
     'bank_statement_matches',
     'bank_reconciliation_closures',
     'despacho_deliverable_branding',
+    'poliza_cfdis',
+    'payroll_period_settings',
     'inventory_periods',
     'accounting_rules',
     'annual_tax_snapshots',
@@ -134,7 +149,6 @@ export async function deleteCompanyFallbackInSupabase(
     'polizas',
     'fixed_assets',
     'third_parties',
-    'period_locks',
     'tax_parameters',
     'fiel_credentials',
     'sat_download_requests',
@@ -142,7 +156,9 @@ export async function deleteCompanyFallbackInSupabase(
   ];
   for (const table of childTables) {
     const { error: childErr } = await client.from(table).delete().eq('company_id', companyId);
-    if (childErr) throw new Error(`[Delete ${table}] ${childErr.message}`);
+    if (childErr && !isMissingTableError(childErr)) {
+      throw new Error(`[Delete ${table}] ${childErr.message}`);
+    }
   }
   const { error } = await client.from('companies').delete().eq('id', companyId);
   if (error) throw new Error(error.message);

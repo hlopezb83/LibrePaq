@@ -11,6 +11,7 @@ export interface MemberDbRow {
   user_id: string | null;
   email: string;
   role: DespachoRole;
+  access_scope?: 'ALL_COMPANIES' | 'RESTRICTED' | null;
   status: 'ACTIVO' | 'INVITADO' | 'REVOCADO';
   invited_by: string;
   created_at: string;
@@ -45,6 +46,7 @@ export const DESPACHO_RBAC_DDL = `
     user_id TEXT,
     email TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('SOCIO','CONTADOR','AUXILIAR','CLIENTE_LECTURA')),
+    access_scope TEXT NOT NULL DEFAULT 'ALL_COMPANIES' CHECK (access_scope IN ('ALL_COMPANIES','RESTRICTED')),
     status TEXT NOT NULL DEFAULT 'INVITADO' CHECK (status IN ('ACTIVO','INVITADO','REVOCADO')),
     invited_by TEXT NOT NULL,
     created_at TEXT NOT NULL,

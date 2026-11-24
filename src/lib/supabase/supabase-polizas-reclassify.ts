@@ -112,6 +112,7 @@ export const supabasePolizasReclassify = {
       polizaIdSet.add(row.poliza_id);
     }
 
+    const updatedChunks: string[][] = [];
     for (const chunk of chunkArray(matchingIds, 100)) {
       const { error: updErr } = await supabase
         .from('poliza_movements')
@@ -121,7 +122,57 @@ export const supabasePolizasReclassify = {
           account_name: toAcc.name
         })
         .in('id', chunk);
-      if (updErr) throw new Error(updErr.message);
+      if (updErr) {
+        for (const prevChunk of updatedChunks) {
+          await supabase
+            .from('poliza_movements')
+            .update({
+              account_id: fromAcc.id,
+              account_code: fromAcc.code,
+              account_name: fromAcc.name
+            })
+            .in('id', prevChunk);
+        }
+        throw new Error(updErr.message);
+      }
+      updatedChunks.push(chunk);
+    }
+
+    if (String(fromAcc.code || '').trim().startsWith('102')) {
+      for (const idChunk of chunkArray(matchingIds, 100)) {
+        const { data: matchRows, error: matchSelErr } = await supabase
+          .from('bank_statement_matches')
+          .select('bank_line_id')
+          .in('movement_id', idChunk);
+        if (matchSelErr) throw new Error(matchSelErr.message);
+
+        const lineIds = Array.from(
+          new Set(
+            ((matchRows || []) as Array<{ bank_line_id?: string | null }>)
+              .map((r) => r.bank_line_id)
+              .filter((id): id is string => Boolean(id))
+          )
+        );
+        if (lineIds.length > 0) {
+          const { error: lineClearErr } = await supabase
+            .from('bank_statement_lines')
+            .update({ matched_movement_id: null })
+            .in('id', lineIds);
+          if (lineClearErr) throw new Error(lineClearErr.message);
+        }
+
+        const { error: directClearErr } = await supabase
+          .from('bank_statement_lines')
+          .update({ matched_movement_id: null })
+          .in('matched_movement_id', idChunk);
+        if (directClearErr) throw new Error(directClearErr.message);
+
+        const { error: delMatchErr } = await supabase
+          .from('bank_statement_matches')
+          .delete()
+          .in('movement_id', idChunk);
+        if (delMatchErr) throw new Error(delMatchErr.message);
+      }
     }
 
     logCompanyAuditEvent({

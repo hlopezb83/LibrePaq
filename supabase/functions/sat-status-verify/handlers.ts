@@ -408,13 +408,24 @@ function normalizeRfc(raw: string): string {
   return String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
 }
 
-function mapEfosSituacion(raw: unknown): {
+const SITUACION_69B_PRECEDENCE: Record<Sat69BSituacion, number> = {
+  DEFINITIVO: 4,
+  PRESUNTO: 3,
+  DESVIRTUADO: 2,
+  SENTENCIA_FAVORABLE: 1
+};
+
+function parseValidEfosSituacion(raw: unknown): {
   situacion: Sat69BSituacion;
   estatus69b: ThirdParty69BStatus;
-} {
+} | null {
   const upper = String(raw || '').trim().toUpperCase();
+  if (!upper) return null;
   if (upper.includes('DEFINITIV')) {
     return { situacion: 'DEFINITIVO', estatus69b: 'DEFINITIVO_EFOS' };
+  }
+  if (upper.includes('PRESUNT')) {
+    return { situacion: 'PRESUNTO', estatus69b: 'PRESUNTO_EFOS' };
   }
   if (upper.includes('DESVIRTUAD')) {
     return { situacion: 'DESVIRTUADO', estatus69b: 'DESVIRTUADO' };
@@ -422,7 +433,14 @@ function mapEfosSituacion(raw: unknown): {
   if (upper.includes('SENTENCIA') || upper.includes('FAVORABLE')) {
     return { situacion: 'SENTENCIA_FAVORABLE', estatus69b: 'LIMPIO' };
   }
-  return { situacion: 'PRESUNTO', estatus69b: 'PRESUNTO_EFOS' };
+  return null;
+}
+
+function mapEfosSituacion(raw: unknown): {
+  situacion: Sat69BSituacion;
+  estatus69b: ThirdParty69BStatus;
+} {
+  return parseValidEfosSituacion(raw) ?? { situacion: 'PRESUNTO', estatus69b: 'PRESUNTO_EFOS' };
 }
 
 /** Consulta RFCs en `public.sat_efos_69b` y sincroniza `third_parties.estatus_69b` de la empresa. */
@@ -593,13 +611,18 @@ export async function handleUpsert69BBatch(
   for (const raw of payload.records) {
     const rfc = normalizeRfc(raw?.rfc || '');
     if (!RFC_69B_REGEX.test(rfc)) continue;
-    const { situacion } = mapEfosSituacion(raw?.situacion);
+    const parsed = parseValidEfosSituacion(raw?.situacion);
+    if (!parsed) continue;
+    const prev = deduped.get(rfc);
+    if (prev && SITUACION_69B_PRECEDENCE[prev.situacion] > SITUACION_69B_PRECEDENCE[parsed.situacion]) {
+      continue;
+    }
     const fechaPub = raw?.fechaPublicacion ?? raw?.publicacionDof ?? null;
     deduped.set(rfc, {
       rfc,
-      nombre: String(raw?.nombre || '').trim().slice(0, 300),
-      situacion,
-      fecha_publicacion: fechaPub ? String(fechaPub).trim().slice(0, 60) : null,
+      nombre: String(raw?.nombre || '').trim().slice(0, 300) || prev?.nombre || '',
+      situacion: parsed.situacion,
+      fecha_publicacion: fechaPub ? String(fechaPub).trim().slice(0, 60) : (prev?.fecha_publicacion ?? null),
       updated_at: nowIso
     });
   }

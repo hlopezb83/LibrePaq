@@ -437,7 +437,8 @@ describe('Ronda 5 Ola 3 — Pólizas P13/Multi-CFDI, Catálogo SAT, NIF/Dossier/
     );
     expect(month47Calc.depreciacionMensualContable).toBe(6250);
     expect(month47Calc.valorNetoEnLibros).toBe(0);
-    expect(month47Calc.depreciacionMensualFiscalActualizada).toBe(3645.83);
+    // Art. 31 LISR: base $3,645.83 * factor INPC Jun 2026 (145.131 / 120 = 1.2094) = 4,409.27
+    expect(month47Calc.depreciacionMensualFiscalActualizada).toBe(4409.27);
 
     // 4f. CxC/CxP: ordena pagos ASC para tomar TC más reciente, EquivalenciaDR y tolerancia $0.01
     const usdInv: CfdiDocument = {

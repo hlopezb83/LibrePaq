@@ -19,6 +19,7 @@ import type { FixedAssetCategory, FixedAssetRecord } from '../../shared/types/fi
 import { mapSupabaseCfdi } from './supabase-cfdi-mappers';
 import { mapSupabaseAccount, mapSupabaseCompany } from './supabase-mappers';
 import { fetchAllRows } from './supabase-pagination';
+import { supabaseAccountingRules } from './supabase-accounting-rules';
 
 function mapSnapshot(row: Record<string, unknown> | null, companyId: string, ejercicio: number): AnnualTaxInputs {
   const defaults = resolveAnnualInpcPair(ejercicio);
@@ -78,7 +79,7 @@ function mapAsset(row: Record<string, unknown>): FixedAssetRecord {
 }
 
 const CFDI_ANNUAL_PROJECTION =
-  'id, company_id, uuid, fecha, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
+  'id, company_id, uuid, fecha, fecha_pago, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
 
 export const supabaseAnnualTax = {
   async getAnnualTaxSummary(companyId: string, ejercicio?: number): Promise<AnnualTaxSummaryResponse> {
@@ -89,7 +90,7 @@ export const supabaseAnnualTax = {
     const company = mapSupabaseCompany(cRow as Record<string, unknown>);
     const targetYear = ejercicio && ejercicio > 2000 ? ejercicio : company.currentYear;
 
-    const [rawAccounts, movs, snapRes, taxRes, assetsRes, rawCfdis] = await Promise.all([
+    const [rawAccounts, movs, nextJanMovs, snapRes, taxRes, rawAssets, rawCfdis, rules] = await Promise.all([
       fetchAllRows(async (from, to) =>
         sb
           .from('accounts')
@@ -107,9 +108,26 @@ export const supabaseAnnualTax = {
           .order('id', { ascending: true })
           .range(from, to)
       ),
+      fetchAllRows(async (from, to) =>
+        sb.from('poliza_movements')
+          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo)')
+          .eq('polizas.company_id', company.id)
+          .eq('polizas.ejercicio', targetYear + 1)
+          .eq('polizas.periodo', 1)
+          .order('id', { ascending: true })
+          .range(from, to)
+      ),
       sb.from('annual_tax_snapshots').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).maybeSingle(),
       sb.from('tax_parameters').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).order('periodo', { ascending: false }),
-      sb.from('fixed_assets').select('*').eq('company_id', company.id),
+      fetchAllRows(async (from, to) =>
+        sb
+          .from('fixed_assets')
+          .select('*')
+          .eq('company_id', company.id)
+          .order('fecha_adquisicion', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to)
+      ),
       fetchAllRows(async (from, to) =>
         sb
           .from('cfdi_documents')
@@ -118,18 +136,19 @@ export const supabaseAnnualTax = {
           .order('fecha', { ascending: false })
           .order('id', { ascending: true })
           .range(from, to)
-      )
+      ),
+      supabaseAccountingRules.listAccountingRules(company.id)
     ]);
 
     const accounts = rawAccounts.map((r) => mapSupabaseAccount(r as Record<string, unknown>));
-    const joinedMovs = movs as unknown as JoinedPolizaMovementInput[];
+    const joinedMovs = [...movs, ...nextJanMovs] as unknown as JoinedPolizaMovementInput[];
     const { trialBalance, monthlyBalancesByPeriod } = buildAnnualMonthlyBalancesFromMovements(
       accounts,
       joinedMovs,
       targetYear
     );
     const cfdis = rawCfdis.map((r) => mapSupabaseCfdi(r as Record<string, unknown>));
-    const assets = (assetsRes.data || []).map((a) => mapAsset(a as Record<string, unknown>));
+    const assets = rawAssets.map((a) => mapAsset(a as Record<string, unknown>));
     const fixedAssetsFiscalDeduction = computeAnnualFixedAssetFiscalDeduction(assets, targetYear);
     const inputs = mapSnapshot((snapRes.data as Record<string, unknown> | null) ?? null, company.id, targetYear);
     const taxRows = (taxRes.data ?? []) as Array<Record<string, unknown>>;
@@ -143,7 +162,20 @@ export const supabaseAnnualTax = {
         pagosProvisionalesAnteriores: Number(r.pagos_provisionales_anteriores ?? 0)
       }))
     });
+    const isrFavorIds = new Set(
+      accounts.filter((a) => a.code === '113-02-001' || a.satGroupCode === '113.02').map((a) => a.id)
+    );
+    let ytdIsrRetCents = 0;
+    for (const row of joinedMovs) {
+      if (!isrFavorIds.has(row.account_id)) continue;
+      const p = Array.isArray(row.polizas) ? row.polizas[0] : row.polizas;
+      if (!p || p.ejercicio !== targetYear || p.periodo < 1 || p.periodo > 12) continue;
+      ytdIsrRetCents += Math.max(0, toCents(row.cargo));
+    }
     const isrFavorAcc = trialBalance.find((a) => a.code === '113-02-001' || a.satGroupCode === '113.02');
+    const isrRetenidoAcreditable = fromCents(
+      Math.max(ytdIsrRetCents, Math.max(0, toCents(isrFavorAcc?.finalBalance ?? 0)))
+    );
 
     return computeAnnualTaxSummary({
       company,
@@ -153,9 +185,10 @@ export const supabaseAnnualTax = {
       fixedAssetsFiscalDeduction,
       paymentsProvisioned,
       perdidasFiscalesPendientes: Number(taxRow?.perdidas_fiscales_pendientes ?? 0),
-      isrRetenidoAcreditable: Math.max(0, isrFavorAcc?.finalBalance ?? 0),
+      isrRetenidoAcreditable,
       inputs,
-      cfdis
+      cfdis,
+      rules
     });
   },
 

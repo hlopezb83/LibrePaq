@@ -5,7 +5,7 @@ import { AlertCircle, Download, FileCheck2, RefreshCw, Search, X } from 'lucide-
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
-import { getLastDateForPeriod } from '../../shared/date-utils';
+import { getLastDateForPeriod, getTodayLocalIso } from '../../shared/date-utils';
 import type { CxcCxpAgingBucket, CxcCxpAgingResponse } from '../../shared/types';
 import { CxcCxpHeaderBuckets, type AgingMode } from './CxcCxpHeaderBuckets';
 import { CxcCxpTable, type BucketMeta } from './CxcCxpTable';
@@ -36,7 +36,7 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [usePeriodEndCutoff, setUsePeriodEndCutoff] = useState(false);
 
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayIso = useMemo(() => getTodayLocalIso(), []);
   const periodEndIso = useMemo(
     () => (currentYear && currentPeriod ? getLastDateForPeriod(currentYear, currentPeriod) : undefined),
     [currentYear, currentPeriod]

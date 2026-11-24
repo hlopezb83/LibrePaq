@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
+import { readBodyCompanyId, readQueryCompanyId, rejectNonStringBodyCompanyId } from '../auth-actor';
 import {
   closeYearPolizaTransaction,
   createPolizaTransaction,
+  db,
   deletePolizaTransaction,
   getPolizas,
   reclassifyAccountMovements,
@@ -14,8 +16,11 @@ import { assertRouteCompanyAccess, errorStatus, getAuthorizedCompanyForRoute } f
 export const polizasRoutes = new Hono();
 
 polizasRoutes.get('/polizas', (c) => {
-  const companyId = c.req.query('companyId') || 'comp_tnn_01';
-  const company = getAuthorizedCompanyForRoute(c, companyId);
+  const q = readQueryCompanyId(c);
+  if (!q.ok) return q.response;
+  const denied = assertRouteCompanyAccess(c, q.companyId);
+  if (denied) return denied;
+  const company = getAuthorizedCompanyForRoute(c, q.companyId);
   if (!company) return c.json([]);
 
   const rawPeriod = c.req.query('period');
@@ -34,7 +39,12 @@ polizasRoutes.get('/polizas', (c) => {
 
 polizasRoutes.post('/polizas', async (c) => {
   try {
-    const payload = validatePolizaPayload(await c.req.json());
+    const raw = (await c.req.json()) as Record<string, unknown>;
+    const nonStr = rejectNonStringBodyCompanyId(c, raw);
+    if (nonStr) return nonStr;
+    const payload = validatePolizaPayload(raw);
+    const denied = assertRouteCompanyAccess(c, payload.companyId, { requireWrite: true });
+    if (denied) return denied;
     const company = getAuthorizedCompanyForRoute(c, payload.companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
@@ -60,7 +70,20 @@ polizasRoutes.post('/polizas', async (c) => {
 polizasRoutes.put('/polizas/:id', async (c) => {
   try {
     const polizaId = c.req.param('id');
-    const payload = validatePolizaPayload(await c.req.json());
+    const raw = (await c.req.json()) as Record<string, unknown>;
+    const nonStr = rejectNonStringBodyCompanyId(c, raw);
+    if (nonStr) return nonStr;
+    const row = db
+      .query('SELECT company_id FROM polizas WHERE id = ?')
+      .get(polizaId) as { company_id?: string } | null;
+    if (!row?.company_id) return c.json({ error: 'Póliza no encontrada' }, 404);
+    const denied = assertRouteCompanyAccess(c, row.company_id, { requireWrite: true });
+    if (denied) return denied;
+
+    const payload = validatePolizaPayload(raw);
+    if (payload.companyId !== row.company_id) {
+      return c.json({ error: 'No se permite reasignar una póliza a otra empresa' }, 403);
+    }
     const updated = updatePolizaTransaction(polizaId, payload);
     if (!updated) return c.json({ error: 'Póliza no encontrada' }, 404);
     return c.json({ updated: true });
@@ -73,6 +96,12 @@ polizasRoutes.put('/polizas/:id', async (c) => {
 polizasRoutes.delete('/polizas/:id', (c) => {
   try {
     const id = c.req.param('id');
+    const row = db
+      .query('SELECT company_id FROM polizas WHERE id = ?')
+      .get(id) as { company_id?: string } | null;
+    if (!row?.company_id) return c.json({ error: 'Póliza no encontrada' }, 404);
+    const denied = assertRouteCompanyAccess(c, row.company_id, { requireWrite: true });
+    if (denied) return denied;
     deletePolizaTransaction(id);
     return c.json({ deleted: true });
   } catch (err) {
@@ -84,10 +113,13 @@ polizasRoutes.delete('/polizas/:id', (c) => {
 polizasRoutes.post('/polizas/close-year', async (c) => {
   try {
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
-    const companyId = String(body.companyId ?? 'comp_tnn_01');
+    const cid = readBodyCompanyId(c, body);
+    if (!cid.ok) return cid.response;
+    const denied = assertRouteCompanyAccess(c, cid.companyId, { requireWrite: true });
+    if (denied) return denied;
     const switchToPeriod13 =
       body.switchToPeriod13 !== undefined ? Boolean(body.switchToPeriod13) : true;
-    const company = getAuthorizedCompanyForRoute(c, companyId);
+    const company = getAuthorizedCompanyForRoute(c, cid.companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const res = closeYearPolizaTransaction(company.id, company.currentYear, switchToPeriod13);
@@ -101,15 +133,16 @@ polizasRoutes.post('/polizas/close-year', async (c) => {
 polizasRoutes.post('/polizas/reclassify-account', async (c) => {
   try {
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
-    const companyId = String(body.companyId ?? 'comp_tnn_01');
-    const denied = assertRouteCompanyAccess(c, companyId, {
+    const cid = readBodyCompanyId(c, body);
+    if (!cid.ok) return cid.response;
+    const denied = assertRouteCompanyAccess(c, cid.companyId, {
       requireWrite: true,
       blockDemoWrite: true
     });
     if (denied) return denied;
 
     const result = reclassifyAccountMovements({
-      companyId,
+      companyId: cid.companyId,
       fromAccountId: String(body.fromAccountId ?? ''),
       toAccountId: String(body.toAccountId ?? ''),
       ejercicio: Number(body.ejercicio ?? 2026),

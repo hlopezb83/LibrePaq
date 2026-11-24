@@ -11,7 +11,6 @@ import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 import {
-  assertMovementNotAlreadyMatched,
   buildBankReconciliationViewRows,
   deduplicateBankLinesByOccurrence,
   fetchActiveN1MatchedMovementIds,
@@ -19,6 +18,10 @@ import {
   mapBankStatementLine,
   upsertBankClosureBalance
 } from './supabase-bank-helpers';
+import {
+  executeManualBankMatch,
+  fetchAllMatchedMovementIdsAcrossPeriods
+} from './supabase-bank-validation';
 
 export const supabaseBank = {
   async getBankReconciliation(
@@ -167,17 +170,27 @@ export const supabaseBank = {
     const current = await this.getBankReconciliation(companyId, accountId, effY, effP);
     if (!supabase) return { matchedCount: 0, reconciliation: current };
 
-    const pairs = findBankReconciliationMatches(current.statementLines, current.bookMovements);
+    const allMatchedIds = await fetchAllMatchedMovementIdsAcrossPeriods(companyId);
+    const availableBooks = current.bookMovements.map((b) => ({
+      ...b,
+      isMatched: b.isMatched || allMatchedIds.has(b.movementId)
+    }));
+    const pairs = findBankReconciliationMatches(current.statementLines, availableBooks);
+    let applied = 0;
     for (const pair of pairs) {
+      if (allMatchedIds.has(pair.movementId)) continue;
       const { error: updErr } = await supabase
         .from('bank_statement_lines')
         .update({ matched_movement_id: pair.movementId })
-        .eq('id', pair.statementLineId);
+        .eq('id', pair.statementLineId)
+        .is('matched_movement_id', null);
       if (updErr) throw new Error(updErr.message);
+      allMatchedIds.add(pair.movementId);
+      applied += 1;
     }
 
     const updated = await this.getBankReconciliation(companyId, accountId, effY, effP);
-    return { matchedCount: pairs.length, reconciliation: updated };
+    return { matchedCount: applied, reconciliation: updated };
   },
 
   async manualMatchBankLine(
@@ -185,32 +198,8 @@ export const supabaseBank = {
     movementId: string
   ): Promise<{ matched: boolean; reconciliation: BankReconciliationResponse }> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const { data: bLine, error: fetchErr } = await supabase
-      .from('bank_statement_lines')
-      .select('company_id, account_id, ejercicio, periodo, matched_movement_id')
-      .eq('id', lineId)
-      .maybeSingle();
-    if (fetchErr) throw new Error(fetchErr.message);
-    if (!bLine) throw new Error('Movimiento bancario no encontrado');
-    if (bLine.matched_movement_id) throw new Error('La línea bancaria ya está conciliada');
-
-    const lineYear = Number(bLine.ejercicio) || 2026;
-    const linePeriod = Number(bLine.periodo) || 10;
-    await assertSupabasePeriodOpen(String(bLine.company_id), lineYear, linePeriod);
-    await assertMovementNotAlreadyMatched(String(bLine.company_id), movementId, lineId);
-
-    const { error: updErr } = await supabase
-      .from('bank_statement_lines')
-      .update({ matched_movement_id: movementId })
-      .eq('id', lineId);
-    if (updErr) throw new Error(updErr.message);
-
-    const reconciliation = await this.getBankReconciliation(
-      String(bLine.company_id),
-      String(bLine.account_id),
-      lineYear,
-      linePeriod
-    );
+    const { companyId, accountId, lineYear, linePeriod } = await executeManualBankMatch(lineId, movementId);
+    const reconciliation = await this.getBankReconciliation(companyId, accountId, lineYear, linePeriod);
     return { matched: true, reconciliation };
   },
 
@@ -287,6 +276,7 @@ export const supabaseBank = {
     const accountId = String(bLine.account_id);
     const ejercicio = Number(bLine.ejercicio) || 2026;
     const periodo = Number(bLine.periodo) || 10;
+    await assertSupabasePeriodOpen(companyId, ejercicio, periodo);
 
     const accounts = await supabaseCompaniesAndAccounts.getAccounts(companyId, ejercicio, periodo);
     const plan = buildBankLinePolizaPlan({
@@ -332,6 +322,7 @@ export const supabaseBank = {
     saldoBancoCierre: number
   ): Promise<void> {
     if (!supabase) return;
+    await assertSupabasePeriodOpen(companyId, ejercicio, periodo);
     await upsertBankClosureBalance(companyId, accountId, ejercicio, periodo, saldoBancoCierre);
   }
 };

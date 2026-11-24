@@ -12,9 +12,11 @@ import {
 import { assertAccountingInvariant, fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type { AnnualTaxInputs, AnnualTaxSummaryResponse } from '../../shared/types/annual-tax.types';
 import { getAccounts } from './accounts.repo';
+import { listAccountingRulesRepo } from './accounting-rules.repo';
 import { getCfdiDocuments } from './cfdi.repo';
 import { getCompanyById } from './companies.repo';
 import { getTaxParameters } from './fiscal.repo';
+import { assertPeriodOpen } from './period-locks.repo';
 
 interface AnnualSnapshotDbRow {
   id: string;
@@ -134,6 +136,8 @@ export function saveAnnualTaxInputsRepo(
   ensureAnnualAndInventoryTables(db);
   const company = getCompanyById(companyId, userId);
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
+  assertPeriodOpen(companyId, ejercicio, 12);
+  assertPeriodOpen(companyId, ejercicio, 13);
 
   const current = getAnnualTaxInputsRepo(companyId, ejercicio);
   const cleanNum = (val: number | undefined, fallback: number) =>
@@ -210,9 +214,9 @@ export function getAnnualTaxSummaryRepo(
       SELECT m.account_id, m.cargo, m.abono, p.company_id, p.ejercicio, p.periodo
       FROM poliza_movements m
       INNER JOIN polizas p ON m.poliza_id = p.id
-      WHERE p.company_id = ? AND p.ejercicio <= ?
+      WHERE p.company_id = ? AND (p.ejercicio <= ? OR (p.ejercicio = ? AND p.periodo = 1))
     `)
-    .all(company.id, targetYear) as Array<{
+    .all(company.id, targetYear, targetYear + 1) as Array<{
       account_id: string; cargo: number; abono: number;
       company_id: string; ejercicio: number; periodo: number;
     }>;
@@ -246,7 +250,20 @@ export function getAnnualTaxSummaryRepo(
   });
   const inputs = getAnnualTaxInputsRepo(company.id, targetYear);
   const cfdis = getCfdiDocuments(company.id);
+  const rules = listAccountingRulesRepo(company.id);
+  const isrFavorIds = new Set(
+    accounts.filter((a) => a.code === '113-02-001' || a.satGroupCode === '113.02').map((a) => a.id)
+  );
+  let ytdIsrRetCents = 0;
+  for (const row of joinedMovs) {
+    if (!isrFavorIds.has(row.account_id)) continue;
+    if (row.polizas.ejercicio !== targetYear || row.polizas.periodo < 1 || row.polizas.periodo > 12) continue;
+    ytdIsrRetCents += Math.max(0, toCents(row.cargo));
+  }
   const isrFavorAcc = trialBalance.find((a) => a.code === '113-02-001' || a.satGroupCode === '113.02');
+  const isrRetenidoAcreditable = fromCents(
+    Math.max(ytdIsrRetCents, Math.max(0, toCents(isrFavorAcc?.finalBalance ?? 0)))
+  );
 
   return computeAnnualTaxSummary({
     company,
@@ -256,8 +273,9 @@ export function getAnnualTaxSummaryRepo(
     fixedAssetsFiscalDeduction,
     paymentsProvisioned,
     perdidasFiscalesPendientes: taxRows[0]?.perdidas_fiscales_pendientes ?? taxParams.perdidasFiscalesPendientes,
-    isrRetenidoAcreditable: Math.max(0, isrFavorAcc?.finalBalance ?? 0),
+    isrRetenidoAcreditable,
     inputs,
-    cfdis
+    cfdis,
+    rules
   });
 }

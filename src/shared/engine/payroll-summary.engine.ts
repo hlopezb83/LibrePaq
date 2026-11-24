@@ -61,19 +61,21 @@ function extractImssObreroFromXml(xmlRaw: string): number | null {
 }
 
 function extractSubsidioEmpleo(xmlRaw: string): number {
-  const otrosPagos = extractNominaOtrosPagos(xmlRaw);
-  if (otrosPagos > 0) return otrosPagos;
-  if (!xmlRaw || xmlRaw.includes('TotalOtrosPagos')) return 0;
-  const otroPagoRe = /<(?:[a-z0-9_]+:)?OtroPago\b([^>]*)\/?>/gi;
-  let totalCents = 0;
-  let match: RegExpExecArray | null;
-  while ((match = otroPagoRe.exec(xmlRaw)) !== null) {
-    const attrs = match[1] ?? '';
-    if (!/TipoOtroPago=["']002["']/i.test(attrs)) continue;
-    const impMatch = /Importe=["']([0-9]+(?:\.[0-9]+)?)["']/i.exec(attrs);
-    if (impMatch?.[1]) totalCents += toCents(Number.parseFloat(impMatch[1]));
+  if (!xmlRaw) return 0;
+  if (/<(?:[a-z0-9_]+:)?Otros?Pagos?\b/i.test(xmlRaw)) {
+    const otroPagoRe = /<(?:[a-z0-9_]+:)?OtroPago\b([^>]*)\/?>/gi;
+    let totalCents = 0;
+    let match: RegExpExecArray | null;
+    while ((match = otroPagoRe.exec(xmlRaw)) !== null) {
+      const attrs = match[1] ?? '';
+      if (!/TipoOtroPago=["']002["']/i.test(attrs)) continue;
+      const impMatch = /Importe=["']([0-9]+(?:\.[0-9]+)?)["']/i.exec(attrs);
+      if (impMatch?.[1]) totalCents += toCents(Number.parseFloat(impMatch[1]));
+    }
+    return fromCents(totalCents);
   }
-  return fromCents(totalCents);
+  const otrosPagos = extractNominaOtrosPagos(xmlRaw);
+  return otrosPagos > 0 ? otrosPagos : 0;
 }
 
 export function computePayrollPeriodSummary(params: {
@@ -106,7 +108,7 @@ export function computePayrollPeriodSummary(params: {
       xmlPercepciones !== null ? xmlPercepciones : Math.max(0, fromCents(toCents(cfdi.subtotal) - toCents(subsidio)));
     const isrRet =
       cfdi.isrRetenido > 0 ? cfdi.isrRetenido : (extractAttrNumber(cfdi.xmlRaw, 'TotalImpuestosRetenidos') ?? 0);
-    const imssObrero = extractImssObreroFromXml(cfdi.xmlRaw) ?? cfdi.descuento;
+    const imssObrero = extractImssObreroFromXml(cfdi.xmlRaw) ?? 0;
 
     percepcionesCents += Math.round(toCents(percepciones) * rate);
     subsidioCents += Math.round(toCents(subsidio) * rate);
@@ -115,15 +117,25 @@ export function computePayrollPeriodSummary(params: {
     netoCents += Math.round(toCents(cfdi.total) * rate);
   }
 
-  const acc216 =
-    trialBalance.find((a) => a.code === '216-01-001') ??
-    trialBalance.find((a) => a.satGroupCode === '216.01' || a.satGroupCode === '216.04');
-  const creditsCents = acc216 ? toCents(acc216.periodCredits) : 0;
-  const chargesCents = acc216 ? toCents(acc216.periodCharges) : 0;
-  const initCents = acc216 ? toCents(acc216.initialBalanceComputed) : 0;
-  const finalCents = acc216 ? toCents(acc216.finalBalance) : 0;
-  const librosCents =
-    creditsCents > 0 || chargesCents > 0 || initCents !== 0 ? creditsCents : Math.max(0, finalCents);
+  const satPayrollIsrAccounts = trialBalance.filter(
+    (a) =>
+      a.isAffectable &&
+      ((a.satGroupCode ?? '').startsWith('216.01') || (a.satGroupCode ?? '').startsWith('216.02'))
+  );
+  const payrollIsrAccounts =
+    satPayrollIsrAccounts.length > 0
+      ? satPayrollIsrAccounts
+      : trialBalance.filter((a) => a.isAffectable && a.code === '216-01-001');
+
+  let librosCents = 0;
+  for (const acc of payrollIsrAccounts) {
+    const creditsCents = toCents(acc.periodCredits);
+    const chargesCents = toCents(acc.periodCharges);
+    const initCents = toCents(acc.initialBalanceComputed);
+    const finalCents = toCents(acc.finalBalance);
+    librosCents +=
+      creditsCents > 0 || chargesCents > 0 || initCents !== 0 ? creditsCents : Math.max(0, finalCents);
+  }
   const diffCents = isrCfdisCents - librosCents;
   const amarreStatus: PayrollAmarreStatus =
     nominaCfdis.length === 0 && librosCents === 0 ? 'SIN_NOMINA' : diffCents === 0 ? 'CUADRADO' : 'DIFERENCIA';
@@ -140,7 +152,7 @@ export function computePayrollPeriodSummary(params: {
     isrRetenidoLibros: fromCents(librosCents),
     diferenciaIsrAmarre: fromCents(diffCents),
     amarreStatus,
-    cuentaIsrCode: acc216?.code ?? '216-01-001'
+    cuentaIsrCode: payrollIsrAccounts[0]?.code ?? '216-01-001'
   };
 }
 

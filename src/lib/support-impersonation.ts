@@ -24,6 +24,7 @@ const clientReadOnlyListeners = new Set<() => void>();
 let cachedRaw: string | null | undefined;
 let cachedSession: SupportImpersonationSession | null = null;
 let clientReadOnlyMode = false;
+let supportActorAllowed: boolean | null = null;
 
 function getStorage(): Storage | null {
   try {
@@ -37,7 +38,15 @@ function notifyListeners(): void {
   for (const listener of listeners) listener();
 }
 
+export function setSupportActorAllowed(allowed: boolean | null): void {
+  supportActorAllowed = allowed;
+  if (allowed === false) {
+    endSupportSession();
+  }
+}
+
 export function getSupportSession(): SupportImpersonationSession | null {
+  if (supportActorAllowed === false) return null;
   const storage = getStorage();
   if (!storage) return cachedSession;
   try {
@@ -78,6 +87,7 @@ export function endSupportSession(): void {
 }
 
 export function isReadOnlySupportMode(): boolean {
+  if (supportActorAllowed === false) return false;
   return getSupportSession() !== null;
 }
 

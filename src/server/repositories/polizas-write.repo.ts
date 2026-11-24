@@ -11,7 +11,12 @@ import type { Poliza, PolizaType } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
 import { ensureBankN1MatchesTable } from './bank-n1.repo';
 import { assertPeriodOpen } from './period-locks.repo';
-import { collectPolizaCfdiUuidsRepo, getPolizaById, syncPolizaCfdisTx } from './polizas.repo';
+import {
+  collectPolizaCfdiUuidsRepo,
+  getPolizaById,
+  reconcileRemovedPolizaCfdisTx,
+  syncPolizaCfdisTx
+} from './polizas.repo';
 
 function clearBankMatchesForPolizaTx(polizaId: string): void {
   ensureBankN1MatchesTable(db);
@@ -308,7 +313,16 @@ export function deletePolizaTransaction(polizaId: string): boolean {
   assertPeriodOpen(existing.company_id, Number(existing.ejercicio), Number(existing.periodo));
 
   const tx = db.transaction(() => {
-    db.prepare('UPDATE cfdi_documents SET poliza_id = NULL WHERE poliza_id = ?').run(polizaId);
+    const linkedDocs = db
+      .prepare('SELECT uuid FROM cfdi_documents WHERE company_id = ? AND poliza_id = ?')
+      .all(existing.company_id, polizaId) as Array<{ uuid: string }>;
+    db.prepare('DELETE FROM poliza_cfdis WHERE poliza_id = ?').run(polizaId);
+    reconcileRemovedPolizaCfdisTx(
+      db,
+      existing.company_id,
+      polizaId,
+      linkedDocs.map((d) => d.uuid)
+    );
     clearBankMatchesForPolizaTx(polizaId);
     const res = db.prepare('DELETE FROM polizas WHERE id = ?').run(polizaId);
     return res.changes > 0;

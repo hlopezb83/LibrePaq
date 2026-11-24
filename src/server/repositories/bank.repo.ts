@@ -16,6 +16,13 @@ import { computeTrialBalance } from './trial-balance.repo';
 import { getCompanyById } from './companies.repo';
 import { assertPeriodOpen } from './period-locks.repo';
 import { ensureBankN1MatchesTable } from './bank-n1.repo';
+import {
+  bankLineDedupKey,
+  buildSqliteReconRows,
+  collectAllMatchedMovementIdsSqlite,
+  executeManualBankMatchSqlite,
+  type SqliteBookRow
+} from './bank-reconciliation-helpers';
 
 export function getBankReconciliation(
   companyId: string,
@@ -27,18 +34,21 @@ export function getBankReconciliation(
   const account = trialBalance.find((a) => a.id === accountId);
   if (!account) return null;
 
+  ensureBankN1MatchesTable(db);
+
   const statementRows = db
     .query(`
       SELECT b.*, (p.tipo || ' #' || p.folio) as matched_poliza_folio
       FROM bank_statement_lines b
       LEFT JOIN poliza_movements m ON b.matched_movement_id = m.id
       LEFT JOIN polizas p ON m.poliza_id = p.id
-      WHERE b.company_id = ? AND b.account_id = ? AND b.ejercicio = ? AND b.periodo = ?
+      WHERE b.company_id = ? AND b.account_id = ?
+        AND (b.ejercicio < ? OR (b.ejercicio = ? AND b.periodo <= ?))
       ORDER BY b.fecha ASC, b.id ASC
     `)
-    .all(companyId, accountId, ejercicio, periodo) as BankLineDbRow[];
+    .all(companyId, accountId, ejercicio, ejercicio, periodo) as BankLineDbRow[];
 
-  const statementLines: BankStatementLine[] = statementRows.map((r) => ({
+  const allMappedLines: BankStatementLine[] = statementRows.map((r) => ({
     id: r.id,
     companyId: r.company_id,
     accountId: r.account_id,
@@ -53,41 +63,50 @@ export function getBankReconciliation(
     matchedPolizaFolio: r.matched_poliza_folio || null
   }));
 
-  const matchedMovementIds = new Set(
-    statementLines.map((s) => s.matchedMovementId).filter(Boolean)
+  const n1Rows = db
+    .query(`
+      SELECT m.bank_line_id, m.movement_id
+      FROM bank_statement_matches m
+      INNER JOIN bank_statement_lines b ON b.id = m.bank_line_id
+      WHERE m.company_id = ? AND b.account_id = ? AND b.matched_movement_id IS NOT NULL
+        AND (b.ejercicio < ? OR (b.ejercicio = ? AND b.periodo <= ?))
+    `)
+    .all(companyId, accountId, ejercicio, ejercicio, periodo) as Array<{
+    bank_line_id: string;
+    movement_id: string;
+  }>;
+
+  const matchedMovementIds = new Set<string>(
+    allMappedLines.map((s) => s.matchedMovementId).filter((v): v is string => Boolean(v))
   );
+  const n1MovsByLineId = new Map<string, string[]>();
+  for (const r of n1Rows) {
+    matchedMovementIds.add(r.movement_id);
+    const list = n1MovsByLineId.get(r.bank_line_id) ?? [];
+    list.push(r.movement_id);
+    n1MovsByLineId.set(r.bank_line_id, list);
+  }
 
   const bookRows = db
     .query(`
       SELECT m.id as movement_id, m.poliza_id, (p.tipo || ' #' || p.folio) as poliza_folio,
-             p.fecha, m.referencia, m.concepto, m.cargo, m.abono
+             p.fecha, p.ejercicio, p.periodo, m.referencia, m.concepto, m.cargo, m.abono
       FROM poliza_movements m
       INNER JOIN polizas p ON m.poliza_id = p.id
-      WHERE p.company_id = ? AND m.account_id = ? AND p.ejercicio = ? AND p.periodo = ?
+      WHERE p.company_id = ? AND m.account_id = ?
+        AND (p.ejercicio < ? OR (p.ejercicio = ? AND p.periodo <= ?))
       ORDER BY p.fecha ASC, p.folio ASC
     `)
-    .all(companyId, accountId, ejercicio, periodo) as Array<{
-    movement_id: string;
-    poliza_id: string;
-    poliza_folio: string;
-    fecha: string;
-    referencia: string;
-    concepto: string;
-    cargo: number;
-    abono: number;
-  }>;
+    .all(companyId, accountId, ejercicio, ejercicio, periodo) as SqliteBookRow[];
 
-  const bookMovements = bookRows.map((b) => ({
-    movementId: b.movement_id,
-    polizaId: b.poliza_id,
-    polizaFolio: b.poliza_folio,
-    fecha: b.fecha,
-    referencia: b.referencia,
-    concepto: b.concepto,
-    cargoContable: Number(b.cargo),
-    abonoContable: Number(b.abono),
-    isMatched: matchedMovementIds.has(b.movement_id)
-  }));
+  const { statementLines, bookMovements } = buildSqliteReconRows({
+    allMappedLines,
+    bookRows,
+    matchedMovementIds,
+    n1MovsByLineId,
+    ejercicio,
+    periodo
+  });
 
   const totalDepositosBanco = fromCents(sumCents(statementLines.map((l) => l.abonoBanco)));
   const totalRetirosBanco = fromCents(sumCents(statementLines.map((l) => l.cargoBanco)));
@@ -120,7 +139,7 @@ const insertBankLineStmt = {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       `);
     }
-    return (_insertBankLineStmt as any).run(...args);
+    return (_insertBankLineStmt as { run: (...a: unknown[]) => unknown }).run(...args);
   }
 };
 
@@ -157,13 +176,29 @@ export function addBankStatementLinesTransaction(
   }
 
   const tx = db.transaction(() => {
-    const countExistingStmt = db.prepare(`
-      SELECT COUNT(*) as count FROM bank_statement_lines
-      WHERE company_id = ? AND account_id = ? AND fecha = ? AND referencia = ? AND descripcion = ?
-        AND ABS(cargo_banco - ?) < 0.001 AND ABS(abono_banco - ?) < 0.001
-    `);
+    const existingRows = db
+      .query(
+        'SELECT fecha, referencia, descripcion, cargo_banco, abono_banco FROM bank_statement_lines WHERE company_id = ? AND account_id = ?'
+      )
+      .all(company.id, accountId) as Array<{
+      fecha: string;
+      referencia: string;
+      descripcion: string;
+      cargo_banco: number;
+      abono_banco: number;
+    }>;
 
-    const batchOccurrenceCount = new Map<string, number>();
+    const existingCounts = new Map<string, number>();
+    for (const row of existingRows) {
+      const key = bankLineDedupKey({
+        fecha: row.fecha,
+        referencia: row.referencia,
+        descripcion: row.descripcion,
+        cargoBanco: row.cargo_banco,
+        abonoBanco: row.abono_banco
+      });
+      existingCounts.set(key, (existingCounts.get(key) ?? 0) + 1);
+    }
 
     for (let i = 0; i < bound; i += 1) {
       const line = lines[i];
@@ -176,36 +211,21 @@ export function addBankStatementLinesTransaction(
       const cargo = fromCents(toCents(line.cargoBanco));
       const abono = fromCents(toCents(line.abonoBanco));
 
-      const sigKey = `${lFecha}|${ref}|${desc}|${cargo}|${abono}`;
-      const curCount = (batchOccurrenceCount.get(sigKey) || 0) + 1;
-      batchOccurrenceCount.set(sigKey, curCount);
-
-      const existingRow = countExistingStmt.get(
-        company.id,
-        accountId,
-        lFecha,
-        ref,
-        desc,
-        cargo,
-        abono
-      ) as { count: number } | null;
-      const existingInDb = existingRow?.count ?? 0;
-
-      if (curCount <= existingInDb) continue;
+      const sigKey = bankLineDedupKey({
+        fecha: lFecha,
+        referencia: ref,
+        descripcion: desc,
+        cargoBanco: cargo,
+        abonoBanco: abono
+      });
+      const remaining = existingCounts.get(sigKey) ?? 0;
+      if (remaining > 0) {
+        existingCounts.set(sigKey, remaining - 1);
+        continue;
+      }
 
       const id = `bsl_${crypto.randomUUID().slice(0, 8)}`;
-      insertBankLineStmt.run(
-        id,
-        company.id,
-        accountId,
-        lFecha,
-        lYear,
-        lPeriod,
-        ref,
-        desc,
-        cargo,
-        abono
-      );
+      insertBankLineStmt.run(id, company.id, accountId, lFecha, lYear, lPeriod, ref, desc, cargo, abono);
     }
   });
 
@@ -222,36 +242,53 @@ export function autoMatchBankLinesTransaction(
   const effectiveYear = year || company.currentYear;
   const effectivePeriod = period || company.currentPeriod;
   assertPeriodOpen(company.id, effectiveYear, effectivePeriod);
-  const current = getBankReconciliation(
-    company.id,
-    accountId,
-    effectiveYear,
-    effectivePeriod
-  );
+  ensureBankN1MatchesTable(db);
+  const current = getBankReconciliation(company.id, accountId, effectiveYear, effectivePeriod);
   if (!current) return null;
 
-  const pairs = findBankReconciliationMatches(current.statementLines, current.bookMovements);
+  const globallyMatchedIds = collectAllMatchedMovementIdsSqlite(db, company.id);
+  const bookMovementsWithGlobal = current.bookMovements.map((bm) => ({
+    ...bm,
+    isMatched: bm.isMatched || globallyMatchedIds.has(bm.movementId)
+  }));
+
+  const pairs = findBankReconciliationMatches(current.statementLines, bookMovementsWithGlobal);
   const updateStmt = db.prepare(
-    'UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ?'
+    'UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ? AND matched_movement_id IS NULL'
   );
 
+  let applied = 0;
   const tx = db.transaction(() => {
     for (const pair of pairs) {
-      updateStmt.run(pair.movementId, pair.statementLineId);
+      if (globallyMatchedIds.has(pair.movementId)) continue;
+      const res = updateStmt.run(pair.movementId, pair.statementLineId);
+      if (res.changes > 0) {
+        globallyMatchedIds.add(pair.movementId);
+        applied += 1;
+      }
     }
   });
 
   tx();
-  const matchedCount = pairs.length;
-
   return {
-    matchedCount,
-    reconciliation: getBankReconciliation(
-      company.id,
-      accountId,
-      effectiveYear,
-      effectivePeriod
-    )
+    matchedCount: applied,
+    reconciliation: getBankReconciliation(company.id, accountId, effectiveYear, effectivePeriod)
+  };
+}
+
+export function manualMatchBankLineTransaction(
+  lineId: string,
+  movementId: string
+): { matched: boolean; reconciliation: BankReconciliationResponse | null } {
+  ensureBankN1MatchesTable(db);
+  const { companyId, accountId, lineYear, linePeriod } = executeManualBankMatchSqlite(
+    db,
+    lineId,
+    movementId
+  );
+  return {
+    matched: true,
+    reconciliation: getBankReconciliation(companyId, accountId, lineYear, linePeriod)
   };
 }
 
@@ -259,9 +296,7 @@ export function unmatchBankLineTransaction(lineId: string): {
   found: boolean;
   reconciliation?: BankReconciliationResponse | null;
 } {
-  const bLine = db
-    .query('SELECT * FROM bank_statement_lines WHERE id = ?')
-    .get(lineId) as BankLineDbRow | null;
+  const bLine = db.query('SELECT * FROM bank_statement_lines WHERE id = ?').get(lineId) as BankLineDbRow | null;
   if (!bLine) return { found: false };
 
   assertPeriodOpen(bLine.company_id, Number(bLine.ejercicio), Number(bLine.periodo));
@@ -276,11 +311,6 @@ export function unmatchBankLineTransaction(lineId: string): {
 
   return {
     found: true,
-    reconciliation: getBankReconciliation(
-      company.id,
-      bLine.account_id,
-      company.currentYear,
-      company.currentPeriod
-    )
+    reconciliation: getBankReconciliation(company.id, bLine.account_id, company.currentYear, company.currentPeriod)
   };
 }

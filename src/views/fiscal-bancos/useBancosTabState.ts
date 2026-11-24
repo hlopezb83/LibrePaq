@@ -93,7 +93,11 @@ export function useBancosTabState(params: {
       );
     },
     onSuccess: (res) => {
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], activeCompanyId);
+      invalidateAccountingQueries(
+        queryClient,
+        ['bank-reconciliation', 'dashboard', 'fiscal-workpaper', 'diot', 'auxiliares-diario', 'annual-tax', 'sat-xml'],
+        activeCompanyId
+      );
       if (res.matchedCount > 0) {
         toast.success(
           `¡Conciliación automática exitosa! Se cruzaron ${res.matchedCount} movimientos con la contabilidad`
@@ -125,7 +129,19 @@ export function useBancosTabState(params: {
     onSuccess: () => {
       invalidateAccountingQueries(
         queryClient,
-        ['bank-reconciliation', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
+        [
+          'bank-reconciliation',
+          'polizas',
+          'accounts',
+          'account-ledger',
+          'reports',
+          'dashboard',
+          'fiscal-workpaper',
+          'diot',
+          'auxiliares-diario',
+          'annual-tax',
+          'sat-xml'
+        ],
         activeCompanyId
       );
       toast.success(
@@ -145,7 +161,11 @@ export function useBancosTabState(params: {
       return apiClient.unmatchBankLine(lineId);
     },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], activeCompanyId);
+      invalidateAccountingQueries(
+        queryClient,
+        ['bank-reconciliation', 'dashboard', 'fiscal-workpaper', 'diot', 'auxiliares-diario', 'annual-tax', 'sat-xml'],
+        activeCompanyId
+      );
       toast.info('Movimiento bancario desconciliado. Disponible para nueva correspondencia.');
     },
     onError: (err: Error) => {
@@ -161,7 +181,11 @@ export function useBancosTabState(params: {
       return apiClient.addBankStatementLines(payload);
     },
     onSuccess: (_data, variables) => {
-      invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], variables.companyId);
+      invalidateAccountingQueries(
+        queryClient,
+        ['bank-reconciliation', 'dashboard', 'fiscal-workpaper', 'diot', 'auxiliares-diario', 'annual-tax', 'sat-xml'],
+        variables.companyId
+      );
       setBRef('');
       setBDesc('');
       setBMonto(0);

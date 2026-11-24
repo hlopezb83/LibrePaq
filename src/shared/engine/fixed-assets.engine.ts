@@ -5,7 +5,7 @@ import type {
 } from '../types';
 import { SAFETY_BOUNDS } from '../sat-constants';
 import { parseCalendarDate } from '../date-utils';
-import { calculateInpcFactor } from '../sat-inpc-catalog';
+import { calculateInpcFactor, getInpcMedioPeriodo } from '../sat-inpc-catalog';
 import {
   assertAccountingInvariant,
   fromCents,
@@ -48,33 +48,77 @@ function resolveFiscalDepreciableMoiCents(asset: FixedAssetRecord, moiCents: num
   return Math.min(moiCents, capCents);
 }
 
+export function resolveLisrInpcMedioPeriodo(
+  fechaAdquisicion: string | undefined,
+  fiscalYear: number
+): number {
+  if (!fechaAdquisicion) return getInpcMedioPeriodo(fiscalYear, 6);
+  const acq = parseCalendarDate(fechaAdquisicion, fiscalYear, 1);
+  if (acq.year === fiscalYear) {
+    const medioMonth = Math.min(12, Math.max(1, acq.month + Math.floor((12 - acq.month) / 2)));
+    return getInpcMedioPeriodo(fiscalYear, medioMonth);
+  }
+  return getInpcMedioPeriodo(fiscalYear, 6);
+}
+
+export function extractDepreciatedAssetCodes(
+  polizas: ReadonlyArray<{
+    concepto: string;
+    origin?: string | null;
+    movements?: ReadonlyArray<{ referencia?: string | null }>;
+  }>
+): Set<string> {
+  const codes = new Set<string>();
+  for (const p of polizas) {
+    if (!hasExistingDepreciationPoliza([p])) continue;
+    for (const m of p.movements ?? []) {
+      const ref = m.referencia ?? '';
+      if (ref.startsWith('DEP-')) codes.add(ref.slice(4));
+    }
+  }
+  return codes;
+}
+
 export function computeFixedAssetWithDepreciation(
   asset: FixedAssetRecord,
-  targetPeriod?: { ejercicio: number; periodo: number; alreadyDepreciatedThisPeriod?: boolean }
+  targetPeriod?: {
+    ejercicio: number;
+    periodo: number;
+    alreadyDepreciatedThisPeriod?: boolean;
+    depreciatedAssetCodes?: ReadonlySet<string>;
+  }
 ): FixedAssetWithCalculation {
   const moiCents = Math.max(0, toCents(asset.montoOriginalInversion));
   const annualRate = Math.max(0, Math.min(100, asset.tasaAnualPct)) / 100;
 
-  let acquiredAfterTarget = false;
+  let notYetDepreciable = false;
   const isPeriod13 = targetPeriod?.periodo === 13;
   if (targetPeriod && asset.fechaAdquisicion && !isPeriod13) {
     const acq = parseCalendarDate(asset.fechaAdquisicion, targetPeriod.ejercicio, 1);
     const effectiveMonth = Math.min(12, targetPeriod.periodo);
+    // Art. 31 LISR: se deprecia por meses completos posteriores al mes de adquisición
     if (
       acq.year > targetPeriod.ejercicio ||
-      (acq.year === targetPeriod.ejercicio && acq.month > effectiveMonth)
+      (acq.year === targetPeriod.ejercicio && acq.month >= effectiveMonth)
     ) {
-      acquiredAfterTarget = true;
+      notYetDepreciable = true;
     }
   }
 
-  const isDepreciableNow = asset.estatus === 'ACTIVO' && !acquiredAfterTarget && !isPeriod13;
-  const rawMonthlyCents = isDepreciableNow ? Math.round((moiCents * annualRate) / 12) : 0;
-
   const rawPriorMonths = Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
+  const includedInPeriodPoliza =
+    Boolean(targetPeriod?.alreadyDepreciatedThisPeriod) &&
+    (!targetPeriod?.depreciatedAssetCodes || targetPeriod.depreciatedAssetCodes.has(asset.codigo));
+  const isFinalMonthDisplay =
+    asset.estatus === 'TOTALMENTE_DEPRECIADO' &&
+    includedInPeriodPoliza &&
+    rawPriorMonths > 0;
+  const isDepreciableNow =
+    (asset.estatus === 'ACTIVO' || isFinalMonthDisplay) && !notYetDepreciable && !isPeriod13;
+
   // Si ya se generó la póliza del periodo actual, mesesDepreciadosPrevios ya incluye +1 de este mes.
   const priorMonths =
-    targetPeriod?.alreadyDepreciatedThisPeriod && isDepreciableNow && rawPriorMonths > 0
+    includedInPeriodPoliza && isDepreciableNow && rawPriorMonths > 0
       ? rawPriorMonths - 1
       : rawPriorMonths;
   const priorAccumulatedCents =
@@ -84,19 +128,20 @@ export function computeFixedAssetWithDepreciation(
     : priorAccumulatedCents;
   const remainingDepreciableCents = Math.max(0, moiCents - priorAccumulatedCents);
   const currentMonthCents = isDepreciableNow
-    ? Math.min(Math.max(rawMonthlyCents, totalAtTargetMonthCents - priorAccumulatedCents), remainingDepreciableCents)
+    ? Math.min(Math.max(0, totalAtTargetMonthCents - priorAccumulatedCents), remainingDepreciableCents)
     : 0;
   const totalAccumulatedCents = Math.min(moiCents, priorAccumulatedCents + currentMonthCents);
   const netBookValueCents = Math.max(0, moiCents - totalAccumulatedCents);
 
   const inpcBase = asset.inpcAdquisicion > 0 ? asset.inpcAdquisicion : 1;
-  const inpcCurrent = asset.inpcMedioPeriodo > 0 ? asset.inpcMedioPeriodo : inpcBase;
+  const inpcCurrent = targetPeriod
+    ? resolveLisrInpcMedioPeriodo(asset.fechaAdquisicion, targetPeriod.ejercicio)
+    : asset.inpcMedioPeriodo > 0
+      ? asset.inpcMedioPeriodo
+      : inpcBase;
   const factorActualizacionInpc = calculateInpcFactor(inpcBase, inpcCurrent);
 
   const fiscalMoiCents = resolveFiscalDepreciableMoiCents(asset, moiCents);
-  const rawFiscalMonthlyBase = isDepreciableNow
-    ? Math.round((fiscalMoiCents * annualRate) / 12)
-    : 0;
   const priorFiscalAccumCents =
     priorMonths > 0
       ? Math.min(fiscalMoiCents, Math.round((fiscalMoiCents * annualRate * priorMonths) / 12))
@@ -107,7 +152,7 @@ export function computeFixedAssetWithDepreciation(
   const remainingFiscalBaseCents = Math.max(0, fiscalMoiCents - priorFiscalAccumCents);
   const cappedFiscalBaseMonthCents = isDepreciableNow
     ? Math.min(
-        Math.max(rawFiscalMonthlyBase, totalFiscalAtTargetMonthCents - priorFiscalAccumCents),
+        Math.max(0, totalFiscalAtTargetMonthCents - priorFiscalAccumCents),
         remainingFiscalBaseCents
       )
     : 0;
@@ -139,11 +184,11 @@ export function buildDepreciationPolizaPlan(
   );
 
   const movements: AutoPolizaMovementDraft[] = [];
-  const bound = Math.min(assets.length, Math.floor(SAFETY_BOUNDS.MAX_POLIZA_MOVEMENTS / 2));
+  const maxPairs = Math.floor(SAFETY_BOUNDS.MAX_POLIZA_MOVEMENTS / 2);
+  const activeAssets = assets.filter((a) => a.estatus === 'ACTIVO');
 
-  for (let i = 0; i < bound; i += 1) {
-    const rawAsset = assets[i];
-    if (!rawAsset || rawAsset.estatus !== 'ACTIVO') continue;
+  for (const rawAsset of activeAssets) {
+    if (movements.length / 2 >= maxPairs) break;
 
     const calc = computeFixedAssetWithDepreciation(rawAsset, targetPeriod);
     const depCents = toCents(calc.depreciacionMensualContable);
@@ -226,10 +271,16 @@ export function computeAssetPostDepreciationUpdate(
  * Verifica si ya existe una póliza de depreciación mensual registrada en el periodo.
  */
 export function hasExistingDepreciationPoliza(
-  polizas: ReadonlyArray<{ concepto: string }>
+  polizas: ReadonlyArray<{ concepto: string; origin?: string | null }>
 ): boolean {
   return polizas.some((p) => {
-    const lower = p.concepto.toLowerCase();
-    return lower.includes('depreciación') || lower.includes('depreciacion');
+    if (p.origin === 'DEPRECIACION') return true;
+    const norm = p.concepto.trim().toLowerCase();
+    return (
+      norm.startsWith('depreciación contable mensual de activos fijos') ||
+      norm.startsWith('depreciacion contable mensual de activos fijos') ||
+      norm.startsWith('depreciación mensual activos fijos') ||
+      norm.startsWith('depreciacion mensual activos fijos')
+    );
   });
 }

@@ -1,11 +1,29 @@
 import { type RefObject } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
-import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
+import { apiClient, invalidateAccountingQueries, type AccountingQueryScope } from '../../lib/api-client';
 import { formatCurrency, getDefaultDateForPeriod } from '../../lib/formatters';
+import { parseCalendarDate } from '../../shared/date-utils';
 import { buildInversePolizaDraft } from '../../shared/engine/poliza-productivity';
 import type { AccountWithBalance, Poliza, PolizaType } from '../../shared/types';
 import type { DraftMovement } from './PolizaEditorModal';
+
+const POLIZA_INVALIDATION_SCOPES: ReadonlyArray<AccountingQueryScope> = [
+  'polizas',
+  'accounts',
+  'account-ledger',
+  'reports',
+  'dashboard',
+  'cfdis',
+  'bank-reconciliation',
+  'fiscal-workpaper',
+  'diot',
+  'sat-xml',
+  'auxiliares-diario',
+  'annual-tax',
+  'cxc-cxp',
+  'fixed-assets'
+];
 
 export interface UsePolizasMutationsParams {
   activeCompanyId: string;
@@ -15,6 +33,7 @@ export interface UsePolizasMutationsParams {
   isPeriod13Locked?: boolean;
   isReadOnlyClient?: boolean;
   editingPolizaId: string | null;
+  editingPolizaPeriodo?: number | null;
   tipo: PolizaType;
   fecha: string;
   concepto: string;
@@ -38,6 +57,7 @@ export function usePolizasMutations({
   isPeriod13Locked = false,
   isReadOnlyClient = false,
   editingPolizaId,
+  editingPolizaPeriodo = null,
   tipo,
   fecha,
   concepto,
@@ -81,18 +101,24 @@ export function usePolizasMutations({
         return apiClient.updatePoliza(editingPolizaId, {
           tipo,
           fecha,
-          periodo: currentPeriod ?? undefined,
+          periodo: editingPolizaPeriodo === 13 ? 13 : undefined,
           concepto,
           cfdiUuid: primaryUuid,
           cfdiUuids: normalizedUuids,
           movements
         });
       }
+      const parsedFecha = parseCalendarDate(
+        fecha,
+        currentYear,
+        currentPeriod === 13 ? 12 : currentPeriod
+      );
+      const createPeriodo = currentPeriod === 13 && parsedFecha.month === 12 ? 13 : undefined;
       return apiClient.createPoliza({
         companyId: activeCompanyId,
         tipo,
         fecha,
-        periodo: currentPeriod,
+        periodo: createPeriodo,
         concepto,
         cfdiUuid: primaryUuid,
         cfdiUuids: normalizedUuids,
@@ -102,18 +128,7 @@ export function usePolizasMutations({
     },
     onSuccess: (saved) => {
       setConfirmReverseId?.(null);
-      invalidateAccountingQueries(queryClient, [
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard',
-        'cfdis',
-        'bank-reconciliation',
-        'fiscal-workpaper',
-        'diot',
-        'sat-xml'
-      ]);
+      invalidateAccountingQueries(queryClient, POLIZA_INVALIDATION_SCOPES);
       onSaveSuccess?.();
       dialogRef?.current?.close();
       if ('tipo' in saved) {
@@ -146,18 +161,7 @@ export function usePolizasMutations({
       return apiClient.deletePoliza(id);
     },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, [
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard',
-        'cfdis',
-        'bank-reconciliation',
-        'fiscal-workpaper',
-        'diot',
-        'sat-xml'
-      ]);
+      invalidateAccountingQueries(queryClient, POLIZA_INVALIDATION_SCOPES);
       setConfirmDeleteId(null);
       toast.success('Póliza Eliminada', 'El asiento y sus movimientos fueron revertidos.');
     },
@@ -179,16 +183,7 @@ export function usePolizasMutations({
       return apiClient.closeYearPoliza(activeCompanyId);
     },
     onSuccess: (res) => {
-      invalidateAccountingQueries(queryClient, [
-        'companies',
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard',
-        'fiscal-workpaper',
-        'sat-xml'
-      ]);
+      invalidateAccountingQueries(queryClient, ['companies', ...POLIZA_INVALIDATION_SCOPES]);
       toast.success(
         `Cierre Anual ${currentYear} Registrado`,
         `Se generó la póliza de cierre en Periodo 13 con utilidad/pérdida de ${formatCurrency(res.utilidadTraspasada)}.`
@@ -232,21 +227,17 @@ export function usePolizasMutations({
         companyId: activeCompanyId,
         tipo: pedimentoData.tipo,
         fecha: pedimentoData.fecha,
-        periodo: currentPeriod,
+        periodo:
+          currentPeriod === 13 &&
+          parseCalendarDate(pedimentoData.fecha, currentYear, 12).month === 12
+            ? 13
+            : undefined,
         concepto: pedimentoData.concepto,
         movements: mappedMovements
       });
     },
     onSuccess: () => {
-      invalidateAccountingQueries(queryClient, [
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard',
-        'fiscal-workpaper',
-        'sat-xml'
-      ]);
+      invalidateAccountingQueries(queryClient, POLIZA_INVALIDATION_SCOPES);
       onPedimentoSuccess?.();
       toast.success(
         'Pedimento Registrado',
@@ -276,17 +267,7 @@ export function usePolizasMutations({
     },
     onSuccess: (saved) => {
       setConfirmReverseId?.(null);
-      invalidateAccountingQueries(queryClient, [
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard',
-        'bank-reconciliation',
-        'fiscal-workpaper',
-        'diot',
-        'sat-xml'
-      ]);
+      invalidateAccountingQueries(queryClient, POLIZA_INVALIDATION_SCOPES);
       toast.success(
         `Póliza Inversa ${saved.tipo} #${saved.folio} Generada`,
         `Reversión balanceada por ${formatCurrency(saved.totalCargos)}.`

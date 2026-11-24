@@ -1,18 +1,31 @@
-import type { AccountWithBalance, Company, Poliza, PolizaMovement } from './types';
+import type { AccountWithBalance, Company, Poliza } from './types';
 import { getTodayLocalIso } from './date-utils';
 import {
+  assertSolicitudAttrsIfStrict,
   buildAnexo24SolicitudAttrs,
   buildAuxiliarCuentasXml,
   buildAuxiliarFoliosXml,
+  computeCatalogoRetainedTree,
   hasEmptyAnexo24Body,
   isLevel1StructuralRubro,
   isValidSatNumOrden,
   isValidSatNumTramite,
-  truncXml,
-  type SatSolicitudTipo
+  truncXml
 } from './sat-anexo24-auxiliaries';
+import {
+  buildBankPaymentNode,
+  resolveMovementCounterpart,
+  type Anexo24CfdiMetadata,
+  type SatAnexo24Options
+} from './sat-anexo24-payments';
 
-export { hasEmptyAnexo24Body, isValidSatNumOrden, isValidSatNumTramite };
+export {
+  hasEmptyAnexo24Body,
+  isValidSatNumOrden,
+  isValidSatNumTramite,
+  type Anexo24CfdiMetadata,
+  type SatAnexo24Options
+};
 
 export type SatXmlType =
   | 'balanza'
@@ -21,26 +34,6 @@ export type SatXmlType =
   | 'auxiliar_folios'
   | 'auxiliar_cuentas';
 
-export interface Anexo24CfdiMetadata {
-  total: number;
-  rfcContraparte: string;
-  moneda?: string;
-  tipoCambio?: number;
-  formaPago?: string;
-  ctaDest?: string;
-  bancoDestNal?: string;
-}
-
-export interface SatAnexo24Options {
-  tipoEnvio?: 'N' | 'C';
-  fechaModBal?: string;
-  counterpartRfc?: string;
-  tipoSolicitud?: SatSolicitudTipo;
-  numOrden?: string;
-  numTramite?: string;
-  cfdiLookup?: ReadonlyMap<string, Anexo24CfdiMetadata>;
-}
-
 export interface SatAnexo24XmlResult {
   filename: string;
   type: string;
@@ -48,111 +41,6 @@ export interface SatAnexo24XmlResult {
 }
 
 const UUID_V4_LIKE_REGEX = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
-const RFC_EXTRACT_REGEX = /[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}/i;
-
-const BANK_CODE_PATTERNS: ReadonlyArray<[RegExp, string]> = [
-  [/bbva|bancomer/i, '012'],
-  [/banamex|citibanamex/i, '002'],
-  [/santander/i, '014'],
-  [/banorte|ixe/i, '072'],
-  [/hsbc/i, '021'],
-  [/scotiabank/i, '044'],
-  [/inbursa/i, '036'],
-  [/banregio/i, '058'],
-  [/banbajio|baj[ií]o/i, '030']
-];
-
-function inferBankCode(accountName: string | null | undefined): string {
-  const name = accountName || '';
-  for (const [pattern, code] of BANK_CODE_PATTERNS) {
-    if (pattern.test(name)) return code;
-  }
-  return '999';
-}
-
-function resolveMovementCounterpart(
-  companyRfc: string,
-  poliza: Poliza,
-  mov: PolizaMovement,
-  options?: SatAnexo24Options
-) {
-  const rawUuid = (mov.cfdiUuid || poliza.cfdiUuid || '').trim();
-  const upperUuid = rawUuid.toUpperCase();
-  const cfdiInfo = upperUuid ? options?.cfdiLookup?.get(upperUuid) : undefined;
-  const extractedRfc =
-    mov.concepto?.match(RFC_EXTRACT_REGEX)?.[0] ||
-    poliza.concepto?.match(RFC_EXTRACT_REGEX)?.[0];
-  const rawRfc = (
-    cfdiInfo?.rfcContraparte ||
-    mov.rfcContraparte ||
-    options?.counterpartRfc ||
-    extractedRfc ||
-    'XAXX010101000'
-  ).toUpperCase();
-  const thirdPartyRfc =
-    rawRfc === companyRfc.toUpperCase() ? 'XAXX010101000' : truncXml(rawRfc, 13);
-
-  const monedaRaw = (cfdiInfo?.moneda || mov.cfdiMoneda || 'MXN').toUpperCase();
-  const tcVal = cfdiInfo?.tipoCambio || mov.cfdiTipoCambio || 1;
-  const fxAttrs =
-    monedaRaw !== 'MXN' && monedaRaw !== 'XXX'
-      ? ` Moneda="${truncXml(monedaRaw, 3)}" TipCamb="${tcVal.toFixed(4)}"`
-      : '';
-
-  return { rawUuid, upperUuid, cfdiInfo, thirdPartyRfc, monedaRaw, tcVal, fxAttrs };
-}
-
-function inferOtherPaymentMethodCode(hint: string, formaPago?: string): string {
-  if (/\b(?:EFEC|EFECTIVO)\b/i.test(hint)) return '01';
-  if (/\b(?:CHQ|CHEQUE)\b|^CH-?\d+/i.test(hint)) return '02';
-  if (/\b(?:SPEI|TRANSF(?:ERENCIA)?|TRF|TEF|DEP)\b|dep[oó]sito/i.test(hint)) return '03';
-  if (/\bTDC\b|tarjeta.*cr[eé]dito/i.test(hint)) return '04';
-  if (/\b(?:TDD|TARJETA)\b/i.test(hint)) return '28';
-  const cleanFp = (formaPago || '').trim();
-  if (/^\d{2}$/.test(cleanFp) && cleanFp !== '00') return cleanFp;
-  return '99';
-}
-
-function buildBankPaymentNode(
-  fecha: string,
-  poliza: Poliza,
-  mov: PolizaMovement,
-  thirdPartyRfc: string,
-  fxAttrs: string,
-  cfdiInfo?: Anexo24CfdiMetadata
-): string {
-  const isBankAccount = (mov.accountCode || '').trim().startsWith('102');
-  const ref = (mov.referencia || '').trim();
-  const rawAmount = mov.cargo > 0 ? mov.cargo : mov.abono;
-  if (!isBankAccount || (!ref && rawAmount <= 0)) return '';
-
-  const safeFecha = truncXml(fecha, 10);
-  const benef = truncXml(mov.concepto || poliza.concepto || mov.accountName || 'Contraparte', 300);
-  const monto = (Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : 0).toFixed(2);
-  const ctaOri = truncXml(mov.accountCode, 50);
-  const bancoOri = inferBankCode(mov.accountName);
-  const hint = `${ref} ${mov.concepto || ''} ${poliza.concepto || ''}`;
-
-  if (/\b(?:CHQ|CHEQUE)\b|^CH-?\d+/i.test(hint)) {
-    if (ref && !/^S\/N$/i.test(ref)) {
-      const numCheque = truncXml(ref, 20);
-      return `\n    <PLZ:Cheque Num="${numCheque}" BanEmisNal="${bancoOri}" CtaOri="${ctaOri}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
-    }
-    return `\n    <PLZ:OtrMetodoPago MetPagoPol="02" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
-  }
-
-  if (/\b(?:SPEI|TRANSF(?:ERENCIA)?|TRF|TEF)\b/i.test(hint)) {
-    const rawCtaDest = (cfdiInfo?.ctaDest || (ref && !/^0+$/.test(ref) ? ref : '')).trim();
-    const rawBancoDest = (cfdiInfo?.bancoDestNal || '').trim();
-    if (rawCtaDest && rawBancoDest) {
-      return `\n    <PLZ:Transferencia CtaOri="${ctaOri}" BancoOriNal="${bancoOri}" CtaDest="${truncXml(rawCtaDest, 50)}" BancoDestNal="${truncXml(rawBancoDest, 3)}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
-    }
-    return `\n    <PLZ:OtrMetodoPago MetPagoPol="03" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
-  }
-
-  const metPago = inferOtherPaymentMethodCode(hint, cfdiInfo?.formaPago);
-  return `\n    <PLZ:OtrMetodoPago MetPagoPol="${metPago}" Fecha="${safeFecha}" Benef="${benef}" RFC="${thirdPartyRfc}" Monto="${monto}"${fxAttrs}/>`;
-}
 
 /**
  * Generador Oficial de Archivos XML de Contabilidad Electrónica SAT (Anexo 24 v1.3).
@@ -179,23 +67,12 @@ export function buildSatAnexo24Xml(
   if (type === 'catalogo') {
     const catMes = Math.max(1, Math.min(12, period));
     const catMesStr = String(catMes).padStart(2, '0');
-    const excludedParentCodes = new Set(
-      trialBalance.filter((acc) => isLevel1StructuralRubro(acc)).map((acc) => acc.code)
-    );
-    const ctasXml = trialBalance
-      .filter((acc) => !isLevel1StructuralRubro(acc))
-      .map((acc) => {
+    const ctasXml = computeCatalogoRetainedTree(trialBalance)
+      .map(({ acc, nivel, subCtaDe }) => {
         const codAgrup = truncXml(acc.satGroupCode || '101.01', 15);
         const numCta = truncXml(acc.code, 100);
         const desc = truncXml(acc.name, 200);
-        const parentExcluded = Boolean(acc.parentCode && excludedParentCodes.has(acc.parentCode));
-        const subCtaAttr =
-          acc.parentCode && !parentExcluded
-            ? `SubCtaDe="${truncXml(acc.parentCode, 100)}" `
-            : '';
-        const nivel = parentExcluded
-          ? Math.max(1, (acc.level || 1) - 1)
-          : acc.level || 1;
+        const subCtaAttr = subCtaDe ? `SubCtaDe="${truncXml(subCtaDe, 100)}" ` : '';
         const natur = acc.nature === 'DEUDORA' ? 'D' : 'A';
         return `  <catalogocuentas:Ctas CodAgrup="${codAgrup}" NumCta="${numCta}" Desc="${desc}" ${subCtaAttr}Nivel="${nivel}" Natur="${natur}"/>`;
       })
@@ -225,7 +102,9 @@ ${ctasXml}
   if (type === 'polizas') {
     const polMes = Math.max(1, Math.min(12, period));
     const polMesStr = String(polMes).padStart(2, '0');
-    const { tipoSolicitud, reqSolicitudAttr } = buildAnexo24SolicitudAttrs(options);
+    const solicitudAttrs = buildAnexo24SolicitudAttrs(options);
+    assertSolicitudAttrsIfStrict(solicitudAttrs, options?.strictSolicitud);
+    const { tipoSolicitud, reqSolicitudAttr } = solicitudAttrs;
 
     const polizasXml = polizas
       .map((p) => {
@@ -233,54 +112,63 @@ ${ctasXml}
         const fecha = p.fecha ? p.fecha.slice(0, 10) : `${year}-${polMesStr}-01`;
         const concepto = truncXml(p.concepto || `Póliza ${p.tipo} ${p.folio}`, 300);
         const emittedPolizaUuids = new Set<string>();
+        const movements = p.movements || [];
+        const headerUuids = Array.from(
+          new Set([...(p.cfdiUuids || []), ...(p.cfdiUuid ? [p.cfdiUuid] : [])].map((u) => u.trim().toUpperCase()).filter(Boolean))
+        );
+        const movExplicitSet = new Set(
+          movements.map((mv) => mv.cfdiUuid?.trim().toUpperCase() || '').filter(Boolean)
+        );
+        const unassignedHeaderUuids = headerUuids.filter((u) => !movExplicitSet.has(u));
+        const firstUnlinkedIdx = movements.findIndex((mv) => !mv.cfdiUuid?.trim());
+        const attachHeaderIdx = firstUnlinkedIdx >= 0 ? firstUnlinkedIdx : 0;
 
-        const transaccionesXml = (p.movements || [])
-          .map((m) => {
+        const transaccionesXml = movements
+          .map((m, idx) => {
             const numCta = truncXml(m.accountCode, 100);
             const desCta = truncXml(m.accountName, 200);
             const movConcepto = truncXml(m.concepto || p.concepto || 'Movimiento contable', 300);
-            const fmtVal = (n: number) => {
-              const safe = Number.isFinite(n) && n !== 0 ? n : 0;
-              return safe.toFixed(2);
-            };
+            const fmtVal = (n: number) => (Number.isFinite(n) && n !== 0 ? n : 0).toFixed(2);
             const debe = fmtVal(m.cargo || 0);
             const haber = fmtVal(m.abono || 0);
 
-            const {
-              rawUuid,
-              upperUuid,
-              cfdiInfo,
-              thirdPartyRfc,
-              monedaRaw,
-              tcVal,
-              fxAttrs
-            } = resolveMovementCounterpart(cleanRfc, p, m, options);
+            const uuidsForMov = [
+              ...(m.cfdiUuid?.trim() ? [m.cfdiUuid.trim().toUpperCase()] : []),
+              ...(idx === attachHeaderIdx ? unassignedHeaderUuids : [])
+            ];
 
-            let compNode = '';
-            if (rawUuid && !emittedPolizaUuids.has(upperUuid)) {
-              emittedPolizaUuids.add(upperUuid);
+            let compNodes = '';
+            for (const candUuid of uuidsForMov) {
+              if (!candUuid || emittedPolizaUuids.has(candUuid)) continue;
+              emittedPolizaUuids.add(candUuid);
+              const resolved = resolveMovementCounterpart(cleanRfc, p, m, options, candUuid);
               const montoReal =
-                cfdiInfo?.total && cfdiInfo.total > 0
-                  ? cfdiInfo.total
+                resolved.cfdiInfo?.total && resolved.cfdiInfo.total > 0
+                  ? resolved.cfdiInfo.total
                   : m.cfdiTotal && m.cfdiTotal > 0
                     ? m.cfdiTotal
                     : m.cargo > 0
                       ? m.cargo
                       : m.abono;
               const monto = montoReal.toFixed(2);
-
-              if (UUID_V4_LIKE_REGEX.test(upperUuid)) {
-                compNode = `\n    <PLZ:CompNal UUID_CFDI="${truncXml(upperUuid, 36)}" RFC="${thirdPartyRfc}" MontoTotal="${monto}"${fxAttrs}/>`;
+              if (UUID_V4_LIKE_REGEX.test(candUuid)) {
+                compNodes += `\n    <PLZ:CompNal UUID_CFDI="${truncXml(candUuid, 36)}" RFC="${resolved.thirdPartyRfc}" MontoTotal="${monto}"${resolved.fxAttrs}/>`;
               } else {
-                const extMoneda =
-                  monedaRaw !== 'MXN' && monedaRaw !== 'XXX' ? truncXml(monedaRaw, 3) : 'USD';
-                compNode = `\n    <PLZ:CompExt NumFactExt="${truncXml(rawUuid, 36)}" TaxID="${thirdPartyRfc}" MontoTotal="${monto}" Moneda="${extMoneda}" TipCamb="${tcVal.toFixed(4)}"/>`;
+                compNodes += `\n    <PLZ:CompExt NumFactExt="${truncXml(candUuid, 36)}" TaxID="${resolved.thirdPartyRfc}" MontoTotal="${monto}"${resolved.fxAttrs}/>`;
               }
             }
 
-            const paymentNode = buildBankPaymentNode(fecha, p, m, thirdPartyRfc, fxAttrs, cfdiInfo);
+            const primaryCounterpart = resolveMovementCounterpart(cleanRfc, p, m, options);
+            const paymentNode = buildBankPaymentNode(
+              fecha,
+              p,
+              m,
+              primaryCounterpart.thirdPartyRfc,
+              primaryCounterpart.fxAttrs,
+              primaryCounterpart.cfdiInfo
+            );
 
-            return `  <PLZ:Transaccion NumCta="${numCta}" DesCta="${desCta}" Concepto="${movConcepto}" Debe="${debe}" Haber="${haber}">${compNode}${paymentNode}\n  </PLZ:Transaccion>`;
+            return `  <PLZ:Transaccion NumCta="${numCta}" DesCta="${desCta}" Concepto="${movConcepto}" Debe="${debe}" Haber="${haber}">${compNodes}${paymentNode}\n  </PLZ:Transaccion>`;
           })
           .join('\n');
 
@@ -309,6 +197,7 @@ ${polizasXml}
   const fileSuffix = `B${tipoEnvio}.xml`;
 
   const balanzaCtasXml = trialBalance
+    .filter((acc) => !isLevel1StructuralRubro(acc))
     .map((acc) => {
       const numCta = truncXml(acc.code, 100);
       const fmtVal = (n: number) => {

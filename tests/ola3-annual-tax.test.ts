@@ -193,24 +193,25 @@ describe('Ola 3A — Declaración Anual, Ajuste Inflación INPC, CUCA, CUFIN y P
     expect(res.reconciliation.deduccionesFiscalesNoContables).toBe(80_000);
     expect(res.reconciliation.utilidadFiscalAntesPtu).toBe(751_070);
     expect(res.reconciliation.utilidadFiscal).toBe(721_070);
-    expect(res.reconciliation.perdidasFiscalesActualizadas).toBe(103_690);
-    expect(res.reconciliation.resultadoFiscal).toBe(617_380);
+    // Art. 57 LISR: pérdidas fiscales se actualizan con INPC Jun(ejercicio) / Dic(ejercicio-1) = 140.405 / 137.949 = 1.0178
+    expect(res.reconciliation.perdidasFiscalesActualizadas).toBe(101_780);
+    expect(res.reconciliation.resultadoFiscal).toBe(619_290);
 
     // Art. 14 Fracc. I LISR ordena truncamiento a 4 decimales
     expect(res.determination.nuevoCoeficienteUtilidad).toBe(0.3605);
     expect(res.determination.ptuPorPagar10Pct).toBe(75_107);
-    expect(res.determination.isrAnualCausado).toBe(185_214);
-    expect(res.determination.isrACargo).toBe(65_214);
+    expect(res.determination.isrAnualCausado).toBe(185_787);
+    expect(res.determination.isrACargo).toBe(65_787);
     expect(res.determination.isrAFavor).toBe(0);
 
     // CUCA = 500,000 * 1.0369 + 100,000 - 25,000 = 518,450 + 75,000 = 593,450
     expect(res.determination.cucaActualizada).toBe(518_450);
     expect(res.determination.cucaFinal).toBe(593_450);
 
-    // CUFIN = 200,000 * 1.0369 + (617,380 - 185,214 - 20,000) - 50,000 = 207,380 + 412,166 - 50,000 = 569,546
+    // CUFIN = 200,000 * 1.0369 + (619,290 - 185,787 - 20,000) - 50,000 = 207,380 + 413,503 - 50,000 = 570,883
     expect(res.determination.cufinActualizada).toBe(207_380);
-    expect(res.determination.ufinDelEjercicio).toBe(412_166);
-    expect(res.determination.cufinFinal).toBe(569_546);
+    expect(res.determination.ufinDelEjercicio).toBe(413_503);
+    expect(res.determination.cufinFinal).toBe(570_883);
   });
 
   test('3. Regímenes PF Art. 152, RESICO PF (1%-2.5% anual) y RESICO PM (30% flujo)', () => {

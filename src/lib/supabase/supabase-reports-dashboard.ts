@@ -20,7 +20,8 @@ export const supabaseReportsAndDashboard = {
   async getReports(
     companyId: string,
     year?: number,
-    period?: number
+    period?: number,
+    options?: { ignoreCierreAnual?: boolean }
   ): Promise<FinancialStatementsResponse> {
     if (!supabase) throw new Error('Supabase no disponible');
 
@@ -39,7 +40,7 @@ export const supabaseReportsAndDashboard = {
       fetchAllRows(async (from, to) =>
         getRequiredSupabase()
           .from('poliza_movements')
-          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo)')
+          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo, origin)')
           .eq('polizas.company_id', company.id)
           .lte('polizas.ejercicio', ejercicio)
           .order('id', { ascending: true })
@@ -47,10 +48,18 @@ export const supabaseReportsAndDashboard = {
       )
     ]);
 
+    const typedMovs = movs as unknown as JoinedPolizaMovementInput[];
+    const effectiveMovs = options?.ignoreCierreAnual
+      ? typedMovs.filter((row) => {
+          const p = Array.isArray(row.polizas) ? row.polizas[0] : row.polizas;
+          return !(p && p.ejercicio === ejercicio && p.periodo === periodo && p.origin === 'CIERRE_ANUAL');
+        })
+      : typedMovs;
+
     return computeFinancialStatementsData(
       company,
       rawAccounts.map(mapSupabaseAccount),
-      movs as unknown as JoinedPolizaMovementInput[],
+      effectiveMovs,
       ejercicio,
       periodo
     );
@@ -63,14 +72,13 @@ export const supabaseReportsAndDashboard = {
   ): Promise<DashboardSummary> {
     const report = await this.getReports(companyId, year, period);
     const company = report.company;
+    const y = year || company.currentYear;
+    const p = period || company.currentPeriod;
 
     const [cfdis, polizas] = await Promise.all([
       supabaseCfdi.getCfdis(company.id),
-      supabasePolizas.getPolizas(company.id, year, period)
+      supabasePolizas.getPolizas(company.id, y, p)
     ]);
-
-    const p = period || company.currentPeriod;
-    const y = year || company.currentYear;
     const { kpis, recentPolizas, pendingCfdis } = buildDashboardKpisFromTrialBalance({
       trialBalance: report.trialBalance,
       polizas,
