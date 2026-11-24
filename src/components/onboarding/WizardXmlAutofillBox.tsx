@@ -107,7 +107,7 @@ export function WizardXmlAutofillBox({
               e.target.value = '';
               void processFile(f);
             }}
-            className="visually-hidden"
+            className="sr-only"
           />
           {isProcessing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />

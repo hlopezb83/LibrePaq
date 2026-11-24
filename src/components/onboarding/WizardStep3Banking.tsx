@@ -149,6 +149,11 @@ export function WizardStep3Banking({
                 className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold text-slate-900 placeholder:text-slate-500 focus:border-blue-700"
               />
             </div>
+            {initialBankBalance > 0 && (
+              <p className="mt-1 text-[11px] font-mono font-semibold text-emerald-800">
+                Saldo inicial confirmado: {formatCurrency(initialBankBalance)} MXN
+              </p>
+            )}
           </div>
 
           <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2">

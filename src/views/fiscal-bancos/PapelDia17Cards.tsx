@@ -27,7 +27,7 @@ export function PapelDia17IsrCard({ workpaper, period }: { workpaper: FiscalWork
           Tasa {workpaper.isrProvisional.tasaIsrPct}%
         </span>
       </div>
-      <dl className="space-y-1.5 text-xs font-mono">
+      <dl className="space-y-1.5 text-xs font-mono tabular-nums">
         <div className="flex justify-between">
           <dt className="font-sans text-slate-600">Ingresos Nominales del Mes:</dt>
           <dd className="font-semibold text-slate-900">
@@ -134,7 +134,7 @@ export function PapelDia17IvaCard({ workpaper }: { workpaper: FiscalWorkpaperRes
           LIVA Art. 1-B / 5
         </span>
       </div>
-      <dl className="space-y-1.5 text-xs font-mono">
+      <dl className="space-y-1.5 text-xs font-mono tabular-nums">
         <div className="flex justify-between">
           <dt className="font-sans text-slate-600">(+) IVA Trasladado Cobrado:</dt>
           <dd className="font-semibold text-slate-900">

@@ -46,6 +46,7 @@ export function AdminUserRoleControl({
         ref={selectRef}
         id={`role-select-${user.id}`}
         disabled={isMutating}
+        title={isMutating ? 'Actualización de usuario en curso...' : undefined}
         value={pendingRole ?? currentRole}
         onChange={(e) => {
           const nextRole = e.target.value as PlatformRole;
@@ -141,6 +142,7 @@ export function AdminUserStatusControl({
   };
 
   if (pendingStatus) {
+    const isReactivate = pendingStatus === 'ACTIVO';
     return (
       <div
         role="alertdialog"
@@ -152,9 +154,11 @@ export function AdminUserStatusControl({
             cancelPendingStatus();
           }
         }}
-        className="inline-flex flex-wrap items-center justify-end gap-1.5 p-1.5 rounded-lg bg-red-50 border border-red-200 text-[11px]"
+        className={`inline-flex flex-wrap items-center justify-end gap-1.5 p-1.5 rounded-lg border text-[11px] whitespace-normal max-w-[240px] ${
+          isReactivate ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+        }`}
       >
-        <span className="font-bold text-red-900 text-left break-all">
+        <span className={`font-bold text-left break-all ${isReactivate ? 'text-emerald-900' : 'text-red-900'}`}>
           {pendingStatus === 'SUSPENDIDO'
             ? `¿Suspender a ${user.email}?`
             : `¿Reactivar a ${user.email}?`}
@@ -192,8 +196,9 @@ export function AdminUserStatusControl({
       ref={statusBtnRef}
       type="button"
       disabled={isMutating}
+      title={isMutating ? 'Actualización de usuario en curso...' : undefined}
       onClick={() => setPendingStatus(nextStatus)}
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border transition cursor-pointer disabled:opacity-50 ${
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
         isSuspended
           ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
           : 'bg-white hover:bg-red-50 text-red-700 border-red-200'

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { AlertCircle, AlertTriangle, Loader2, Lock, RotateCcw, X } from 'lucide-react';
 
 export interface SatBatchAlertData {
@@ -21,6 +22,7 @@ interface CfdiAlertsBannersProps {
   cancelledWithPolizaCount?: number;
   isReversingCancelled?: boolean;
   onReverseCancelledPoliza?: () => void;
+  onDismissCancelledAlert?: () => void;
   onLocateCancelled: (alert: SatBatchAlertData) => void;
   onDismissSatBatchAlert: () => void;
   batchPartialAlert: BatchPartialAlertData | null;
@@ -36,11 +38,82 @@ export function CfdiAlertsBanners({
   cancelledWithPolizaCount = 0,
   isReversingCancelled = false,
   onReverseCancelledPoliza,
+  onDismissCancelledAlert,
   onLocateCancelled,
   onDismissSatBatchAlert,
   batchPartialAlert,
   onDismissBatchPartialAlert
 }: CfdiAlertsBannersProps) {
+  const [confirmReverse, setConfirmReverse] = useState(false);
+
+  useEffect(() => {
+    setConfirmReverse(false);
+  }, [cancelledWithPolizaCount, satBatchAlert]);
+
+  const periodTag = `P${String(currentPeriod).padStart(2, '0')}`;
+  const reverseBlockedTitle = isReadOnlyClient
+    ? 'Modo solo lectura: no puedes generar pólizas inversas'
+    : isPeriodLocked
+    ? 'Periodo fiscal bloqueado ante el SAT'
+    : `Generar Póliza Inversa (Reversión) en ${periodTag}/${currentYear} para los CFDIs cancelados`;
+
+  const renderReverseAction = (primaryCls: string) => {
+    if (!onReverseCancelledPoliza) return null;
+    if (confirmReverse) {
+      return (
+        <div
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setConfirmReverse(false);
+            }
+          }}
+          className="inline-flex flex-wrap items-center gap-1 bg-white border border-amber-400 rounded-lg px-2 py-1"
+        >
+          <button
+            type="button"
+            disabled={isReadOnlyClient || isPeriodLocked || isReversingCancelled}
+            aria-busy={isReversingCancelled}
+            onClick={() => {
+              setConfirmReverse(false);
+              onReverseCancelledPoliza();
+            }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-amber-950 hover:bg-amber-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isReversingCancelled && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
+            <span>{isReversingCancelled ? 'Revirtiendo...' : `Confirmar reverso en ${periodTag}`}</span>
+          </button>
+          <span className="text-amber-300" aria-hidden="true">|</span>
+          <button
+            type="button"
+            autoFocus
+            disabled={isReversingCancelled}
+            onClick={() => setConfirmReverse(false)}
+            className="px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+          >
+            No
+          </button>
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        disabled={isReadOnlyClient || isPeriodLocked || isReversingCancelled}
+        aria-busy={isReversingCancelled}
+        onClick={() => setConfirmReverse(true)}
+        title={reverseBlockedTitle}
+        className={primaryCls}
+      >
+        {isReversingCancelled ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+        ) : (
+          <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+        )}
+        <span>{isReversingCancelled ? 'Revirtiendo...' : 'Revertir Póliza'}</span>
+      </button>
+    );
+  };
   return (
     <>
       {isReadOnlyClient && !isPeriodLocked && (
@@ -98,27 +171,8 @@ export function CfdiAlertsBanners({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-start">
-            {onReverseCancelledPoliza && (
-              <button
-                type="button"
-                disabled={isReadOnlyClient || isPeriodLocked || isReversingCancelled}
-                onClick={onReverseCancelledPoliza}
-                title={
-                  isReadOnlyClient
-                    ? 'Modo solo lectura'
-                    : isPeriodLocked
-                    ? 'Periodo bloqueado ante el SAT'
-                    : 'Generar Póliza Inversa (Reversión) para los CFDIs cancelados'
-                }
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold cursor-pointer shrink-0 transition"
-              >
-                {isReversingCancelled ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-                ) : (
-                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                )}
-                <span>Revertir Póliza</span>
-              </button>
+            {renderReverseAction(
+              'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold cursor-pointer shrink-0 transition'
             )}
             {satBatchAlert.alerts[0] && (
               <button
@@ -159,19 +213,21 @@ export function CfdiAlertsBanners({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            disabled={isReadOnlyClient || isPeriodLocked || isReversingCancelled}
-            onClick={onReverseCancelledPoliza}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold cursor-pointer shrink-0 transition"
-          >
-            {isReversingCancelled ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-center">
+            {renderReverseAction(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold cursor-pointer shrink-0 transition'
             )}
-            <span>Revertir Póliza</span>
-          </button>
+            {onDismissCancelledAlert && (
+              <button
+                type="button"
+                onClick={onDismissCancelledAlert}
+                aria-label="Ocultar alerta de CFDIs cancelados con póliza"
+                className="px-2.5 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 text-red-900 font-semibold cursor-pointer shrink-0 transition"
+              >
+                Ocultar
+              </button>
+            )}
+          </div>
         </div>
       )}
 

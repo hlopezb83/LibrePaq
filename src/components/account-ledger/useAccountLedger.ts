@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
@@ -97,7 +97,7 @@ export function useAccountLedger(
   const effectiveFrom = Math.min(periodFrom, periodTo);
   const effectiveTo = Math.max(periodFrom, periodTo);
 
-  const { data: rawData, isLoading, isError, error, refetch } = useQuery({
+  const { data: rawData, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['account-ledger', companyId, accountId, currentYear, effectiveFrom, effectiveTo],
     queryFn: () =>
       apiClient.getAccountLedger(
@@ -107,6 +107,7 @@ export function useAccountLedger(
         effectiveFrom,
         effectiveTo
       ),
+    placeholderData: keepPreviousData,
     enabled: Boolean(accountId)
   });
 
@@ -217,6 +218,7 @@ export function useAccountLedger(
       headers,
       rows
     );
+    toast.success('Auxiliar exportado en CSV', `Archivo Auxiliar_${data.account.code}_${data.ejercicio}_${rangeSuffix}.csv descargado.`);
   };
 
   const handleExportXlsx = async () => {
@@ -237,6 +239,7 @@ export function useAccountLedger(
     dialogRef,
     data,
     isLoading,
+    isFetching,
     isError,
     error,
     refetch,

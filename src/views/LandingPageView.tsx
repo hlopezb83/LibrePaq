@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { AuthModal } from '../components/auth/AuthModal';
 import { useAuth } from '../context/AuthContext';
 import { trackAnalyticsEvent } from '../lib/analytics';
@@ -9,10 +10,11 @@ import { LandingRoiCalculator } from './landing/LandingRoiCalculator';
 import { LandingFeaturesSection } from './landing/LandingFeaturesSection';
 import { LandingPricingSection } from './landing/LandingPricingSection';
 import { LandingFaqSection } from './landing/LandingFaqSection';
-import { LandingFooterSection } from './landing/LandingFooterSection';
+import { LandingCtaSection, LandingFooterSection } from './landing/LandingFooterSection';
 
 export function LandingPageView() {
-  const { user, startGuestDemo } = useAuth();
+  const { user, isGuest, startGuestDemo } = useAuth();
+  const navigate = useNavigate();
   const authDialogRef = useRef<HTMLDialogElement>(null);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
   const [isOpeningDemo, setIsOpeningDemo] = useState(false);
@@ -35,10 +37,13 @@ export function LandingPageView() {
     try {
       trackAnalyticsEvent('click_cta_explorar_demo', { location: 'landing_hero' });
       await startGuestDemo();
+      await navigate({ to: '/' });
     } finally {
       setIsOpeningDemo(false);
     }
   };
+
+  const hasRealSession = Boolean(user && !isGuest);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-600 selection:text-white">
@@ -58,29 +63,34 @@ export function LandingPageView() {
       <main id="main-content" tabIndex={-1} className="outline-none">
         {/* 2. Hero Section Principal con Maqueta Interactiva */}
         <LandingHeroSection
+          user={user}
+          isGuest={isGuest}
           onOpenAuth={openSignupAuth}
           onOpenDemo={handleOpenDemo}
           isOpeningDemo={isOpeningDemo}
         />
 
-      {/* 3. Comparativa Cara a Cara: CONTPAQi® vs. LibrePaq Pro */}
-      <LandingComparisonSection />
+        {/* 3. Comparativa Cara a Cara: CONTPAQi® vs. LibrePaq Pro */}
+        <LandingComparisonSection />
 
-      {/* 4. Calculadora Interactiva de Ahorro y ROI */}
-      <LandingRoiCalculator onOpenAuth={openSignupAuth} />
+        {/* 4. Calculadora Interactiva de Ahorro y ROI */}
+        <LandingRoiCalculator onOpenAuth={openSignupAuth} />
 
-      {/* 5. Módulos y Características Clave */}
-      <LandingFeaturesSection />
+        {/* 5. Módulos y Características Clave */}
+        <LandingFeaturesSection />
 
-      {/* 6. Planes de Precios Transparentes */}
-      <LandingPricingSection onOpenAuth={openSignupAuth} />
+        {/* 6. Planes de Precios Transparentes */}
+        <LandingPricingSection onOpenAuth={openSignupAuth} />
 
         {/* 7. Preguntas Frecuentes (FAQ Accordion) */}
         <LandingFaqSection />
+
+        {/* 8. Llamado a la Acción Final */}
+        <LandingCtaSection onOpenAuth={hasRealSession ? undefined : openSignupAuth} />
       </main>
 
-      {/* 8. Llamado a la Acción Final y Footer */}
-      <LandingFooterSection onOpenAuth={openSignupAuth} />
+      {/* 9. Footer */}
+      <LandingFooterSection />
     </div>
   );
 }

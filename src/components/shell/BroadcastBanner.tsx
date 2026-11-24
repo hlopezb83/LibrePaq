@@ -48,7 +48,7 @@ export function BroadcastBanner() {
     <div
       role="region"
       aria-label="Aviso oficial de la plataforma"
-      className={`px-4 py-2.5 border-b text-xs flex items-center justify-between gap-3 transition-colors ${
+      className={`no-print px-4 py-2.5 border-b text-xs flex items-center justify-between gap-3 transition-colors ${
         broadcast.type === 'warning'
           ? 'bg-amber-400 text-slate-950 border-amber-600 font-semibold'
           : broadcast.type === 'success'

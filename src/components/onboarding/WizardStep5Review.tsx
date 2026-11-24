@@ -34,8 +34,8 @@ export function WizardStep5Review({
 }: WizardStep5ReviewProps) {
   return (
     <div className="space-y-4">
-      <div className="p-4 rounded-2xl bg-[#0A1120] text-white space-y-2">
-        <div className="flex items-center justify-between">
+      <div className="dark-surface p-4 rounded-2xl bg-[#0A1120] text-white space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">
             Resumen de Configuración
           </span>
@@ -68,9 +68,9 @@ export function WizardStep5Review({
           <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
             Tesorería / Banco
           </span>
-          <span className="text-xs font-bold text-slate-900">
+          <span className="text-xs font-bold text-slate-900 tabular-nums">
             {initialBankName
-              ? `${initialBankName} (${formatCurrency(initialBankBalance)})`
+              ? `${initialBankName} (${formatCurrency(initialBankBalance)} MXN)`
               : 'Omitido por ahora (se configura después)'}
           </span>
         </div>

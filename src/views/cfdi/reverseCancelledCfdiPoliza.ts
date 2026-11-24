@@ -4,6 +4,32 @@ import { formatCurrency, getDefaultDateForPeriod } from '../../lib/formatters';
 import { buildInversePolizaDraft } from '../../shared/engine/poliza-productivity';
 import type { CfdiDocument } from '../../shared/types';
 
+export function collectCancelledWithPolizaTargets(params: {
+  scopedCfdis: readonly CfdiDocument[];
+  allCfdis: readonly CfdiDocument[];
+  satBatchAlerts?: ReadonlyArray<{ cfdiId: string; uuid: string }>;
+  dismissedIds: ReadonlySet<string>;
+}): Array<{ id: string; uuid: string; polizaId: string | null }> {
+  const map = new Map<string, { id: string; uuid: string; polizaId: string | null }>();
+  for (const c of params.scopedCfdis) {
+    if (c.statusSat === 'CANCELADO' && Boolean(c.polizaId) && !params.dismissedIds.has(c.id)) {
+      map.set(c.id, { id: c.id, uuid: c.uuid, polizaId: c.polizaId ?? null });
+    }
+  }
+  for (const a of params.satBatchAlerts ?? []) {
+    if (params.dismissedIds.has(a.cfdiId)) continue;
+    const found = params.allCfdis.find((c) => c.id === a.cfdiId);
+    if (found) {
+      if (found.statusSat === 'CANCELADO' && found.polizaId) {
+        map.set(found.id, { id: found.id, uuid: found.uuid, polizaId: found.polizaId });
+      }
+    } else {
+      map.set(a.cfdiId, { id: a.cfdiId, uuid: a.uuid, polizaId: null });
+    }
+  }
+  return Array.from(map.values());
+}
+
 export async function reverseCancelledCfdiPolizas(params: {
   companyId: string;
   currentYear: number;

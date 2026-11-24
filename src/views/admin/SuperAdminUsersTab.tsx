@@ -153,7 +153,7 @@ export function SuperAdminUsersTab({
           <caption className="visually-hidden">Directorio paginado de usuarios registrados y niveles de acceso</caption>
           <thead className="sticky top-0 z-20 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
             <tr>
-              <th scope="col" className="sticky left-0 z-30 py-2.5 px-2.5 border-b border-r border-slate-200 bg-slate-50">Usuario / Correo</th>
+              <th scope="col" className="lg:sticky lg:left-0 lg:z-30 py-2.5 px-2.5 border-b border-r border-slate-200 bg-slate-50">Usuario / Correo</th>
               <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Despacho / Nivel de acceso</th>
               <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Canal / Acceso</th>
               <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Empresas</th>
@@ -186,7 +186,7 @@ export function SuperAdminUsersTab({
 
                 return (
                   <tr key={u.id} className="group hover:bg-slate-50/80 transition">
-                    <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 py-2.5 px-2.5 max-w-[215px] text-left font-normal">
+                    <th scope="row" className="lg:sticky lg:left-0 lg:z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 py-2.5 px-2.5 max-w-[215px] text-left font-normal">
                       <div className="flex items-center gap-2 min-w-0">
                         <div aria-hidden="true" className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
                           {u.fullName.slice(0, 2).toUpperCase() || 'CP'}

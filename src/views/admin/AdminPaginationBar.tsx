@@ -30,7 +30,8 @@ export function AdminPaginationBar({
   const end = Math.min(safePage * pageSize, total);
   const prevDisabled = safePage <= 1 || isFetching;
   const nextDisabled = safePage >= safeTotalPages || isFetching;
-  const disabledReason = isFetching ? 'Cargando página...' : 'Ya estás en esta página';
+  const prevDisabledReason = isFetching ? 'Cargando página...' : 'Ya estás en la primera página';
+  const nextDisabledReason = isFetching ? 'Cargando página...' : 'Ya estás en la última página';
 
   return (
     <nav
@@ -52,7 +53,7 @@ export function AdminPaginationBar({
             type="button"
             onClick={() => onPageChange(1)}
             disabled={prevDisabled}
-            title={prevDisabled ? disabledReason : undefined}
+            title={prevDisabled ? prevDisabledReason : undefined}
             aria-label="Primera página"
             className={BTN_CLASS}
           >
@@ -65,7 +66,7 @@ export function AdminPaginationBar({
           type="button"
           onClick={() => onPageChange(safePage - 1)}
           disabled={prevDisabled}
-          title={prevDisabled ? disabledReason : undefined}
+          title={prevDisabled ? prevDisabledReason : undefined}
           aria-label="Página anterior"
           className={BTN_CLASS}
         >
@@ -73,7 +74,7 @@ export function AdminPaginationBar({
           Anterior
         </button>
 
-        <span className="px-2 font-semibold text-slate-800 tabular-nums" aria-live="polite">
+        <span className="px-2 font-semibold text-slate-800 tabular-nums">
           Página {safePage} de {safeTotalPages}
         </span>
 
@@ -81,7 +82,7 @@ export function AdminPaginationBar({
           type="button"
           onClick={() => onPageChange(safePage + 1)}
           disabled={nextDisabled}
-          title={nextDisabled ? disabledReason : undefined}
+          title={nextDisabled ? nextDisabledReason : undefined}
           aria-label="Página siguiente"
           className={BTN_CLASS}
         >
@@ -94,7 +95,7 @@ export function AdminPaginationBar({
             type="button"
             onClick={() => onPageChange(safeTotalPages)}
             disabled={nextDisabled}
-            title={nextDisabled ? disabledReason : undefined}
+            title={nextDisabled ? nextDisabledReason : undefined}
             aria-label="Última página"
             className={BTN_CLASS}
           >

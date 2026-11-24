@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { AlertCircle, Lock, Wand2 } from 'lucide-react';
 import type { CfdiDocument, PolizaType } from '../../shared/types';
 import { PolizaMultiCfdiBar } from './PolizaMultiCfdiBar';
@@ -52,6 +52,7 @@ export function PolizaEditorHeader({
   onUseActivePeriodDate,
   applyQuickTemplate
 }: PolizaEditorHeaderProps) {
+  const fechaInputRef = useRef<HTMLInputElement>(null);
   const focusConcepto = () => {
     conceptoInputRef.current?.focus();
     conceptoInputRef.current?.select();
@@ -62,7 +63,7 @@ export function PolizaEditorHeader({
       {isDateDifferentPeriod && (
         <div
           role="status"
-          className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2 shadow-2xs"
+          className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2 shadow-2xs w-full min-w-0 max-w-full"
         >
           <div className="flex items-center gap-2 min-w-0">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
@@ -101,12 +102,12 @@ export function PolizaEditorHeader({
       )}
 
       {!editingPolizaId && (
-        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2 w-full min-w-0 max-w-full">
           <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700">
             <Wand2 className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
             Plantillas Rápidas:
           </span>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
             <button
               type="button"
               onClick={() => applyQuickTemplate('GASTO_16')}
@@ -154,8 +155,8 @@ export function PolizaEditorHeader({
         onRemoveCfdiUuid={handleRemoveCfdiUuid}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full min-w-0">
+        <div className="min-w-0">
           <label htmlFor="pol-tipo" className="block text-xs font-semibold text-slate-700 mb-1">
             Tipo de Póliza *
           </label>
@@ -167,10 +168,10 @@ export function PolizaEditorHeader({
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                focusConcepto();
+                fechaInputRef.current?.focus();
               }
             }}
-            className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white cursor-pointer"
+            className="w-full min-w-0 px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white cursor-pointer"
           >
             <option value="INGRESO">INGRESO</option>
             <option value="EGRESO">EGRESO</option>
@@ -178,11 +179,12 @@ export function PolizaEditorHeader({
           </select>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label htmlFor="pol-fecha" className="block text-xs font-semibold text-slate-700 mb-1">
             Fecha Contable *
           </label>
           <input
+            ref={fechaInputRef}
             id="pol-fecha"
             form="poliza-form"
             type="date"
@@ -195,11 +197,11 @@ export function PolizaEditorHeader({
                 focusConcepto();
               }
             }}
-            className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono"
+            className="w-full min-w-0 px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono"
           />
         </div>
 
-        <div className="sm:col-span-2">
+        <div className="min-w-0">
           <label htmlFor="pol-concepto" className="block text-xs font-semibold text-slate-700 mb-1">
             Concepto General de la Póliza *
           </label>
@@ -219,7 +221,7 @@ export function PolizaEditorHeader({
               }
             }}
             placeholder="Ej. Provisión de servicios profesionales del mes"
-            className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+            className="w-full min-w-0 px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
           />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Briefcase,
   Building2,
@@ -27,6 +27,8 @@ export function WorkspaceEmptyView({
   onCompanyRestored
 }: WorkspaceEmptyViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const renameBtnRef = useRef<HTMLButtonElement>(null);
+  const wasEditingNameRef = useRef(false);
   const {
     isEditingName,
     setIsEditingName,
@@ -43,6 +45,15 @@ export function WorkspaceEmptyView({
     onRenameWorkspace,
     onCompanyRestored
   });
+
+  useEffect(() => {
+    if (isEditingName) {
+      wasEditingNameRef.current = true;
+    } else if (wasEditingNameRef.current) {
+      wasEditingNameRef.current = false;
+      requestAnimationFrame(() => renameBtnRef.current?.focus());
+    }
+  }, [isEditingName]);
 
   return (
     <div className="max-w-5xl mx-auto py-2 sm:py-5 lg:py-8 space-y-4 sm:space-y-6">
@@ -65,6 +76,7 @@ export function WorkspaceEmptyView({
                 {workspace?.name || 'Mi Despacho Contable'}
               </h1>
               <button
+                ref={renameBtnRef}
                 type="button"
                 onClick={() => {
                   setDraftName(workspace?.name || '');
@@ -85,10 +97,12 @@ export function WorkspaceEmptyView({
               <input
                 id="workspace-name-input"
                 type="text"
+                required
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
+                    e.preventDefault();
                     setIsEditingName(false);
                   }
                 }}
@@ -98,9 +112,10 @@ export function WorkspaceEmptyView({
               />
               <button
                 type="submit"
-                disabled={isSavingName}
+                disabled={isSavingName || !draftName.trim()}
                 aria-busy={isSavingName}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-xs font-bold text-slate-950 transition cursor-pointer disabled:opacity-50"
+                title={!draftName.trim() ? 'Escribe un nombre para tu Despacho Contable' : undefined}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-xs font-bold text-slate-950 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSavingName ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
@@ -207,7 +222,7 @@ export function WorkspaceEmptyView({
                 disabled={isRestoring}
                 accept=".json,application/json"
                 onChange={(e) => void handleRestoreFile(e)}
-                className="visually-hidden"
+                className="sr-only"
               />
               {isRestoring ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden="true" />

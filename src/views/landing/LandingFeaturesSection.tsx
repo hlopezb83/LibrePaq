@@ -9,7 +9,7 @@ import {
 
 export function LandingFeaturesSection() {
   return (
-    <section id="caracteristicas" className="py-14 sm:py-20 lg:py-24 bg-slate-50/70 border-t border-slate-200">
+    <section id="caracteristicas" className="scroll-mt-16 py-14 sm:py-20 lg:py-24 bg-slate-50/70 border-t border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
           <span className="px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-bold uppercase tracking-widest">
@@ -25,7 +25,7 @@ export function LandingFeaturesSection() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {/* Card 1 */}
-          <div id="mod-polizas" className="p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-500/50 hover:shadow-lg transition-all group shadow-xs">
+          <div id="mod-polizas" className="scroll-mt-24 p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-500/50 hover:shadow-lg transition-all group shadow-xs">
             <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-5 group-hover:scale-110 transition-transform">
               <Scale className="w-6 h-6" aria-hidden="true" />
             </div>
@@ -37,7 +37,7 @@ export function LandingFeaturesSection() {
           </div>
 
           {/* Card 2 */}
-          <div id="mod-boveda" className="p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-emerald-500/50 hover:shadow-lg transition-all group shadow-xs">
+          <div id="mod-boveda" className="scroll-mt-24 p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-emerald-500/50 hover:shadow-lg transition-all group shadow-xs">
             <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-5 group-hover:scale-110 transition-transform">
               <FileCode2 className="w-6 h-6" aria-hidden="true" />
             </div>
@@ -49,7 +49,7 @@ export function LandingFeaturesSection() {
           </div>
 
           {/* Card 3 */}
-          <div id="mod-catalogo" className="p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-cyan-500/50 hover:shadow-lg transition-all group shadow-xs">
+          <div id="mod-catalogo" className="scroll-mt-24 p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-cyan-500/50 hover:shadow-lg transition-all group shadow-xs">
             <div className="w-12 h-12 rounded-xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-600 mb-5 group-hover:scale-110 transition-transform">
               <FolderTree className="w-6 h-6" aria-hidden="true" />
             </div>
@@ -61,19 +61,19 @@ export function LandingFeaturesSection() {
           </div>
 
           {/* Card 4 */}
-          <div id="mod-bancos" className="p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-500/50 hover:shadow-lg transition-all group shadow-xs">
+          <div id="mod-bancos" className="scroll-mt-24 p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-500/50 hover:shadow-lg transition-all group shadow-xs">
             <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 mb-5 group-hover:scale-110 transition-transform">
               <Landmark className="w-6 h-6" aria-hidden="true" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">Conciliación Bancaria & DIOT</h3>
             <p className="text-sm text-slate-600 leading-relaxed text-pretty">
-              Sube el estado de cuenta descargado de tu banco (BBVA, Banorte, Santander, Banamex en Excel o CSV) para conciliar movimientos
+              Sube el estado de cuenta descargado de tu banco (BBVA, Banorte, Santander, Banamex en PDF o CSV) para conciliar movimientos
               y genera el archivo oficial de la DIOT con IVA efectivamente pagado.
             </p>
           </div>
 
           {/* Card 5 */}
-          <div id="mod-activos" className="p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-amber-500/50 hover:shadow-lg transition-all group shadow-xs">
+          <div id="mod-activos" className="scroll-mt-24 p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-amber-500/50 hover:shadow-lg transition-all group shadow-xs">
             <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-5 group-hover:scale-110 transition-transform">
               <Calculator className="w-6 h-6" aria-hidden="true" />
             </div>
@@ -85,7 +85,7 @@ export function LandingFeaturesSection() {
           </div>
 
           {/* Card 6 */}
-          <div id="mod-cierre" className="p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-purple-500/50 hover:shadow-lg transition-all group shadow-xs">
+          <div id="mod-cierre" className="scroll-mt-24 p-7 rounded-2xl bg-white border border-slate-200/90 hover:border-purple-500/50 hover:shadow-lg transition-all group shadow-xs">
             <div className="w-12 h-12 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 mb-5 group-hover:scale-110 transition-transform">
               <Lock className="w-6 h-6" aria-hidden="true" />
             </div>

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import type { PlatformAlertStatus, PlatformRole } from '../../shared/admin-types';
+import { ADMIN_ROLE_OPTIONS } from './adminFormatters';
 
 export function useSuperAdminMutations() {
   const queryClient = useQueryClient();
@@ -32,7 +33,8 @@ export function useSuperAdminMutations() {
     mutationFn: (v: { userId: string; platformRole: PlatformRole }) => apiClient.setAdminUserRole(v.userId, v.platformRole),
     onSuccess: (res) => {
       invalidateAuditAndUsers();
-      toast.success('Rol de plataforma actualizado', `Nuevo rol asignado: ${res.platformRole}`);
+      const roleLabel = ADMIN_ROLE_OPTIONS.find((opt) => opt.value === res.platformRole)?.label ?? res.platformRole;
+      toast.success('Rol de plataforma actualizado', `Nuevo rol asignado: ${roleLabel}`);
     },
     onError: (err: unknown) =>
       toast.error('No se pudo actualizar el rol', err instanceof Error ? err.message : 'Error inesperado.')
@@ -67,9 +69,16 @@ export function useSuperAdminMutations() {
   const updateAlertStatusMutation = useMutation({
     mutationFn: (v: { alertId: string; status: PlatformAlertStatus }) =>
       apiClient.updateAdminPlatformAlertStatus(v.alertId, v.status),
-    onSuccess: () => {
+    onSuccess: (_res, vars) => {
       void queryClient.invalidateQueries({ queryKey: ['admin-alerts'] });
       void queryClient.invalidateQueries({ queryKey: ['admin-audit-logs-paginated'] });
+      const label =
+        vars.status === 'resolved'
+          ? 'La alerta quedó marcada como resuelta.'
+          : vars.status === 'acknowledged'
+            ? 'La alerta quedó marcada como reconocida.'
+            : 'La alerta fue reabierta para seguimiento.';
+      toast.success('Estatus de alerta actualizado', label);
     },
     onError: (err: unknown) =>
       toast.error('Error al actualizar alerta', err instanceof Error ? err.message : 'Error inesperado.')

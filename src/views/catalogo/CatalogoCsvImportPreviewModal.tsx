@@ -28,11 +28,11 @@ export function CatalogoCsvImportPreviewModal({
   onConfirm
 }: CatalogoCsvImportPreviewModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [fechaInicioOp, setFechaInicioOp] = useState(preview?.fechaInicioOperaciones ?? '');
+  const [confirmUnbalanced, setConfirmUnbalanced] = useState(false);
   useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(preview) });
 
   useEffect(() => {
-    setFechaInicioOp(preview?.fechaInicioOperaciones ?? '');
+    setConfirmUnbalanced(false);
   }, [preview]);
 
   useEffect(() => {
@@ -47,7 +47,13 @@ export function CatalogoCsvImportPreviewModal({
 
   if (!preview) return null;
 
-  const canConfirm = preview.allValidRows.length > 0 && !isImporting;
+  const isUnbalancedBalanza = Boolean(
+    preview.balanzaValidation && !preview.balanzaValidation.isBalanced
+  );
+  const canConfirm =
+    preview.allValidRows.length > 0 &&
+    !isImporting &&
+    (!isUnbalancedBalanza || confirmUnbalanced);
 
   return (
     <dialog
@@ -103,22 +109,21 @@ export function CatalogoCsvImportPreviewModal({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-          <label htmlFor="mig-fecha-inicio" className="text-[11px] font-semibold text-slate-700">
-            Fecha de inicio de operaciones (opcional, ej. AAAA-MM):
-          </label>
-          <input
-            id="mig-fecha-inicio"
-            type="month"
-            value={fechaInicioOp}
-            onChange={(e) => setFechaInicioOp(e.target.value)}
-            className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-mono text-slate-800"
-          />
-        </div>
+        {preview.fechaInicioOperaciones && (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[11px] font-semibold text-slate-700">
+              Periodo detectado en archivo Anexo 24:
+            </span>
+            <span className="px-2.5 py-0.5 rounded-lg border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800">
+              {preview.fechaInicioOperaciones}
+            </span>
+          </div>
+        )}
 
         {preview.balanzaValidation && (
           <div
-            className={`p-3 rounded-xl border space-y-1.5 ${
+            role={preview.balanzaValidation.isBalanced ? 'status' : 'alert'}
+            className={`p-3 rounded-xl border space-y-2 ${
               preview.balanzaValidation.isBalanced
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
                 : 'bg-red-50 border-red-300 text-red-950'
@@ -127,7 +132,7 @@ export function CatalogoCsvImportPreviewModal({
             <div className="flex items-center justify-between gap-2 font-bold">
               <span>
                 {preview.balanzaValidation.isBalanced
-                  ? 'Validación Balanza BN.xml: Deudor === Acreedor (Cuadrada)'
+                  ? 'Validación Balanza BN.xml: Deudor = Acreedor (Cuadrada)'
                   : `Descuadre detectado en BN.xml (${formatCurrency(preview.balanzaValidation.difference)})`}
               </span>
               {preview.balanzaValidation.anio && preview.balanzaValidation.mes && (
@@ -136,12 +141,25 @@ export function CatalogoCsvImportPreviewModal({
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono tabular-nums text-[11px]">
               <div>Saldo Ini Deudor: <strong>{formatCurrency(preview.balanzaValidation.totalDeudor)}</strong></div>
               <div>Saldo Ini Acreedor: <strong>{formatCurrency(preview.balanzaValidation.totalAcreedor)}</strong></div>
               <div>Debe: <strong>{formatCurrency(preview.balanzaValidation.totalDebe)}</strong></div>
               <div>Haber: <strong>{formatCurrency(preview.balanzaValidation.totalHaber)}</strong></div>
             </div>
+            {isUnbalancedBalanza && (
+              <label className="flex items-start gap-2 pt-1.5 border-t border-red-200 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={confirmUnbalanced}
+                  onChange={(e) => setConfirmUnbalanced(e.target.checked)}
+                  className="mt-0.5 rounded border-red-400 text-red-700 focus:ring-red-600"
+                />
+                <span className="text-[11px] font-semibold text-red-950">
+                  Confirmo importar esta balanza aun con el descuadre detectado entre Deudor/Acreedor o Debe/Haber.
+                </span>
+              </label>
+            )}
           </div>
         )}
 
@@ -174,16 +192,26 @@ export function CatalogoCsvImportPreviewModal({
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono font-bold text-blue-900 shrink-0">{r.code}</span>
                       <span className="truncate text-slate-800">{r.name}</span>
+                      {r.satGroupCode && (
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono text-[10px] shrink-0">
+                          SAT {r.satGroupCode}
+                        </span>
+                      )}
                     </div>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                        isUpdate
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {isUpdate ? 'Actualizar' : 'Nueva'}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono tabular-nums text-[11px] text-slate-700">
+                        {formatCurrency(r.initialBalance ?? 0)}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                          isUpdate
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {isUpdate ? 'Actualizar' : 'Nueva'}
+                      </span>
+                    </div>
                   </div>
                 );
               })}

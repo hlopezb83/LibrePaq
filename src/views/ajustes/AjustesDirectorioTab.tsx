@@ -17,6 +17,7 @@ export interface AjustesDirectorioTabProps {
   confirmDeleteCompany: boolean;
   setConfirmDeleteCompany: (val: boolean) => void;
   onConfigureFicha: () => void;
+  onOpenEfirma?: () => void;
   canDeleteCompany?: boolean;
   canCreateCompany?: boolean;
   canViewDespachoMonitor?: boolean;
@@ -34,6 +35,7 @@ export function AjustesDirectorioTab({
   confirmDeleteCompany,
   setConfirmDeleteCompany,
   onConfigureFicha,
+  onOpenEfirma,
   canDeleteCompany = true,
   canCreateCompany = true,
   canViewDespachoMonitor = false,
@@ -77,11 +79,13 @@ export function AjustesDirectorioTab({
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Conmuta al instante entre razones sociales o supervisa el semáforo fiscal y contable de todo tu despacho.
+              {canViewDespachoMonitor || canCreateCompany
+                ? 'Conmuta al instante entre razones sociales o supervisa el semáforo fiscal y contable de todo tu despacho.'
+                : 'Consulta las empresas autorizadas para tu usuario en modo solo lectura.'}
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 min-w-0">
             {canViewDespachoMonitor && companies.length > 0 && (
               <div
                 role="group"
@@ -113,7 +117,7 @@ export function AjustesDirectorioTab({
               </div>
             )}
 
-            <search className="relative flex-1 sm:w-60">
+            <search className="relative flex-1 min-w-0 sm:min-w-[180px] sm:max-w-xs">
               <label htmlFor="directorio-company-search" className="visually-hidden">
                 Buscar empresa por razón social, RFC o régimen fiscal
               </label>
@@ -149,20 +153,17 @@ export function AjustesDirectorioTab({
               )}
             </search>
 
-            <button
-              type="button"
-              disabled={!canCreateCompany}
-              title={
-                !canCreateCompany
-                  ? 'Solo un usuario con permisos de edición puede dar de alta empresas'
-                  : 'Registrar una nueva empresa en el despacho'
-              }
-              onClick={openCompanyWizard}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>Dar de Alta Empresa</span>
-            </button>
+            {canCreateCompany && (
+              <button
+                type="button"
+                title="Registrar una nueva empresa en el despacho"
+                onClick={openCompanyWizard}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>Dar de Alta Empresa</span>
+              </button>
+            )}
           </div>
         </div>
         {companySearch.trim() && (
@@ -181,19 +182,21 @@ export function AjustesDirectorioTab({
           <div className="space-y-1 max-w-md mx-auto">
             <p className="text-sm font-bold text-slate-900">Aún no hay empresas registradas</p>
             <p className="text-xs text-slate-600">
-              Da de alta tu primera empresa o cliente del despacho para comenzar a importar CFDIs, generar pólizas y emitir reportes NIF.
+              {canCreateCompany
+                ? 'Da de alta tu primera empresa o cliente del despacho para comenzar a importar CFDIs, generar pólizas y emitir reportes NIF.'
+                : 'Aún no tienes empresas asignadas para consultar.'}
             </p>
           </div>
-          <button
-            type="button"
-            disabled={!canCreateCompany}
-            title={!canCreateCompany ? 'Modo solo lectura: no tienes permisos para crear empresas' : undefined}
-            onClick={openCompanyWizard}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            <span>Dar de Alta Primera Empresa</span>
-          </button>
+          {canCreateCompany && (
+            <button
+              type="button"
+              onClick={openCompanyWizard}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              <span>Dar de Alta Primera Empresa</span>
+            </button>
+          )}
         </div>
       ) : filteredCompanies.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-300/90 p-8 text-center space-y-3 shadow-2xs">
@@ -222,6 +225,7 @@ export function AjustesDirectorioTab({
           companies={filteredCompanies}
           activeCompanyId={activeCompany?.id ?? ''}
           onSelectCompany={handleSelectCompany}
+          onOpenEfirma={onOpenEfirma}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -232,6 +236,7 @@ export function AjustesDirectorioTab({
               isCurrent={c.id === activeCompany?.id}
               companiesCount={companies.length}
               canDeleteCompany={canDeleteCompany}
+              isReadOnly={!canCreateCompany}
               confirmDeleteCompany={confirmDeleteCompany}
               setConfirmDeleteCompany={setConfirmDeleteCompany}
               onSelectCompany={(comp) => handleSelectCompany(comp.id, comp.name, comp.rfc)}

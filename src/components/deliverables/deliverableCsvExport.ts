@@ -79,7 +79,7 @@ export function exportAllDeliverablesCsv({
       return [rubro, a.code, a.name, signedMes(a, expected), ytd, formatVerticalPct(ytd, er.totalIngresos)];
     };
 
-    const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Del Mes MXN', 'Acumulado YTD MXN', '% s/Ventas'];
+    const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Del Mes MXN', 'Acum. Ejercicio MXN', '% s/Ventas'];
     const erRows: Array<Array<string | number>> = [
       ...filterEr(er.ingresos, 'ACREEDORA').map((a) => mapEr('INGRESOS', a, 'ACREEDORA')),
       ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos, '100.0%'],
@@ -129,6 +129,8 @@ export function exportAllDeliverablesCsv({
     const d17Rows = buildPapelFiscalCsvRows(company, fiscalData);
     files['Papel_Fiscal.csv'] = strToU8(buildCsvContent(d17Headers, d17Rows));
   }
+
+  if (Object.keys(files).length === 0) return;
 
   const safeRfc = (company.rfc || 'EMPRESA').replace(/[^a-zA-Z0-9_-]/g, '');
   const periodCode = `P${String(period).padStart(2, '0')}`;

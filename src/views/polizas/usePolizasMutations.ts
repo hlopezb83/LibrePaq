@@ -27,6 +27,7 @@ export interface UsePolizasMutationsParams {
   onPedimentoSuccess?: () => void;
   setFormError: (err: string | null) => void;
   setConfirmDeleteId: (id: string | null) => void;
+  setConfirmReverseId?: (id: string | null) => void;
 }
 
 export function usePolizasMutations({
@@ -48,7 +49,8 @@ export function usePolizasMutations({
   onSaveSuccess,
   onPedimentoSuccess,
   setFormError,
-  setConfirmDeleteId
+  setConfirmDeleteId,
+  setConfirmReverseId
 }: UsePolizasMutationsParams) {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -99,6 +101,7 @@ export function usePolizasMutations({
       });
     },
     onSuccess: (saved) => {
+      setConfirmReverseId?.(null);
       invalidateAccountingQueries(queryClient, [
         'polizas',
         'accounts',
@@ -272,6 +275,7 @@ export function usePolizasMutations({
       return apiClient.createPoliza(draft);
     },
     onSuccess: (saved) => {
+      setConfirmReverseId?.(null);
       invalidateAccountingQueries(queryClient, [
         'polizas',
         'accounts',

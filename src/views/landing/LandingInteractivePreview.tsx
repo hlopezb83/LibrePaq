@@ -15,7 +15,7 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                 <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
                   PÓLIZA DE INGRESOS #042
                 </span>
-                <span className="text-xs font-mono text-slate-600">Periodo 10 (Octubre 2026)</span>
+                <span className="text-xs font-mono text-slate-600">Periodo P10 (Octubre {new Date().getFullYear()})</span>
               </div>
               <p className="text-xs sm:text-sm font-bold text-slate-900 mt-1">
                 Cobro Factura F-8419 — Cliente Corporativo Alfa S.A.
@@ -32,6 +32,10 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
               </div>
             </div>
           </div>
+
+          <p className="sm:hidden text-[11px] font-semibold text-slate-600 text-right">
+            Desliza para ver importes →
+          </p>
 
           <div
             tabIndex={0}
@@ -113,7 +117,7 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">CFDI I (Ingreso)</span>
+                <span className="text-[10px] font-mono text-emerald-800 font-bold bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">CFDI I (Emitido)</span>
                 <span className="text-xs font-mono font-bold text-slate-900">$48,250.00</span>
               </div>
               <p className="text-xs font-semibold text-slate-900 mt-2 truncate">Soluciones Tecnológicas del Bajío</p>
@@ -125,7 +129,7 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-blue-800 font-bold bg-blue-100 px-2 py-0.5 rounded border border-blue-300">CFDI E (Gasto)</span>
+                <span className="text-[10px] font-mono text-blue-800 font-bold bg-blue-100 px-2 py-0.5 rounded border border-blue-300">CFDI I (Recibido · Gasto)</span>
                 <span className="text-xs font-mono font-bold text-slate-900">$14,500.00</span>
               </div>
               <p className="text-xs font-semibold text-slate-900 mt-2 truncate">Arrendadora Inmobiliaria del Centro</p>
@@ -164,6 +168,10 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
               <span className="text-xs font-mono text-slate-700 bg-slate-100 px-2.5 py-1 rounded border border-slate-300 font-semibold">Excel Oficial</span>
             </div>
           </div>
+
+          <p className="sm:hidden text-[11px] font-semibold text-slate-600 text-right">
+            Desliza para ver importes →
+          </p>
 
           <div
             tabIndex={0}
@@ -230,13 +238,13 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <p className="text-[10px] text-slate-600 uppercase font-semibold">ISR a Enterar (Día 17)</p>
-              <p className="text-lg font-bold text-amber-800 mt-1 tabular-nums">$42,380.00</p>
+              <p className="text-lg font-bold text-amber-800 mt-1 tabular-nums">$42,358.57</p>
               <p className="text-[10px] text-slate-600 mt-1">Menos pagos previos: $226,100.00</p>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <p className="text-[10px] text-slate-600 uppercase font-semibold">IVA a Pagar / Saldo a Favor</p>
               <p className="text-lg font-bold text-emerald-700 mt-1 tabular-nums">$18,450.00</p>
-              <p className="text-[10px] text-emerald-700 mt-1 font-semibold">Causado $96k - Acreditable $77.5k</p>
+              <p className="text-[10px] text-emerald-700 mt-1 font-semibold">Causado $96,000.00 - Acreditable $77,550.00</p>
             </div>
           </div>
         </div>

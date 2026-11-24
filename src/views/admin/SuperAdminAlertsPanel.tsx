@@ -94,6 +94,7 @@ export function SuperAdminAlertsPanel({
           onClick={onScan}
           disabled={isScanning}
           aria-busy={isScanning}
+          title={isScanning ? 'Escaneando salud de plataforma...' : 'Ejecutar escaneo proactivo de alertas SAT y cuotas'}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -152,10 +153,12 @@ export function SuperAdminAlertsPanel({
               type="button"
               onClick={onScan}
               disabled={isScanning}
+              aria-busy={isScanning}
+              title={isScanning ? 'Escaneando salud de plataforma...' : 'Ejecutar escaneo proactivo de alertas'}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />
-              Escanear plataforma
+              {isScanning ? 'Escaneando...' : 'Escanear plataforma'}
             </button>
           </div>
         </div>
@@ -228,6 +231,7 @@ export function SuperAdminAlertsPanel({
                       type="button"
                       disabled={isBusy}
                       aria-busy={isBusy}
+                      title={isBusy ? 'Actualizando alerta...' : 'Marcar alerta como reconocida'}
                       onClick={() => onUpdateStatus(alert.id, 'acknowledged')}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-amber-950 border border-amber-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
@@ -241,6 +245,7 @@ export function SuperAdminAlertsPanel({
                       type="button"
                       disabled={isBusy}
                       aria-busy={isBusy}
+                      title={isBusy ? 'Actualizando alerta...' : 'Marcar alerta como resuelta'}
                       onClick={() => onUpdateStatus(alert.id, 'resolved')}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-950 border border-emerald-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >
@@ -258,6 +263,7 @@ export function SuperAdminAlertsPanel({
                       type="button"
                       disabled={isBusy}
                       aria-busy={isBusy}
+                      title={isBusy ? 'Actualizando alerta...' : 'Reabrir alerta para seguimiento'}
                       onClick={() => onUpdateStatus(alert.id, 'open')}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                     >

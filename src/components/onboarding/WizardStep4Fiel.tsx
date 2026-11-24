@@ -33,7 +33,7 @@ export function WizardStep4Fiel({
       <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
         <div className="min-w-0">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            Credenciales Criptográficas (FIEL / e.firma)
+            Archivos de e.firma SAT (FIEL)
           </h3>
           <p className="text-xs text-slate-600">
             Permite la descarga masiva directa de facturas y complementos desde los servidores del SAT.
@@ -91,7 +91,6 @@ export function WizardStep4Fiel({
               </span>
               <label
                 htmlFor="wizard-fiel-cer-input"
-                aria-labelledby="wizard-fiel-cer-label"
                 className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer focus-within:outline-2 focus-within:outline-blue-700"
               >
                 <span className="truncate">{fielCerName || 'Seleccionar .cer...'}</span>
@@ -100,8 +99,9 @@ export function WizardStep4Fiel({
                   id="wizard-fiel-cer-input"
                   type="file"
                   accept=".cer"
+                  aria-labelledby="wizard-fiel-cer-label"
                   onChange={onCerFileChange}
-                  className="visually-hidden"
+                  className="sr-only"
                 />
               </label>
             </div>
@@ -115,7 +115,6 @@ export function WizardStep4Fiel({
               </span>
               <label
                 htmlFor="wizard-fiel-key-input"
-                aria-labelledby="wizard-fiel-key-label"
                 className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer focus-within:outline-2 focus-within:outline-blue-700"
               >
                 <span className="truncate">{fielKeyName || 'Seleccionar .key...'}</span>
@@ -124,8 +123,9 @@ export function WizardStep4Fiel({
                   id="wizard-fiel-key-input"
                   type="file"
                   accept=".key"
+                  aria-labelledby="wizard-fiel-key-label"
                   onChange={onKeyFileChange}
-                  className="visually-hidden"
+                  className="sr-only"
                 />
               </label>
             </div>
@@ -139,6 +139,7 @@ export function WizardStep4Fiel({
               <input
                 id="wizard-fiel-pass"
                 type={showPassword ? 'text' : 'password'}
+                autoComplete="off"
                 value={fielPassword}
                 onChange={(e) => setFielPassword(e.target.value)}
                 placeholder="••••••••••••"

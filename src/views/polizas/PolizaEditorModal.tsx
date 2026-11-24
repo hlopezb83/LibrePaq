@@ -103,7 +103,7 @@ export function PolizaEditorModal({
         handleSafeClose();
       }}
       aria-labelledby="modal-poliza-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-5xl max-h-[92dvh] open:flex open:flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-[calc(100vw-1rem)] sm:w-full max-w-5xl min-w-0 max-h-[92dvh] open:flex open:flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
       <div
         onKeyDown={(e) => {
@@ -122,17 +122,20 @@ export function PolizaEditorModal({
           } else if (e.altKey && !editingPolizaId) {
             if (e.key === '1') {
               e.preventDefault();
+              e.stopPropagation();
               applyQuickTemplate('GASTO_16');
             } else if (e.key === '2') {
               e.preventDefault();
+              e.stopPropagation();
               applyQuickTemplate('VENTA_PPD');
             } else if (e.key === '3') {
               e.preventDefault();
+              e.stopPropagation();
               applyQuickTemplate('PAGO_IMPUESTOS');
             }
           }
         }}
-        className="w-full max-h-[92dvh] min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+        className="w-full min-w-0 max-w-full max-h-[92dvh] min-h-0 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden overflow-x-hidden"
       >
         <PolizaEditorTitleBar
           editingPolizaId={editingPolizaId}
@@ -145,7 +148,7 @@ export function PolizaEditorModal({
           onClose={handleSafeClose}
         />
 
-        <div className="p-3.5 sm:p-4 overflow-y-auto overscroll-contain flex-1 min-h-0 scrollable-panel space-y-3">
+        <div className="p-3 sm:p-4 overflow-y-auto overflow-x-hidden overscroll-contain flex-1 min-h-0 min-w-0 w-full max-w-full scrollable-panel space-y-3">
           <PolizaEditorHeader
             editingPolizaId={editingPolizaId}
             currentYear={currentYear}
@@ -177,6 +180,7 @@ export function PolizaEditorModal({
           <form
             id="poliza-form"
             method="post"
+            className="w-full min-w-0 max-w-full"
             onSubmit={(e) => {
               e.preventDefault();
               setConfirmDiscard(false);

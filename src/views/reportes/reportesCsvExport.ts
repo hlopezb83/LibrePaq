@@ -95,30 +95,52 @@ export function exportActiveReportCsv(params: {
 
   if (activeTab === 'ANUAL' && annualTaxData) {
     const { reconciliation: rec, determination: det, inflation: inf } = annualTaxData;
+    const isPersonaFisica =
+      det.tipoRegimenAnual === 'PF_RESICO' || det.tipoRegimenAnual === 'PF_ART152';
+    const isPfResico = det.tipoRegimenAnual === 'PF_RESICO';
+    const anualRows: Array<Array<string | number>> = isPersonaFisica
+      ? [
+          ['Base Gravable Persona Física', 'Ingresos Cobrados / Acumulables del Ejercicio', det.ingresosNominales],
+          ...(isPfResico
+            ? []
+            : [
+                ['Base Gravable Persona Física', '(-) Deducciones Autorizadas y PTU Pagada', -(rec.deduccionesFiscalesNoContables + rec.ptuPagadaEjercicio)],
+                ['Base Gravable Persona Física', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
+                ['Base Gravable Persona Física', '(-) Deducciones Personales Aplicadas (Art. 151 LISR)', -(rec.deduccionesPersonalesAplicadas ?? 0)]
+              ]),
+          ['Base Gravable Persona Física', '(=) Base / Resultado Fiscal Anual', rec.resultadoFiscal],
+          ['Determinación ISR Anual', 'Tasa / Tarifa Aplicable (%)', `${det.tasaAplicablePct.toFixed(2)}%`],
+          ['Determinación ISR Anual', 'ISR Anual Causado', det.isrAnualCausado],
+          ['Determinación ISR Anual', '(-) Pagos Provisionales Efectuados', -det.pagosProvisionalesEfectuados],
+          ['Determinación ISR Anual', '(-) ISR Retenido Acreditable', -det.isrRetenidoAcreditable],
+          ['Determinación ISR Anual', det.isrAnualCargoFavor >= 0 ? '(=) ISR Anual a Cargo' : '(=) Saldo a Favor de ISR', det.isrAnualCargoFavor >= 0 ? det.isrACargo : det.isrAFavor],
+          ...(det.ptuPorPagar10Pct > 0 ? [['Determinación ISR Anual', 'PTU por Pagar (10%)', det.ptuPorPagar10Pct]] : [])
+        ]
+      : [
+          ['Conciliación Contable-Fiscal', 'Utilidad / Pérdida Contable', rec.utilidadContable],
+          ['Conciliación Contable-Fiscal', '(+) Ingresos Fiscales No Contables', rec.ingresosFiscalesNoContables],
+          ['Conciliación Contable-Fiscal', '(+) Deducciones Contables No Fiscales', rec.deduccionesContablesNoFiscales],
+          ['Conciliación Contable-Fiscal', '(-) Deducciones Fiscales No Contables', -rec.deduccionesFiscalesNoContables],
+          ['Conciliación Contable-Fiscal', '(-) PTU Pagada en el Ejercicio', -rec.ptuPagadaEjercicio],
+          ['Conciliación Contable-Fiscal', '(=) Utilidad / Pérdida Fiscal', rec.utilidadFiscal],
+          ['Conciliación Contable-Fiscal', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
+          ['Conciliación Contable-Fiscal', '(=) Resultado Fiscal Gravable', rec.resultadoFiscal],
+          ['Ajuste Anual por Inflación', 'Promedio Anual de Créditos', inf.promedioCreditos],
+          ['Ajuste Anual por Inflación', 'Promedio Anual de Deudas', inf.promedioDeudas],
+          ['Ajuste Anual por Inflación', `Efecto (${inf.tipo})`, inf.tipo === 'ACUMULABLE' ? inf.ajusteAcumulable : inf.tipo === 'DEDUCIBLE' ? -inf.ajusteDeducible : 0],
+          ['Determinación ISR Anual', 'ISR Anual Causado', det.isrAnualCausado],
+          ['Determinación ISR Anual', '(-) Pagos Provisionales Efectuados', -det.pagosProvisionalesEfectuados],
+          ['Determinación ISR Anual', '(-) ISR Retenido Acreditable', -det.isrRetenidoAcreditable],
+          ['Determinación ISR Anual', det.isrAnualCargoFavor >= 0 ? '(=) ISR Anual a Cargo' : '(=) Saldo a Favor de ISR', det.isrAnualCargoFavor >= 0 ? det.isrACargo : det.isrAFavor],
+          ['Determinación ISR Anual', 'PTU por Pagar (10%)', det.ptuPorPagar10Pct],
+          ['Determinación ISR Anual', 'Nuevo Coeficiente de Utilidad', det.nuevoCoeficienteUtilidad.toFixed(4)],
+          ['CUCA y CUFIN', 'CUCA Final Actualizada', det.cucaFinal],
+          ['CUCA y CUFIN', 'CUFIN Final Actualizada', det.cufinFinal]
+        ];
     downloadCsvFile(
       `Declaracion_Anual_${data.company.rfc}_${annualTaxData.ejercicio}.csv`,
       ['Sección', 'Concepto', 'Importe / Valor'],
-      [
-        ['Conciliación Contable-Fiscal', 'Utilidad / Pérdida Contable', rec.utilidadContable],
-        ['Conciliación Contable-Fiscal', '(+) Ingresos Fiscales No Contables', rec.ingresosFiscalesNoContables],
-        ['Conciliación Contable-Fiscal', '(+) Deducciones Contables No Fiscales', rec.deduccionesContablesNoFiscales],
-        ['Conciliación Contable-Fiscal', '(-) Deducciones Fiscales No Contables', -rec.deduccionesFiscalesNoContables],
-        ['Conciliación Contable-Fiscal', '(-) PTU Pagada en el Ejercicio', -rec.ptuPagadaEjercicio],
-        ['Conciliación Contable-Fiscal', '(=) Utilidad / Pérdida Fiscal', rec.utilidadFiscal],
-        ['Conciliación Contable-Fiscal', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
-        ['Conciliación Contable-Fiscal', '(=) Resultado Fiscal Gravable', rec.resultadoFiscal],
-        ['Ajuste Anual por Inflación', 'Promedio Anual de Créditos', inf.promedioCreditos],
-        ['Ajuste Anual por Inflación', 'Promedio Anual de Deudas', inf.promedioDeudas],
-        ['Ajuste Anual por Inflación', `Efecto (${inf.tipo})`, inf.tipo === 'ACUMULABLE' ? inf.ajusteAcumulable : inf.tipo === 'DEDUCIBLE' ? -inf.ajusteDeducible : 0],
-        ['Determinación ISR Anual', 'ISR Anual Causado', det.isrAnualCausado],
-        ['Determinación ISR Anual', '(-) Pagos Provisionales Efectuados', -det.pagosProvisionalesEfectuados],
-        ['Determinación ISR Anual', '(-) ISR Retenido Acreditable', -det.isrRetenidoAcreditable],
-        ['Determinación ISR Anual', det.isrAnualCargoFavor >= 0 ? '(=) ISR Anual a Cargo' : '(=) Saldo a Favor de ISR', det.isrAnualCargoFavor >= 0 ? det.isrACargo : det.isrAFavor],
-        ['Determinación ISR Anual', 'PTU por Pagar (10%)', det.ptuPorPagar10Pct],
-        ['Determinación ISR Anual', 'Nuevo Coeficiente de Utilidad', det.nuevoCoeficienteUtilidad.toFixed(4)],
-        ['CUCA y CUFIN', 'CUCA Final Actualizada', det.cucaFinal],
-        ['CUCA y CUFIN', 'CUFIN Final Actualizada', det.cufinFinal]
-      ]
+      anualRows
     );
     return 'Declaración Anual exportada en CSV';
   }

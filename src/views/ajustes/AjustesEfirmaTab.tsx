@@ -198,15 +198,21 @@ export function AjustesEfirmaTab({
               </p>
             </div>
 
+            {isReadOnly && (
+              <div role="status" className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-950">
+                Modo solo consulta: la carga o autorización de archivos e.firma (.cer y .key) está deshabilitada.
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-700 block">Certificado Público SAT (.cer) *</span>
+              <div>
                 <label
                   htmlFor="efirma-cer-input"
                   title={isReadOnly ? 'Modo solo lectura: no puedes cargar archivos .cer' : 'Haz clic o arrastra tu archivo .cer'}
                   {...makeFielDropHandlers('.cer', Boolean(isReadOnly), setCerFile)}
                   className={getDropzoneClass(Boolean(isReadOnly), Boolean(cerFile))}
                 >
+                  <span className="text-xs font-bold text-slate-700 block mb-1">Certificado Público SAT (.cer) *</span>
                   <input
                     id="efirma-cer-input"
                     name="cerFile"
@@ -226,14 +232,14 @@ export function AjustesEfirmaTab({
                 </label>
               </div>
 
-              <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-700 block">Clave Privada (.key) *</span>
+              <div>
                 <label
                   htmlFor="efirma-key-input"
                   title={isReadOnly ? 'Modo solo lectura: no puedes cargar archivos .key' : 'Haz clic o arrastra tu archivo .key'}
                   {...makeFielDropHandlers('.key', Boolean(isReadOnly), setKeyFile)}
                   className={getDropzoneClass(Boolean(isReadOnly), Boolean(keyFile))}
                 >
+                  <span className="text-xs font-bold text-slate-700 block mb-1">Clave Privada (.key) *</span>
                   <input
                     id="efirma-key-input"
                     name="keyFile"

@@ -23,6 +23,10 @@ export interface CfdiTableProps extends UseCfdiColumnsProps {
     total: number;
   };
   hasActiveFilters?: boolean;
+  periodScope?: 'CURRENT' | 'ALL';
+  currentYear?: number;
+  countInCurrentYear?: number;
+  onViewAllYear?: () => void;
   onResetFilters?: () => void;
   onOpenSatDownload?: () => void;
   onUploadXmlClick?: () => void;
@@ -145,9 +149,11 @@ export function CfdiTable(props: CfdiTableProps) {
         </thead>
         <tbody className="divide-y divide-slate-100 text-xs">
           {isLoading ? (
-            <tr role="status">
+            <tr>
               <td colSpan={columns.length} className="py-12 text-center text-slate-600 font-medium">
-                Cargando comprobantes fiscales de la Bóveda Digital...
+                <div role="status" aria-live="polite">
+                  Cargando comprobantes fiscales de la Bóveda Digital...
+                </div>
               </td>
             </tr>
           ) : rows.length === 0 ? (
@@ -179,10 +185,23 @@ export function CfdiTable(props: CfdiTableProps) {
                     </div>
                     <p className="font-bold text-slate-900 text-sm mt-0.5">Bóveda sin comprobantes en este periodo</p>
                     <p className="text-xs text-slate-600 leading-relaxed max-w-xs">
-                      Descarga tus facturas directamente del SAT con tu e.firma o sube tus archivos XML en 2 segundos.
+                      {props.periodScope === 'CURRENT' && (props.countInCurrentYear ?? 0) > 0
+                        ? `Hay ${props.countInCurrentYear} comprobante(s) registrados en otros meses de ${props.currentYear ?? 2026}.`
+                        : props.isReadOnlyClient
+                        ? 'No hay comprobantes fiscales cargados en este periodo. Puedes consultar otros meses o ejercicios desde los filtros superiores.'
+                        : 'Descarga tus facturas directamente del SAT con tu e.firma o sube tus archivos XML en 2 segundos.'}
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2 pt-1.5">
-                      {props.onOpenSatDownload && (
+                      {props.periodScope === 'CURRENT' && (props.countInCurrentYear ?? 0) > 0 && props.onViewAllYear && (
+                        <button
+                          type="button"
+                          onClick={props.onViewAllYear}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                        >
+                          <span>Ver comprobantes de {props.currentYear ?? 2026}</span>
+                        </button>
+                      )}
+                      {props.onOpenSatDownload && !props.isReadOnlyClient && (
                         <button
                           type="button"
                           onClick={props.onOpenSatDownload}

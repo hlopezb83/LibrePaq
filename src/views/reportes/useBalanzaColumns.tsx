@@ -30,7 +30,7 @@ export function useBalanzaColumns(onSelectAccount: (accountId: string) => void) 
               onClick={() => onSelectAccount(row.id)}
               aria-label={`Ver auxiliar de mayor de cuenta ${row.code} ${row.name}`}
               title="Ver Tarjeta Auxiliar / Libro Mayor"
-              className={`font-mono text-xs text-blue-800 hover:text-blue-950 underline decoration-dotted underline-offset-2 cursor-pointer ${pad}`}
+              className={`font-mono text-xs text-blue-800 hover:text-blue-950 underline decoration-dotted underline-offset-2 whitespace-nowrap cursor-pointer ${pad}`}
             >
               {info.getValue()}
             </button>

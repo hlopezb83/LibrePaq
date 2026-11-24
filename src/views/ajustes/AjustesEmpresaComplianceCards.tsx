@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderTree, Lock, LockOpen, ShieldCheck } from 'lucide-react';
+import { FolderTree, Loader2, Lock, LockOpen, ShieldCheck } from 'lucide-react';
 import type { Company } from '../../shared/types';
 
 export interface AjustesEmpresaComplianceCardsProps {
@@ -109,6 +109,7 @@ export function AjustesEmpresaComplianceCards({
             <button
               type="button"
               disabled={isReadOnly || togglePeriodLockMutation.isPending}
+              aria-busy={togglePeriodLockMutation.isPending}
               title={
                 isReadOnly
                   ? 'Modo solo lectura: no tienes permisos para bloquear o reabrir periodos'
@@ -123,12 +124,20 @@ export function AjustesEmpresaComplianceCards({
                   : 'bg-amber-600 hover:bg-amber-700 text-white border-transparent shadow-xs'
               }`}
             >
-              {periodLock?.isLocked ? (
+              {togglePeriodLockMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              ) : periodLock?.isLocked ? (
                 <LockOpen className="w-4 h-4" aria-hidden="true" />
               ) : (
                 <Lock className="w-4 h-4" aria-hidden="true" />
               )}
-              {periodLock?.isLocked ? 'Reabrir Periodo para Captura' : 'Bloquear Periodo Fiscal'}
+              <span>
+                {togglePeriodLockMutation.isPending
+                  ? 'Actualizando candado...'
+                  : periodLock?.isLocked
+                    ? 'Reabrir Periodo para Captura'
+                    : 'Bloquear Periodo Fiscal'}
+              </span>
             </button>
           )}
         </div>

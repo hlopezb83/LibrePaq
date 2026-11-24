@@ -3,6 +3,7 @@ import {
   ArrowRight,
   FileCode2,
   Landmark,
+  Loader2,
   Scale,
   ShieldAlert,
   ShieldCheck,
@@ -32,6 +33,7 @@ export interface DashboardAuditBarProps {
   pendingCfdis: CfdiDocument[];
   efosSummary?: EfosDashboardSummary;
   isBatchAutoPolizaPending: boolean;
+  isSingleAutoPolizaPending?: boolean;
   onBatchAutoPoliza: (ids: string[]) => void;
   isPeriodLocked?: boolean;
   isReadOnly?: boolean;
@@ -50,6 +52,7 @@ export function DashboardAuditBar({
   pendingCfdis,
   efosSummary,
   isBatchAutoPolizaPending,
+  isSingleAutoPolizaPending = false,
   onBatchAutoPoliza,
   isPeriodLocked = false,
   isReadOnly = false
@@ -161,20 +164,27 @@ export function DashboardAuditBar({
             kpis.cfdisPendientesContabilizar >= 1 && pendingCfdis.length > 0 ? (
               <button
                 type="button"
-                disabled={isBatchAutoPolizaPending || isPeriodLocked || isReadOnly}
+                disabled={isBatchAutoPolizaPending || isSingleAutoPolizaPending || isPeriodLocked || isReadOnly}
+                aria-busy={isBatchAutoPolizaPending}
                 onClick={() => onBatchAutoPoliza(pendingCfdis.map((c) => c.id))}
                 title={
                   isReadOnly
                     ? 'Modo solo lectura: no tienes permisos para generar pólizas'
                     : isPeriodLocked
                     ? 'Periodo cerrado con candado fiscal'
+                    : isSingleAutoPolizaPending || isBatchAutoPolizaPending
+                    ? 'Procesando generación de pólizas contables...'
                     : isTruncatedPending
                     ? `Generar pólizas del lote mostrado (${pendingCfdis.length} de ${kpis.cfdisPendientesContabilizar} pendientes)`
                     : `Generar pólizas de los ${pendingCfdis.length} archivos XML pendientes en 1 clic`
                 }
                 className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-700 hover:bg-amber-800 text-white shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
               >
-                <Sparkles className="w-3 h-3 text-amber-100" aria-hidden="true" />
+                {isBatchAutoPolizaPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin text-amber-100" aria-hidden="true" />
+                ) : (
+                  <Sparkles className="w-3 h-3 text-amber-100" aria-hidden="true" />
+                )}
                 <span>
                   {isBatchAutoPolizaPending
                     ? 'Contabilizando...'

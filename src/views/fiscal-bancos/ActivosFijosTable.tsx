@@ -55,16 +55,16 @@ export function ActivosFijosTable({
         </caption>
         <thead>
           <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-            <th scope="col" className="py-2.5 px-3">Código / Bien</th>
-            <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Adquisición</th>
-            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">MOI</th>
-            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Tasa / Meses</th>
-            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Dep. Mensual Contable</th>
-            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Factor INPC</th>
-            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Dep. Fiscal Actualizada</th>
-            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Valor Neto Libros</th>
-            <th scope="col" className="py-2.5 px-3 text-center whitespace-nowrap">Estatus</th>
-            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
+            <th scope="col" className="py-2 px-2.5">Código / Bien</th>
+            <th scope="col" className="py-2 px-2.5 whitespace-nowrap">Adquisición</th>
+            <th scope="col" className="py-2 px-2.5 text-right whitespace-nowrap">MOI</th>
+            <th scope="col" className="py-2 px-2.5 text-right whitespace-nowrap">Tasa / Meses</th>
+            <th scope="col" className="py-2 px-2.5 text-right whitespace-nowrap">Dep. Contable</th>
+            <th scope="col" className="py-2 px-2.5 text-right whitespace-nowrap">INPC</th>
+            <th scope="col" className="py-2 px-2.5 text-right whitespace-nowrap">Dep. Fiscal Act.</th>
+            <th scope="col" className="py-2 px-2.5 text-right whitespace-nowrap">Valor Libros</th>
+            <th scope="col" className="py-2 px-2.5 text-center whitespace-nowrap">Estatus</th>
+            <th scope="col" className="py-2 px-2.5 text-right whitespace-nowrap">Acciones</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 text-xs">
@@ -79,37 +79,37 @@ export function ActivosFijosTable({
               const badge = STATUS_BADGES[asset.estatus] ?? STATUS_BADGES.ACTIVO;
               return (
                 <tr key={asset.id} className="hover:bg-blue-50/30">
-                  <td className="py-2.5 px-3">
+                  <td className="py-2 px-2.5">
                     <span className="font-mono font-bold text-blue-800 mr-1.5 whitespace-nowrap">{asset.codigo}</span>
                     <span className="font-medium text-slate-900">{asset.nombre}</span>
                   </td>
-                  <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap tabular-nums">
+                  <td className="py-2 px-2.5 font-mono text-slate-600 whitespace-nowrap tabular-nums">
                     {formatShortDate(asset.fechaAdquisicion)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-900 whitespace-nowrap tabular-nums">
+                  <td className="py-2 px-2.5 text-right font-mono font-semibold text-slate-900 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.montoOriginalInversion)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap tabular-nums">
+                  <td className="py-2 px-2.5 text-right font-mono text-slate-600 whitespace-nowrap tabular-nums">
                     {asset.tasaAnualPct}% · {asset.mesesDepreciadosPrevios}m
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-800 whitespace-nowrap tabular-nums">
+                  <td className="py-2 px-2.5 text-right font-mono font-bold text-blue-800 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.depreciacionMensualContable)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums">
+                  <td className="py-2 px-2.5 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums">
                     {asset.factorActualizacionInpc.toFixed(4)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800 whitespace-nowrap tabular-nums">
+                  <td className="py-2 px-2.5 text-right font-mono font-bold text-emerald-800 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.depreciacionMensualFiscalActualizada)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-900 whitespace-nowrap tabular-nums">
+                  <td className="py-2 px-2.5 text-right font-mono text-slate-900 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.valorNetoEnLibros)}
                   </td>
-                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                  <td className="py-2 px-2.5 text-center whitespace-nowrap">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${badge.cls}`}>
                       {badge.label}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                  <td className="py-2 px-2.5 text-right whitespace-nowrap">
                     {confirmDeleteId === asset.id ? (
                       <div
                         role="alertdialog"
@@ -151,7 +151,7 @@ export function ActivosFijosTable({
                             onClick={() => onEditAsset(asset)}
                             title={lockReason ?? 'Editar activo fijo'}
                             aria-label={`Editar activo fijo ${asset.codigo}`}
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                           </button>
@@ -199,7 +199,7 @@ export function ActivosFijosTable({
                               }}
                               title={lockReason ?? 'Dar de baja activo (BAJA)'}
                               aria-label={`Dar de baja activo fijo ${asset.codigo}`}
-                              className="p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <ArchiveX className="w-3.5 h-3.5" aria-hidden="true" />
                             </button>
@@ -214,7 +214,7 @@ export function ActivosFijosTable({
                           }}
                           title={lockReason ?? 'Eliminar activo fijo'}
                           aria-label={`Eliminar activo fijo ${asset.codigo} — ${asset.nombre}`}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         </button>

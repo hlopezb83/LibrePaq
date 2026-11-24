@@ -142,7 +142,7 @@ export function CfdiXmlViewerModal({
             </div>
             <pre
               tabIndex={0}
-              className="p-4 rounded-xl bg-[#0A1120] text-emerald-300 text-xs font-mono overflow-x-auto max-h-96 leading-relaxed"
+              className="dark-surface p-4 rounded-xl bg-[#0A1120] text-emerald-300 text-xs font-mono overflow-x-auto max-h-96 leading-relaxed"
             >
               <code>{displayedXml}</code>
             </pre>

@@ -6,12 +6,18 @@ import type { Poliza } from '../../shared/types';
 export interface DashboardRecentPolizasTableProps {
   totalPolizasPeriodo: number;
   recentPolizas: Poliza[];
+  isPeriodLocked?: boolean;
+  isReadOnly?: boolean;
 }
 
 export function DashboardRecentPolizasTable({
   totalPolizasPeriodo,
-  recentPolizas
+  recentPolizas,
+  isPeriodLocked = false,
+  isReadOnly = false
 }: DashboardRecentPolizasTableProps) {
+  const isWriteSuppressed = isPeriodLocked || isReadOnly;
+
   return (
     <section className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
       <div className="p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
@@ -31,7 +37,35 @@ export function DashboardRecentPolizasTable({
         </Link>
       </div>
 
-      <div className="overflow-x-auto">
+      {recentPolizas.length === 0 ? (
+        <div className="p-8 text-center space-y-3">
+          <p className="text-sm font-bold text-slate-700">
+            Sin pólizas registradas en este periodo contable
+          </p>
+          <p className="text-xs text-slate-600 max-w-md mx-auto">
+            {isWriteSuppressed
+              ? 'Modo solo consulta: no hay pólizas contables capturadas en este periodo.'
+              : 'Captura una póliza manual o sube facturas XML en la Bóveda ADD para generar asientos automáticamente.'}
+          </p>
+          {!isWriteSuppressed && (
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <Link
+                to="/polizas"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition"
+              >
+                Capturar Póliza
+              </Link>
+              <Link
+                to="/add"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold transition"
+              >
+                Ir a Bóveda ADD
+              </Link>
+            </div>
+          )}
+        </div>
+      ) : (
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Pólizas recientes del periodo">
         <table className="w-full text-left border-collapse erp-sticky-table">
           <caption className="visually-hidden">Pólizas recientes del periodo</caption>
           <thead>
@@ -47,33 +81,7 @@ export function DashboardRecentPolizasTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 text-xs">
-            {recentPolizas.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="p-8 text-center space-y-3">
-                  <p className="text-sm font-bold text-slate-700">
-                    Sin pólizas registradas en este periodo contable
-                  </p>
-                  <p className="text-xs text-slate-600 max-w-md mx-auto">
-                    Captura una póliza manual o sube facturas XML en la Bóveda ADD para generar asientos automáticamente.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                    <Link
-                      to="/polizas"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition"
-                    >
-                      Capturar Póliza
-                    </Link>
-                    <Link
-                      to="/add"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold transition"
-                    >
-                      Ir a Bóveda ADD
-                    </Link>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              recentPolizas.map((pol) => {
+              {recentPolizas.map((pol) => {
                 const isBalanced = Math.abs(pol.totalCargos - pol.totalAbonos) < 0.01;
                 return (
               <tr key={pol.id} className="hover:bg-blue-50/40 transition">
@@ -144,12 +152,12 @@ export function DashboardRecentPolizasTable({
                   </Link>
                 </td>
               </tr>
-                );
-              })
-            )}
+              );
+              })}
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }

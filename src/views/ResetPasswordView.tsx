@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { CheckCircle2, KeyRound, Lock, ArrowLeft, AlertCircle, Eye, EyeOff, Loader2, Mail } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { translateAuthError } from '../components/auth/authErrorTranslator';
@@ -7,6 +7,7 @@ import { LibrePaqLogo } from '../components/LibrePaqLogo';
 
 export function ResetPasswordView() {
   const navigate = useNavigate();
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -26,13 +27,50 @@ export function ResetPasswordView() {
       setHasSession(false);
       return;
     }
+
+    const hasAuthParams =
+      typeof window !== 'undefined' &&
+      (window.location.search.includes('code=') ||
+        window.location.hash.includes('access_token=') ||
+        window.location.hash.includes('type=recovery'));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!mounted) return;
+      if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && nextSession) {
+        setHasSession(true);
+        setCheckingSession(false);
+        setErrorMsg(null);
+      } else if (event === 'SIGNED_OUT') {
+        setHasSession(false);
+      }
+    });
+
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
     void supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      setHasSession(Boolean(data.session));
-      setCheckingSession(false);
+      if (data.session) {
+        setHasSession(true);
+        setCheckingSession(false);
+      } else if (hasAuthParams) {
+        fallbackTimer = setTimeout(() => {
+          if (!mounted || !supabase) return;
+          void supabase.auth.getSession().then(({ data: retryData }) => {
+            if (!mounted) return;
+            setHasSession(Boolean(retryData.session));
+            setCheckingSession(false);
+          });
+        }, 2500);
+      } else {
+        setHasSession(false);
+        setCheckingSession(false);
+      }
     });
+
     return () => {
       mounted = false;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -82,7 +120,7 @@ export function ResetPasswordView() {
         return;
       }
       setSuccess(true);
-      setTimeout(() => {
+      redirectTimerRef.current = setTimeout(() => {
         void navigate({ to: '/' });
       }, 1800);
     } catch (err: unknown) {
@@ -139,7 +177,11 @@ export function ResetPasswordView() {
             ) : showRecoveryRequest ? (
               <form onSubmit={handleRequestNewLink} className="space-y-3">
                 {errorMsg && (
-                  <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
+                  <div
+                    id="recovery-email-error"
+                    role="alert"
+                    className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2"
+                  >
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                     <span>{errorMsg}</span>
                   </div>
@@ -155,8 +197,13 @@ export function ResetPasswordView() {
                       type="email"
                       required
                       autoComplete="email"
+                      aria-invalid={Boolean(errorMsg)}
+                      aria-describedby={errorMsg ? 'recovery-email-error' : undefined}
                       value={recoveryEmail}
-                      onChange={(e) => setRecoveryEmail(e.target.value)}
+                      onChange={(e) => {
+                        setRecoveryEmail(e.target.value);
+                        if (errorMsg) setErrorMsg(null);
+                      }}
                       placeholder="contador@despacho.mx"
                       className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
                     />
@@ -223,7 +270,10 @@ export function ResetPasswordView() {
                   aria-invalid={Boolean(errorMsg)}
                   aria-describedby={errorMsg ? 'reset-password-error' : undefined}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
                   className="w-full pl-9 pr-11 py-2.5 rounded-xl border border-slate-300 text-sm"
                   placeholder="••••••••"
                 />
@@ -231,7 +281,7 @@ export function ResetPasswordView() {
                   type="button"
                   aria-pressed={showPassword}
                   onClick={() => setShowPassword((prev) => !prev)}
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-label={showPassword ? 'Ocultar contraseñas' : 'Mostrar contraseñas'}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 min-h-[28px] min-w-[28px] inline-flex items-center justify-center rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
@@ -254,7 +304,10 @@ export function ResetPasswordView() {
                   aria-invalid={Boolean(errorMsg)}
                   aria-describedby={errorMsg ? 'reset-password-error' : undefined}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
                   placeholder="••••••••"
                 />
@@ -274,14 +327,13 @@ export function ResetPasswordView() {
         )}
 
         <div className="pt-2 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={() => void navigate({ to: '/' })}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
           >
             <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
             Volver al inicio
-          </button>
+          </Link>
         </div>
       </div>
     </main>

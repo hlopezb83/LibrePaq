@@ -19,7 +19,6 @@ export interface DashboardKpisGridProps {
   margenOperativo: string;
   razonCoberturaBancos: string;
   onOpenLedger: (id: string) => void;
-  onNavigateReportes: () => void;
 }
 
 export function DashboardKpisGrid({
@@ -29,8 +28,7 @@ export function DashboardKpisGrid({
   proporcionGastoIngreso,
   margenOperativo,
   razonCoberturaBancos,
-  onOpenLedger,
-  onNavigateReportes
+  onOpenLedger
 }: DashboardKpisGridProps) {
   return (
     <>
@@ -92,10 +90,10 @@ export function DashboardKpisGrid({
           </div>
         </button>
 
-        <button
-          type="button"
-          onClick={onNavigateReportes}
-          className="group min-w-0 text-left bg-white rounded-2xl p-4 sm:p-5 border border-slate-300/90 hover:border-blue-600 hover:shadow-md transition shadow-2xs cursor-pointer erp-card-pad"
+        <Link
+          to="/reportes"
+          search={{ tab: 'RESULTADOS' } as unknown as Record<string, string>}
+          className="group min-w-0 block text-left bg-white rounded-2xl p-4 sm:p-5 border border-slate-300/90 hover:border-blue-600 hover:shadow-md transition shadow-2xs cursor-pointer erp-card-pad"
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
@@ -125,7 +123,7 @@ export function DashboardKpisGrid({
             </span>
             <span className="text-[11px] font-semibold text-blue-700 shrink-0">Resultados →</span>
           </div>
-        </button>
+        </Link>
 
         <button
           type="button"
@@ -215,7 +213,9 @@ export function DashboardKpisGrid({
               {kpis.cfdisTotalesPeriodo} {kpis.cfdisTotalesPeriodo === 1 ? 'CFDI Registrado' : 'CFDIs Registrados'}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-1.5 min-w-0 text-[10px]">
-              {kpis.cfdisPendientesContabilizar === 0 ? (
+              {kpis.cfdisTotalesPeriodo === 0 ? (
+                <span className="text-slate-600 font-semibold">Sin CFDIs en el periodo</span>
+              ) : kpis.cfdisPendientesContabilizar === 0 ? (
                 <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" /> 100% Contabilizado
                 </span>

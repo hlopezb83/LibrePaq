@@ -108,9 +108,16 @@ export function PadronProveedoresTable({
                     {tp.nombre}
                   </td>
                   <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">
-                      {ROL_LABELS[tp.rol] ?? tp.rol}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">
+                        {ROL_LABELS[tp.rol] ?? tp.rol}
+                      </span>
+                      {tp.tipoTerceroDiot === '05' && (
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono font-semibold text-[10px]">
+                          05 Extranjero{tp.pais ? ` · ${tp.pais}` : ''}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-2.5 px-3 font-mono font-semibold text-slate-800 whitespace-nowrap">
                     {tp.cuentaOperacionCode}
@@ -149,7 +156,7 @@ export function PadronProveedoresTable({
                       onClick={() => { if (!isReadOnlyClient) onEditThirdParty(tp); }}
                       aria-label={`Editar perfil fiscal de ${tp.rfc}`}
                       title={isReadOnlyClient ? 'Modo solo lectura' : 'Cargar en formulario para editar'}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 min-h-[28px] min-w-[28px] rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
                     >
                       <Pencil className="w-3 h-3" aria-hidden="true" />
                       Editar

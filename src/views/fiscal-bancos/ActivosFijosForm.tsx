@@ -20,8 +20,8 @@ interface ActivosFijosFormProps {
   assetCat: FixedAssetCategory;
   setAssetCat: (v: FixedAssetCategory) => void;
   setAssetRate: (v: number) => void;
-  assetMoi: number;
-  setAssetMoi: (v: number) => void;
+  assetMoi: string;
+  setAssetMoi: (v: string) => void;
   mesesDepreciadosPrevios: number;
   setMesesDepreciadosPrevios: (v: number) => void;
   assetStatus: FixedAssetRecord['estatus'];
@@ -171,8 +171,9 @@ export function ActivosFijosForm({
           step="0.01"
           required
           disabled={isWriteLocked}
+          placeholder="0.00"
           value={assetMoi}
-          onChange={(e) => setAssetMoi(sanitizeNumberInput(e.target.value))}
+          onChange={(e) => setAssetMoi(e.target.value)}
           className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
         />
       </div>

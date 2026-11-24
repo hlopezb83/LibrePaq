@@ -29,6 +29,9 @@ export interface CommandPaletteModalProps {
   onOpenCompanySwitcher?: () => void;
   onOpenNewCompanyWizard?: () => void;
   onOpenDeliverables?: () => void;
+  isReadOnlyClient?: boolean;
+  isOwner?: boolean;
+  isWorkspaceEmpty?: boolean;
 }
 
 export function CommandPaletteModal({
@@ -47,7 +50,10 @@ export function CommandPaletteModal({
   onSelectPeriod,
   onOpenCompanySwitcher,
   onOpenNewCompanyWizard,
-  onOpenDeliverables
+  onOpenDeliverables,
+  isReadOnlyClient = false,
+  isOwner = false,
+  isWorkspaceEmpty = false
 }: CommandPaletteModalProps) {
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [pendingSwitchCompany, setPendingSwitchCompany] = useState<Company | null>(null);
@@ -81,7 +87,10 @@ export function CommandPaletteModal({
     onSelectPeriod,
     onOpenCompanySwitcher,
     onOpenNewCompanyWizard,
-    onOpenDeliverables
+    onOpenDeliverables,
+    isReadOnlyClient,
+    isOwner,
+    isWorkspaceEmpty
   });
 
   const groupedCategories = useMemo(() => {
@@ -137,6 +146,7 @@ export function CommandPaletteModal({
   }, [highlightedIndex]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (pendingSwitchCompany && e.key !== 'Escape') return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (flattenedItems.length === 0) return;
@@ -185,7 +195,7 @@ export function CommandPaletteModal({
         }
       }}
       onKeyDown={handleKeyDown}
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl max-h-[90dvh] overflow-hidden backdrop:bg-slate-950/40 backdrop:backdrop-blur-xs p-0 m-auto"
+      className="no-print rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl max-h-[90dvh] overflow-hidden backdrop:bg-slate-950/40 backdrop:backdrop-blur-xs p-0 m-auto"
     >
       {pendingSwitchCompany ? (
         <CommandPaletteCompanyConfirm
@@ -202,7 +212,7 @@ export function CommandPaletteModal({
       ) : (
       <div className="flex flex-col max-h-[90dvh] bg-white divide-y divide-slate-100">
         {/* Cabecera / Input de búsqueda universal */}
-        <div className="p-2.5 sm:p-3.5 flex items-center gap-2.5 bg-slate-50/70 shrink-0">
+        <div className="p-2.5 sm:p-3.5 flex items-center gap-2.5 bg-slate-50/70 shrink-0 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-inset">
           <div className="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 flex items-center justify-center shrink-0 shadow-xs">
             <Search className="w-4 h-4" aria-hidden="true" />
           </div>

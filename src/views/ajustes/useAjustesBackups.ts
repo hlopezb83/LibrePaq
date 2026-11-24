@@ -61,6 +61,7 @@ export function useAjustesBackups(
 
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [pendingRestore, setPendingRestore] = useState<{
     bundle: CompanyBackupBundle;
     backupRfc: string;
@@ -98,7 +99,7 @@ export function useAjustesBackups(
       try {
         bundle = JSON.parse(text) as CompanyBackupBundle;
       } catch {
-        throw new Error('El archivo seleccionado no es un JSON de respaldo válido.');
+        throw new Error('El archivo seleccionado no es un archivo de respaldo válido.');
       }
       if (!bundle || !bundle.company || !bundle.company.rfc) {
         throw new Error('El archivo no contiene una estructura de respaldo válida de LibrePaq.');
@@ -140,12 +141,14 @@ export function useAjustesBackups(
 
   const handleImportCsvCatalog = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !activeCompanyId) return;
+    if (!file || !activeCompanyId || isImportingCsv) return;
     try {
+      setIsImportingCsv(true);
       await importCatalogoCsvFile(file, activeCompanyId, queryClient, toast);
     } catch (err: unknown) {
       toast.error(`Error al importar CSV: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
+      setIsImportingCsv(false);
       if (csvCatalogInputRef.current) csvCatalogInputRef.current.value = '';
     }
   };
@@ -159,6 +162,7 @@ export function useAjustesBackups(
     refetchMetrics,
     isExportingBackup,
     isRestoringBackup,
+    isImportingCsv,
     pendingRestore,
     confirmRestoreBackup,
     cancelRestoreBackup,

@@ -110,7 +110,8 @@ export function CatalogoCuentasView() {
     { id: 'CAPITAL', label: '300 Capital' },
     { id: 'INGRESOS', label: '400 Ingresos' },
     { id: 'COSTOS', label: '500 Costos' },
-    { id: 'GASTOS', label: '600 Gastos' }
+    { id: 'GASTOS', label: '600 Gastos' },
+    { id: 'ORDEN', label: '800 Orden' }
   ];
 
   const resetFilters = () => {

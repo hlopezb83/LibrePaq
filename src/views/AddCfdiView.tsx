@@ -11,7 +11,10 @@ import { CfdiSimulatorModal } from './cfdi/CfdiSimulatorModal';
 import { CfdiTable } from './cfdi/CfdiTable';
 import { CfdiXmlViewerModal } from './cfdi/CfdiXmlViewerModal';
 import { downloadCfdiXmlFile } from './cfdi/cfdiXmlUploadHelpers';
-import { reverseCancelledCfdiPolizas } from './cfdi/reverseCancelledCfdiPoliza';
+import {
+  collectCancelledWithPolizaTargets,
+  reverseCancelledCfdiPolizas
+} from './cfdi/reverseCancelledCfdiPoliza';
 import { useAddCfdiManager } from './cfdi/useAddCfdiManager';
 import { useToast } from '../context/ToastContext';
 
@@ -20,6 +23,7 @@ export function AddCfdiView() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [isReversingCancelled, setIsReversingCancelled] = useState(false);
+  const [dismissedCancelledIds, setDismissedCancelledIds] = useState<Set<string>>(() => new Set());
 
   const {
     activeCompany, activeCompanyId, currentYear, currentPeriod,
@@ -33,7 +37,7 @@ export function AddCfdiView() {
     isDragging, setIsDragging, isUploadingFiles, uploadBatchProgress, isExportingZip, copiedUuid,
     confirmDeleteCfdiId, setConfirmDeleteCfdiId, hasActiveFilters, resetFilters,
     showSoapFielPanel, setShowSoapFielPanel, periodScope, setPeriodScope,
-    countInCurrentPeriod, countInCurrentYear, accounts, affectableAccounts, pendingCfdis,
+    cfdis, countInCurrentPeriod, countInCurrentYear, accounts, affectableAccounts, pendingCfdis,
     isLoading, isError, error, refetch, verifyingCfdiId,
     uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
     batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
@@ -84,33 +88,52 @@ export function AddCfdiView() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [fileInputRef, simModalRef, isReadOnlyClient]);
 
-  const cancelledWithPolizaCfdis = scopedCfdis.filter(
-    (c) => c.statusSat === 'CANCELADO' && Boolean(c.polizaId)
-  );
+  useEffect(() => {
+    setDismissedCancelledIds(new Set());
+  }, [activeCompanyId]);
+
+  const cancelledWithPolizaCfdis = collectCancelledWithPolizaTargets({
+    scopedCfdis,
+    allCfdis: cfdis,
+    satBatchAlerts: satBatchAlert?.alerts,
+    dismissedIds: dismissedCancelledIds
+  });
+
+  const handleDismissCancelledAlert = () => {
+    setDismissedCancelledIds((prev) => {
+      const next = new Set(prev);
+      for (const c of cancelledWithPolizaCfdis) next.add(c.id);
+      return next;
+    });
+    dismissSatBatchAlert();
+  };
 
   const handleReverseCancelledPoliza = async () => {
-    if (isReversingCancelled) return;
+    if (isReversingCancelled || cancelledWithPolizaCfdis.length === 0) return;
     setIsReversingCancelled(true);
     try {
-      const targets =
-        cancelledWithPolizaCfdis.length > 0
-          ? cancelledWithPolizaCfdis
-          : (satBatchAlert?.alerts ?? []).map((a) => ({ id: a.cfdiId, uuid: a.uuid, polizaId: null }));
       await reverseCancelledCfdiPolizas({
-        companyId: activeCompanyId,
-        currentYear,
-        currentPeriod,
-        isPeriodLocked,
-        isReadOnlyClient,
-        targetCfdis: targets,
-        queryClient,
-        toast
+        companyId: activeCompanyId, currentYear, currentPeriod, isPeriodLocked, isReadOnlyClient,
+        targetCfdis: cancelledWithPolizaCfdis, queryClient, toast
       });
+      handleDismissCancelledAlert();
     } catch (err: unknown) {
       toast.error('Error al revertir póliza', err instanceof Error ? err.message : String(err));
     } finally {
       setIsReversingCancelled(false);
     }
+  };
+
+  const handleLocateCancelled = (alert: NonNullable<typeof satBatchAlert>) => {
+    const firstCancelled = alert.alerts[0];
+    if (!firstCancelled) return;
+    resetFilters();
+    setPeriodScope('ALL');
+    setStatusSatFilter('CANCELADO_CON_POLIZA');
+    setSearchQuery(alert.cancelledWithPolizaCount === 1 ? firstCancelled.uuid : '');
+    requestAnimationFrame(() => {
+      document.getElementById('cfdi-table-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   return (
@@ -121,27 +144,11 @@ export function AddCfdiView() {
         currentPeriod={currentPeriod}
         currentYear={currentYear}
         satBatchAlert={satBatchAlert}
-        cancelledWithPolizaCount={
-          statusSatFilter === 'CANCELADO_CON_POLIZA' || cancelledWithPolizaCfdis.length > 0
-            ? cancelledWithPolizaCfdis.length
-            : 0
-        }
+        cancelledWithPolizaCount={cancelledWithPolizaCfdis.length}
         isReversingCancelled={isReversingCancelled}
         onReverseCancelledPoliza={() => void handleReverseCancelledPoliza()}
-        onLocateCancelled={(alert) => {
-          const firstCancelled = alert.alerts[0];
-          if (!firstCancelled) return;
-          setTab('ALL');
-          setPeriodScope('ALL');
-          setTipoFilter('ALL');
-          setMetodoFilter('ALL');
-          setFormaPagoFilter('ALL');
-          setStatusSatFilter('CANCELADO_CON_POLIZA');
-          setSearchQuery(alert.cancelledWithPolizaCount === 1 ? firstCancelled.uuid : '');
-          requestAnimationFrame(() => {
-            document.getElementById('cfdi-table-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          });
-        }}
+        onDismissCancelledAlert={handleDismissCancelledAlert}
+        onLocateCancelled={handleLocateCancelled}
         onDismissSatBatchAlert={dismissSatBatchAlert}
         batchPartialAlert={batchPartialAlert}
         onDismissBatchPartialAlert={dismissBatchPartialAlert}
@@ -262,6 +269,10 @@ export function AddCfdiView() {
             isReadOnlyClient={isReadOnlyClient}
             filteredTotals={filteredTotals}
             hasActiveFilters={hasActiveFilters}
+            periodScope={periodScope}
+            currentYear={currentYear}
+            countInCurrentYear={countInCurrentYear}
+            onViewAllYear={() => setPeriodScope('ALL')}
             onResetFilters={resetFilters}
             onOpenSatDownload={() => {
               setShowSoapFielPanel(true);

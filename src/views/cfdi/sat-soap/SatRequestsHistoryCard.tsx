@@ -156,18 +156,25 @@ export function SatRequestsHistoryCard({
 
                     {isDone && (!r.cfdisDescargados || r.cfdisDescargados === 0) && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
-                        0 comprobantes (periodo sin emitir)
+                        0 comprobantes en el periodo
                       </span>
                     )}
 
                     {isPartial && (
-                      <span
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900"
-                        title={r.mensajeSat}
-                      >
-                        <XCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                        {r.cfdisDescargados || 0} XMLs (Parcial · límite SAT)
-                      </span>
+                      <div className="flex flex-col items-start md:items-end gap-0.5">
+                        <span
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900"
+                          title={r.mensajeSat}
+                        >
+                          <XCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
+                          {r.cfdisDescargados || 0} XMLs (Parcial · límite SAT)
+                        </span>
+                        {r.mensajeSat && (
+                          <span className="text-[10px] text-amber-900 font-sans max-w-xs md:text-right">
+                            {r.mensajeSat}
+                          </span>
+                        )}
+                      </div>
                     )}
 
                     {isPending && (

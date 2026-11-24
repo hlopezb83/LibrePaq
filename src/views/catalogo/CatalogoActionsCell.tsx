@@ -50,7 +50,7 @@ export function CatalogoActionsCell({
   const canDelete = deleteBlockReason === null;
 
   return (
-    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+    <div className="flex items-center justify-end gap-1 whitespace-nowrap">
       {row.level < 4 && (
         <button
           type="button"
@@ -61,10 +61,9 @@ export function CatalogoActionsCell({
           }}
           title={isWriteBlocked ? blockedTooltip : `Crear subcuenta hija bajo ${row.code}`}
           aria-label={`Crear subcuenta bajo ${row.code}`}
-          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          className="min-w-[26px] min-h-[26px] inline-flex items-center justify-center p-1 rounded-lg text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Plus className="w-3 h-3 text-emerald-600" aria-hidden="true" />
-          Subcuenta
+          <Plus className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
         </button>
       )}
       <button
@@ -73,11 +72,12 @@ export function CatalogoActionsCell({
           e.stopPropagation();
           onOpenLedger(row.id);
         }}
+        title={`Ver Libro Mayor / Auxiliar de ${row.code}`}
         aria-label={`Ver Libro Mayor de ${row.code}`}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer"
+        className="min-h-[26px] inline-flex items-center gap-1 px-1.5 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer"
       >
         <BookOpen className="w-3 h-3" aria-hidden="true" />
-        Mayor
+        <span>Mayor</span>
       </button>
       <button
         type="button"
@@ -86,9 +86,9 @@ export function CatalogoActionsCell({
           e.stopPropagation();
           onOpenEditModal(row);
         }}
-        title={isWriteBlocked ? blockedTooltip : 'Editar cuenta'}
+        title={isWriteBlocked ? blockedTooltip : `Editar cuenta ${row.code}`}
         aria-label={`Editar cuenta ${row.code}`}
-        className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        className="min-w-[26px] min-h-[26px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
@@ -141,7 +141,7 @@ export function CatalogoActionsCell({
           }}
           title={deleteBlockReason ?? 'Eliminar cuenta sin movimientos'}
           aria-label={deleteBlockReason ?? `Eliminar cuenta ${row.code}`}
-          className="p-1.5 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-600"
+          className="min-w-[26px] min-h-[26px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-red-700 hover:bg-red-50 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-600"
         >
           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
         </button>

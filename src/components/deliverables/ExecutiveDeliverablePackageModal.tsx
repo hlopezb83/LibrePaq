@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { Company } from '../../shared/types';
@@ -9,7 +10,7 @@ import { DeliverableBalanceDoc } from './DeliverableBalanceDoc';
 import { DeliverableNifSummaryDoc } from './DeliverableNifSummaryDoc';
 import { DeliverableDia17Doc } from './DeliverableDia17Doc';
 import { DeliverableModalHeader } from './DeliverableModalHeader';
-import { useExecutiveDeliverables } from './useExecutiveDeliverables';
+import { DEFAULT_DELIVERABLE_CONFIG, useExecutiveDeliverables } from './useExecutiveDeliverables';
 
 export interface ExecutiveDeliverablePackageModalProps {
   company: Company;
@@ -24,7 +25,26 @@ export function ExecutiveDeliverablePackageModal({
   company, year, period, isOpen, onClose, initialTab = 'DOSSIER'
 }: ExecutiveDeliverablePackageModalProps) {
   const d = useExecutiveDeliverables({ company, year, period, isOpen, onClose, initialTab });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
+
+  const defaultFields: string[] = [];
+  if (d.firmName === DEFAULT_DELIVERABLE_CONFIG.firmName) defaultFields.push('Firma Contable');
+  if (d.auditorName.includes('María Elena Gómez Garza')) defaultFields.push('Contador/Auditor');
+  if (d.auditorCedula.includes('4829103')) defaultFields.push('Cédula Profesional');
+  if (d.legalRepName.includes('Alejandro Garza Martínez')) defaultFields.push('Representante Legal');
 
   const sigProps = {
     firmName: d.firmName,
@@ -39,11 +59,11 @@ export function ExecutiveDeliverablePackageModal({
   };
 
   const quickToggles = [
-    { id: 'quick-cover', label: 'Portada/Ratios', checked: d.includeCoverRatios, set: d.setIncludeCoverRatios },
+    { id: 'quick-cover', label: 'Portada / Razones Financieras', checked: d.includeCoverRatios, set: d.setIncludeCoverRatios },
     { id: 'quick-balanza', label: 'Balanza', checked: d.includeBalanza, set: d.setIncludeBalanza },
     { id: 'quick-resultados', label: 'Resultados', checked: d.includeResultados, set: d.setIncludeResultados },
     { id: 'quick-balance', label: 'Balance', checked: d.includeBalance, set: d.setIncludeBalance },
-    { id: 'quick-nif', label: 'NIF B-2/B-4 & Aging', checked: d.includeNifAging, set: d.setIncludeNifAging },
+    { id: 'quick-nif', label: 'NIF B-2/B-4 y Antigüedad', checked: d.includeNifAging, set: d.setIncludeNifAging },
     { id: 'quick-dia17', label: 'Día 17', checked: d.includeDia17, set: d.setIncludeDia17 }
   ];
 
@@ -52,6 +72,10 @@ export function ExecutiveDeliverablePackageModal({
       ref={d.dialogRef}
       id="executive-deliverable-modal"
       closedby="any"
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
       onClose={onClose}
       aria-labelledby="executive-deliverables-title"
       className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-6xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/75 p-0 inset-0 mx-auto my-auto printable-modal-dialog"
@@ -84,12 +108,16 @@ export function ExecutiveDeliverablePackageModal({
             <div className="flex items-center gap-2 min-w-0">
               <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
               <span>
-                Los entregables muestran firmas de ejemplo (<strong>{d.auditorName}</strong>). Personalízalas antes de imprimir o enviar al cliente.
+                Los entregables aún usan valores de ejemplo en:{' '}
+                <strong>{defaultFields.length > 0 ? defaultFields.join(', ') : d.auditorName}</strong>.
+                {!d.isReadOnly && ' Personalízalos antes de imprimir o enviar al cliente.'}
               </span>
             </div>
-            <button type="button" onClick={() => d.setActiveTab('CONFIG')} className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold transition cursor-pointer shrink-0">
-              Personalizar firmas
-            </button>
+            {!d.isReadOnly && (
+              <button type="button" onClick={() => d.setActiveTab('CONFIG')} className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold transition cursor-pointer shrink-0">
+                Personalizar firmas
+              </button>
+            )}
           </div>
         )}
 

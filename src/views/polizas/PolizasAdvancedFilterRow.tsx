@@ -30,6 +30,15 @@ export function PolizasAdvancedFilterRow({
 }: PolizasAdvancedFilterRowProps) {
   if (!setPeriodScope && !setMinAmount && !setMaxAmount) return null;
 
+  const minNum = minAmount.trim() !== '' ? Number(minAmount) : null;
+  const maxNum = maxAmount.trim() !== '' ? Number(maxAmount) : null;
+  const isAmountRangeInvalid =
+    minNum !== null &&
+    maxNum !== null &&
+    Number.isFinite(minNum) &&
+    Number.isFinite(maxNum) &&
+    minNum > maxNum;
+
   return (
     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3 text-xs">
       {setPeriodScope && (
@@ -55,11 +64,19 @@ export function PolizasAdvancedFilterRow({
             </button>
           ))}
           {periodScope === 'RANGE' && setPeriodFrom && setPeriodTo && (
-            <div className="inline-flex items-center gap-1 ml-1">
+            <div className="inline-flex flex-wrap items-center gap-1 ml-1">
+              <label htmlFor="polizas-period-from" className="visually-hidden">
+                Periodo inicial
+              </label>
               <select
+                id="polizas-period-from"
                 aria-label="Periodo inicial"
                 value={periodFrom}
-                onChange={(e) => setPeriodFrom(Number(e.target.value))}
+                onChange={(e) => {
+                  const nextFrom = Number(e.target.value);
+                  setPeriodFrom(nextFrom);
+                  if (nextFrom > periodTo) setPeriodTo(nextFrom);
+                }}
                 className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-mono text-slate-800"
               >
                 {MESES_SAT.map((m) => (
@@ -69,10 +86,18 @@ export function PolizasAdvancedFilterRow({
                 ))}
               </select>
               <span className="text-slate-500">a</span>
+              <label htmlFor="polizas-period-to" className="visually-hidden">
+                Periodo final
+              </label>
               <select
+                id="polizas-period-to"
                 aria-label="Periodo final"
                 value={periodTo}
-                onChange={(e) => setPeriodTo(Number(e.target.value))}
+                onChange={(e) => {
+                  const nextTo = Number(e.target.value);
+                  setPeriodTo(nextTo);
+                  if (nextTo < periodFrom) setPeriodFrom(nextTo);
+                }}
                 className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-mono text-slate-800"
               >
                 {MESES_SAT.map((m) => (
@@ -87,32 +112,61 @@ export function PolizasAdvancedFilterRow({
       )}
 
       {(setMinAmount || setMaxAmount) && (
-        <div className="flex items-center gap-1.5">
+        <div
+          className="flex flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label="Filtro por rango de montos"
+        >
           <span className="text-[11px] font-bold text-slate-600">Monto ($):</span>
           {setMinAmount && (
-            <input
-              aria-label="Monto mínimo"
-              type="number"
-              min="0"
-              step="0.01"
-              value={minAmount}
-              onChange={(e) => setMinAmount(e.target.value)}
-              placeholder="Mínimo"
-              className="w-24 px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-mono text-slate-800 placeholder:text-slate-400"
-            />
+            <>
+              <label htmlFor="polizas-min-amount" className="visually-hidden">
+                Monto mínimo en pesos
+              </label>
+              <input
+                id="polizas-min-amount"
+                aria-label="Monto mínimo"
+                aria-invalid={isAmountRangeInvalid}
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                placeholder="Mínimo"
+                className={`w-24 px-2 py-1 rounded-lg border bg-white text-[11px] font-mono tabular-nums text-slate-800 placeholder:text-slate-500 ${
+                  isAmountRangeInvalid ? 'border-red-500 ring-1 ring-red-500/30' : 'border-slate-300'
+                }`}
+              />
+            </>
           )}
           <span className="text-slate-400">–</span>
           {setMaxAmount && (
-            <input
-              aria-label="Monto máximo"
-              type="number"
-              min="0"
-              step="0.01"
-              value={maxAmount}
-              onChange={(e) => setMaxAmount(e.target.value)}
-              placeholder="Máximo"
-              className="w-24 px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-mono text-slate-800 placeholder:text-slate-400"
-            />
+            <>
+              <label htmlFor="polizas-max-amount" className="visually-hidden">
+                Monto máximo en pesos
+              </label>
+              <input
+                id="polizas-max-amount"
+                aria-label="Monto máximo"
+                aria-invalid={isAmountRangeInvalid}
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                placeholder="Máximo"
+                className={`w-24 px-2 py-1 rounded-lg border bg-white text-[11px] font-mono tabular-nums text-slate-800 placeholder:text-slate-500 ${
+                  isAmountRangeInvalid ? 'border-red-500 ring-1 ring-red-500/30' : 'border-slate-300'
+                }`}
+              />
+            </>
+          )}
+          {isAmountRangeInvalid && (
+            <span role="alert" className="text-[11px] font-semibold text-red-700">
+              El monto mínimo no puede ser mayor al máximo.
+            </span>
           )}
         </div>
       )}

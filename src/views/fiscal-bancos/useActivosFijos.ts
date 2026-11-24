@@ -114,7 +114,7 @@ export function useActivosFijos({
   const [assetName, setAssetName] = useState('');
   const [assetCat, setAssetCat] = useState<FixedAssetCategory>('COMPUTO_30');
   const [assetDate, setAssetDate] = useState(`${year}-01-15`);
-  const [assetMoi, setAssetMoi] = useState(45000);
+  const [assetMoi, setAssetMoi] = useState<string>('');
   const [assetRate, setAssetRate] = useState(30);
   const [mesesDepreciadosPrevios, setMesesDepreciadosPrevios] = useState(0);
   const [assetStatus, setAssetStatus] = useState<FixedAssetRecord['estatus']>('ACTIVO');
@@ -129,7 +129,7 @@ export function useActivosFijos({
     setAssetName('');
     setAssetCat('COMPUTO_30');
     setAssetDate(nextDate);
-    setAssetMoi(45000);
+    setAssetMoi('');
     setAssetRate(30);
     setMesesDepreciadosPrevios(0);
     setAssetStatus('ACTIVO');
@@ -159,7 +159,7 @@ export function useActivosFijos({
     setAssetName(asset.nombre);
     setAssetCat(asset.categoria);
     setAssetDate(asset.fechaAdquisicion);
-    setAssetMoi(asset.montoOriginalInversion);
+    setAssetMoi(String(asset.montoOriginalInversion));
     setAssetRate(asset.tasaAnualPct);
     setMesesDepreciadosPrevios(asset.mesesDepreciadosPrevios);
     setAssetStatus(asset.estatus);
@@ -171,7 +171,7 @@ export function useActivosFijos({
   const createAssetMutation = useMutation({
     mutationFn: () => {
       if (isWriteLocked) throw new Error(lockMsg);
-      const cleanMoi = sanitizeFinitePositive(assetMoi, 0);
+      const cleanMoi = sanitizeFinitePositive(Number.parseFloat(assetMoi), 0);
       const cleanRate = sanitizeFinitePositive(assetRate, 0);
       const cleanMonths = Math.floor(sanitizeFinitePositive(mesesDepreciadosPrevios, 0));
       const cleanInpcAdq = sanitizeFinitePositive(assetInpcAdq, 0);
@@ -226,7 +226,7 @@ export function useActivosFijos({
       if (!isSupabaseConfigured) {
         throw new Error('La edición de activos fijos requiere conexión activa en la nube.');
       }
-      const cleanMoi = sanitizeFinitePositive(assetMoi, 0);
+      const cleanMoi = sanitizeFinitePositive(Number.parseFloat(assetMoi), 0);
       if (cleanMoi <= 0) throw new Error('El MOI debe ser un importe numérico mayor a cero.');
       return supabaseFiscalAndAssets.updateFixedAsset(
         editingAssetId,

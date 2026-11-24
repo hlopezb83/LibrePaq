@@ -46,7 +46,7 @@ export function CatalogoHeaderBar({
           title={
             isWriteBlocked
               ? blockedReason
-              : 'Importar catálogo de cuentas desde archivo CSV o layout CONTPAQi'
+              : 'Importar catálogo de cuentas desde archivo CSV, TXT CONTPAQi o XML Anexo 24'
           }
           className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 ${
             isWriteBlocked

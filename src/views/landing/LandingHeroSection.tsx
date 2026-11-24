@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import type { User } from '@supabase/supabase-js';
 import {
   ArrowRight,
   CheckCircle2,
@@ -23,17 +25,22 @@ const PREVIEW_TABS = [
 type HeroPreviewTab = (typeof PREVIEW_TABS)[number]['id'];
 
 interface LandingHeroSectionProps {
+  user?: User | null;
+  isGuest?: boolean;
   onOpenAuth: () => void;
   onOpenDemo: () => void;
   isOpeningDemo?: boolean;
 }
 
 export function LandingHeroSection({
+  user = null,
+  isGuest = false,
   onOpenAuth,
   onOpenDemo,
   isOpeningDemo = false
 }: LandingHeroSectionProps) {
   const [activePreviewTab, setActivePreviewTab] = useState<HeroPreviewTab>('polizas');
+  const hasRealSession = Boolean(user && !isGuest);
 
   return (
     <section className="relative overflow-hidden pt-4 pb-10 sm:pt-6 sm:pb-14 lg:pt-8 lg:pb-20 bg-gradient-to-b from-white via-slate-50/50 to-white">
@@ -52,7 +59,7 @@ export function LandingHeroSection({
           <span aria-hidden="true" className="text-slate-300 hidden md:inline">•</span>
           <span className="text-slate-700 hidden md:inline">Nube y Respaldos Incluidos</span>
           <span aria-hidden="true" className="text-slate-300">•</span>
-          <span className="text-blue-700 font-bold">Alternativa #1 a CONTPAQi®</span>
+          <span className="text-blue-700 font-bold">Alternativa en la Nube a CONTPAQi®</span>
         </div>
 
         {/* Titular Principal Claro y Autorizado */}
@@ -71,33 +78,45 @@ export function LandingHeroSection({
 
         {/* Botones de Llamada a la Acción (CTA) */}
         <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-          <button
-            type="button"
-            onClick={onOpenAuth}
-            className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-sm sm:text-base transition-all shadow-xl shadow-blue-600/25 flex items-center justify-center gap-2.5 cursor-pointer group"
-          >
-            <Sparkles className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-300 group-hover:rotate-12 transition-transform shrink-0" aria-hidden="true" />
-            <span>Crear Mi Cuenta Sin Costo</span>
-            <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform shrink-0" aria-hidden="true" />
-          </button>
+          {hasRealSession ? (
+            <Link
+              to="/"
+              className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-sm sm:text-base transition-all shadow-xl shadow-blue-600/25 flex items-center justify-center gap-2.5 cursor-pointer group"
+            >
+              <span>Ir a Mi Despacho</span>
+              <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform shrink-0" aria-hidden="true" />
+            </Link>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-sm sm:text-base transition-all shadow-xl shadow-blue-600/25 flex items-center justify-center gap-2.5 cursor-pointer group"
+              >
+                <Sparkles className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-300 group-hover:rotate-12 transition-transform shrink-0" aria-hidden="true" />
+                <span>Crear Mi Cuenta Sin Costo</span>
+                <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform shrink-0" aria-hidden="true" />
+              </button>
 
-          <button
-            type="button"
-            disabled={isOpeningDemo}
-            aria-busy={isOpeningDemo}
-            title={isOpeningDemo ? 'Preparando entorno demo en vivo...' : undefined}
-            onClick={onOpenDemo}
-            className="w-full sm:w-auto px-5 sm:px-7 py-3 sm:py-3.5 rounded-xl bg-white hover:bg-slate-50 text-slate-900 border-2 border-slate-300 hover:border-blue-600 font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-wait"
-          >
-            {isOpeningDemo ? (
-              <Loader2 className="w-4 sm:w-5 h-4 sm:h-5 text-blue-700 animate-spin shrink-0" aria-hidden="true" />
-            ) : (
-              <FlaskConical className="w-4 sm:w-5 h-4 sm:h-5 text-amber-600 shrink-0" aria-hidden="true" />
-            )}
-            <span>
-              {isOpeningDemo ? 'Abriendo Demo en Vivo...' : 'Explorar Demo en Vivo (Sin Registro)'}
-            </span>
-          </button>
+              <button
+                type="button"
+                disabled={isOpeningDemo}
+                aria-busy={isOpeningDemo}
+                title={isOpeningDemo ? 'Preparando entorno demo en vivo...' : undefined}
+                onClick={onOpenDemo}
+                className="w-full sm:w-auto px-5 sm:px-7 py-3 sm:py-3.5 rounded-xl bg-white hover:bg-slate-50 text-slate-900 border-2 border-slate-300 hover:border-blue-600 font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-wait"
+              >
+                {isOpeningDemo ? (
+                  <Loader2 className="w-4 sm:w-5 h-4 sm:h-5 text-blue-700 animate-spin shrink-0" aria-hidden="true" />
+                ) : (
+                  <FlaskConical className="w-4 sm:w-5 h-4 sm:h-5 text-amber-600 shrink-0" aria-hidden="true" />
+                )}
+                <span>
+                  {isOpeningDemo ? 'Abriendo Demo en Vivo...' : 'Explorar Demo en Vivo (Sin Registro)'}
+                </span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Micro-promesa de cero fricción */}
@@ -180,7 +199,7 @@ export function LandingHeroSection({
             <div
               role="tablist"
               aria-label="Vistas previas interactivas del sistema"
-              className="flex items-center gap-1 bg-slate-200/80 p-1 pr-4 rounded-lg text-[11px] sm:text-xs font-medium erp-tab-scroller max-w-full"
+              className="grid grid-cols-2 min-[480px]:flex min-[480px]:flex-wrap items-center gap-1 bg-slate-200/80 p-1 rounded-lg text-[11px] sm:text-xs font-medium max-w-full"
             >
               {PREVIEW_TABS.map((tab) => (
                 <button
@@ -195,7 +214,7 @@ export function LandingHeroSection({
                   onKeyDown={(e) =>
                     handleTablistKeyDown(e, PREVIEW_TABS, activePreviewTab, setActivePreviewTab, 'hero-preview-tab-')
                   }
-                  className={`px-2.5 sm:px-3 py-1 rounded-md transition cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`min-h-[40px] px-2.5 sm:px-3 py-1 rounded-md transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center ${
                     activePreviewTab === tab.id
                       ? 'bg-white text-blue-700 font-bold shadow-xs'
                       : 'text-slate-700 hover:text-slate-900'

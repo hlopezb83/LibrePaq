@@ -94,10 +94,10 @@ export function CfdiFilterBar({
     }`;
 
   return (
-    <div className="bg-white p-4 rounded-2xl border border-slate-300/90 shadow-2xs space-y-3">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 erp-tab-scroller">
-          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 border border-slate-200 text-xs shrink-0" role="group" aria-label="Alcance temporal de comprobantes">
+    <div className="bg-white p-4 rounded-2xl border border-slate-300/90 shadow-2xs space-y-3 w-full min-w-0 max-w-full">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 w-full min-w-0">
+        <div className="flex flex-wrap items-center gap-2 w-full min-w-0 max-w-full">
+          <div className="flex flex-wrap items-center gap-1 p-0.5 rounded-xl bg-slate-100 border border-slate-200 text-xs max-w-full" role="group" aria-label="Alcance temporal de comprobantes">
             <button
               type="button"
               aria-pressed={periodScope === 'CURRENT'}
@@ -132,9 +132,9 @@ export function CfdiFilterBar({
             </button>
           </div>
 
-          <div className="h-5 w-px bg-slate-300 mx-0.5 shrink-0" aria-hidden="true" />
+          <div className="hidden sm:block h-5 w-px bg-slate-300 mx-0.5 shrink-0" aria-hidden="true" />
 
-          <div className="flex items-center gap-1.5 shrink-0" role="group" aria-label="Filtrar por dirección y estatus contable">
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto min-w-0" role="group" aria-label="Filtrar por dirección y estatus contable">
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -149,7 +149,7 @@ export function CfdiFilterBar({
               >
                 <span>{t.label}</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                     tab === t.id
                       ? 'bg-blue-800 text-white'
                       : t.isWarning
@@ -164,7 +164,7 @@ export function CfdiFilterBar({
           </div>
         </div>
 
-        <search className="relative w-full md:w-80">
+        <search className="relative w-full md:w-80 shrink-0">
           <label htmlFor="add-search" className="visually-hidden">
             Buscar CFDI por UUID, RFC, Razón Social o Concepto
           </label>
@@ -202,7 +202,7 @@ export function CfdiFilterBar({
               onClick={() => setSearchQuery('')}
               aria-label="Limpiar búsqueda de comprobantes"
               title="Limpiar búsqueda (Esc)"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1 rounded cursor-pointer"
+              className="min-w-[28px] min-h-[28px] inline-flex items-center justify-center absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1 rounded cursor-pointer"
             >
               <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>

@@ -25,7 +25,7 @@ export function DossierEntregablesTab({
   const dia17Deadline = calculateDia17Deadline(ejercicio, periodo).formattedSpanish;
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-[#0A1120] rounded-2xl p-6 text-white border border-blue-900 shadow-md">
+      <div className="dark-surface bg-gradient-to-r from-blue-950 via-slate-900 to-[#0A1120] rounded-2xl p-6 text-white border border-blue-900 shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">

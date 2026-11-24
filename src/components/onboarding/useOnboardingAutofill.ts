@@ -140,11 +140,16 @@ export function useOnboardingAutofill({
   };
 
   const handleFielDrop = (files: FileList) => {
+    let invalidCount = 0;
     Array.from(files).forEach((f) => {
       const lower = f.name.toLowerCase();
       if (lower.endsWith('.cer')) processCerFile(f);
       else if (lower.endsWith('.key')) processKeyFile(f);
+      else invalidCount += 1;
     });
+    if (invalidCount > 0) {
+      toast.warning('Solo se aceptan archivos .cer y .key de tu e.firma SAT.');
+    }
   };
 
   return {

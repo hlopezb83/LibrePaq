@@ -12,7 +12,7 @@ const FAQ_ITEMS = [
   },
   {
     q: '¿Puedo descargar y guardar mis respaldos en mi propia computadora?',
-    a: 'Sí, tu información siempre es tuya. En cualquier momento y con un solo clic puedes descargar un respaldo completo de tus empresas, pólizas, balanzas, catálogos y XMLs directamente a tu computadora (en Excel, XMLs oficiales y archivo de restauración). Tu contabilidad nunca queda atrapada.'
+    a: 'Sí, tu información siempre es tuya. En cualquier momento y con un solo clic puedes descargar un respaldo completo de tus empresas, pólizas, balanzas, catálogos y archivos XML directamente a tu computadora (en Excel, archivos XML oficiales y archivo de restauración). Tu contabilidad nunca queda atrapada.'
   },
   {
     q: '¿LibrePaq Pro genera el archivo XML oficial para enviar la Balanza al SAT?',
@@ -29,6 +29,14 @@ const FAQ_ITEMS = [
   {
     q: '¿Cómo garantizan que mis pólizas y mi Balanza nunca tengan diferencias de centavos?',
     a: 'El sistema revisa cada cargo y cada abono exactamente al centavo en tiempo real y no permite guardar una póliza descuadrada. Así tus auxiliares, Estados Financieros y Balanza de Comprobación del SAT cuadran siempre al 100%.'
+  },
+  {
+    q: '¿Es seguro usar mi e.firma (.cer y .key) para descargas ante el SAT?',
+    a: 'Sí. Tus archivos de e.firma (.cer y .key) se procesan mediante canales cifrados exclusivamente para consultar y descargar tus CFDI oficiales ante el SAT. LibrePaq Pro nunca almacena contraseñas de clave privada en texto plano ni comparte tus certificados.'
+  },
+  {
+    q: '¿Qué pasará con mis datos y tarifas al terminar la promoción de lanzamiento?',
+    a: 'Tu contabilidad siempre seguirá siendo tuya. Notificaremos con al menos 30 días de aviso previo antes de cualquier ajuste de tarifas, mantendremos la opción inicial gratuita para despachos pequeños y siempre tendrás exportación completa en 1 clic a Excel y archivos XML.'
   }
 ];
 
@@ -52,9 +60,9 @@ export function LandingFaqSection() {
   };
 
   return (
-    <section id="faq" className="py-24 bg-slate-50/70 border-t border-slate-200">
+    <section id="faq" className="scroll-mt-16 py-14 sm:py-20 lg:py-24 bg-slate-50/70 border-t border-slate-200">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
+        <div className="text-center mb-10 sm:mb-14">
           <span className="px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-bold uppercase tracking-wider">
             RESOLVEMOS TUS DUDAS
           </span>

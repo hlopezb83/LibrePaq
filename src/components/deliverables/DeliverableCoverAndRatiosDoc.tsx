@@ -37,8 +37,8 @@ export function DeliverableCoverAndRatiosDoc({
   const bs = reportsData.balanceSheet;
 
   const kpiCards = [
-    { label: 'Ingresos Netos (YTD)', val: formatCurrency(er.totalIngresos), tone: 'text-slate-900' },
-    { label: er.utilidadNeta < 0 ? 'Pérdida Neta (YTD)' : 'Utilidad Neta (YTD)', val: formatCurrency(er.utilidadNeta), tone: er.utilidadNeta < 0 ? 'text-red-700' : 'text-emerald-800' },
+    { label: 'Ingresos Netos (Acum. Ejercicio)', val: formatCurrency(er.totalIngresos), tone: 'text-slate-900' },
+    { label: er.utilidadNeta < 0 ? 'Pérdida Neta (Acum. Ejercicio)' : 'Utilidad Neta (Acum. Ejercicio)', val: formatCurrency(er.utilidadNeta), tone: er.utilidadNeta < 0 ? 'text-red-700' : 'text-emerald-800' },
     { label: 'Total Activo (NIF B-6)', val: formatCurrency(bs.totalActivo), tone: 'text-blue-900' },
     { label: 'Obligación SAT Día 17', val: formatCurrency(fiscalData?.resumenLineaCapturaSat.totalEstimadoDia17 ?? 0), tone: 'text-amber-800' }
   ];
@@ -93,19 +93,21 @@ export function DeliverableCoverAndRatiosDoc({
         <div className="bg-slate-100 px-3.5 py-2 font-bold uppercase text-[11px] text-slate-900 border-b border-slate-200">
           Indicadores y Razones Financieras Clave (NIF A-3)
         </div>
+        <div tabIndex={0} role="region" aria-label="Indicadores y Razones Financieras Clave" className="overflow-x-auto">
         <table className="w-full border-collapse">
+          <caption className="visually-hidden">Indicadores y Razones Financieras Clave (NIF A-3)</caption>
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase text-slate-600">
-              <th className="text-left py-1.5 px-3">Razón Financiera</th>
-              <th className="text-left py-1.5 px-3">Fórmula</th>
-              <th className="text-right py-1.5 px-3">Resultado</th>
-              <th className="text-left py-1.5 px-3 hidden sm:table-cell">Interpretación</th>
+              <th scope="col" className="text-left py-1.5 px-3">Razón Financiera</th>
+              <th scope="col" className="text-left py-1.5 px-3">Fórmula</th>
+              <th scope="col" className="text-right py-1.5 px-3">Resultado</th>
+              <th scope="col" className="text-left py-1.5 px-3 hidden sm:table-cell">Interpretación</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {ratioRows.map((r) => (
               <tr key={r.name}>
-                <td className="py-1.5 px-3 font-semibold text-slate-900">{r.name}</td>
+                <th scope="row" className="text-left py-1.5 px-3 font-semibold text-slate-900">{r.name}</th>
                 <td className="py-1.5 px-3 text-slate-600 font-mono text-[11px]">{r.formula}</td>
                 <td className="py-1.5 px-3 text-right font-mono font-bold text-blue-900 tabular-nums whitespace-nowrap">{r.value}</td>
                 <td className="py-1.5 px-3 text-slate-600 hidden sm:table-cell">{r.note}</td>
@@ -113,6 +115,7 @@ export function DeliverableCoverAndRatiosDoc({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs space-y-1.5 avoid-page-break">
@@ -122,7 +125,7 @@ export function DeliverableCoverAndRatiosDoc({
         <p className="text-slate-700 whitespace-pre-line leading-relaxed">
           {accountantNotes?.trim()
             ? accountantNotes.trim()
-            : `Los estados financieros adjuntos al ${cutoff.toLowerCase()} fueron preparados conforme a las Normas de Información Financiera (NIF B-2, B-3, B-4 y B-6) y conciliados contra los CFDI 4.0 vigentes en la Bóveda ADD y la Cédula de Impuestos Federales Día 17.`}
+            : `Los estados financieros adjuntos ${cutoff.toLowerCase()} fueron preparados conforme a las Normas de Información Financiera (NIF B-2, B-3, B-4 y B-6) y conciliados contra los CFDI 4.0 vigentes en la Bóveda ADD y la Cédula de Impuestos Federales Día 17.`}
         </p>
       </div>
 

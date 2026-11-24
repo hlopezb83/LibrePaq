@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { useRef, type RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ExternalLink, FileCode2 } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
@@ -50,7 +50,10 @@ function LedgerEntryRow({
       <td className="py-2.5 px-3 text-slate-800">
         <div>{entry.concepto}</div>
         {entry.cfdiUuid && (
-          <div className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-600">
+          <div
+            title={`UUID completo: ${entry.cfdiUuid}`}
+            className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-600"
+          >
             <FileCode2 className="w-3 h-3 text-blue-700" aria-hidden="true" />
             <span>Folio Fiscal (UUID): {entry.cfdiUuid.slice(0, 14)}...</span>
           </div>
@@ -78,12 +81,12 @@ export function AccountLedgerTable({
   mesNombre,
   filteredEntries,
   ledgerSearch,
-  scrollParentRef,
   onGoToPoliza
 }: AccountLedgerTableProps) {
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: filteredEntries.length,
-    getScrollElement: () => scrollParentRef.current,
+    getScrollElement: () => tableScrollRef.current,
     estimateSize: () => 44,
     overscan: 10
   });
@@ -101,13 +104,13 @@ export function AccountLedgerTable({
 
   return (
     <div className="border border-slate-300 rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div ref={tableScrollRef} className="max-h-[55dvh] overflow-auto">
+        <table className="w-full text-left border-collapse erp-sticky-table">
           <caption className="visually-hidden">
             Movimientos auxiliares de la cuenta {data.account.code} {data.account.name} en{' '}
             {mesNombre} {data.ejercicio}
           </caption>
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
               <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
               <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Póliza</th>
@@ -170,7 +173,7 @@ export function AccountLedgerTable({
               <td colSpan={6} className="py-2.5 px-3">
                 Saldo Inicial Acumulado al inicio de {mesNombre} {data.ejercicio}
               </td>
-              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+              <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900">
                 {formatCurrency(data.initialBalance)}
               </td>
             </tr>

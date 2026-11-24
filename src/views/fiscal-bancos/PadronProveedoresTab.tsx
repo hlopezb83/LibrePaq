@@ -177,8 +177,12 @@ export function PadronProveedoresTab({
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="relative w-full sm:w-80">
+            <label htmlFor="padron-search" className="visually-hidden">
+              Buscar proveedor o cliente por RFC, Razón Social o cuenta
+            </label>
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
+              id="padron-search"
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -188,16 +192,15 @@ export function PadronProveedoresTab({
                   setSearchQuery('');
                 }
               }}
-              aria-label="Buscar proveedor o cliente por RFC, Razón Social o cuenta"
               placeholder="Buscar RFC, razón social o cuenta..."
-              className="w-full pl-8 pr-8 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              className="w-full pl-8 pr-9 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 aria-label="Limpiar búsqueda de padrón"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 min-h-[28px] min-w-[28px] flex items-center justify-center rounded cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>

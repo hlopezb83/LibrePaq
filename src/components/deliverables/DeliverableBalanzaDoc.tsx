@@ -98,7 +98,12 @@ export function DeliverableBalanzaDoc({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Tabla de Balanza de Comprobación Anexo 24"
+        className="overflow-x-auto"
+      >
         <table className="w-full text-left border-collapse text-xs">
           <caption className="visually-hidden">Balanza de Comprobación de {company.name} — {periodLabel}</caption>
           <thead>
@@ -125,7 +130,7 @@ export function DeliverableBalanzaDoc({
                       : 'text-slate-700'
                 }
               >
-                <td className="py-1 px-2.5 font-mono text-[11px] whitespace-nowrap tabular-nums">{row.code}</td>
+                <th scope="row" className="py-1 px-2.5 font-mono text-[11px] whitespace-nowrap tabular-nums text-left font-normal">{row.code}</th>
                 <td className={`py-1 px-2.5 ${row.level === 3 ? 'pl-6' : ''}`}>{row.name}</td>
                 <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-600 whitespace-nowrap tabular-nums">{row.satGroupCode}</td>
                 <td className="py-1 px-1.5 text-center font-mono text-[10px] font-bold text-slate-700 whitespace-nowrap">{row.nature === 'DEUDORA' ? 'D' : 'A'}</td>

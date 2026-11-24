@@ -37,12 +37,8 @@ export function WizardHeader({ step, onRequestClose, onGoToStep }: WizardHeaderP
         </button>
       </div>
 
-      <div
-        role="progressbar"
-        aria-valuenow={step}
-        aria-valuemin={1}
-        aria-valuemax={5}
-        aria-label={`Progreso de alta de empresa: paso ${step} de 5`}
+      <nav
+        aria-label="Pasos del asistente"
         className="flex items-center justify-between gap-1.5 pt-0.5"
       >
         {[1, 2, 3, 4, 5].map((s) => {
@@ -55,8 +51,14 @@ export function WizardHeader({ step, onRequestClose, onGoToStep }: WizardHeaderP
               disabled={!isCompleted}
               onClick={() => onGoToStep(s)}
               aria-current={isCurrent ? 'step' : undefined}
-              aria-label={isCompleted ? `Volver al paso ${s}` : `Paso ${s}`}
-              title={isCompleted ? `Volver al paso ${s}` : undefined}
+              aria-label={isCompleted ? `Volver al paso ${s}` : `Paso ${s} de 5`}
+              title={
+                isCompleted
+                  ? `Volver al paso ${s}`
+                  : isCurrent
+                  ? `Paso actual (${s} de 5)`
+                  : `Completa los pasos anteriores para avanzar al paso ${s}`
+              }
               className={`flex-1 py-1 group ${isCompleted ? 'cursor-pointer' : 'cursor-default'}`}
             >
               <span
@@ -71,7 +73,7 @@ export function WizardHeader({ step, onRequestClose, onGoToStep }: WizardHeaderP
             </button>
           );
         })}
-      </div>
+      </nav>
     </div>
   );
 }

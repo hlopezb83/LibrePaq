@@ -18,7 +18,7 @@ export function CommandPaletteCompanyConfirm({
   const [confirmed, setConfirmed] = useState(false);
 
   return (
-    <div className="p-4 sm:p-5 space-y-4 bg-white">
+    <div className="p-4 sm:p-5 space-y-4 bg-white max-h-[92dvh] overflow-y-auto overscroll-contain">
       <div className="flex items-center gap-2.5">
         <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
           <Building2 className="w-4 h-4" aria-hidden="true" />
@@ -75,7 +75,7 @@ export function CommandPaletteCompanyConfirm({
         </span>
       </label>
 
-      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
         <button
           type="button"
           onClick={onCancel}
@@ -87,6 +87,7 @@ export function CommandPaletteCompanyConfirm({
         <button
           type="button"
           disabled={!confirmed}
+          title={!confirmed ? 'Marca la casilla de confirmación para habilitar el cambio' : undefined}
           onClick={onConfirm}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs"
         >

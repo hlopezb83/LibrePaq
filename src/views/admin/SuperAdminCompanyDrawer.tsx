@@ -34,7 +34,9 @@ export function SuperAdminCompanyDrawer({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const { copiedKey, copy, reset: resetCopy } = useCopyToClipboard<'rfc' | 'fiel'>();
 
-  useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(companyId) });
+  useDialogLightDismiss(dialogRef, () => {
+    if (!isDeletingCompany) onClose();
+  }, { isOpen: Boolean(companyId) && !isDeletingCompany, deferClose: isDeletingCompany });
 
   useEffect(() => {
     resetCopy();
@@ -55,6 +57,10 @@ export function SuperAdminCompanyDrawer({
 
   if (typeof document === 'undefined') return null;
 
+  const isFielExpired = Boolean(
+    detail?.hasFiel && detail?.fielValidTo && new Date(detail.fielValidTo).getTime() < Date.now()
+  );
+
   const resolvedWsId =
     detail?.company.userWorkspaceId ||
     workspaceIdHint ||
@@ -71,10 +77,15 @@ export function SuperAdminCompanyDrawer({
   return createPortal(
     <dialog
       ref={dialogRef}
-      closedby="any"
-      onClose={onClose}
+      closedby={isDeletingCompany ? 'none' : 'any'}
+      onCancel={(e) => {
+        if (isDeletingCompany) e.preventDefault();
+      }}
+      onClose={() => {
+        if (!isDeletingCompany) onClose();
+      }}
       aria-labelledby="company-drawer-title"
-      className="ml-auto mr-0 sm:mr-4 my-auto rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl max-h-[92dvh] overflow-hidden backdrop:bg-slate-900/60"
+      className="w-[calc(100%-1rem)] mx-auto sm:ml-auto sm:mr-4 my-auto rounded-2xl shadow-2xl border border-slate-300 bg-white max-w-2xl max-h-[92dvh] overflow-hidden backdrop:bg-slate-900/60"
     >
       <div className="flex flex-col max-h-[92dvh]">
         <header className="p-4 sm:p-5 border-b border-slate-200 flex items-start justify-between gap-3 bg-white shrink-0">
@@ -101,11 +112,19 @@ export function SuperAdminCompanyDrawer({
                     </button>
                   </span>
                 )}
-                <span className="font-mono text-[11px] text-slate-600">ID: {companyId || '—'}</span>
+                <span className="font-mono text-[11px] text-slate-600 break-all">ID: {companyId || '—'}</span>
               </p>
             </div>
           </div>
-          <button type="button" autoFocus onClick={onClose} aria-label="Cerrar expediente de empresa" className="p-1.5 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer shrink-0">
+          <button
+            type="button"
+            autoFocus
+            disabled={isDeletingCompany}
+            title={isDeletingCompany ? 'Eliminación en progreso...' : 'Cerrar expediente de empresa'}
+            onClick={() => { if (!isDeletingCompany) onClose(); }}
+            aria-label="Cerrar expediente de empresa"
+            className="p-1.5 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer shrink-0"
+          >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </header>
@@ -143,7 +162,17 @@ export function SuperAdminCompanyDrawer({
                   <h3 className="font-bold text-slate-800 flex items-center gap-1.5"><KeyRound className="w-4 h-4 text-indigo-600" aria-hidden="true" /> Estatus e.firma (FIEL)</h3>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Certificado:</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${detail.hasFiel ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{detail.hasFiel ? 'Cargada' : 'Sin e.firma'}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                        isFielExpired
+                          ? 'bg-red-100 text-red-800 border border-red-200'
+                          : detail.hasFiel
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {isFielExpired ? 'Vencida' : detail.hasFiel ? 'Cargada' : 'Sin e.firma'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-slate-600">Serie:</span>
@@ -167,12 +196,10 @@ export function SuperAdminCompanyDrawer({
                     {detail.hasFiel && detail.fielValidTo ? (
                       <span
                         className={`font-semibold ${
-                          new Date(detail.fielValidTo).getTime() < Date.now()
-                            ? 'text-red-700'
-                            : 'text-slate-900'
+                          isFielExpired ? 'text-red-700' : 'text-slate-900'
                         }`}
                       >
-                        {new Date(detail.fielValidTo).getTime() < Date.now()
+                        {isFielExpired
                           ? `Vencida (${formatAdminDate(detail.fielValidTo)})`
                           : formatAdminDate(detail.fielValidTo)}
                       </span>
@@ -213,6 +240,7 @@ export function SuperAdminCompanyDrawer({
               {companyId && onDeleteCompany && (
                 <AdminCompanyDeleteZone
                   companyId={companyId}
+                  companyName={detail.company.name}
                   companyRfc={detail.company.rfc}
                   isDeleting={isDeletingCompany}
                   onDeleteCompany={onDeleteCompany}

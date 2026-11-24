@@ -24,14 +24,14 @@ export function AppShellTopHeaderPeriod({
         disabled={currentPeriod <= 1}
         title={currentPeriod <= 1 ? 'Ya estás en el primer periodo del ejercicio (Enero)' : 'Periodo anterior'}
         aria-label="Cambiar al periodo contable anterior"
-        className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+        className="min-h-[28px] min-w-[24px] @[420px]:min-w-[28px] inline-flex items-center justify-center p-0.5 @[420px]:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
       >
         <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
 
       <Calendar className="w-3 h-3 text-blue-700 shrink-0 hidden @[380px]:block mx-0.5" aria-hidden="true" />
 
-      <div className="flex items-center gap-0.5 min-w-0">
+      <div className="flex items-center min-w-0">
         <label htmlFor="period-selector" className="visually-hidden">
           Periodo Contable
         </label>
@@ -40,7 +40,7 @@ export function AppShellTopHeaderPeriod({
           name="currentPeriod"
           value={currentPeriod}
           onChange={(e) => updatePeriod(currentYear, Number(e.target.value))}
-          className="text-[11px] sm:text-xs font-bold text-slate-800 bg-transparent cursor-pointer min-w-[108px] w-[108px] @[420px]:w-[120px] @[760px]:w-[132px] truncate"
+          className="text-[11px] sm:text-xs font-bold text-slate-800 bg-transparent cursor-pointer min-w-[96px] max-w-[116px] @[420px]:max-w-none @[420px]:w-auto truncate"
         >
           {MESES_SAT.map((m) => (
             <option key={m.periodo} value={m.periodo}>
@@ -48,7 +48,7 @@ export function AppShellTopHeaderPeriod({
             </option>
           ))}
         </select>
-        <span className="text-slate-300 text-xs">/</span>
+        <span className="text-slate-400 text-xs mx-1.5 shrink-0" aria-hidden="true">/</span>
         <label htmlFor="year-selector" className="visually-hidden">
           Ejercicio Fiscal
         </label>
@@ -57,7 +57,7 @@ export function AppShellTopHeaderPeriod({
           name="currentYear"
           value={currentYear}
           onChange={(e) => updatePeriod(Number(e.target.value), currentPeriod)}
-          className="text-[11px] sm:text-xs font-bold font-mono text-blue-800 bg-transparent cursor-pointer shrink-0"
+          className="text-[11px] sm:text-xs font-bold font-mono text-blue-800 bg-transparent cursor-pointer shrink-0 pr-0.5"
         >
           {years.map((yr) => (
             <option key={yr} value={yr}>
@@ -73,7 +73,7 @@ export function AppShellTopHeaderPeriod({
         disabled={currentPeriod >= 13}
         title={currentPeriod >= 13 ? 'Ya estás en el último periodo (Cierre Anual P13)' : 'Periodo siguiente'}
         aria-label="Cambiar al periodo contable siguiente"
-        className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+        className="min-h-[28px] min-w-[24px] @[420px]:min-w-[28px] inline-flex items-center justify-center p-0.5 @[420px]:p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
       >
         <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
       </button>

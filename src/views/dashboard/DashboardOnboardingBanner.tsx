@@ -23,6 +23,8 @@ export interface DashboardOnboardingBannerProps {
   ingresosPeriodo: number;
   accountsCount?: number;
   pendingCfdisCount?: number;
+  isPeriodLocked?: boolean;
+  isReadOnly?: boolean;
 }
 
 export function DashboardOnboardingBanner({
@@ -34,12 +36,16 @@ export function DashboardOnboardingBanner({
   totalPolizasPeriodo,
   ingresosPeriodo,
   accountsCount = 84,
-  pendingCfdisCount = 0
+  pendingCfdisCount = 0,
+  isPeriodLocked = false,
+  isReadOnly = false
 }: DashboardOnboardingBannerProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Si la empresa ya tiene operaciones activas (pólizas e ingresos), no mostramos la guía
   if (totalPolizasPeriodo > 0 || ingresosPeriodo > 0) return null;
+
+  const isWriteSuppressed = isPeriodLocked || isReadOnly;
 
   // Cálculo de progreso del arranque inicial
   const step1Done = true; // Catálogo SAT auto-sembrado
@@ -101,14 +107,16 @@ export function DashboardOnboardingBanner({
 
         {/* Acciones de la Cabecera */}
         <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
-          <Link
-            to="/add"
-            search={{ sat: 'open' }}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-blue-900/40 transition cursor-pointer ${darkFocusRing}`}
-          >
-            <CloudDownload className="w-4 h-4 text-cyan-200" aria-hidden="true" />
-            <span>Descargar del SAT (e.firma)</span>
-          </Link>
+          {!isWriteSuppressed && (
+            <Link
+              to="/add"
+              search={{ sat: 'open' }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-blue-900/40 transition cursor-pointer ${darkFocusRing}`}
+            >
+              <CloudDownload className="w-4 h-4 text-cyan-200" aria-hidden="true" />
+              <span>Descargar del SAT (e.firma)</span>
+            </Link>
+          )}
 
           <button
             type="button"
@@ -172,7 +180,7 @@ export function DashboardOnboardingBanner({
             {/* Paso 2: Bóveda Digital ADD & Descarga SAT */}
             <Link
               to="/add"
-              search={{ sat: 'open' }}
+              search={isWriteSuppressed ? undefined : { sat: 'open' }}
               className={`p-4 rounded-2xl transition group text-left block relative ${darkFocusRing} ${
                 step2Done
                   ? 'bg-white/5 hover:bg-white/10 border border-emerald-500/30 hover:border-emerald-400/50'
@@ -197,21 +205,23 @@ export function DashboardOnboardingBanner({
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-200 bg-cyan-950/90 px-2 py-0.5 rounded-full border border-cyan-400/50">
                     <Sparkles className="w-3 h-3 text-cyan-300" aria-hidden="true" />
-                    Recomendado
+                    {isWriteSuppressed ? 'Consulta' : 'Recomendado'}
                   </span>
                 )}
               </div>
               <div className="text-xs sm:text-sm font-bold text-white group-hover:text-cyan-200 transition flex items-center gap-1.5">
                 <CloudDownload className="w-4 h-4 text-cyan-400 shrink-0" aria-hidden="true" />
-                <span>Descargar del SAT con e.firma</span>
+                <span>{isWriteSuppressed ? 'Bóveda Digital ADD (CFDI 4.0)' : 'Descargar del SAT con e.firma'}</span>
               </div>
               <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
                 {step2Done
                   ? `Tienes ${pendingCfdisCount} comprobante(s) XML listos en Bóveda ADD para contabilizar.`
+                  : isWriteSuppressed
+                  ? 'Consulta los comprobantes XML registrados en Bóveda ADD y su validación Art. 69-B.'
                   : 'Descarga oficial con tu FIEL o arrastra tus XMLs. Clasificación automática en Bóveda ADD y validación 69-B.'}
               </p>
               <span className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-2.5 group-hover:underline ${step2Done ? 'text-emerald-300' : 'text-cyan-300'}`}>
-                {step2Done ? 'Revisar Bóveda ADD' : 'Conectar e.firma y Descargar'} <ArrowRight className="w-3 h-3" aria-hidden="true" />
+                {step2Done || isWriteSuppressed ? 'Revisar Bóveda ADD' : 'Conectar e.firma y Descargar'} <ArrowRight className="w-3 h-3" aria-hidden="true" />
               </span>
             </Link>
 

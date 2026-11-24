@@ -63,11 +63,41 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
   const matchesSearch = (text: string) =>
     !xmlSearch.trim() || text.toLowerCase().includes(xmlSearch.trim().toLowerCase());
 
+  const showComprobante = matchesSearch(
+    `Comprobante ${preview.comprobante.version} ${preview.comprobante.serie} ${preview.comprobante.folio} ${preview.comprobante.fecha} ${preview.comprobante.formaPago} ${preview.comprobante.metodoPago} ${preview.comprobante.moneda} ${preview.comprobante.subtotal} ${preview.comprobante.total} ${preview.comprobante.lugarExpedicion}`
+  );
+  const showEmisor = matchesSearch(
+    `Emisor ${preview.emisor.rfc} ${preview.emisor.nombre} ${preview.emisor.regimenFiscal}`
+  );
+  const showReceptor = matchesSearch(
+    `Receptor ${preview.receptor.rfc} ${preview.receptor.nombre} ${preview.receptor.usoCfdi} ${preview.receptor.domicilioFiscalReceptor} ${preview.receptor.regimenFiscalReceptor}`
+  );
+  const filteredConceptos = preview.conceptos.filter((c) =>
+    matchesSearch(
+      `Concepto ${c.claveProdServ} ${c.noIdentificacion || ''} ${c.descripcion} ${c.claveUnidad} ${c.unidad || ''} ${c.importe}`
+    )
+  );
+  const showImpuestos = matchesSearch(
+    `Impuestos Traslados Retenciones ${preview.impuestos.totalImpuestosTrasladados} ${totalRet} ${preview.impuestos.traslados
+      .map((t) => `${t.impuesto} ${t.tipoFactor} ${t.importe}`)
+      .join(' ')} ${preview.impuestos.retenciones.map((r) => `${r.impuesto} ${r.importe}`).join(' ')}`
+  );
+  const showTimbre = matchesSearch(
+    `TimbreFiscalDigital ${preview.timbre.uuid} ${preview.timbre.fechaTimbrado} ${preview.timbre.rfcProvCertif} ${preview.timbre.noCertificadoSat} ${preview.timbre.selloCfd || ''} ${preview.timbre.selloSat || ''}`
+  );
+  const hasAnyMatchingNode =
+    showComprobante ||
+    showEmisor ||
+    showReceptor ||
+    filteredConceptos.length > 0 ||
+    showImpuestos ||
+    showTimbre;
+
   return (
     <div
       role="region"
       aria-label="Estructura XML del CFDI"
-      className="bg-slate-950 text-slate-100 rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4"
+      className="dark-surface bg-slate-950 text-slate-100 rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4"
     >
       <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-slate-300 flex-wrap">
@@ -130,6 +160,13 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
           type="search"
           value={xmlSearch}
           onChange={(e) => setXmlSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && xmlSearch) {
+              e.preventDefault();
+              e.stopPropagation();
+              setXmlSearch('');
+            }
+          }}
           placeholder="Buscar etiqueta, atributo, RFC o UUID en el XML..."
           aria-label="Buscar dentro del XML del CFDI"
           className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-400"
@@ -150,7 +187,13 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
         </pre>
       ) : (
       <div className="space-y-2.5 overflow-x-auto text-[11px] leading-relaxed">
-        {matchesSearch(`${preview.comprobante.serie} ${preview.comprobante.folio} ${preview.comprobante.total} Comprobante`) && (
+        {!hasAnyMatchingNode && (
+          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-center">
+            Sin nodos XML que coincidan con &ldquo;{xmlSearch.trim()}&rdquo;.
+          </div>
+        )}
+
+        {showComprobante && (
         <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-cyan-400 font-bold">&lt;cfdi:Comprobante</span>
           <div className="pl-4 space-y-0.5 text-slate-300">
@@ -174,6 +217,7 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
         </div>
         )}
 
+        {showEmisor && (
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-blue-400 font-bold">&lt;cfdi:Emisor</span>
           <span className="text-slate-300">
@@ -181,7 +225,9 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
           </span>
           <span className="text-blue-400 font-bold"> /&gt;</span>
         </div>
+        )}
 
+        {showReceptor && (
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-blue-400 font-bold">&lt;cfdi:Receptor</span>
           <span className="text-slate-300">
@@ -189,11 +235,13 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
           </span>
           <span className="text-blue-400 font-bold"> /&gt;</span>
         </div>
+        )}
 
+        {filteredConceptos.length > 0 && (
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-purple-400 font-bold">&lt;cfdi:Conceptos&gt;</span>
           <div className="pl-4 space-y-1 text-slate-300">
-            {preview.conceptos.map((c, idx) => (
+            {filteredConceptos.map((c, idx) => (
               <div key={`${c.claveProdServ}-${c.noIdentificacion || idx}`}>
                 <span className="text-purple-400 font-bold">&lt;cfdi:Concepto</span> ClaveProdServ=<span className="text-emerald-300">"{c.claveProdServ}"</span>
                 {c.noIdentificacion && (
@@ -210,7 +258,9 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
           </div>
           <span className="text-purple-400 font-bold">&lt;/cfdi:Conceptos&gt;</span>
         </div>
+        )}
 
+        {showImpuestos && (
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-yellow-400 font-bold">&lt;cfdi:Impuestos</span> TotalImpuestosTrasladados=<span className="text-amber-300">"{preview.impuestos.totalImpuestosTrasladados}"</span>
           {totalRet > 0 && (
@@ -246,7 +296,9 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
           </div>
           <span className="text-yellow-400 font-bold">&lt;/cfdi:Impuestos&gt;</span>
         </div>
+        )}
 
+        {showTimbre && (
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-emerald-400 font-bold">&lt;tfd:TimbreFiscalDigital</span>
           <div className="pl-4 space-y-0.5 text-slate-300">
@@ -258,12 +310,18 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
               {preview.timbre.selloCfd && (
                 <> SelloCFD=<span className="text-emerald-300">"{preview.timbre.selloCfd.slice(0, 40)}{preview.timbre.selloCfd.length > 40 ? '...' : ''}"</span></>
               )}
+              {preview.timbre.selloSat && (
+                <> SelloSAT=<span className="text-emerald-300">"{preview.timbre.selloSat.slice(0, 40)}{preview.timbre.selloSat.length > 40 ? '...' : ''}"</span></>
+              )}
             </div>
           </div>
           <span className="text-emerald-400 font-bold">/&gt;</span>
         </div>
+        )}
 
-        <div className="p-2.5 text-cyan-400 font-bold">&lt;/cfdi:Comprobante&gt;</div>
+        {hasAnyMatchingNode && (
+          <div className="p-2.5 text-cyan-400 font-bold">&lt;/cfdi:Comprobante&gt;</div>
+        )}
       </div>
       )}
     </div>

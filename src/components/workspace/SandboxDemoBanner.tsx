@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlaskConical, Loader2, Plus, Trash2 } from 'lucide-react';
 import type { Company } from '../../shared/types';
 import { useSandboxDemoActions } from './useWorkspaceActions';
@@ -16,10 +16,22 @@ export function SandboxDemoBanner({
 }: SandboxDemoBannerProps) {
   const { isDeleting, handleDeleteDemo } = useSandboxDemoActions(company.id, onDemoDeleted);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteBtnRef = useRef<HTMLButtonElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+  const wasConfirmingRef = useRef(false);
+
+  useEffect(() => {
+    if (confirmDelete) {
+      wasConfirmingRef.current = true;
+      requestAnimationFrame(() => cancelBtnRef.current?.focus());
+    } else if (wasConfirmingRef.current) {
+      wasConfirmingRef.current = false;
+      requestAnimationFrame(() => deleteBtnRef.current?.focus());
+    }
+  }, [confirmDelete]);
 
   return (
     <aside
-      role="status"
       aria-label="Aviso de Empresa Ejemplo"
       className="mb-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 border border-amber-300/90 px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-2xs no-print"
     >
@@ -53,7 +65,15 @@ export function SandboxDemoBanner({
         </button>
 
         {confirmDelete ? (
-          <div className="inline-flex items-center gap-1.5 bg-red-50 border border-red-300 rounded-xl px-2 py-1">
+          <div
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && !isDeleting) {
+                e.preventDefault();
+                setConfirmDelete(false);
+              }
+            }}
+            className="inline-flex flex-wrap items-center gap-1.5 bg-red-50 border border-red-300 rounded-xl px-2 py-1"
+          >
             <span className="text-[11px] font-bold text-red-900">¿Eliminar demo?</span>
             <button
               type="button"
@@ -66,6 +86,7 @@ export function SandboxDemoBanner({
               <span>{isDeleting ? 'Eliminando...' : 'Sí, eliminar'}</span>
             </button>
             <button
+              ref={cancelBtnRef}
               type="button"
               disabled={isDeleting}
               onClick={() => setConfirmDelete(false)}
@@ -76,6 +97,7 @@ export function SandboxDemoBanner({
           </div>
         ) : (
           <button
+            ref={deleteBtnRef}
             type="button"
             disabled={isDeleting}
             onClick={() => setConfirmDelete(true)}

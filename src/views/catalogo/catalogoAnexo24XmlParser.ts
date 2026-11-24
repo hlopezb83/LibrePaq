@@ -185,6 +185,6 @@ export function parseAnexo24XmlCatalogOrBalanza(
   return {
     format: 'ANEXO24_CT_XML',
     rows: [],
-    skipped: [{ lineNumber: 1, rawLine: '', reason: 'El XML no corresponde a CatalogoCuentas (CT.xml) ni Balanza (BN.xml) Anexo 24.' }]
+    skipped: [{ lineNumber: 1, rawLine: '', reason: 'El XML no corresponde a un Catálogo de Cuentas (CT.xml) ni Balanza de Comprobación (BN.xml) Anexo 24 del SAT.' }]
   };
 }

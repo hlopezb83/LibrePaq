@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Gauge, X } from 'lucide-react';
+import { AlertTriangle, Gauge, X } from 'lucide-react';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { SuperAdminQuotaCard } from './SuperAdminQuotaCard';
 
@@ -20,14 +20,46 @@ interface AdminUserQuotaModalProps {
 
 export function AdminUserQuotaModal({ target, canEdit = true, onClose }: AdminUserQuotaModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(target) });
+  const handleStateChange = useCallback((state: { isDirty: boolean; isSaving: boolean }) => {
+    setIsDirty(state.isDirty);
+    setIsSaving(state.isSaving);
+    if (!state.isDirty) setShowDiscardConfirm(false);
+  }, []);
+
+  const requestClose = useCallback(() => {
+    if (isSaving) return;
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    setShowDiscardConfirm(false);
+    onClose();
+  }, [isSaving, isDirty, onClose]);
+
+  const confirmDiscardAndClose = () => {
+    setShowDiscardConfirm(false);
+    setIsDirty(false);
+    onClose();
+  };
+
+  useDialogLightDismiss(dialogRef, requestClose, {
+    isOpen: Boolean(target) && !isSaving && !isDirty,
+    deferClose: isSaving || isDirty
+  });
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (target && !dialog.open) dialog.showModal();
-    else if (!target && dialog.open) dialog.close();
+    if (target) {
+      setShowDiscardConfirm(false);
+      if (!dialog.open) dialog.showModal();
+    } else if (dialog.open) {
+      dialog.close();
+    }
   }, [target]);
 
   if (typeof document === 'undefined') return null;
@@ -35,8 +67,19 @@ export function AdminUserQuotaModal({ target, canEdit = true, onClose }: AdminUs
   return createPortal(
     <dialog
       ref={dialogRef}
-      closedby="any"
-      onClose={onClose}
+      closedby={isSaving ? 'none' : 'any'}
+      onCancel={(e) => {
+        if (isSaving || isDirty) {
+          e.preventDefault();
+          if (!isSaving && isDirty) setShowDiscardConfirm(true);
+        }
+      }}
+      onClose={() => {
+        if (!isSaving) {
+          setShowDiscardConfirm(false);
+          onClose();
+        }
+      }}
       aria-labelledby="admin-user-quota-modal-title"
       className="m-auto rounded-2xl shadow-2xl border border-slate-300 bg-white w-[calc(100%-2rem)] max-w-2xl max-h-[92dvh] overflow-hidden backdrop:bg-slate-900/60"
     >
@@ -60,20 +103,53 @@ export function AdminUserQuotaModal({ target, canEdit = true, onClose }: AdminUs
           <button
             type="button"
             autoFocus
-            onClick={onClose}
+            disabled={isSaving}
+            title={isSaving ? 'Guardando cuota...' : 'Cerrar modal de plan y cuota'}
+            onClick={requestClose}
             aria-label="Cerrar modal de plan y cuota"
-            className="min-h-8 min-w-8 inline-flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className="min-h-8 min-w-8 inline-flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </header>
 
-        <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 overscroll-contain">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-3">
+          {showDiscardConfirm && isDirty && (
+            <div
+              role="alertdialog"
+              aria-modal="false"
+              aria-labelledby="quota-discard-title"
+              className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2.5"
+            >
+              <div id="quota-discard-title" className="flex items-center gap-2 font-bold">
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+                <span>Tienes cambios sin guardar en la cuota. ¿Deseas descartarlos?</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscardConfirm(false)}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+                >
+                  Seguir editando
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDiscardAndClose}
+                  className="px-2.5 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold cursor-pointer"
+                >
+                  Descartar y cerrar
+                </button>
+              </div>
+            </div>
+          )}
+
           {target && (
             <SuperAdminQuotaCard
               workspaceId={target.workspaceId}
               userId={target.userId}
               canEdit={canEdit}
+              onStateChange={handleStateChange}
             />
           )}
         </div>

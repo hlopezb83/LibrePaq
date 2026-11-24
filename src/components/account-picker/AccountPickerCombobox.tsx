@@ -201,7 +201,7 @@ function AccountPickerComboboxBase({
           aria-controls={listboxId}
           aria-activedescendant={
             isOpen && filteredAccounts[highlightedIndex]
-              ? `account-opt-${filteredAccounts[highlightedIndex]?.id}`
+              ? `${listboxId}-opt-${filteredAccounts[highlightedIndex]?.id}`
               : undefined
           }
           aria-label={ariaLabel}
@@ -235,9 +235,11 @@ function AccountPickerComboboxBase({
           type="button"
           tabIndex={-1}
           aria-label="Abrir catálogo de cuentas (F2)"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
-            setIsOpen((prev) => !prev);
-            inputRef.current?.focus();
+            const next = !isOpen;
+            setIsOpen(next);
+            if (next) inputRef.current?.focus();
           }}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
         >

@@ -1,4 +1,4 @@
-import { Crown, LogOut, CheckCircle2 } from 'lucide-react';
+import { Crown, Loader2, LogOut, CheckCircle2 } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 import { DEFAULT_WHATSAPP_PHONE } from '../WhatsAppSupportButton';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +7,7 @@ import type { PlatformRole } from '../../shared/admin-types';
 interface ExecutiveTopHeaderProps {
   user: User | null;
   onSignOut: () => void;
+  isSigningOut?: boolean;
 }
 
 function getExecutiveRoleMeta(role: PlatformRole): {
@@ -35,7 +36,7 @@ function getExecutiveRoleMeta(role: PlatformRole): {
   };
 }
 
-export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps) {
+export function ExecutiveTopHeader({ user, onSignOut, isSigningOut = false }: ExecutiveTopHeaderProps) {
   const { platformRole } = useAuth();
   const roleMeta = getExecutiveRoleMeta(platformRole);
 
@@ -79,7 +80,7 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
           </span>
         </div>
 
-        <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+        <div className="h-6 w-px bg-slate-200 hidden sm:block" aria-hidden="true" />
 
         <div className="flex items-center gap-2">
           <div
@@ -88,23 +89,29 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
           >
             {(user?.user_metadata?.full_name || user?.email || 'AD').slice(0, 2).toUpperCase()}
           </div>
-          <div className="hidden sm:block text-left">
-            <p className="text-xs font-bold text-slate-900 leading-tight">
+          <div className="hidden sm:block text-left min-w-0">
+            <p className="text-xs font-bold text-slate-900 leading-tight truncate max-w-[180px]">
               {user?.user_metadata?.full_name || 'Administrador'}
             </p>
-            <p className="text-[10px] text-slate-600 font-mono">
+            <p className="text-[10px] text-slate-600 font-mono min-w-0 max-w-[180px] truncate">
               {user?.email || 'admin@librepaq.com'}
             </p>
           </div>
 
           <button
             type="button"
+            disabled={isSigningOut}
+            aria-busy={isSigningOut}
             onClick={onSignOut}
-            title="Cerrar Sesión de Administrador"
-            aria-label="Cerrar Sesión de Administrador"
-            className="min-w-[36px] min-h-[36px] inline-flex items-center justify-center p-2 rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition cursor-pointer shrink-0 ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+            title={isSigningOut ? 'Cerrando sesión...' : 'Cerrar Sesión de Administrador'}
+            aria-label={isSigningOut ? 'Cerrando sesión de administrador' : 'Cerrar Sesión de Administrador'}
+            className="min-w-[36px] min-h-[36px] inline-flex items-center justify-center p-2 rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 disabled:opacity-50 disabled:cursor-wait transition cursor-pointer shrink-0 ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
           >
-            <LogOut className="w-4 h-4" aria-hidden="true" />
+            {isSigningOut ? (
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <LogOut className="w-4 h-4" aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>

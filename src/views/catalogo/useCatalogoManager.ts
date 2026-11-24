@@ -263,7 +263,7 @@ export function useCatalogoManager() {
       const text = await file.text();
       setCsvPreview(buildCatalogoImportPreview(file.name, text, accounts));
     } catch (err) {
-      toast.error('Error al leer archivo CSV', (err as Error).message);
+      toast.error('Error al leer archivo de catálogo', (err as Error).message);
     } finally {
       e.target.value = '';
     }

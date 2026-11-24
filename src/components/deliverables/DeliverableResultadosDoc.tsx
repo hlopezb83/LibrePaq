@@ -103,7 +103,7 @@ export function DeliverableResultadosDoc({
               RFC: <span className="font-bold text-slate-900">{company.rfc}</span> • {company.regimenFiscal}
             </div>
             <div className="text-xs font-bold text-blue-900 mt-1 uppercase">
-              Estado de Resultados Integral (NIF B-3) — Del Mes y Acumulado YTD
+              Estado de Resultados Integral (NIF B-3) — Del Mes y Acum. Ejercicio
             </div>
             <div className="text-[11px] text-slate-500">{periodLabel} • Cifras en Pesos Mexicanos (MXN)</div>
           </div>
@@ -114,13 +114,19 @@ export function DeliverableResultadosDoc({
         </div>
       </div>
 
-      <div className="space-y-3.5 text-xs">
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Detalle del Estado de Resultados Integral NIF B-3"
+        className="overflow-x-auto max-w-full"
+      >
+      <div className="min-w-[540px] space-y-3.5 text-xs">
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="bg-slate-100 px-3 py-1.5 font-bold uppercase text-[11px] text-slate-800 flex items-center justify-between gap-3">
             <span>(+) Ingresos Operativos (Ventas Netas)</span>
             <div className="flex items-center gap-3 shrink-0 font-mono">
               <span className="w-24 text-right">Del Mes</span>
-              <span className="w-28 text-right">Acum. YTD</span>
+              <span className="w-28 text-right">Acum. Ejercicio</span>
               <span className="w-12 text-right">% Vert.</span>
             </div>
           </div>
@@ -182,6 +188,7 @@ export function DeliverableResultadosDoc({
             <span className="text-xs">({fmtPct(incomeStatement.utilidadNeta, incomeStatement.totalIngresos)})</span>
           </div>
         </div>
+      </div>
       </div>
 
       <DeliverableSignaturesBlock

@@ -84,8 +84,8 @@ export function PolizaMovementsTable({
   );
 
   return (
-    <div className="border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
-      <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+    <div className="border border-slate-300 rounded-xl overflow-hidden shadow-2xs w-full min-w-0 max-w-full">
+      <div className="bg-slate-50 px-3 sm:px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-800">
             Movimientos Contables ({movements.length} partidas)
@@ -141,7 +141,7 @@ export function PolizaMovementsTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="w-full min-w-0 max-w-full overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <caption className="visually-hidden">Partidas del asiento contable en captura</caption>
           <thead>
@@ -188,12 +188,12 @@ export function PolizaMovementsTable({
             ))}
           </tbody>
           <tfoot>
-            <tr className="bg-slate-100 border-t border-slate-300 font-mono text-xs font-bold">
+            <tr className="bg-slate-100 border-t border-slate-300 font-mono tabular-nums text-xs font-bold">
               <td colSpan={3} className="py-2.5 px-4 text-right text-slate-700">
                 Sumas Iguales (Partida Doble):
               </td>
-              <td className="py-2.5 px-3 text-right text-slate-900">{formatCurrency(totalCargos)}</td>
-              <td className="py-2.5 px-3 text-right text-slate-900">{formatCurrency(totalAbonos)}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums text-slate-900">{formatCurrency(totalCargos)}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums text-slate-900">{formatCurrency(totalAbonos)}</td>
               <td />
             </tr>
           </tfoot>

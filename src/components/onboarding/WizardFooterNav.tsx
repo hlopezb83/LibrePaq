@@ -25,8 +25,10 @@ export function WizardFooterNav({
         {step > 1 ? (
           <button
             type="button"
+            disabled={isPending}
+            title={isPending ? 'Creando empresa, espera un momento...' : undefined}
             onClick={onPrevStep}
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" aria-hidden="true" />
             Anterior
@@ -80,8 +82,9 @@ export function WizardFooterNav({
         ) : step < 5 ? (
           <button
             type="button"
+            disabled={isPending}
             onClick={onNextStep}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-2xs cursor-pointer"
           >
             Siguiente
             <ChevronRight className="w-4 h-4" aria-hidden="true" />

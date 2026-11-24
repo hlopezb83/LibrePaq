@@ -40,6 +40,7 @@ export function DiotDeclaracionTab({
   const toast = useToast();
   const [is69BModalOpen, setIs69BModalOpen] = useState(false);
   const [cloudSyncTick, setCloudSyncTick] = useState(0);
+  const [cloudVerifiedKey, setCloudVerifiedKey] = useState<string | null>(null);
   const checkedCloudKeyRef = useRef<string>('');
   const { copiedKey, copy: copyDiotText } = useCopyToClipboard<'diot'>(2000);
   const isCopied = copiedBatch || copiedKey === 'diot';
@@ -55,6 +56,7 @@ export function DiotDeclaracionTab({
     void checkRfcsAgainstCloud69B(rfcs, companyId)
       .then((res) => {
         if (res.matches.length > 0 || res.checkedCount > 0) {
+          setCloudVerifiedKey(key);
           setCloudSyncTick((t) => t + 1);
         }
       })
@@ -95,8 +97,13 @@ export function DiotDeclaracionTab({
   const mesName = MESES_SAT.find((m) => m.periodo === diotData.periodo)?.nombre || `Mes ${diotData.periodo}`;
   const meta69B = getLoaded69BMeta();
   const db69BCount = Math.max(getLoaded69BDatabase().size, meta69B?.totalCount ?? 0);
-  const isSampleOnly69B = db69BCount <= 4;
-  const isTruncatedLocal69B = Boolean(meta69B?.isTruncated && !meta69B.cloudSynced);
+  const currentRfcs = Array.from(
+    new Set(diotData.rows.map((r) => r.rfc.trim().toUpperCase()).filter((r) => r.length >= 12))
+  );
+  const currentSupplierKey = `${diotData.company.id}::${currentRfcs.join(',')}`;
+  const isCloud69BVerified = currentRfcs.length > 0 && cloudVerifiedKey === currentSupplierKey;
+  const isSampleOnly69B = db69BCount <= 4 && !isCloud69BVerified;
+  const isTruncatedLocal69B = Boolean(meta69B?.isTruncated && !meta69B.cloudSynced && !isCloud69BVerified);
 
   const rowsWithEfos = diotData.rows.map((r) => {
     const efosCheck = checkRfc69BStatus(r.rfc);
@@ -207,7 +214,11 @@ export function DiotDeclaracionTab({
                 </div>
               ) : (
                 <span
-                  title={`Todos los RFCs fueron verificados contra ${db69BCount.toLocaleString()} registros del Art. 69-B del CFF`}
+                  title={
+                    isCloud69BVerified
+                      ? 'Todos los RFCs fueron verificados contra el padrón oficial Art. 69-B en la nube de LibrePaq'
+                      : `Todos los RFCs fueron verificados contra ${db69BCount.toLocaleString()} registros del Art. 69-B del CFF`
+                  }
                   className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />

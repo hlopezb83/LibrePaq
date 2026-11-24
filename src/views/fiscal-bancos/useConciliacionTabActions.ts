@@ -45,6 +45,7 @@ export function useConciliacionTabActions(params: {
   const [isSearchingN1, setIsSearchingN1] = useState(false);
   const [isApplyingN1, setIsApplyingN1] = useState(false);
   const [bankBalanceDraft, setBankBalanceDraft] = useState<string>('');
+  const [closureSaveStatus, setClosureSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const balanceStorageKey = `lp_bank_final_bal_${companyId}_${effectiveBankId}_${year ?? 0}_${period ?? 0}`;
   const contextKey = `${companyId}::${effectiveBankId}::${year ?? ''}::${period ?? ''}`;
@@ -52,8 +53,13 @@ export function useConciliacionTabActions(params: {
   contextKeyRef.current = contextKey;
   const proposeReqIdRef = useRef(0);
   const applyReqIdRef = useRef(0);
+  const saveClosureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (saveClosureTimerRef.current) {
+      clearTimeout(saveClosureTimerRef.current);
+      saveClosureTimerRef.current = null;
+    }
     proposeReqIdRef.current += 1;
     applyReqIdRef.current += 1;
     setN1Proposals([]);
@@ -62,6 +68,7 @@ export function useConciliacionTabActions(params: {
     setPolizaModalLine(null);
     setIsSearchingN1(false);
     setIsApplyingN1(false);
+    setClosureSaveStatus('idle');
   }, [companyId, effectiveBankId, year, period]);
 
   useEffect(() => {
@@ -92,12 +99,15 @@ export function useConciliacionTabActions(params: {
   const hasCapturedBankBalance = bankBalanceDraft.trim() !== '' && Number.isFinite(parsedBankBalance);
   const bankStatementBalance = hasCapturedBankBalance ? parsedBankBalance : 0;
 
-  const saveClosureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (saveClosureTimerRef.current) clearTimeout(saveClosureTimerRef.current);
   }, []);
 
   const handleBankBalanceChange = (raw: string) => {
+    if (saveClosureTimerRef.current) {
+      clearTimeout(saveClosureTimerRef.current);
+      saveClosureTimerRef.current = null;
+    }
     setBankBalanceDraft(raw);
     try {
       if (typeof window !== 'undefined') {
@@ -109,6 +119,10 @@ export function useConciliacionTabActions(params: {
     }
     const numVal = Number.parseFloat(raw);
     const saveFn = (apiClient as unknown as ExtendedBankApiClient).saveBankClosureBalance;
+    if (raw.trim() === '' || !Number.isFinite(numVal)) {
+      setClosureSaveStatus('idle');
+      return;
+    }
     if (
       isSupabaseConfigured &&
       !isWriteLocked &&
@@ -116,12 +130,21 @@ export function useConciliacionTabActions(params: {
       companyId &&
       effectiveBankId &&
       year &&
-      period &&
-      Number.isFinite(numVal)
+      period
     ) {
-      if (saveClosureTimerRef.current) clearTimeout(saveClosureTimerRef.current);
+      const reqContext = contextKeyRef.current;
+      setClosureSaveStatus('saving');
       saveClosureTimerRef.current = setTimeout(() => {
-        void saveFn(companyId, effectiveBankId, year, period, numVal).catch(() => {});
+        void saveFn(companyId, effectiveBankId, year, period, numVal)
+          .then(() => {
+            if (contextKeyRef.current === reqContext) setClosureSaveStatus('saved');
+          })
+          .catch(() => {
+            if (contextKeyRef.current === reqContext) {
+              setClosureSaveStatus('error');
+              toast.error('No se pudo guardar el saldo final del estado de cuenta en la nube.');
+            }
+          });
       }, 450);
     }
   };
@@ -217,6 +240,9 @@ export function useConciliacionTabActions(params: {
 
   const handleExportExcel = () => {
     if (!reconData || !reconFormula) return;
+    if (!hasCapturedBankBalance) {
+      toast.warning('Exportando con saldo bancario $0.00 porque aún no capturas el saldo final del estado de cuenta.');
+    }
     void exportBankReconciliationXlsx({
       companyName, companyRfc, reconData, reconFormula, bankStatementFinalBalance: bankStatementBalance
     }).then(() => toast.success('Cédula de Conciliación Bancaria exportada en Excel (.xlsx).'));
@@ -224,6 +250,9 @@ export function useConciliacionTabActions(params: {
 
   const handlePrintPdf = () => {
     if (!reconData || !reconFormula) return;
+    if (!hasCapturedBankBalance) {
+      toast.warning('Imprimiendo con saldo bancario $0.00 porque aún no capturas el saldo final del estado de cuenta.');
+    }
     const ok = printBankReconciliationPdf({
       companyName, companyRfc, reconData, reconFormula, bankStatementFinalBalance: bankStatementBalance
     });
@@ -233,7 +262,7 @@ export function useConciliacionTabActions(params: {
   return {
     selectedLineId, setSelectedLineId, selectedBookMovId, setSelectedBookMovId,
     polizaModalLine, setPolizaModalLine, n1Proposals, setN1Proposals,
-    isSearchingN1, isApplyingN1, bankStatementBalance, bankBalanceDraft, hasCapturedBankBalance, handleBankBalanceChange,
+    isSearchingN1, isApplyingN1, bankStatementBalance, bankBalanceDraft, hasCapturedBankBalance, closureSaveStatus, handleBankBalanceChange,
     manualMatchMutation, deleteBankLineMutation, customCreatePolizaMutation,
     handleProposeN1, handleApplyN1, handleExportExcel, handlePrintPdf
   };

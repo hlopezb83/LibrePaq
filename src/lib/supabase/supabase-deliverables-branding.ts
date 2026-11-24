@@ -93,9 +93,18 @@ function mapSupabaseBrandingRow(
     legalRepName: str('legal_rep_name', fallback.legalRepName),
     legalRepTitle: str('legal_rep_title', fallback.legalRepTitle),
     issuanceCity: str('issuance_city', fallback.issuanceCity),
-    logoDataUrl: typeof row.logo_url === 'string' ? row.logo_url : fallback.logoDataUrl,
+    logoDataUrl:
+      typeof row.logo_data_url === 'string'
+        ? row.logo_data_url
+        : typeof row.logo_url === 'string'
+          ? row.logo_url
+          : fallback.logoDataUrl,
     accountantNotes:
-      typeof row.accountant_notes === 'string' ? row.accountant_notes : fallback.accountantNotes
+      typeof row.notes_text === 'string'
+        ? row.notes_text
+        : typeof row.accountant_notes === 'string'
+          ? row.accountant_notes
+          : fallback.accountantNotes
   };
 }
 
@@ -114,7 +123,7 @@ export async function loadDeliverableBranding(
     const { data, error } = await supabase
       .from('despacho_deliverable_branding')
       .select('*')
-      .eq('company_id', companyId)
+      .eq('scope_key', `comp_${companyId}`)
       .maybeSingle();
 
     if (error || !data) return local;
@@ -134,7 +143,7 @@ export async function loadDeliverableBranding(
 export async function saveDeliverableBranding(
   companyId: string,
   config: DeliverableBrandingConfig,
-  options?: { isReadOnly?: boolean }
+  options?: { isReadOnly?: boolean; organizationId?: string | null }
 ): Promise<{ savedToCloud: boolean }> {
   if (!companyId || options?.isReadOnly) return { savedToCloud: false };
 
@@ -147,7 +156,10 @@ export async function saveDeliverableBranding(
   try {
     const { error } = await supabase.from('despacho_deliverable_branding').upsert(
       {
+        id: `brand_${companyId}`,
+        scope_key: `comp_${companyId}`,
         company_id: companyId,
+        organization_id: options?.organizationId ?? null,
         firm_name: config.firmName,
         preparer_name: config.preparerName,
         auditor_name: config.auditorName,
@@ -155,11 +167,11 @@ export async function saveDeliverableBranding(
         legal_rep_name: config.legalRepName,
         legal_rep_title: config.legalRepTitle,
         issuance_city: config.issuanceCity,
-        logo_url: config.logoDataUrl || null,
-        accountant_notes: config.accountantNotes || null,
+        logo_data_url: config.logoDataUrl || null,
+        notes_text: config.accountantNotes || '',
         updated_at: new Date().toISOString()
       },
-      { onConflict: 'company_id' }
+      { onConflict: 'scope_key' }
     );
     return { savedToCloud: !error };
   } catch {

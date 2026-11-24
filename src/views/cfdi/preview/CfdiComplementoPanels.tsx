@@ -13,7 +13,7 @@ export function CfdiComplementoPagosPanel({ pagos }: { pagos: CfdiPreviewPagoIte
   return (
     <section
       aria-label="Complemento para Recepción de Pagos 2.0"
-      className="border border-blue-200 rounded-xl bg-blue-50/40 p-4 space-y-3 text-xs"
+      className="border border-blue-200 rounded-xl bg-blue-50/40 p-4 space-y-3 text-xs avoid-page-break"
     >
       <div className="flex items-center gap-2 font-bold text-blue-950">
         <Banknote className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
@@ -35,7 +35,7 @@ export function CfdiComplementoPagosPanel({ pagos }: { pagos: CfdiPreviewPagoIte
             </span>
           </div>
           {pago.doctosRelacionados.length > 0 && (
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <div className="overflow-x-auto print:overflow-visible border border-slate-200 rounded-lg">
               <table className="w-full text-left border-collapse text-[11px]">
                 <thead>
                   <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold uppercase">
@@ -91,7 +91,7 @@ export function CfdiComplementoNominaPanel({ nomina }: { nomina: CfdiPreviewNomi
   return (
     <section
       aria-label="Complemento de Nómina Digital 1.2"
-      className="border border-indigo-200 rounded-xl bg-indigo-50/40 p-4 space-y-3 text-xs"
+      className="border border-indigo-200 rounded-xl bg-indigo-50/40 p-4 space-y-3 text-xs avoid-page-break"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 font-bold text-indigo-950">

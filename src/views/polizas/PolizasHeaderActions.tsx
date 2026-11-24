@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Anchor,
-  ChevronDown,
-  Download,
-  Lock,
-  Plus,
-  Printer,
-  SlidersHorizontal
-} from 'lucide-react';
+import { Anchor, ChevronDown, Download, Loader2, Lock, Plus, Printer, SlidersHorizontal } from 'lucide-react';
 
 export interface PolizasHeaderActionsProps {
   currentYear?: number;
@@ -298,14 +290,16 @@ export function PolizasHeaderActions({
                       <button
                         type="button"
                         disabled={isCloseYearPending || isCloseYearBlocked}
+                        aria-busy={isCloseYearPending}
                         onClick={() => {
                           setIsMenuOpen(false);
                           setConfirmCloseYear(false);
                           onCloseYear();
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isCloseYearPending ? 'Generando...' : 'Confirmar cierre'}
+                        {isCloseYearPending && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
+                        <span>{isCloseYearPending ? 'Generando...' : 'Confirmar cierre'}</span>
                       </button>
                     </div>
                   </div>
@@ -314,6 +308,7 @@ export function PolizasHeaderActions({
                     type="button"
                     role="menuitem"
                     disabled={isCloseYearPending || isCloseYearBlocked}
+                    aria-busy={isCloseYearPending}
                     onClick={() => {
                       if (isCloseYearBlocked) return;
                       setConfirmCloseYear(true);
@@ -327,7 +322,11 @@ export function PolizasHeaderActions({
                     }
                     className="w-full text-left px-3.5 py-2 flex items-start gap-2.5 text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Lock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" aria-hidden="true" />
+                    {isCloseYearPending ? (
+                      <Loader2 className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Lock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" aria-hidden="true" />
+                    )}
                     <div>
                       <span className="font-medium block text-slate-800">
                         {isCloseYearPending ? 'Generando Cierre...' : `Cierre Anual ${currentYear} (Mes 13)`}

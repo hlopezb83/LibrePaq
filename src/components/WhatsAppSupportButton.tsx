@@ -23,9 +23,13 @@ const MODULE_LABELS: Record<string, string> = {
 
 interface WhatsAppSupportButtonProps {
   phoneNumber?: string;
+  variant?: 'floating' | 'inline';
 }
 
-export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: WhatsAppSupportButtonProps) {
+export function WhatsAppSupportButton({
+  phoneNumber = DEFAULT_WHATSAPP_PHONE,
+  variant = 'floating'
+}: WhatsAppSupportButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const triggerBtnRef = useRef<HTMLButtonElement>(null);
@@ -83,88 +87,116 @@ export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: 
     setIsOpen(false);
   };
 
+  const isInline = variant === 'inline';
+
+  const popoverPanel = isOpen ? (
+    <div
+      role="dialog"
+      aria-label="Ventana de ayuda de WhatsApp"
+      className={`absolute right-0 w-[min(20rem,calc(100dvw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-3.5 sm:p-4 shadow-2xl border border-slate-200 text-slate-800 font-sans z-50 animate-in fade-in slide-in-from-bottom-2 duration-200 ${
+        isInline ? 'bottom-full mb-2' : 'bottom-14 sm:bottom-16 mb-1.5'
+      }`}
+    >
+      {/* Header del preview */}
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="flex items-center gap-2.5">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-700 via-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+              LP
+            </div>
+            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white ring-1 ring-emerald-500/20" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-900 leading-tight">Asesor LibrePaq</p>
+            <p className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block animate-pulse" aria-hidden="true" />
+              En línea · Respuesta rápida
+            </p>
+          </div>
+        </div>
+        <button
+          ref={closeBtnRef}
+          type="button"
+          onClick={() => closePopover(true)}
+          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+          aria-label="Cerrar ventana de WhatsApp"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mensaje tipo WhatsApp bubble */}
+      <div className="my-3.5 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs leading-relaxed text-slate-600">
+        <p className="font-medium text-slate-800 mb-1">
+          {isPublic ? '¿Dudas sobre cómo funciona LibrePaq Pro?' : '¿Tienes alguna duda contable o técnica?'}
+        </p>
+        <p>
+          Escríbenos directamente a WhatsApp y un especialista fiscal te apoyará paso a paso.
+        </p>
+        <span className="block text-[10px] text-slate-500 text-right mt-1.5">Ahora</span>
+      </div>
+
+      <a
+        href="/Manual_Usuario_LibrePaq_Pro.pdf"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() =>
+          trackAnalyticsEvent('click_user_manual_pdf', {
+            location: isPublic ? 'whatsapp_bubble_public' : 'whatsapp_bubble_app'
+          })
+        }
+        className="w-full mb-2 py-2 px-3 bg-slate-100 hover:bg-slate-200/80 text-slate-800 border border-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+      >
+        <BookOpen className="w-3.5 h-3.5 text-blue-700 shrink-0" aria-hidden="true" />
+        Ver Manual de Usuario (PDF)
+      </a>
+
+      {/* Botón CTA para abrir WhatsApp */}
+      <button
+        type="button"
+        onClick={handleOpenChat}
+        className="w-full py-2.5 px-4 bg-[#25D366] hover:bg-[#20bd5a] active:bg-[#1caa51] text-[#052E16] rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] cursor-pointer"
+      >
+        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.288.043.088.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86.174.086.275.072.376-.044.102-.115.434-.506.549-.68.116-.173.232-.144.39-.086.159.058 1.011.477 1.184.564.174.087.289.13.332.203.043.072.043.419-.101.824z" />
+        </svg>
+        Abrir chat en WhatsApp
+      </button>
+    </div>
+  ) : null;
+
+  if (isInline) {
+    return (
+      <div ref={cardRef} className="relative inline-flex items-center no-print">
+        {popoverPanel}
+        <button
+          ref={triggerBtnRef}
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          aria-expanded={isOpen}
+          aria-label={isOpen ? 'Cerrar soporte por WhatsApp' : 'Abrir soporte por WhatsApp'}
+          title="Soporte directo por WhatsApp con un especialista fiscal"
+          className="dark-focus-ring inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#111C35] hover:bg-slate-800 text-emerald-300 hover:text-emerald-200 border border-emerald-700/60 font-mono text-[10px] font-semibold transition cursor-pointer"
+        >
+          <svg className="w-3 h-3 fill-current shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.288.043.088.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86.174.086.275.072.376-.044.102-.115.434-.506.549-.68.116-.173.232-.144.39-.086.159.058 1.011.477 1.184.564.174.087.289.13.332.203.043.072.043.419-.101.824z" />
+          </svg>
+          <span className="hidden sm:inline">Soporte WhatsApp</span>
+          <span className="sm:hidden">WhatsApp</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <aside
       ref={cardRef}
       aria-label="Soporte y contacto por WhatsApp"
       className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 lg:bottom-6 lg:right-6 z-50 no-print"
     >
-      {/* Ventana emergente con mensaje de bienvenida (Chat Preview Card) */}
-      {isOpen && (
-        <div
-          role="dialog"
-          aria-label="Ventana de ayuda de WhatsApp"
-          className="absolute bottom-14 sm:bottom-16 right-0 mb-1.5 w-[min(20rem,calc(100dvw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-3.5 sm:p-4 shadow-2xl border border-slate-200 text-slate-800 font-sans animate-in fade-in slide-in-from-bottom-2 duration-200"
-        >
-          {/* Header del preview */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-700 via-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                  LP
-                </div>
-                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white ring-1 ring-emerald-500/20" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-900 leading-tight">Asesor LibrePaq</p>
-                <p className="text-xs text-emerald-700 font-medium flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block animate-pulse" aria-hidden="true" />
-                  En línea · Respuesta rápida
-                </p>
-              </div>
-            </div>
-            <button
-              ref={closeBtnRef}
-              type="button"
-              onClick={() => closePopover(true)}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-              aria-label="Cerrar ventana de WhatsApp"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Mensaje tipo WhatsApp bubble */}
-          <div className="my-3.5 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs leading-relaxed text-slate-600">
-            <p className="font-medium text-slate-800 mb-1">
-              {isPublic ? '¿Dudas sobre cómo funciona LibrePaq Pro?' : '¿Tienes alguna duda contable o técnica?'}
-            </p>
-            <p>
-              Escríbenos directamente a WhatsApp y un especialista fiscal te apoyará paso a paso.
-            </p>
-            <span className="block text-[10px] text-slate-500 text-right mt-1.5">Ahora</span>
-          </div>
-
-          <a
-            href="/Manual_Usuario_LibrePaq_Pro.pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() =>
-              trackAnalyticsEvent('click_user_manual_pdf', {
-                location: isPublic ? 'whatsapp_bubble_public' : 'whatsapp_bubble_app'
-              })
-            }
-            className="w-full mb-2 py-2 px-3 bg-slate-100 hover:bg-slate-200/80 text-slate-800 border border-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-blue-700 shrink-0" aria-hidden="true" />
-            Ver Manual de Usuario (PDF)
-          </a>
-
-          {/* Botón CTA para abrir WhatsApp */}
-          <button
-            type="button"
-            onClick={handleOpenChat}
-            className="w-full py-2.5 px-4 bg-[#25D366] hover:bg-[#20bd5a] active:bg-[#1caa51] text-[#052E16] rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] cursor-pointer"
-          >
-            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.288.043.088.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86.174.086.275.072.376-.044.102-.115.434-.506.549-.68.116-.173.232-.144.39-.086.159.058 1.011.477 1.184.564.174.087.289.13.332.203.043.072.043.419-.101.824z" />
-            </svg>
-            Abrir chat en WhatsApp
-          </button>
-        </div>
-      )}
+      {popoverPanel}
 
       {/* Botón Flotante Principal de WhatsApp */}
       <div className="relative group">

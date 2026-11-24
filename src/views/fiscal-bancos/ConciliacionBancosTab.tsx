@@ -103,6 +103,17 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
     reconData?.bookMovements.find((b) => b.movementId === actions.selectedBookMovId && !b.isMatched) || null;
   const highlightAmount = selectedLine ? (selectedLine.cargoBanco > 0 ? selectedLine.cargoBanco : selectedLine.abonoBanco) : null;
 
+  useEffect(() => {
+    if (!selectedLine && !selectedBookMov) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+      actions.setSelectedLineId(null);
+      actions.setSelectedBookMovId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedLine, selectedBookMov, actions.setSelectedLineId, actions.setSelectedBookMovId]);
+
   return (
     <div className="space-y-5">
       <ConciliacionToolbar
@@ -139,7 +150,12 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
       />
 
       {(selectedLine || selectedBookMov) && !isWriteLocked && (
-        <div role="region" aria-label="Emparejamiento manual 1 a 1" className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div
+          role="region"
+          aria-live="polite"
+          aria-label="Emparejamiento manual 1 a 1"
+          className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+        >
           <div className="text-blue-950">
             {selectedLine && selectedBookMov ? (
               <>
@@ -158,8 +174,14 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button type="button" onClick={() => { actions.setSelectedLineId(null); actions.setSelectedBookMovId(null); }} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 font-semibold cursor-pointer">
-              Limpiar Selección
+            <button
+              type="button"
+              onClick={() => { actions.setSelectedLineId(null); actions.setSelectedBookMovId(null); }}
+              title="Cancelar selección actual (Esc)"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer transition"
+            >
+              <span>Limpiar Selección</span>
+              <kbd className="hidden sm:inline-block px-1 py-0.2 rounded border border-slate-300 bg-slate-100 text-[10px] font-mono text-slate-600">Esc</kbd>
             </button>
             {selectedLine && selectedBookMov && (
               <button
@@ -199,6 +221,7 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             bankStatementFinalBalance={actions.bankStatementBalance}
             bankBalanceDraft={actions.bankBalanceDraft}
             hasCapturedBankBalance={actions.hasCapturedBankBalance}
+            closureSaveStatus={actions.closureSaveStatus}
             onBankBalanceDraftChange={actions.handleBankBalanceChange}
             isLocked={isWriteLocked}
           />

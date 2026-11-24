@@ -1,6 +1,7 @@
-import { useId } from 'react';
-import { Gauge, Lock, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { useEffect, useId } from 'react';
+import { Gauge, Loader2, Lock, RotateCcw, Save, Sparkles } from 'lucide-react';
 import type { WorkspacePlanTier } from '../../shared/admin-types';
+import { AdminErrorBanner } from './AdminErrorBanner';
 import {
   MAX_CFDIS_LIMIT,
   MAX_COMPANIES_LIMIT,
@@ -20,9 +21,10 @@ export interface SuperAdminQuotaCardProps {
   workspaceId: string;
   userId?: string;
   canEdit: boolean;
+  onStateChange?: (state: { isDirty: boolean; isSaving: boolean }) => void;
 }
 
-export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdminQuotaCardProps) {
+export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChange }: SuperAdminQuotaCardProps) {
   const baseId = useId();
   const headingId = `${baseId}-heading`;
   const planTierId = `${baseId}-planTier`;
@@ -30,6 +32,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
   const maxCfdisId = `${baseId}-maxCfdisPerMonth`;
   const maxStorageId = `${baseId}-maxStorageMb`;
   const storageHintId = `${baseId}-maxStorageMb-hint`;
+  const validationErrorId = `${baseId}-validation-error`;
   const notesId = `${baseId}-notes`;
 
   const {
@@ -39,7 +42,20 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
     validationError, isValid, isSaving, handleSubmit, applyPlanPreset, handleDiscard
   } = useWorkspaceQuotaForm({ workspaceId, userId, canEdit });
 
-  const disabled = !canEdit || quotaQuery.isLoading || isSaving;
+  useEffect(() => {
+    onStateChange?.({ isDirty, isSaving });
+  }, [isDirty, isSaving, onStateChange]);
+
+  const disabled = !canEdit || quotaQuery.isLoading || quotaQuery.isError || isSaving;
+  const saveTitle = !canEdit
+    ? 'Permiso de solo lectura: no tienes autorización para modificar cuotas'
+    : quotaQuery.isError
+      ? 'Reintenta cargar la cuota actual antes de guardar'
+      : !isValid && validationError
+        ? validationError
+        : !isDirty
+          ? 'No hay cambios pendientes por guardar'
+          : undefined;
 
   return (
     <section
@@ -80,9 +96,10 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
       )}
 
       {quotaQuery.isError && (
-        <div role="alert" className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-900 text-xs">
-          No se pudo consultar la cuota actual del despacho.
-        </div>
+        <AdminErrorBanner
+          message="No se pudo consultar la cuota actual del despacho."
+          onRetry={() => void quotaQuery.refetch()}
+        />
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -115,6 +132,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
               value={maxCompaniesInput}
               onChange={(e) => setMaxCompaniesInput(e.target.value)}
               aria-invalid={!companiesValid}
+              aria-describedby={validationError ? validationErrorId : undefined}
               disabled={disabled}
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
             />
@@ -132,6 +150,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
               value={maxCfdisInput}
               onChange={(e) => setMaxCfdisInput(e.target.value)}
               aria-invalid={!cfdisValid}
+              aria-describedby={validationError ? validationErrorId : undefined}
               disabled={disabled}
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
             />
@@ -149,7 +168,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
               value={maxStorageInput}
               onChange={(e) => setMaxStorageInput(e.target.value)}
               aria-invalid={!storageValid}
-              aria-describedby={storageHintId}
+              aria-describedby={validationError ? `${storageHintId} ${validationErrorId}` : storageHintId}
               disabled={disabled}
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
             />
@@ -158,7 +177,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
         </div>
 
         {validationError && (
-          <p role="alert" className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+          <p id={validationErrorId} role="alert" className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
             {validationError}
           </p>
         )}
@@ -192,11 +211,15 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit }: SuperAdmin
           <button
             type="submit"
             disabled={disabled || !isDirty || !isValid}
-            title={!isValid && validationError ? validationError : !isDirty ? 'No hay cambios pendientes por guardar' : undefined}
+            title={saveTitle}
             aria-busy={isSaving}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
-            <Save className="w-3.5 h-3.5" aria-hidden="true" />
+            {isSaving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <Save className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
             {isSaving ? 'Guardando...' : 'Guardar Cuota'}
           </button>
         </div>

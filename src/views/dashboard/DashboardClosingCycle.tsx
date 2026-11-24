@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { AlertCircle, CheckCircle2, ClipboardCheck, Printer } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ClipboardCheck, Clock, Printer } from 'lucide-react';
 import { parseNavTarget } from '../../components/shell/parseNavTarget';
 
 export interface DashboardClosingCycleStep {
@@ -16,13 +16,14 @@ export interface DashboardClosingCycleProps {
   companyYear: number;
   closingChecks: DashboardClosingCycleStep[];
   completedChecks: number;
+  hasActivity?: boolean;
   onOpenDeliverables: () => void;
 }
 
 function renderDetailWithAmounts(detail: string) {
-  const parts = detail.split(/(\$[\d,]+(?:\.\d{2})?)/g);
+  const parts = detail.split(/(-?\$[\d,]+(?:\.\d{2})?|\$-?[\d,]+(?:\.\d{2})?)/g);
   return parts.map((part, idx) =>
-    part.startsWith('$') ? (
+    part.includes('$') ? (
       <span key={idx} className="font-mono tabular-nums font-semibold text-slate-800">
         {part}
       </span>
@@ -37,6 +38,7 @@ export function DashboardClosingCycle({
   companyYear,
   closingChecks,
   completedChecks,
+  hasActivity = completedChecks > 0,
   onOpenDeliverables
 }: DashboardClosingCycleProps) {
   return (
@@ -74,6 +76,7 @@ export function DashboardClosingCycle({
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2.5">
         {closingChecks.map((check) => {
           const parsedTarget = parseNavTarget(check.to);
+          const isUnstarted = !hasActivity && !check.done;
           return (
           <Link
             key={check.id}
@@ -82,6 +85,8 @@ export function DashboardClosingCycle({
             className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2.5 group min-w-0 ${
               check.done
                 ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-400 hover:shadow-xs'
+                : isUnstarted
+                ? 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:shadow-xs'
                 : 'bg-amber-50/70 border-amber-300 hover:border-amber-400 hover:shadow-xs'
             }`}
           >
@@ -89,6 +94,11 @@ export function DashboardClosingCycle({
               {check.done ? (
                 <CheckCircle2
                   className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+              ) : isUnstarted ? (
+                <Clock
+                  className="w-4 h-4 text-slate-500 shrink-0 mt-0.5"
                   aria-hidden="true"
                 />
               ) : (
@@ -110,11 +120,11 @@ export function DashboardClosingCycle({
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-semibold">
-              <span className={check.done ? 'text-emerald-700' : 'text-amber-800'}>
-                {check.done ? 'Completado ✔' : 'Pendiente revisión'}
+            <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold">
+              <span className={check.done ? 'text-emerald-700' : isUnstarted ? 'text-slate-600' : 'text-amber-800'}>
+                {check.done ? 'Completado ✔' : isUnstarted ? 'Por iniciar' : 'Pendiente revisión'}
               </span>
-              <span className="text-blue-700 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5">
+              <span className="text-blue-700 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5 shrink-0">
                 Ir al paso →
               </span>
             </div>

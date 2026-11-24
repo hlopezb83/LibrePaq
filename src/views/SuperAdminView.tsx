@@ -107,6 +107,12 @@ export function SuperAdminView() {
     ? (m.updateUserRoleMutation.variables?.userId ?? null)
     : null;
 
+  const tabShowsOwnError =
+    (m.activeTab === 'metrics' && m.metricsError) ||
+    (m.activeTab === 'ads' && m.adsDataError) ||
+    (m.activeTab === 'sat' && m.satHealthError) ||
+    (m.activeTab === 'audit' && m.auditLogsError);
+
   return (
     <div className="space-y-4">
       <header className="bg-white border border-slate-300/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
@@ -117,7 +123,11 @@ export function SuperAdminView() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base sm:text-lg font-bold text-slate-900">Panel de SuperAdmin LibrePaq Pro</h1>
+                <h1 className="text-base sm:text-lg font-bold text-slate-900">
+                  {m.platformRole === 'SUPERADMIN'
+                    ? 'Panel de SuperAdmin LibrePaq Pro'
+                    : 'Consola Administrativa LibrePaq Pro'}
+                </h1>
                 <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${roleBadge.className}`}>
                   {m.platformRole === 'SUPERADMIN' && <Crown className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />}
                   {roleBadge.label}
@@ -133,8 +143,9 @@ export function SuperAdminView() {
             type="button"
             disabled={m.isRefreshing}
             aria-busy={m.isRefreshing}
+            title={m.isRefreshing ? 'Actualizando datos administrativos...' : 'Actualizar datos de la consola'}
             onClick={() => void m.refetchAll()}
-            className="inline-flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-bold text-slate-700 transition cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${m.isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
             <span>{m.isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
@@ -170,7 +181,7 @@ export function SuperAdminView() {
         </div>
       </header>
 
-      {m.hasError && (
+      {m.hasError && !tabShowsOwnError && (
         <div role="alert" className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-900 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 font-semibold">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />

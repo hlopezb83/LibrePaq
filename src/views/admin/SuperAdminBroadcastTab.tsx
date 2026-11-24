@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Loader2, Megaphone, Send } from 'lucide-react';
 import { apiClient } from '../../lib/api-client';
@@ -22,6 +22,7 @@ const TYPE_OPTIONS = [
 export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boolean }) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const publishBtnRef = useRef<HTMLButtonElement>(null);
 
   const { data: currentBroadcast, isLoading, isError, refetch } = useQuery({
     queryKey: ['platform-broadcast'],
@@ -42,6 +43,11 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
     expiresAt: string | null;
   } | null>(null);
 
+  const cancelPending = () => {
+    setPendingPayload(null);
+    requestAnimationFrame(() => publishBtnRef.current?.focus());
+  };
+
   useEffect(() => {
     const incomingId = currentBroadcast?.active ? currentBroadcast.id : null;
     if (incomingId && incomingId !== syncedId) {
@@ -49,6 +55,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
       setMessage(currentBroadcast?.message ?? '');
       setType(currentBroadcast?.type ?? 'info');
       setExpiresAtInput(toDatetimeLocalValue(currentBroadcast?.expiresAt));
+      setPendingPayload(null);
       setSyncedId(incomingId);
     } else if (!incomingId && syncedId !== null) {
       setSyncedId(null);
@@ -154,25 +161,28 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
                 <label htmlFor="broadcast-title" className="block text-xs font-bold text-slate-700">Título del Comunicado</label>
                 <span className="text-[11px] font-mono tabular-nums text-slate-600">{title.length}/200</span>
               </div>
-              <input id="broadcast-title" name="broadcastTitle" type="text" maxLength={200} required disabled={isPending} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible" className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-slate-100" />
+              <input id="broadcast-title" name="broadcastTitle" type="text" maxLength={200} required disabled={isPending} value={title} onChange={(e) => { setTitle(e.target.value); if (pendingPayload) setPendingPayload(null); }} placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible" className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-slate-100" />
             </div>
             <div>
               <label htmlFor="broadcast-expires-at" className="block text-xs font-bold text-slate-700 mb-1">Expiración automática (opcional)</label>
-              <input id="broadcast-expires-at" name="broadcastExpiresAt" type="datetime-local" min={toDatetimeLocalValue(new Date().toISOString())} disabled={isPending} value={expiresAtInput} onChange={(e) => setExpiresAtInput(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-slate-100" />
+              <input id="broadcast-expires-at" name="broadcastExpiresAt" type="datetime-local" min={toDatetimeLocalValue(new Date().toISOString())} disabled={isPending} value={expiresAtInput} onChange={(e) => { setExpiresAtInput(e.target.value); if (pendingPayload) setPendingPayload(null); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-slate-100" />
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                 {EXPIRATION_PRESETS.map((preset) => (
                   <button
                     key={preset.label}
                     type="button"
                     disabled={isPending}
-                    onClick={() => setExpiresAtInput(toDatetimeLocalValue(new Date(Date.now() + preset.hours * 3_600_000).toISOString()))}
+                    onClick={() => {
+                      setExpiresAtInput(toDatetimeLocalValue(new Date(Date.now() + preset.hours * 3_600_000).toISOString()));
+                      if (pendingPayload) setPendingPayload(null);
+                    }}
                     className="px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold border border-slate-200 transition cursor-pointer disabled:opacity-50"
                   >
                     {preset.label}
                   </button>
                 ))}
                 {expiresAtInput && (
-                  <button type="button" disabled={isPending} onClick={() => setExpiresAtInput('')} className="px-2 py-0.5 rounded-full bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-300 transition cursor-pointer disabled:opacity-50">
+                  <button type="button" disabled={isPending} onClick={() => { setExpiresAtInput(''); if (pendingPayload) setPendingPayload(null); }} className="px-2 py-0.5 rounded-full bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-300 transition cursor-pointer disabled:opacity-50">
                     Sin expiración
                   </button>
                 )}
@@ -185,16 +195,16 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
               <label htmlFor="broadcast-message" className="block text-xs font-bold text-slate-700">Mensaje Completo</label>
               <span className="text-[11px] font-mono tabular-nums text-slate-600">{message.length}/1000</span>
             </div>
-            <textarea id="broadcast-message" name="broadcastMessage" maxLength={1000} required disabled={isPending} value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 resize-y disabled:bg-slate-100" />
+            <textarea id="broadcast-message" name="broadcastMessage" maxLength={1000} required disabled={isPending} value={message} onChange={(e) => { setMessage(e.target.value); if (pendingPayload) setPendingPayload(null); }} rows={3} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 resize-y disabled:bg-slate-100" />
           </div>
 
           {(title.trim() || message.trim()) && (
             <div role="region" aria-label="Vista previa del comunicado" className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${previewStyle.box}`}>
               <PreviewIcon className={`w-4 h-4 shrink-0 mt-0.5 ${previewStyle.iconClass}`} aria-hidden="true" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-700">Vista previa en vivo</p>
-                <p className="font-bold">{title.trim() || 'Título del comunicado'}</p>
-                {message.trim() && <p className="text-[11px] text-slate-800">{message.trim()}</p>}
+                <p className="font-bold break-words">{title.trim() || 'Título del comunicado'}</p>
+                {message.trim() && <p className="text-[11px] text-slate-800 break-words">{message.trim()}</p>}
                 {expiresAtInput && (
                   <p className="text-[11px] text-slate-700 mt-0.5">
                     Vigente hasta: {formatAdminDateTime(toIsoOrNull(expiresAtInput) || expiresAtInput)}
@@ -212,16 +222,16 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
               onKeyDown={(e) => {
                 if (e.key === 'Escape' && !publishMutation.isPending) {
                   e.preventDefault();
-                  setPendingPayload(null);
+                  cancelPending();
                 }
               }}
               className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 text-xs space-y-2.5"
             >
-              <div id="confirm-publish-broadcast-title" className="flex items-center gap-2 font-bold text-amber-950">
+              <div id="confirm-publish-broadcast-title" className="flex items-center gap-2 font-bold text-amber-950 break-words">
                 <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
                 <span>¿Publicar este comunicado global para todos los usuarios activos?</span>
               </div>
-              <p className="text-amber-900">
+              <p className="text-amber-900 break-words">
                 El cintillo aparecerá de inmediato en la parte superior de todas las sesiones del despacho.
               </p>
               <div className="flex flex-wrap items-center gap-2">
@@ -229,7 +239,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
                   type="button"
                   autoFocus
                   disabled={publishMutation.isPending}
-                  onClick={() => setPendingPayload(null)}
+                  onClick={cancelPending}
                   className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancelar
@@ -253,7 +263,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
               <span id="broadcast-type-label" className="block text-xs font-bold text-slate-700 mb-1">Tipo de Alerta</span>
               <div role="group" aria-labelledby="broadcast-type-label" className="flex flex-wrap gap-2">
                 {TYPE_OPTIONS.map((t) => (
-                  <button key={t.id} type="button" disabled={isPending} aria-pressed={type === t.id} onClick={() => setType(t.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50 ${type === t.id ? 'bg-blue-700 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+                  <button key={t.id} type="button" disabled={isPending} aria-pressed={type === t.id} onClick={() => { setType(t.id); if (pendingPayload) setPendingPayload(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50 ${type === t.id ? 'bg-blue-700 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
                     {t.label}
                   </button>
                 ))}
@@ -261,6 +271,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
             </div>
 
             <button
+              ref={publishBtnRef}
               type="submit"
               disabled={isPending || !title.trim() || !message.trim()}
               aria-busy={publishMutation.isPending}

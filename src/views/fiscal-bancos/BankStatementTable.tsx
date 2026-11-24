@@ -149,6 +149,8 @@ export function BankStatementTable({
                   <tr
                     key={line.id}
                     tabIndex={!line.matchedMovementId && onSelectLine ? 0 : undefined}
+                    aria-selected={!line.matchedMovementId && onSelectLine ? isSelected : undefined}
+                    aria-label={!line.matchedMovementId && onSelectLine ? `${isSelected ? 'Deseleccionar' : 'Seleccionar'} movimiento bancario ${line.referencia} por ${formatCurrency(line.cargoBanco || line.abonoBanco)} para cruce manual` : undefined}
                     onClick={() => {
                       if (!line.matchedMovementId && onSelectLine) onSelectLine(line.id);
                     }}
@@ -225,28 +227,23 @@ export function BankStatementTable({
                               <span
                                 role="group"
                                 aria-label="Confirmar eliminación de línea"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Escape') {
-                                    e.stopPropagation();
-                                    setConfirmDeleteId(null);
-                                  }
-                                }}
+                                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setConfirmDeleteId(null); } }}
                                 className="inline-flex items-center gap-1"
                               >
                                 <button
                                   type="button"
                                   disabled={isDeletePending || isLocked}
-                                  onClick={() => {
-                                    setConfirmDeleteId(null);
-                                    onDeleteBankLine(line.id);
-                                  }}
+                                  aria-label={`Confirmar eliminación de ${line.referencia}`}
+                                  onClick={() => { setConfirmDeleteId(null); onDeleteBankLine(line.id); }}
                                   className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-40 cursor-pointer"
                                 >
                                   Confirmar
                                 </button>
                                 <button
                                   type="button"
+                                  autoFocus
                                   disabled={isDeletePending}
+                                  aria-label={`Cancelar eliminación de ${line.referencia}`}
                                   onClick={() => setConfirmDeleteId(null)}
                                   className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
                                 >
@@ -271,28 +268,23 @@ export function BankStatementTable({
                         <span
                           role="group"
                           aria-label="Confirmar desconciliación"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              e.stopPropagation();
-                              setConfirmUnmatchId(null);
-                            }
-                          }}
+                          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setConfirmUnmatchId(null); } }}
                           className="inline-flex items-center gap-1"
                         >
                           <button
                             type="button"
                             disabled={isUnmatchPending || isLocked}
-                            onClick={() => {
-                              setConfirmUnmatchId(null);
-                              onUnmatchBankLine(line.id);
-                            }}
+                            aria-label={`Confirmar desconciliación de ${line.referencia}`}
+                            onClick={() => { setConfirmUnmatchId(null); onUnmatchBankLine(line.id); }}
                             className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 cursor-pointer"
                           >
                             Confirmar
                           </button>
                           <button
                             type="button"
+                            autoFocus
                             disabled={isUnmatchPending}
+                            aria-label={`Cancelar desconciliación de ${line.referencia}`}
                             onClick={() => setConfirmUnmatchId(null)}
                             className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
                           >

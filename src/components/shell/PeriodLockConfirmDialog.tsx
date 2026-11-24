@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, LockOpen, ShieldAlert } from 'lucide-react';
+import { Loader2, Lock, LockOpen, ShieldAlert } from 'lucide-react';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
 interface PeriodLockConfirmDialogProps {
@@ -36,7 +36,7 @@ export function PeriodLockConfirmDialog({
       role="alertdialog"
       aria-labelledby="period-lock-confirm-title"
       aria-describedby="period-lock-confirm-desc"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md max-h-[92dvh] flex flex-col p-0 overflow-hidden backdrop:bg-slate-950/60"
+      className="no-print rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md max-h-[92dvh] flex flex-col p-0 overflow-hidden backdrop:bg-slate-950/60"
     >
       <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="flex items-start gap-3">
@@ -72,31 +72,36 @@ export function PeriodLockConfirmDialog({
           <span>Esta acción queda registrada en la Bitácora Contable de la empresa.</span>
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-1">
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
           <button
             type="button"
             autoFocus
             disabled={isPending}
             onClick={onCancel}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition cursor-pointer"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 disabled:opacity-50 transition cursor-pointer"
           >
             Cancelar
           </button>
           <button
             type="button"
             disabled={isPending}
+            aria-busy={isPending}
+            title={isPending ? 'Actualizando candado de periodo...' : undefined}
             onClick={onConfirm}
-            className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-xs cursor-pointer disabled:opacity-50 ${
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-wait ${
               isPeriodLocked
                 ? 'bg-emerald-700 hover:bg-emerald-800'
                 : 'bg-amber-700 hover:bg-amber-800'
             }`}
           >
-            {isPending
-              ? 'Actualizando...'
-              : isPeriodLocked
-              ? 'Sí, reabrir periodo'
-              : 'Sí, bloquear periodo'}
+            {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
+            <span>
+              {isPending
+                ? 'Actualizando...'
+                : isPeriodLocked
+                ? 'Sí, reabrir periodo'
+                : 'Sí, bloquear periodo'}
+            </span>
           </button>
         </div>
       </div>

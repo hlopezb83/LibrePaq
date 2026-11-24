@@ -55,7 +55,7 @@ export function CfdiBatchActionBar({
           }
         }
       }}
-      className="p-3.5 rounded-2xl bg-[#0A1120] text-white flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in fade-in slide-in-from-top-2"
+      className="dark-surface p-3.5 rounded-2xl bg-[#0A1120] text-white flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in fade-in slide-in-from-top-2"
     >
       <div className="flex items-center gap-2.5" aria-live="polite">
         <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
@@ -69,41 +69,37 @@ export function CfdiBatchActionBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={isBatchContabilizarPending || isWriteBlocked}
-          onClick={onBatchContabilizarSelected}
-          title={
-            isReadOnlyClient
-              ? 'Modo solo lectura: no se pueden generar pólizas.'
-              : isPeriodLocked
-              ? 'Periodo bloqueado ante el SAT. No se pueden generar pólizas.'
-              : 'Contabilizar los comprobantes seleccionados en lote'
-          }
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
-        >
-          {isBatchContabilizarPending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-          ) : (
-            <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-          )}
-          {isBatchContabilizarPending
-            ? batchProgress
-              ? `Contabilizando (${batchProgress.current}/${batchProgress.total})...`
-              : 'Contabilizando...'
-            : 'Contabilizar Seleccionados'}
-        </button>
-
-        {onVerifySatBatchSelected && (
+        {!isReadOnlyClient && (
           <button
             type="button"
-            disabled={isVerifySatBatchPending || isBatchContabilizarPending || isBatchDeletePending || isReadOnlyClient}
-            onClick={onVerifySatBatchSelected}
+            disabled={isBatchContabilizarPending || isWriteBlocked}
+            onClick={onBatchContabilizarSelected}
             title={
-              isReadOnlyClient
-                ? 'Modo solo lectura: validación SAT deshabilitada'
-                : 'Consultar estatus vigente o cancelado ante el SAT y lista 69-B para los CFDIs seleccionados'
+              isPeriodLocked
+                ? 'Periodo bloqueado ante el SAT. No se pueden generar pólizas.'
+                : 'Contabilizar los comprobantes seleccionados en lote'
             }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
+          >
+            {isBatchContabilizarPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            {isBatchContabilizarPending
+              ? batchProgress
+                ? `Contabilizando (${batchProgress.current}/${batchProgress.total})...`
+                : 'Contabilizando...'
+              : 'Contabilizar Seleccionados'}
+          </button>
+        )}
+
+        {onVerifySatBatchSelected && !isReadOnlyClient && (
+          <button
+            type="button"
+            disabled={isVerifySatBatchPending || isBatchContabilizarPending || isBatchDeletePending}
+            onClick={onVerifySatBatchSelected}
+            title="Consultar estatus vigente o cancelado ante el SAT y lista 69-B para los CFDIs seleccionados"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
           >
             {isVerifySatBatchPending ? (
@@ -132,44 +128,40 @@ export function CfdiBatchActionBar({
           </button>
         )}
 
-        <button
-          type="button"
-          disabled={isBatchDeletePending || isWriteBlocked}
-          onClick={() => {
-            if (isWriteBlocked) return;
-            if (!confirmDelete) {
-              setConfirmDelete(true);
-              return;
-            }
-            onBatchDeleteSelected();
-            setConfirmDelete(false);
-          }}
-          title={
-            isReadOnlyClient
-              ? 'Modo solo lectura'
-              : isPeriodLocked
-              ? 'Periodo bloqueado ante el SAT'
-              : 'Eliminar del ADD'
-          }
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition ${
-            isWriteBlocked
-              ? 'bg-slate-600 cursor-not-allowed opacity-60'
+        {!isReadOnlyClient && (
+          <button
+            type="button"
+            disabled={isBatchDeletePending || isWriteBlocked}
+            onClick={() => {
+              if (isWriteBlocked) return;
+              if (!confirmDelete) {
+                setConfirmDelete(true);
+                return;
+              }
+              onBatchDeleteSelected();
+              setConfirmDelete(false);
+            }}
+            title={isPeriodLocked ? 'Periodo bloqueado ante el SAT' : 'Eliminar del ADD'}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition ${
+              isWriteBlocked
+                ? 'bg-slate-600 cursor-not-allowed opacity-60'
+                : confirmDelete
+                ? 'bg-red-700 ring-2 ring-red-400 cursor-pointer animate-pulse'
+                : 'bg-red-700 hover:bg-red-800 cursor-pointer'
+            }`}
+          >
+            {isBatchDeletePending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            {isBatchDeletePending
+              ? 'Eliminando...'
               : confirmDelete
-              ? 'bg-red-700 ring-2 ring-red-400 cursor-pointer animate-pulse'
-              : 'bg-red-700 hover:bg-red-800 cursor-pointer'
-          }`}
-        >
-          {isBatchDeletePending ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-          ) : (
-            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-          )}
-          {isBatchDeletePending
-            ? 'Eliminando...'
-            : confirmDelete
-            ? '¿Confirmar eliminación en bloque?'
-            : 'Eliminar del ADD'}
-        </button>
+              ? '¿Confirmar eliminación en bloque?'
+              : 'Eliminar del ADD'}
+          </button>
+        )}
 
         {confirmDelete && (
           <button

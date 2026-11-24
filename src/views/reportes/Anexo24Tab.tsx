@@ -90,12 +90,12 @@ export function Anexo24Tab({
   const blockedDownloadTitle = !satXmlData
     ? 'Esperando generación del archivo XML Anexo 24...'
     : isEmptyXmlBody
-      ? 'Archivo XML vacío: sin registros de detalle requeridos por XSD SAT 1.3 (minOccurs="1")'
+      ? 'Archivo XML sin movimientos ni registros de detalle; el SAT rechaza archivos vacíos conforme al Anexo 24 v1.3.'
       : isMissingFechaModBal
         ? 'Captura la FechaModBal requerida para envío Complementario (C)'
         : missingSolicitudFolio
-          ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
-          : `Corrige el formato de ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} antes de descargar`;
+          ? `Captura ${isOrdenSolicitud ? 'el Número de Orden' : 'el Número de Trámite'} requerido para ${anexo24Options.tipoSolicitud}`
+          : `Corrige el formato de ${isOrdenSolicitud ? 'Número de Orden' : 'Número de Trámite'} antes de descargar`;
 
   const handleCopy = () => {
     if (!satXmlData?.xml) return;
@@ -160,8 +160,10 @@ export function Anexo24Tab({
             {satXmlData && (
               <button
                 type="button"
+                disabled={isDownloadBlocked}
+                title={isDownloadBlocked ? blockedDownloadTitle : 'Copiar código XML al portapapeles'}
                 onClick={handleCopy}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 cursor-pointer shadow-2xs transition"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs transition"
               >
                 {copiedXml ? (
                   <>

@@ -55,6 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [lastSwitchedCompany, setLastSwitchedCompany] = useState<Company | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
       return (
@@ -164,11 +165,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, user, isPublicPage, navigate]);
 
+  const handleSignOut = useCallback(async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [isSigningOut, signOut]);
+
   if (isPublicPage) {
     return (
       <div className="min-h-screen w-full bg-white relative">
         {children}
-        <WhatsAppSupportButton />
+        <WhatsAppSupportButton variant="floating" />
       </div>
     );
   }
@@ -204,14 +215,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <GuestDemoBanner
           isGuest={Boolean(user?.user_metadata?.is_guest)}
           onOpenAuth={openAuthModal}
-          onSignOut={signOut}
+          onSignOut={() => void handleSignOut()}
+          isSigningOut={isSigningOut}
         />
         <div className="sticky top-0 z-30 no-print">
           {isReadOnlySupportMode && supportSession && (
             <SupportModeBanner session={supportSession} onExit={() => void handleExitSupportMode()} isExiting={isExitingSupport} />
           )}
           {isOwner ? (
-            <ExecutiveTopHeader user={user} onSignOut={signOut} />
+            <ExecutiveTopHeader user={user} onSignOut={() => void handleSignOut()} isSigningOut={isSigningOut} />
           ) : (
             <AppShellTopHeader
               workspaceName={workspace?.name}
@@ -230,7 +242,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               isReadOnlyClient={isReadOnlyClient}
               effectiveCompanyRole={effectiveCompanyRole}
               user={user}
-              onSignOut={signOut}
+              onSignOut={() => void handleSignOut()}
+              isSigningOut={isSigningOut}
             />
           )}
         </div>
@@ -316,10 +329,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           hasOpenedSwitcher={hasOpenedSwitcher}
           hasOpenedShortcuts={hasOpenedShortcuts}
           hasOpenedAuth={hasOpenedAuth}
+          isReadOnlyClient={isReadOnlyClient}
+          isOwner={isOwner}
+          isWorkspaceEmpty={isWorkspaceEmpty}
         />
       </AppErrorBoundary>
-
-      {!isOwner && <WhatsAppSupportButton />}
     </div>
   );
 }

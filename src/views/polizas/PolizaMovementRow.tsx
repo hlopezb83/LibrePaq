@@ -251,7 +251,6 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
         abonoRefs={abonoRefs}
         setMovements={setMovements}
         applyBalanceToRow={applyBalanceToRow}
-        addIva16Line={addIva16Line}
         onRowFocus={onRowFocus}
         onDeleteRow={onDeleteRow}
         autoBalanceDifference={autoBalanceDifference}

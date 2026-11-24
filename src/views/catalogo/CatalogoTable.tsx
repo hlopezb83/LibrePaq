@@ -108,7 +108,7 @@ export function CatalogoTable({
     <div
       ref={parentRef}
       data-catalogo-table="true"
-      className="overflow-auto min-h-[300px] max-h-[calc(100vh-280px)]"
+      className="w-full max-w-full min-w-0 overflow-auto min-h-[300px] max-h-[calc(100dvh-280px)]"
     >
       <table className="w-full text-left border-collapse erp-sticky-table">
         <caption className="visually-hidden">
@@ -124,9 +124,9 @@ export function CatalogoTable({
                 <th
                   key={header.id}
                   scope="col"
-                  className={`py-2.5 px-3 ${
+                  className={`py-2 px-2 ${
                     header.column.id === 'actions'
-                      ? 'sticky right-0 bg-slate-50 z-20 shadow-[-1px_0_0_#e2e8f0]'
+                      ? 'md:sticky md:right-0 bg-slate-50 z-20 md:shadow-[-1px_0_0_#e2e8f0]'
                       : ''
                   }`}
                 >
@@ -178,12 +178,18 @@ export function CatalogoTable({
                 const acc = row.original;
                 const isSelected = selectedAccountId === acc.id;
                 const isRovingTarget = isSelected || (!selectedAccountId && virtualRow.index === 0);
+                const stickyActionsBg = isSelected
+                  ? 'bg-blue-50'
+                  : acc.level === 1
+                  ? 'bg-slate-100'
+                  : 'bg-white';
                 return (
                   <tr
                     id={`acc-row-${acc.id}`}
                     key={row.id}
                     onClick={() => onSelectAccount(acc.id)}
                     onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         onSelectAccount(acc.id);
@@ -204,9 +210,9 @@ export function CatalogoTable({
                     {row.getAllCells().map((cell) => (
                       <td
                         key={cell.id}
-                        className={`py-2 px-3 ${
+                        className={`py-2 px-2 ${
                           cell.column.id === 'actions'
-                            ? 'sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-1px_0_0_#e2e8f0]'
+                            ? `md:sticky md:right-0 ${stickyActionsBg} group-hover:bg-slate-50 md:shadow-[-1px_0_0_#e2e8f0]`
                             : ''
                         }`}
                       >

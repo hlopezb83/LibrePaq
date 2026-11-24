@@ -93,7 +93,9 @@ export function SuperAdminSatHealthTab({
               type="button"
               onClick={onRetry}
               disabled={isLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer shrink-0"
+              aria-busy={isLoading}
+              title={isLoading ? 'Consultando telemetría SAT...' : 'Actualizar telemetría de salud SAT'}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
               {isLoading ? 'Consultando...' : 'Actualizar Salud SAT'}

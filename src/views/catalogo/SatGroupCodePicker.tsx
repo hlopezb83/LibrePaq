@@ -15,7 +15,8 @@ const GROUPS: ReadonlyArray<AccountType> = [
   'CAPITAL',
   'INGRESOS',
   'COSTOS',
-  'GASTOS'
+  'GASTOS',
+  'ORDEN'
 ];
 
 export function filterSatGroupCodes(search: string): SatGroupCodeItem[] {

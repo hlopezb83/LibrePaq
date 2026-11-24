@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { BookOpen, Building2, Calendar, ReceiptText } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
+import { getCurrentFiscalPeriod } from '../../shared/date-utils';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { AccountWithBalance, Company, Poliza } from '../../shared/types';
 import { getQuickActionItems } from './commandPaletteQuickActions';
@@ -22,6 +23,9 @@ export interface UseCommandPaletteItemsProps {
   onOpenCompanySwitcher?: () => void;
   onOpenNewCompanyWizard?: () => void;
   onOpenDeliverables?: () => void;
+  isReadOnlyClient?: boolean;
+  isOwner?: boolean;
+  isWorkspaceEmpty?: boolean;
 }
 
 export function useCommandPaletteItems({
@@ -37,7 +41,10 @@ export function useCommandPaletteItems({
   onSelectPeriod,
   onOpenCompanySwitcher,
   onOpenNewCompanyWizard,
-  onOpenDeliverables
+  onOpenDeliverables,
+  isReadOnlyClient = false,
+  isOwner = false,
+  isWorkspaceEmpty = false
 }: UseCommandPaletteItemsProps) {
   const quickActions = useMemo<FlattenedItem[]>(() => {
     return getQuickActionItems(
@@ -45,11 +52,22 @@ export function useCommandPaletteItems({
       onSelectRoute,
       onOpenCompanySwitcher,
       onOpenNewCompanyWizard,
-      onOpenDeliverables
+      onOpenDeliverables,
+      { isReadOnlyClient, isOwner, isWorkspaceEmpty }
     );
-  }, [query, onSelectRoute, onOpenCompanySwitcher, onOpenNewCompanyWizard, onOpenDeliverables]);
+  }, [
+    query,
+    onSelectRoute,
+    onOpenCompanySwitcher,
+    onOpenNewCompanyWizard,
+    onOpenDeliverables,
+    isReadOnlyClient,
+    isOwner,
+    isWorkspaceEmpty
+  ]);
 
   const filteredCompanies = useMemo<FlattenedItem[]>(() => {
+    if (isOwner || isWorkspaceEmpty) return [];
     const q = normalizeText(query);
     const isSearchingCompany =
       q.includes('empresa') ||
@@ -90,9 +108,10 @@ export function useCommandPaletteItems({
           }
         };
       });
-  }, [companies, activeCompany, query, onSelectCompany]);
+  }, [companies, activeCompany, query, onSelectCompany, isOwner, isWorkspaceEmpty]);
 
   const filteredNav = useMemo<FlattenedItem[]>(() => {
+    if (isWorkspaceEmpty) return [];
     const q = normalizeText(query);
     const matching = !q
       ? navItems
@@ -113,9 +132,10 @@ export function useCommandPaletteItems({
       icon: item.icon,
       action: () => onSelectRoute(item.to)
     }));
-  }, [navItems, query, onSelectRoute]);
+  }, [navItems, query, onSelectRoute, isWorkspaceEmpty]);
 
   const filteredPeriods = useMemo<FlattenedItem[]>(() => {
+    if (isOwner || isWorkspaceEmpty || !activeCompany) return [];
     const q = normalizeText(query);
     if (!q) return [];
     const isPeriodSearch =
@@ -128,8 +148,9 @@ export function useCommandPaletteItems({
 
     if (!isPeriodSearch) return [];
 
-    const activeYear = activeCompany?.currentYear ?? 2026;
-    const activePeriod = activeCompany?.currentPeriod ?? 10;
+    const fallbackPeriod = getCurrentFiscalPeriod();
+    const activeYear = activeCompany?.currentYear ?? fallbackPeriod.year;
+    const activePeriod = activeCompany?.currentPeriod ?? fallbackPeriod.period;
 
     return MESES_SAT.filter((m) => {
       const matchP = `p${m.periodo}`.includes(q) || `p0${m.periodo}`.includes(q);
@@ -158,7 +179,7 @@ export function useCommandPaletteItems({
         }
       };
     });
-  }, [activeCompany, query, onSelectPeriod]);
+  }, [activeCompany, query, onSelectPeriod, isOwner, isWorkspaceEmpty]);
 
   const filteredPolizas = useMemo<FlattenedItem[]>(() => {
     const q = normalizeText(query);

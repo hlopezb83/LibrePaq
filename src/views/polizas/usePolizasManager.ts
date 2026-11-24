@@ -14,7 +14,12 @@ import {
   isPolizaDateInDifferentPeriod,
   parsePolizasUrlSearch
 } from './filterPolizas';
-import { createPolizaSnapshot, type PolizaEditorSnapshot } from './polizaDirtyCheck';
+import {
+  buildInitialPolizaMovements,
+  createPolizaSnapshot,
+  mapPolizaMovementsToDraft,
+  type PolizaEditorSnapshot
+} from './polizaDirtyCheck';
 import { useDraftPolizaMovements } from './useDraftPolizaMovements';
 import { usePolizasDataQueries } from './usePolizasDataQueries';
 import { usePolizasKeyboardShortcuts } from './usePolizasKeyboardShortcuts';
@@ -22,7 +27,7 @@ import { usePolizasMutations } from './usePolizasMutations';
 import { usePolizasSearchFilters } from './usePolizasSearchFilters';
 
 export function usePolizasManager() {
-  const { activeCompany, activeCompanyId, isReadOnlySupportMode, isReadOnlyClient: rawReadOnlyClient } = useCompany();
+  const { activeCompany, activeCompanyId, isReadOnlySupportMode, isReadOnlyClient: rawReadOnlyClient, effectiveCompanyRole } = useCompany();
   const isReadOnlyClient = Boolean(isReadOnlySupportMode || rawReadOnlyClient);
   const routerState = useRouterState();
   const toast = useToast();
@@ -46,9 +51,17 @@ export function usePolizasManager() {
   const [compactMode, setCompactMode] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmReverseId, setConfirmReverseId] = useState<string | null>(null);
   const [ledgerAccountId, setLedgerAccountId] = useState<string | null>(null);
   const [copiedPolizaId, setCopiedPolizaId] = useState<string | null>(null);
   const [isPedimentoModalOpen, setIsPedimentoModalOpen] = useState(false);
+
+  const clearAllFiltersRef = useRef(searchFilters.clearAllFilters);
+  clearAllFiltersRef.current = searchFilters.clearAllFilters;
+
+  useEffect(() => {
+    clearAllFiltersRef.current();
+  }, [activeCompanyId]);
 
   useEffect(() => {
     setEditingPolizaId(null);
@@ -58,6 +71,7 @@ export function usePolizasManager() {
     setCfdiUuids([]);
     setFormError(null);
     setConfirmDeleteId(null);
+    setConfirmReverseId(null);
     setLedgerAccountId(null);
     setCopiedPolizaId(null);
     if (dialogRef.current?.open) {
@@ -90,10 +104,12 @@ export function usePolizasManager() {
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   const predictedNextFolio = useMemo(() => {
-    const existingSameType = polizas.filter((p) => p.tipo === tipo);
+    const existingSameType = polizas.filter(
+      (p) => p.tipo === tipo && (!currentPeriod || p.periodo === currentPeriod)
+    );
     const maxFolio = existingSameType.reduce((max, p) => Math.max(max, p.folio), 0);
     return maxFolio + 1;
-  }, [polizas, tipo]);
+  }, [polizas, tipo, currentPeriod]);
 
   const draft = useDraftPolizaMovements(
     accounts,
@@ -131,7 +147,8 @@ export function usePolizasManager() {
     dialogRef,
     onPedimentoSuccess: () => setIsPedimentoModalOpen(false),
     setFormError,
-    setConfirmDeleteId
+    setConfirmDeleteId,
+    setConfirmReverseId
   });
 
   const filteredPolizas = useMemo(
@@ -148,98 +165,72 @@ export function usePolizasManager() {
     [filteredPolizas]
   );
 
+  const openEditorWithDraft = useCallback(
+    (params: {
+      editId: string | null;
+      nextTipo: PolizaType;
+      nextFecha: string;
+      nextConcepto: string;
+      nextUuids: string[];
+      nextMovements: ReturnType<typeof buildInitialPolizaMovements>;
+    }) => {
+      setEditingPolizaId(params.editId);
+      setTipo(params.nextTipo);
+      setFecha(params.nextFecha);
+      setConcepto(params.nextConcepto);
+      setCfdiUuids(params.nextUuids);
+      setFormError(null);
+      setMovements(params.nextMovements);
+      setInitialSnapshot(
+        createPolizaSnapshot({
+          tipo: params.nextTipo,
+          fecha: params.nextFecha,
+          concepto: params.nextConcepto,
+          cfdiUuids: params.nextUuids,
+          movements: params.nextMovements
+        })
+      );
+      setEditorSessionId((prev) => prev + 1);
+      if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+      requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
+    },
+    [setMovements]
+  );
+
   const openNewPolizaModal = useCallback(() => {
     if (isWriteBlocked) return;
-    setEditingPolizaId(null);
-    setTipo('DIARIO');
-    setFecha(defaultPeriodDate);
-    setConcepto('');
-    setCfdiUuids([]);
-    setFormError(null);
-    const defaultAcc1 = affectableAccounts[0]?.id || '';
-    const defaultAcc2 = affectableAccounts[1]?.id || defaultAcc1;
-    const initialMovements = [
-      { _rowId: crypto.randomUUID(), accountId: defaultAcc1, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 },
-      { _rowId: crypto.randomUUID(), accountId: defaultAcc2, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 }
-    ];
-    setMovements(initialMovements);
-    setInitialSnapshot(
-      createPolizaSnapshot({
-        tipo: 'DIARIO',
-        fecha: defaultPeriodDate,
-        concepto: '',
-        cfdiUuids: [],
-        movements: initialMovements
-      })
-    );
-    setEditorSessionId((prev) => prev + 1);
-    if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
-    requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
-  }, [isWriteBlocked, defaultPeriodDate, affectableAccounts, setMovements]);
+    openEditorWithDraft({
+      editId: null,
+      nextTipo: 'DIARIO',
+      nextFecha: defaultPeriodDate,
+      nextConcepto: '',
+      nextUuids: [],
+      nextMovements: buildInitialPolizaMovements(affectableAccounts)
+    });
+  }, [isWriteBlocked, openEditorWithDraft, defaultPeriodDate, affectableAccounts]);
 
   const openEditPolizaModal = useCallback((pol: Poliza) => {
     if (isWriteBlocked) return;
-    setEditingPolizaId(pol.id);
-    setTipo(pol.tipo);
-    setFecha(pol.fecha);
-    setConcepto(pol.concepto);
-    const uniqueUuids = collectPolizaUniqueUuids(pol);
-    setCfdiUuids(uniqueUuids);
-    setFormError(null);
-    const editMovements = pol.movements.map((m) => ({
-      _rowId: m.id || crypto.randomUUID(),
-      accountId: m.accountId,
-      referencia: m.referencia,
-      concepto: m.concepto,
-      cargo: m.cargo,
-      abono: m.abono,
-      cfdiUuid: m.cfdiUuid ?? null
-    }));
-    setMovements(editMovements);
-    setInitialSnapshot(
-      createPolizaSnapshot({
-        tipo: pol.tipo,
-        fecha: pol.fecha,
-        concepto: pol.concepto,
-        cfdiUuids: uniqueUuids,
-        movements: editMovements
-      })
-    );
-    setEditorSessionId((prev) => prev + 1);
-    if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
-    requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
-  }, [isWriteBlocked, setMovements]);
+    openEditorWithDraft({
+      editId: pol.id,
+      nextTipo: pol.tipo,
+      nextFecha: pol.fecha,
+      nextConcepto: pol.concepto,
+      nextUuids: collectPolizaUniqueUuids(pol),
+      nextMovements: mapPolizaMovementsToDraft(pol, true)
+    });
+  }, [isWriteBlocked, openEditorWithDraft]);
 
   const openDuplicatePolizaModal = (pol: Poliza) => {
     if (isWriteBlocked) return;
-    setEditingPolizaId(null);
-    setTipo(pol.tipo);
-    setFecha(defaultPeriodDate);
-    const copyConcepto = `${pol.concepto} (Copia)`;
-    setConcepto(copyConcepto);
-    setCfdiUuids([]);
-    setFormError(null);
-    const dupMovements = pol.movements.map((m) => ({
-      _rowId: crypto.randomUUID(),
-      accountId: m.accountId,
-      referencia: m.referencia,
-      concepto: m.concepto,
-      cargo: m.cargo,
-      abono: m.abono
-    }));
-    setMovements(dupMovements);
-    setInitialSnapshot(
-      createPolizaSnapshot({
-        tipo: pol.tipo,
-        fecha: defaultPeriodDate,
-        concepto: copyConcepto,
-        cfdiUuids: [],
-        movements: dupMovements
-      })
-    );
-    setEditorSessionId((prev) => prev + 1);
-    if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
-    requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
+    openEditorWithDraft({
+      editId: null,
+      nextTipo: pol.tipo,
+      nextFecha: defaultPeriodDate,
+      nextConcepto: `${pol.concepto} (Copia)`,
+      nextUuids: [],
+      nextMovements: mapPolizaMovementsToDraft(pol, false)
+    });
     toast.info('Póliza Duplicada', 'Revisa los importes y fecha antes de guardar.');
   };
 
@@ -328,10 +319,11 @@ export function usePolizasManager() {
 
   return {
     activeCompany, activeCompanyId, currentYear, currentPeriod,
-    ...queries, isReadOnlyClient, isWriteBlocked, dialogRef,
+    ...queries, isReadOnlyClient, effectiveCompanyRole, isWriteBlocked, dialogRef,
     filteredPolizas, filteredPolizasTotals,
     ...searchFilters, compactMode, setCompactMode,
     expandedIds, setExpandedIds, confirmDeleteId, setConfirmDeleteId,
+    confirmReverseId, setConfirmReverseId,
     ledgerAccountId, setLedgerAccountId, copiedPolizaId, editingPolizaId,
     editorSessionId, initialSnapshot, handleUseActivePeriodDate,
     tipo, setTipo, fecha, setFecha, concepto, setConcepto,

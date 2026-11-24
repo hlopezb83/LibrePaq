@@ -265,6 +265,7 @@ export function WizardStep1Identity({
         </label>
         <select
           id="wizard-comp-regimen"
+          required
           title={regimenFiscal}
           value={regimenFiscal}
           onChange={(e) => setRegimenFiscal(e.target.value)}

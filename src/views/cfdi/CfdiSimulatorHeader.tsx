@@ -26,7 +26,7 @@ export function CfdiSimulatorHeader({
           </h2>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-slate-600">
             <span className="font-bold text-slate-800">{activeCompany?.name}</span>
-            <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 text-[11px] font-bold">
+            <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 text-[11px] font-bold">
               {activeCompany?.rfc}
             </span>
             <span className="text-slate-500" aria-hidden="true">•</span>

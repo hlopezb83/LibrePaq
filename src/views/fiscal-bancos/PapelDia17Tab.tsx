@@ -1,4 +1,4 @@
-import { AlertCircle, Calculator, Check, Copy, FileText, RefreshCw, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { AlertCircle, Calculator, Check, Copy, FileText, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { calculateDia17Deadline } from '../../shared/date-utils';
 import {
@@ -7,6 +7,7 @@ import {
   PapelDia17UsdCard
 } from './PapelDia17Cards';
 import { PapelDia17DypDrawer } from './PapelDia17DypDrawer';
+import { PapelDia17ParamsForm } from './PapelDia17ParamsForm';
 import { PapelDia17SummaryBar } from './PapelDia17SummaryBar';
 import { ResicoCashBasisBanner } from './ResicoCashBasisBanner';
 import { usePapelDia17 } from './usePapelDia17';
@@ -146,162 +147,31 @@ export function PapelDia17Tab({
             <button
               type="button"
               disabled={genTaxProvisionMutation.isPending || isWriteLocked || hasUnsavedParams}
+              aria-busy={genTaxProvisionMutation.isPending}
               title={isWriteLocked ? lockTitle : hasUnsavedParams ? unsavedTitle : 'Contabilizar provisión mensual de ISR e IVA'}
               onClick={() => genTaxProvisionMutation.mutate()}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              <Sparkles className="w-4 h-4" aria-hidden="true" />
+              {genTaxProvisionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Sparkles className="w-4 h-4" aria-hidden="true" />}
               {genTaxProvisionMutation.isPending ? 'Contabilizando Provisión...' : 'Generar Póliza de Provisión ISR + IVA'}
             </button>
           </div>
         </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!isWriteLocked && hasUnsavedParams) saveTaxParamsMutation.mutate();
-          }}
-          className={`grid grid-cols-1 sm:grid-cols-2 ${isResicoPf ? 'lg:grid-cols-3' : isPfGeneral ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs`}
-        >
-          {!isPfGeneral && !isResicoPf && (
-            <div>
-              <label htmlFor="dia17-coef-utilidad" className="block text-[11px] font-bold text-slate-700 mb-1">
-                Coeficiente Utilidad (C.U.)
-              </label>
-              <input
-                id="dia17-coef-utilidad"
-                type="text"
-                inputMode="decimal"
-                disabled={isWriteLocked || isResico}
-                title={
-                  isWriteLocked
-                    ? lockTitle
-                    : isResico
-                      ? 'No aplica en RESICO (tributa sobre flujo de efectivo)'
-                      : 'Coeficiente de Utilidad según última declaración anual (Art. 14 LISR)'
-                }
-                value={draftParams.coefUtilidad}
-                onChange={(e) => updateDraftField('coefUtilidad', e.target.value)}
-                onBlur={() => normalizeDraftField('coefUtilidad', 1)}
-                className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-              />
-              {isResico && <p className="mt-1 text-[11px] text-slate-600">No aplica en RESICO</p>}
-            </div>
-          )}
-          {!isResicoPf && (
-            <>
-              <div>
-                <label htmlFor="dia17-perdidas-amortizar" className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Pérdidas x Amortizar ($)
-                </label>
-                <input
-                  id="dia17-perdidas-amortizar"
-                  type="text"
-                  inputMode="decimal"
-                  disabled={isWriteLocked}
-                  title={isWriteLocked ? lockTitle : 'Pérdidas fiscales pendientes de amortizar actualizadas (Art. 57 LISR)'}
-                  value={draftParams.perdidasAmortizar}
-                  onChange={(e) => updateDraftField('perdidasAmortizar', e.target.value)}
-                  onBlur={() => normalizeDraftField('perdidasAmortizar')}
-                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label htmlFor="dia17-pagos-previos" className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Pagos Prov. Anteriores ($)
-                </label>
-                <input
-                  id="dia17-pagos-previos"
-                  type="text"
-                  inputMode="decimal"
-                  disabled={isWriteLocked}
-                  title={isWriteLocked ? lockTitle : 'Pagos provisionales de ISR enterados previamente en el ejercicio (Art. 14 LISR)'}
-                  value={draftParams.pagosPrevios}
-                  onChange={(e) => updateDraftField('pagosPrevios', e.target.value)}
-                  onBlur={() => normalizeDraftField('pagosPrevios')}
-                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label htmlFor="dia17-ptu-pagada" className="block text-[11px] font-bold text-slate-700 mb-1">
-                  PTU Pagada Ejercicio ($)
-                </label>
-                <input
-                  id="dia17-ptu-pagada"
-                  type="text"
-                  inputMode="decimal"
-                  disabled={isWriteLocked}
-                  title={isWriteLocked ? lockTitle : 'PTU pagada en el ejercicio disminuible en pagos provisionales (Art. 14 / Art. 106 LISR)'}
-                  value={draftParams.ptuPagadaEjercicio}
-                  onChange={(e) => updateDraftField('ptuPagadaEjercicio', e.target.value)}
-                  onBlur={() => normalizeDraftField('ptuPagadaEjercicio')}
-                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                />
-              </div>
-            </>
-          )}
-          <div>
-            <label htmlFor="dia17-iva-saldo-favor" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Saldo a Favor IVA Ant. ($)
-            </label>
-            <input
-              id="dia17-iva-saldo-favor"
-              type="text"
-              inputMode="decimal"
-              disabled={isWriteLocked}
-              title={isWriteLocked ? lockTitle : 'Saldo a favor de IVA de meses previos por acreditar (Art. 6 LIVA)'}
-              value={draftParams.ivaSaldoFavor}
-              onChange={(e) => updateDraftField('ivaSaldoFavor', e.target.value)}
-              onBlur={() => normalizeDraftField('ivaSaldoFavor')}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label htmlFor="dia17-tc-cierre-usd" className="block text-[11px] font-bold text-slate-700 mb-1">
-              TC Cierre USD (DOF)
-            </label>
-            <input
-              id="dia17-tc-cierre-usd"
-              type="text"
-              inputMode="decimal"
-              disabled={isWriteLocked}
-              title={isWriteLocked ? lockTitle : 'Tipo de cambio oficial publicado por el Diario Oficial de la Federación (DOF) al cierre de mes'}
-              value={draftParams.tcCierreUsd}
-              onChange={(e) => updateDraftField('tcCierreUsd', e.target.value)}
-              onBlur={() => normalizeDraftField('tcCierreUsd')}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-            />
-          </div>
-          <div className="flex items-end gap-1.5">
-            <button
-              type="submit"
-              disabled={saveTaxParamsMutation.isPending || isWriteLocked || !hasUnsavedParams}
-              title={
-                isWriteLocked
-                  ? lockTitle
-                  : !hasUnsavedParams
-                    ? 'Modifica al menos un parámetro para recalcular'
-                    : 'Aplicar parámetros y recalcular cédula Día 17'
-              }
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs"
-            >
-              <Save className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{saveTaxParamsMutation.isPending ? 'Aplicando...' : 'Recalcular'}</span>
-            </button>
-            {hasUnsavedParams && (
-              <button
-                type="button"
-                disabled={isWriteLocked}
-                onClick={resetTaxParams}
-                title={isWriteLocked ? lockTitle : 'Descartar cambios sin guardar'}
-                aria-label="Descartar cambios de parámetros fiscales"
-                className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        </form>
+        <PapelDia17ParamsForm
+          isResico={isResico}
+          isResicoPf={isResicoPf}
+          isPfGeneral={isPfGeneral}
+          isWriteLocked={isWriteLocked}
+          lockTitle={lockTitle}
+          draftParams={draftParams}
+          updateDraftField={updateDraftField}
+          normalizeDraftField={normalizeDraftField}
+          hasUnsavedParams={hasUnsavedParams}
+          isSaving={saveTaxParamsMutation.isPending}
+          onSave={() => saveTaxParamsMutation.mutate()}
+          onReset={resetTaxParams}
+        />
 
         {hasUnsavedParams && (
           <div role="status" aria-live="polite" className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 font-medium">

@@ -78,7 +78,7 @@ export function AccountPickerDropdown({
               return (
                 <div
                   key={account.id}
-                  id={`account-opt-${account.id}`}
+                  id={`${listboxId}-opt-${account.id}`}
                   role="option"
                   aria-selected={isSelected}
                   onMouseEnter={() => setHighlightedIndex(virtualRow.index)}
@@ -113,7 +113,7 @@ export function AccountPickerDropdown({
                   <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
                     {account.satGroupCode && (
                       <span
-                        className={`px-1.5 py-0.2 rounded text-[10px] border ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] border ${
                           isHighlighted
                             ? 'bg-blue-800 text-white border-blue-400'
                             : 'bg-slate-100 text-slate-700 border-slate-200'

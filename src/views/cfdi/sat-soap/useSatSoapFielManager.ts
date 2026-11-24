@@ -108,6 +108,16 @@ export function useSatSoapFielManager({
             '¡Descarga SAT Completada!',
             `${done.cfdisDescargados || 0} comprobantes integrados a tu Bóveda ADD.`
           );
+          continue;
+        }
+        const partial = satRequests.find(
+          (r) => r.id === prevId && (r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE')
+        );
+        if (partial) {
+          toast.warning(
+            'Descarga SAT Parcial',
+            partial.mensajeSat || `Se integraron ${partial.cfdisDescargados || 0} comprobante(s) antes de alcanzar el límite del SAT.`
+          );
         }
       }
     }

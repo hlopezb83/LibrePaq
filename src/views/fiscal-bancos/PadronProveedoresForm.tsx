@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Loader2, Plus, Save } from 'lucide-react';
 import type { AccountWithBalance, Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
+import { PadronExtranjeroSubpanel } from './PadronExtranjeroSubpanel';
 
 export interface PadronProveedoresFormProps {
   isReadOnly: boolean;
@@ -97,33 +98,45 @@ export function PadronProveedoresForm({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3">
         <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between gap-2 mb-1">
             <label htmlFor="tp-rfc" className="block text-[11px] font-bold text-slate-700">
               RFC Proveedor / Cliente *
             </label>
-            {tpRfcRes && tpRfcRes.isValidFormat && (
-              <div className="flex items-center gap-1">
-                {tpRfcRes.isValidCheckDigit ? (
-                  <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-0.5">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" /> RFC válido
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-bold text-amber-800 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" /> M11: {tpRfcRes.expectedCheckDigit}
-                    {tpRfcRes.expectedRfc && (
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => onRfcChange(tpRfcRes.expectedRfc!)}
-                        className="underline text-blue-700 hover:text-blue-900 disabled:opacity-50 cursor-pointer font-bold"
-                      >
-                        Corregir
-                      </button>
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-1.5">
+              {tpTipoTercero === '05' && tpRfc !== 'XEXX010101000' && (
+                <button
+                  type="button"
+                  disabled={isReadOnly}
+                  onClick={() => onRfcChange('XEXX010101000')}
+                  className="text-[11px] font-bold text-blue-700 hover:text-blue-900 underline disabled:opacity-50 cursor-pointer"
+                >
+                  Usar XEXX010101000
+                </button>
+              )}
+              {tpRfcRes && tpRfcRes.isValidFormat && (
+                <div className="flex items-center gap-1">
+                  {tpRfcRes.isValidCheckDigit ? (
+                    <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-0.5">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" /> RFC válido
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-amber-800 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" /> M11: {tpRfcRes.expectedCheckDigit}
+                      {tpRfcRes.expectedRfc && (
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => onRfcChange(tpRfcRes.expectedRfc!)}
+                          className="underline text-blue-700 hover:text-blue-900 disabled:opacity-50 cursor-pointer font-bold"
+                        >
+                          Corregir
+                        </button>
+                      )}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <input
             id="tp-rfc"
@@ -190,53 +203,15 @@ export function PadronProveedoresForm({
         </div>
 
         {tpTipoTercero === '05' && (
-          <>
-            <div>
-              <label htmlFor="tp-id-fiscal" className="block text-[11px] font-bold text-slate-700 mb-1">
-                ID Fiscal Extranjero
-              </label>
-              <input
-                id="tp-id-fiscal"
-                type="text"
-                disabled={isReadOnly}
-                value={tpIdFiscal}
-                onChange={(e) => setTpIdFiscal(e.target.value)}
-                placeholder="US-99-123456"
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white disabled:bg-slate-100"
-              />
-            </div>
-            <div>
-              <label htmlFor="tp-pais" className="block text-[11px] font-bold text-slate-700 mb-1">
-                País (ISO / SAT)
-              </label>
-              <input
-                id="tp-pais"
-                type="text"
-                maxLength={3}
-                disabled={isReadOnly}
-                value={tpPais}
-                onChange={(e) => setTpPais(e.target.value.toUpperCase())}
-                placeholder="USA / ZZZ"
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono uppercase bg-white disabled:bg-slate-100"
-              />
-            </div>
-            {tpPais.trim().toUpperCase() === 'ZZZ' && (
-              <div>
-                <label htmlFor="tp-jurisdiccion" className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Jurisdicción (País ZZZ)
-                </label>
-                <input
-                  id="tp-jurisdiccion"
-                  type="text"
-                  disabled={isReadOnly}
-                  value={tpJurisdiccionFiscal}
-                  onChange={(e) => setTpJurisdiccionFiscal(e.target.value)}
-                  placeholder="Nombre de jurisdicción"
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white disabled:bg-slate-100"
-                />
-              </div>
-            )}
-          </>
+          <PadronExtranjeroSubpanel
+            isReadOnly={isReadOnly}
+            tpIdFiscal={tpIdFiscal}
+            setTpIdFiscal={setTpIdFiscal}
+            tpPais={tpPais}
+            setTpPais={setTpPais}
+            tpJurisdiccionFiscal={tpJurisdiccionFiscal}
+            setTpJurisdiccionFiscal={setTpJurisdiccionFiscal}
+          />
         )}
 
         <div className="lg:col-span-2">

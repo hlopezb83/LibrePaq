@@ -14,7 +14,6 @@ interface PolizaMovementAmountCellsProps {
   abonoRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
   setMovements: React.Dispatch<React.SetStateAction<DraftMovement[]>>;
   applyBalanceToRow: (idx: number, type: 'cargo' | 'abono') => void;
-  addIva16Line: (idx: number) => void;
   onRowFocus: (idx: number) => void;
   onDeleteRow: (idx: number) => void;
   autoBalanceDifference: () => void;
@@ -32,7 +31,6 @@ export function PolizaMovementAmountCells({
   abonoRefs,
   setMovements,
   applyBalanceToRow,
-  addIva16Line,
   onRowFocus,
   onDeleteRow,
   autoBalanceDifference,
@@ -54,11 +52,6 @@ export function PolizaMovementAmountCells({
           placeholder="0.00"
           onFocus={() => onRowFocus(idx)}
           onKeyDown={(e) => {
-            if (e.key === 'F4') {
-              e.preventDefault();
-              addIva16Line(idx);
-              return;
-            }
             if (['e', 'E', '+', '-'].includes(e.key)) {
               e.preventDefault();
               return;
@@ -94,7 +87,7 @@ export function PolizaMovementAmountCells({
               )
             );
           }}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono text-right focus:ring-1 focus:ring-blue-600 focus:outline-none"
+          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono tabular-nums text-right focus:ring-1 focus:ring-blue-600 focus:outline-none"
         />
         {difference < 0 && !mov.cargo && !mov.abono && (
           <button
@@ -102,7 +95,7 @@ export function PolizaMovementAmountCells({
             tabIndex={-1}
             onClick={() => applyBalanceToRow(idx, 'cargo')}
             title="Pulsa = o clic para cuadrar este cargo"
-            className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
+            className="mt-1 w-full text-[10px] font-mono tabular-nums font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
           >
             <Zap className="w-3 h-3" aria-hidden="true" />
             <span>Cuadrar</span>
@@ -125,11 +118,6 @@ export function PolizaMovementAmountCells({
           placeholder="0.00"
           onFocus={() => onRowFocus(idx)}
           onKeyDown={(e) => {
-            if (e.key === 'F4') {
-              e.preventDefault();
-              addIva16Line(idx);
-              return;
-            }
             if (['e', 'E', '+', '-'].includes(e.key)) {
               e.preventDefault();
               return;
@@ -160,7 +148,7 @@ export function PolizaMovementAmountCells({
               )
             );
           }}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono text-right focus:ring-1 focus:ring-blue-600 focus:outline-none"
+          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono tabular-nums text-right focus:ring-1 focus:ring-blue-600 focus:outline-none"
         />
         {difference > 0 && !mov.cargo && !mov.abono && (
           <button
@@ -168,7 +156,7 @@ export function PolizaMovementAmountCells({
             tabIndex={-1}
             onClick={() => applyBalanceToRow(idx, 'abono')}
             title="Pulsa = o clic para cuadrar este abono"
-            className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
+            className="mt-1 w-full text-[10px] font-mono tabular-nums font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
           >
             <Zap className="w-3 h-3" aria-hidden="true" />
             <span>Cuadrar</span>

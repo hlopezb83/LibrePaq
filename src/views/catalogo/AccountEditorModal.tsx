@@ -67,11 +67,21 @@ export function AccountEditorModal({
   const isFinancialFieldsLocked = Boolean(
     (editingAccountId && isJanLocked) || isAccumulative
   );
-  const financialLockBadge = editingAccountId && isJanLocked
-    ? 'Enero cerrado'
+  const financialLockBadge = editingAccountId && isJanLocked ? 'Enero cerrado' : isAccumulative ? 'Cuenta acumuladora' : null;
+  const financialLockTitle = editingAccountId && isJanLocked
+    ? 'Enero está cerrado ante el SAT; saldo inicial y naturaleza no pueden modificarse'
     : isAccumulative
-    ? 'Cuenta acumuladora'
-    : null;
+    ? 'Las cuentas acumuladoras calculan su saldo automáticamente desde sus subcuentas'
+    : undefined;
+  const submitDisabledTitle = isWriteBlocked
+    ? 'Periodo bloqueado o modo solo lectura'
+    : hasBlockedAffectableParent
+    ? 'La cuenta padre seleccionada es afectable y ya tiene actividad'
+    : isDuplicateCode
+    ? 'El código contable ya existe en el catálogo'
+    : isMaskInvalid
+    ? 'Usa segmentos alfanuméricos separados por guion (ej. 601-01-006)'
+    : undefined;
 
   return (
     <dialog
@@ -122,6 +132,7 @@ export function AccountEditorModal({
               <select
                 id="acc-parent"
                 disabled={Boolean(editingAccountId)}
+                title={editingAccountId ? 'No se puede cambiar la cuenta padre al editar' : undefined}
                 value={parentCode}
                 onChange={(e) => {
                   const pCode = e.target.value;
@@ -153,7 +164,7 @@ export function AccountEditorModal({
                 <label htmlFor="acc-code" className="block text-xs font-semibold text-slate-700">
                   Código ({activeCompany?.maskFormat || 'XXX-XX-XXX'}) *
                 </label>
-                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                   computedLevel >= 3
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                     : 'bg-amber-50 text-amber-800 border-amber-200'
@@ -168,6 +179,7 @@ export function AccountEditorModal({
                   required
                   aria-invalid={isDuplicateCode || isMaskInvalid}
                   disabled={Boolean(editingAccountId)}
+                  title={editingAccountId ? 'El código contable no puede modificarse después de crear la cuenta' : undefined}
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
@@ -246,6 +258,7 @@ export function AccountEditorModal({
                 <option value="INGRESOS">INGRESOS</option>
                 <option value="COSTOS">COSTOS</option>
                 <option value="GASTOS">GASTOS</option>
+                <option value="ORDEN">ORDEN (800)</option>
               </select>
             </div>
 
@@ -255,7 +268,7 @@ export function AccountEditorModal({
                   Naturaleza
                 </label>
                 {financialLockBadge && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
                     <Lock className="w-2.5 h-2.5" aria-hidden="true" />
                     {financialLockBadge}
                   </span>
@@ -264,6 +277,7 @@ export function AccountEditorModal({
               <select
                 id="acc-nature"
                 disabled={isFinancialFieldsLocked}
+                title={financialLockTitle}
                 value={nature}
                 onChange={(e) => setNature(e.target.value as 'DEUDORA' | 'ACREEDORA')}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white disabled:bg-slate-100 disabled:text-slate-500"
@@ -279,7 +293,7 @@ export function AccountEditorModal({
                   Saldo Apertura
                 </label>
                 {financialLockBadge && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
                     <Lock className="w-2.5 h-2.5" aria-hidden="true" />
                     Bloqueado
                   </span>
@@ -290,13 +304,14 @@ export function AccountEditorModal({
                 type="text"
                 inputMode="decimal"
                 disabled={isFinancialFieldsLocked}
+                title={financialLockTitle}
                 value={initialBalanceRaw}
                 onChange={(e) => {
                   const cleaned = e.target.value.replace(/[^0-9.-]/g, '');
                   setInitialBalanceRaw(cleaned);
                 }}
                 placeholder="0.00"
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono text-right disabled:bg-slate-100 disabled:text-slate-500"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono tabular-nums text-right disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
           </div>
@@ -313,6 +328,7 @@ export function AccountEditorModal({
           <button
             type="submit"
             disabled={isSaving || isWriteBlocked || hasBlockedAffectableParent || isDuplicateCode || isMaskInvalid}
+            title={submitDisabledTitle}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
           >
             {isSaving ? (

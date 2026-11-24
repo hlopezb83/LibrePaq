@@ -82,6 +82,7 @@ export function CompanyOnboardingWizardModal({
 
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   const errorAlertRef = useRef<HTMLDivElement>(null);
+  const confirmDiscardRef = useRef<HTMLDivElement>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
@@ -93,6 +94,12 @@ export function CompanyOnboardingWizardModal({
     bodyScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     requestAnimationFrame(() => errorAlertRef.current?.focus());
   }, [errorMessage]);
+
+  useEffect(() => {
+    if (!confirmDiscard) return;
+    bodyScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    requestAnimationFrame(() => confirmDiscardRef.current?.focus());
+  }, [confirmDiscard]);
 
   const handleRequestClose = () => {
     if (isDirty && !confirmDiscard) {
@@ -123,7 +130,7 @@ export function CompanyOnboardingWizardModal({
           setConfirmDiscard(true);
         }
       }}
-      className="rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl overflow-hidden max-h-[92dvh] p-0"
+      className="no-print rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl overflow-hidden max-h-[92dvh] p-0"
     >
       <div className="flex flex-col max-h-[92dvh]">
         <WizardHeader
@@ -139,8 +146,10 @@ export function CompanyOnboardingWizardModal({
         >
           {confirmDiscard && (
             <div
+              ref={confirmDiscardRef}
+              tabIndex={-1}
               role="alert"
-              className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2"
+              className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2 focus:outline-2 focus:outline-amber-700"
             >
               <span className="font-semibold">
                 Tienes datos capturados sin guardar. ¿Deseas descartarlos y cerrar?

@@ -200,7 +200,7 @@ export function CfdiFacturaTab({
       </div>
 
       {/* Tabla de Conceptos Facturados */}
-      <div className="border border-slate-300 rounded-xl overflow-hidden overflow-x-auto scrollable-panel">
+      <div className="border border-slate-300 rounded-xl overflow-hidden overflow-x-auto print:overflow-visible scrollable-panel">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-100 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">

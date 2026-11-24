@@ -52,6 +52,7 @@ export function AppShellSidebar({
   const supportSession = useSupportSession();
   const mobileMenuBtnRef = useRef<HTMLButtonElement>(null);
   const drawerCloseBtnRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const routerSearch = useRouterState({
     select: (s) => (s.location.search as Record<string, unknown>) || {}
   });
@@ -61,14 +62,35 @@ export function AppShellSidebar({
   const cmdPaletteAriaLabel = isOwner
     ? 'Ir a sección o comando (Ctrl+K)'
     : 'Buscar cuenta o módulo (Ctrl+K)';
+  const cmdPaletteTitle = isWorkspaceEmpty
+    ? 'Da de alta tu primera empresa para usar el buscador universal'
+    : cmdPaletteAriaLabel;
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
-    drawerCloseBtnRef.current?.focus();
+    requestAnimationFrame(() => drawerCloseBtnRef.current?.focus());
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         setMobileMenuOpen(false);
         requestAnimationFrame(() => mobileMenuBtnRef.current?.focus());
+        return;
+      }
+      if (e.key === 'Tab' && drawerRef.current) {
+        const focusables = drawerRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -138,10 +160,11 @@ export function AppShellSidebar({
         <div className="flex items-center gap-1.5 lg:hidden ml-auto shrink-0">
           <button
             type="button"
+            disabled={isWorkspaceEmpty}
             onClick={onOpenCommandPalette}
-            aria-label={cmdPaletteAriaLabel}
-            title={cmdPaletteAriaLabel}
-            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-blue-300 hover:text-white cursor-pointer"
+            aria-label={cmdPaletteTitle}
+            title={cmdPaletteTitle}
+            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-blue-300 hover:text-white disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
           >
             <Search className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -175,9 +198,13 @@ export function AppShellSidebar({
       )}
 
       <div
+        ref={drawerRef}
+        role={mobileMenuOpen ? 'dialog' : undefined}
+        aria-modal={mobileMenuOpen ? true : undefined}
+        aria-label={mobileMenuOpen ? 'Menú de módulos' : undefined}
         className={`flex-1 flex flex-col min-h-0 overflow-y-auto overscroll-contain ${
           mobileMenuOpen
-            ? 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-[#0A1120] border-r border-[#1E293B] shadow-2xl lg:static lg:inset-auto lg:z-auto lg:w-auto lg:max-w-none lg:border-r-0 lg:shadow-none'
+            ? 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] max-h-[100dvh] bg-[#0A1120] border-r border-[#1E293B] shadow-2xl lg:static lg:inset-auto lg:z-auto lg:w-auto lg:max-w-none lg:max-h-none lg:border-r-0 lg:shadow-none'
             : 'hidden lg:flex'
         }`}
       >
@@ -203,9 +230,11 @@ export function AppShellSidebar({
           {!sidebarCollapsed ? (
             <button
               type="button"
+              disabled={isWorkspaceEmpty}
               onClick={onOpenCommandPalette}
-              aria-label={cmdPaletteAriaLabel}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#111C35] hover:bg-slate-800/90 border border-[#1E293B] text-xs text-slate-200 transition cursor-pointer"
+              title={cmdPaletteTitle}
+              aria-label={cmdPaletteTitle}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#111C35] hover:bg-slate-800/90 border border-[#1E293B] text-xs text-slate-200 disabled:opacity-45 disabled:cursor-not-allowed transition cursor-pointer"
             >
               <span className="flex items-center gap-2">
                 <Search className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
@@ -218,17 +247,18 @@ export function AppShellSidebar({
           ) : (
             <button
               type="button"
+              disabled={isWorkspaceEmpty}
               onClick={onOpenCommandPalette}
-              title={cmdPaletteAriaLabel}
-              aria-label={cmdPaletteAriaLabel}
-              className="w-full flex items-center justify-center p-2 rounded-xl bg-[#111C35] hover:bg-slate-800 border border-[#1E293B] text-blue-300 hover:text-white transition cursor-pointer"
+              title={cmdPaletteTitle}
+              aria-label={cmdPaletteTitle}
+              className="w-full flex items-center justify-center p-2 rounded-xl bg-[#111C35] hover:bg-slate-800 border border-[#1E293B] text-blue-300 hover:text-white disabled:opacity-45 disabled:cursor-not-allowed transition cursor-pointer"
             >
               <Search className="w-4 h-4" aria-hidden="true" />
             </button>
           )}
         </div>
 
-        <nav id="primary-sidebar-nav" aria-label="Menú principal" className="p-2 flex-1 space-y-1">
+        <nav id="primary-sidebar-nav" aria-label="Menú principal" className="px-2 pt-2 pb-6 lg:p-2 flex-1 space-y-1.5 lg:space-y-1">
           {!sidebarCollapsed && (
             <div className="px-2.5 py-1 flex items-center justify-between gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               <span>{isOwner ? 'Consola de Propietario' : 'Módulos Contables'}</span>

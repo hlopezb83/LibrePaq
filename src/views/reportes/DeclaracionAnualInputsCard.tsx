@@ -18,6 +18,8 @@ interface InputFieldConfig {
   step: string;
   unit: 'Índice' | 'MXN $';
   hint: string;
+  pfHint?: string;
+  exampleNote?: string;
   pmOnly?: boolean;
   pfOnly?: boolean;
 }
@@ -25,9 +27,17 @@ interface InputFieldConfig {
 const FIELDS: ReadonlyArray<InputFieldConfig> = [
   { key: 'inpcCierreAnterior', label: 'INPC Dic. Anterior', step: '0.001', unit: 'Índice', hint: 'Art. 44 LISR', pmOnly: true },
   { key: 'inpcCierreActual', label: 'INPC Dic. Ejercicio', step: '0.001', unit: 'Índice', hint: 'INEGI DOF', pmOnly: true },
-  { key: 'ptuPagadaAnterior', label: 'PTU Pagada en Ejercicio', step: '0.01', unit: 'MXN $', hint: 'Art. 9 Fracc. I' },
-  { key: 'noDeduciblesManual', label: 'No Deducibles Manuales', step: '0.01', unit: 'MXN $', hint: 'Art. 28 LISR' },
-  { key: 'deduccionesPersonales', label: 'Deducciones Personales', step: '0.01', unit: 'MXN $', hint: 'Art. 151 LISR (Tope 5 UMA / 15%)', pfOnly: true },
+  { key: 'ptuPagadaAnterior', label: 'PTU Pagada en Ejercicio', step: '0.01', unit: 'MXN $', hint: 'Art. 9 Fracc. I', pfHint: 'Art. 109 LISR' },
+  { key: 'noDeduciblesManual', label: 'No Deducibles Manuales', step: '0.01', unit: 'MXN $', hint: 'Art. 28 LISR', pfHint: 'Art. 109 / 148 LISR' },
+  {
+    key: 'deduccionesPersonales',
+    label: 'Deducciones Personales',
+    step: '0.01',
+    unit: 'MXN $',
+    hint: 'Art. 151 LISR (Tope 5 UMA / 15%)',
+    exampleNote: 'Tope Art. 151: menor entre 5 UMA anuales o 15% de ingresos totales. Ej. honorarios médicos, hospitalarios, colegiaturas, gastos funerarios e intereses reales hipotecarios.',
+    pfOnly: true
+  },
   { key: 'cucaInicial', label: 'CUCA Inicial', step: '0.01', unit: 'MXN $', hint: 'Art. 78 LISR', pmOnly: true },
   { key: 'aportacionesCapital', label: 'Aportaciones de Capital', step: '0.01', unit: 'MXN $', hint: 'Incrementa CUCA', pmOnly: true },
   { key: 'reduccionesCapital', label: 'Reducciones de Capital', step: '0.01', unit: 'MXN $', hint: 'Disminuye CUCA', pmOnly: true },
@@ -159,7 +169,7 @@ export function DeclaracionAnualInputsCard({
           disabled={isSaving || isReadOnly}
           aria-busy={isSaving}
           title={isReadOnly ? 'Modo solo lectura' : undefined}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition cursor-pointer"
+          className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition cursor-pointer"
         >
           <Save className="w-3.5 h-3.5" aria-hidden="true" />
           <span>{isSaving ? 'Guardando...' : 'Guardar y Recalcular'}</span>
@@ -188,11 +198,13 @@ export function DeclaracionAnualInputsCard({
             !isPersonaFisica &&
             (field.key === 'inpcCierreAnterior' || field.key === 'inpcCierreActual') &&
             parseDraftNumber(drafts[field.key]) <= 0;
+          const effectiveHint = isPersonaFisica && field.pfHint ? field.pfHint : field.hint;
+          const noteId = field.exampleNote ? `${inputId}-note` : undefined;
           return (
             <div key={field.key} className="space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <label htmlFor={inputId} className="text-xs font-semibold text-slate-800">{field.label}</label>
-                <span id={hintId} className="text-[11px] font-medium text-slate-600">{field.unit} • {field.hint}</span>
+                <span id={hintId} className="text-[11px] font-medium text-slate-600">{field.unit} • {effectiveHint}</span>
               </div>
               <input
                 id={inputId}
@@ -202,7 +214,7 @@ export function DeclaracionAnualInputsCard({
                 step={field.step}
                 disabled={isReadOnly}
                 aria-invalid={isInpcInvalid || undefined}
-                aria-describedby={hintId}
+                aria-describedby={noteId ? `${hintId} ${noteId}` : hintId}
                 value={drafts[field.key]}
                 onWheel={(e) => e.currentTarget.blur()}
                 onChange={(e) => {
@@ -214,6 +226,11 @@ export function DeclaracionAnualInputsCard({
                   isInpcInvalid ? 'border-red-500' : 'border-slate-300'
                 }`}
               />
+              {field.exampleNote && (
+                <p id={noteId} className="text-[11px] text-slate-600 leading-snug">
+                  {field.exampleNote}
+                </p>
+              )}
             </div>
           );
         })}

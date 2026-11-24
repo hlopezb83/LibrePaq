@@ -7,6 +7,7 @@ interface AjustesDirectorioCompanyCardProps {
   isCurrent: boolean;
   companiesCount: number;
   canDeleteCompany: boolean;
+  isReadOnly?: boolean;
   confirmDeleteCompany: boolean;
   setConfirmDeleteCompany: (val: boolean) => void;
   onSelectCompany: (company: Company) => void;
@@ -19,6 +20,7 @@ export function AjustesDirectorioCompanyCard({
   isCurrent,
   companiesCount,
   canDeleteCompany,
+  isReadOnly = false,
   confirmDeleteCompany,
   setConfirmDeleteCompany,
   onSelectCompany,
@@ -96,7 +98,7 @@ export function AjustesDirectorioCompanyCard({
                 onClick={onConfigureFicha}
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
               >
-                <span>Configurar Ficha Fiscal</span>
+                <span>{isReadOnly ? 'Consultar Ficha Fiscal' : 'Configurar Ficha Fiscal'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </>

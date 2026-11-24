@@ -1,4 +1,4 @@
-import type { PolizaType } from '../../shared/types';
+import type { Account, Poliza, PolizaType } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
 
 export interface PolizaEditorSnapshot {
@@ -96,4 +96,25 @@ const SAT_UUID_REGEX =
 
 export function isValidSatUuid(raw: string): boolean {
   return SAT_UUID_REGEX.test(raw.trim());
+}
+
+export function buildInitialPolizaMovements(affectableAccounts: Account[]): DraftMovement[] {
+  const defaultAcc1 = affectableAccounts[0]?.id || '';
+  const defaultAcc2 = affectableAccounts[1]?.id || defaultAcc1;
+  return [
+    { _rowId: crypto.randomUUID(), accountId: defaultAcc1, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 },
+    { _rowId: crypto.randomUUID(), accountId: defaultAcc2, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 }
+  ];
+}
+
+export function mapPolizaMovementsToDraft(pol: Poliza, preserveIds: boolean): DraftMovement[] {
+  return pol.movements.map((m) => ({
+    _rowId: preserveIds && m.id ? m.id : crypto.randomUUID(),
+    accountId: m.accountId,
+    referencia: m.referencia,
+    concepto: m.concepto,
+    cargo: m.cargo,
+    abono: m.abono,
+    ...(preserveIds ? { cfdiUuid: m.cfdiUuid ?? null } : {})
+  }));
 }

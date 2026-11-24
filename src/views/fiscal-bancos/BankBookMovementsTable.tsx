@@ -89,6 +89,8 @@ export function BankBookMovementsTable({
                   <tr
                     key={bm.movementId}
                     tabIndex={!bm.isMatched && onSelectBookMovement ? 0 : undefined}
+                    aria-selected={!bm.isMatched && onSelectBookMovement ? isSelected : undefined}
+                    aria-label={!bm.isMatched && onSelectBookMovement ? `${isSelected ? 'Deseleccionar' : 'Seleccionar'} partida contable ${bm.polizaFolio} por ${formatCurrency(amount)} para cruce manual` : undefined}
                     onClick={() => {
                       if (!bm.isMatched && onSelectBookMovement) onSelectBookMovement(bm.movementId);
                     }}

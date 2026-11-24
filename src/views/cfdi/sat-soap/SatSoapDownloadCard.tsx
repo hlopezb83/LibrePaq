@@ -83,14 +83,22 @@ export function SatSoapDownloadCard({
 
   const relevantError = satRequests.find(
     (r) =>
-      r.estadoSolicitud === 'ERROR' &&
+      (r.estadoSolicitud === 'ERROR' || r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE') &&
       r.id !== dismissedErrorId &&
       r.fechaInicial === fechaInicial &&
       r.fechaFinal === fechaFinal &&
-      !periodHasCompleted
+      (!periodHasCompleted || r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE')
   );
+  const isPartialStatus = relevantError?.estadoSolicitud === 'PARCIAL' || relevantError?.estadoSolicitud === 'ERROR_LIMITE';
   const translatedError = relevantError
-    ? translateSatErrorCode(relevantError.codigoEstadoSat, relevantError.mensajeSat)
+    ? isPartialStatus
+      ? {
+          code: relevantError.codigoEstadoSat || 'PARCIAL',
+          title: `Descarga SAT parcial (${relevantError.cfdisDescargados || 0} comprobantes integrados)`,
+          explanation: relevantError.mensajeSat || 'El SAT alcanzó el límite de descarga para este rango.',
+          hint: 'Divide el periodo en rangos de fechas más cortos (ej. por semana o quincena).'
+        }
+      : translateSatErrorCode(relevantError.codigoEstadoSat, relevantError.mensajeSat)
     : null;
   const downloadDisabledReason = getSatDownloadDisabledReason({
     isReadOnlyClient,
@@ -303,7 +311,7 @@ export function SatSoapDownloadCard({
                 <button
                   type="button"
                   onClick={() => setDismissedErrorId(relevantError.id)}
-                  className="p-1 rounded-lg text-amber-800 hover:bg-amber-200/80 transition cursor-pointer"
+                  className="min-w-[28px] min-h-[28px] inline-flex items-center justify-center p-1 rounded-lg text-amber-800 hover:bg-amber-200/80 transition cursor-pointer"
                   title="Descartar aviso"
                   aria-label="Descartar aviso"
                 >

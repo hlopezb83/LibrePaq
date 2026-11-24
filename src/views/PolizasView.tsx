@@ -44,7 +44,7 @@ export function PolizasView() {
         </div>
       )}
 
-      {m.isReadOnlyClient && !m.isPeriodLocked && (
+      {m.isReadOnlyClient && m.effectiveCompanyRole !== null && !m.isPeriodLocked && (
         <div
           role="status"
           className="bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 flex items-start gap-3 text-sky-950 text-xs shadow-2xs"
@@ -162,27 +162,23 @@ export function PolizasView() {
           </div>
           <div className="max-w-md mx-auto space-y-1">
             <p className="text-base font-bold text-slate-800">
-              {m.polizas.length > 0
+              {m.polizas.length > 0 || m.hasAdvancedFilters
                 ? 'Ninguna póliza coincide con los filtros actuales'
                 : 'No se encontraron pólizas en este periodo'}
             </p>
             <p className="text-xs text-slate-600 leading-relaxed">
-              {m.polizas.length > 0
-                ? 'Ajusta o limpia los filtros de búsqueda, tipo o comprobante para ver todas las pólizas registradas.'
+              {m.polizas.length > 0 || m.hasAdvancedFilters
+                ? 'Ajusta o limpia los filtros de búsqueda, tipo, periodo o monto para ver todas las pólizas registradas.'
                 : m.isReadOnlyClient
                 ? 'No hay pólizas registradas en este periodo. Tu rol Cliente (Solo lectura) permite consultar otros periodos desde el selector superior o revisar los comprobantes en la Bóveda ADD.'
                 : 'Inicia capturando una póliza contable con cuadre automático, o genera pólizas en lote desde tus facturas CFDI 4.0.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            {m.polizas.length > 0 && (
+            {(m.polizas.length > 0 || m.hasAdvancedFilters) && (
               <button
                 type="button"
-                onClick={() => {
-                  m.setFilterTipo('ALL');
-                  m.setOriginFilter('ALL');
-                  m.setSearchQuery('');
-                }}
+                onClick={m.clearAllFilters}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
               >
                 Limpiar filtros
@@ -235,22 +231,32 @@ export function PolizasView() {
                 compactMode={m.compactMode}
                 isExactMatch={isExactMatch}
                 isPeriodLocked={m.isPeriodLocked}
+                currentPeriod={m.currentPeriod}
                 isReadOnlyClient={m.isReadOnlyClient}
                 isDeleting={m.deletePolizaMutation.isPending && m.deletePolizaMutation.variables === pol.id}
                 isReversing={m.reversePolizaMutation.isPending && m.reversePolizaMutation.variables?.id === pol.id}
                 copiedPolizaId={m.copiedPolizaId}
                 confirmDeleteId={m.confirmDeleteId}
+                confirmReverseId={m.confirmReverseId}
                 onToggleExpand={(id) =>
                   m.setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }))
                 }
                 onCopyPoliza={m.handleCopyPoliza}
                 onPrintPoliza={(p) => handlePrintPdf([p], `${p.tipo} #${p.folio}`)}
                 onDuplicate={m.openDuplicatePolizaModal}
-                onReverse={(p) => m.reversePolizaMutation.mutate(p)}
+                onConfirmReverse={(p) => m.reversePolizaMutation.mutate(p)}
+                onCancelReverse={() => m.setConfirmReverseId(null)}
+                onRequestReverse={(id) => {
+                  m.setConfirmDeleteId(null);
+                  m.setConfirmReverseId(id);
+                }}
                 onEdit={m.openEditPolizaModal}
                 onConfirmDelete={(id) => m.deletePolizaMutation.mutate(id)}
                 onCancelDelete={() => m.setConfirmDeleteId(null)}
-                onRequestDelete={(id) => m.setConfirmDeleteId(id)}
+                onRequestDelete={(id) => {
+                  m.setConfirmReverseId(null);
+                  m.setConfirmDeleteId(id);
+                }}
                 onOpenLedger={openLedger}
               />
             );

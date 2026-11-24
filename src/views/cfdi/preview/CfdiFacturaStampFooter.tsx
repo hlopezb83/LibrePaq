@@ -158,13 +158,14 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
         </div>
       </div>
 
-      <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-start gap-4 text-[11px] text-slate-600 font-mono">
+      <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-start gap-4 text-[11px] text-slate-600 font-mono avoid-page-break">
         <a
           href={satVerifUrl}
           target="_blank"
           rel="noopener noreferrer"
           title="Verificar CFDI en el portal del SAT"
-          className="w-24 h-24 bg-white border border-slate-300 rounded-xl flex items-center justify-center shrink-0 p-1 hover:border-blue-500 transition"
+          aria-label="Verificar CFDI en el portal del SAT (abre en nueva pestaña)"
+          className="w-28 h-28 print:w-32 print:h-32 bg-white border border-slate-300 rounded-xl flex items-center justify-center shrink-0 p-1 hover:border-blue-500 transition"
         >
           {qrSvgSrc ? (
             <img src={qrSvgSrc} alt="Código QR de verificación SAT" className="w-full h-full object-contain" />

@@ -25,6 +25,7 @@ export function PolizaEditorTitleBar({
 }: PolizaEditorTitleBarProps) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const shortcutsButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!showShortcuts) return;
@@ -35,27 +36,29 @@ export function PolizaEditorTitleBar({
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         e.stopPropagation();
         setShowShortcuts(false);
+        requestAnimationFrame(() => shortcutsButtonRef.current?.focus());
       }
     };
     document.addEventListener('mousedown', onOutside);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('mousedown', onOutside);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, true);
     };
   }, [showShortcuts]);
 
   return (
-    <header className="shrink-0 px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2.5 min-w-0">
+    <header className="shrink-0 w-full min-w-0 max-w-full px-3 sm:px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
           <ReceiptText className="w-4 h-4" aria-hidden="true" />
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 id="modal-poliza-title" className="text-sm sm:text-base font-bold text-slate-900 truncate">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+            <h2 id="modal-poliza-title" className="text-sm sm:text-base font-bold text-slate-900 truncate max-w-full">
               {editingPolizaId ? 'Editar Póliza Contable' : 'Capturar Nueva Póliza Contable'}
             </h2>
             <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200 whitespace-nowrap">
@@ -67,12 +70,12 @@ export function PolizaEditorTitleBar({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-[11px] text-slate-600">
-            <span className="font-bold text-slate-800 truncate max-w-[180px] sm:max-w-xs">
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-[11px] text-slate-600 min-w-0">
+            <span className="font-bold text-slate-800 truncate max-w-[160px] sm:max-w-xs">
               {activeCompany?.name}
             </span>
             {activeCompany?.rfc && (
-              <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 text-[10px] font-bold">
+              <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 text-[10px] font-bold">
                 {activeCompany.rfc}
               </span>
             )}
@@ -87,9 +90,11 @@ export function PolizaEditorTitleBar({
       <div className="flex items-center gap-1.5 shrink-0">
         <div className="relative" ref={popoverRef}>
           <button
+            ref={shortcutsButtonRef}
             type="button"
             aria-expanded={showShortcuts}
             aria-haspopup="dialog"
+            aria-label="Ver atajos rápidos de teclado CONTPAQi"
             onClick={() => setShowShortcuts((prev) => !prev)}
             title="Ver atajos rápidos de teclado CONTPAQi"
             className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold cursor-pointer transition ${
@@ -112,7 +117,10 @@ export function PolizaEditorTitleBar({
                 <span>Atajos Rápidos CONTPAQi</span>
                 <button
                   type="button"
-                  onClick={() => setShowShortcuts(false)}
+                  onClick={() => {
+                    setShowShortcuts(false);
+                    requestAnimationFrame(() => shortcutsButtonRef.current?.focus());
+                  }}
                   aria-label="Cerrar lista de atajos"
                   className="text-slate-500 hover:text-slate-800 p-0.5 cursor-pointer"
                 >

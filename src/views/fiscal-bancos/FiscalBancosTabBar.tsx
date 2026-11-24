@@ -36,8 +36,9 @@ export function FiscalBancosTabBar({
 
   useEffect(() => {
     const el = tabRefs.current[activeTab];
-    if (el && typeof el.scrollIntoView === 'function' && typeof window !== 'undefined' && window.innerWidth < 768) {
-      el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    if (el && typeof el.scrollIntoView === 'function' && typeof window !== 'undefined' && window.innerWidth < 640) {
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
     }
   }, [activeTab]);
 
@@ -60,7 +61,7 @@ export function FiscalBancosTabBar({
       <div
         role="tablist"
         aria-label="Pestañas de Tesorería y Cierre Fiscal"
-        className="erp-tab-scroller no-print flex flex-nowrap md:grid md:grid-cols-4 items-center gap-1.5 min-w-0 max-w-full pb-0.5 md:pb-0"
+        className="erp-tab-scroller no-print flex flex-nowrap sm:grid sm:grid-cols-4 items-center gap-1.5 min-w-0 max-w-full pb-0.5 sm:pb-0"
       >
         {TABS.map((tab) => {
           const isSelected = activeTab === tab.id;
@@ -78,7 +79,7 @@ export function FiscalBancosTabBar({
               tabIndex={isSelected ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               onKeyDown={(e) => handleTablistKeyDown(e, TABS, activeTab, setActiveTab, 'fb-tab-')}
-              className={`shrink-0 min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap text-center transition cursor-pointer ${
+              className={`shrink-0 sm:min-w-0 sm:truncate min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap text-center transition cursor-pointer ${
                 isSelected
                   ? 'bg-blue-600 text-white border border-blue-700 shadow-xs'
                   : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'

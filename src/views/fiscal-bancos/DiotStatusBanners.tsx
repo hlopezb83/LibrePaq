@@ -46,10 +46,10 @@ export function DiotStatusBanners({
           <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
           <div>
             <strong className="block font-bold text-amber-900">
-              Caché local 69-B truncada ({cachedCount69B.toLocaleString()} de {totalCount69B.toLocaleString()} RFCs)
+              Padrón 69-B parcial en este equipo ({cachedCount69B.toLocaleString()} de {totalCount69B.toLocaleString()} RFCs)
             </strong>
             <span className="text-[11px] text-amber-800">
-              El almacenamiento del navegador no retuvo todo el padrón SAT 69-B y la verificación en la nube no está confirmada. Reimporta o sincroniza en la nube para validar el 100% de RFCs.
+              El navegador no pudo conservar todo el padrón SAT 69-B localmente y la verificación en la nube no está confirmada. Reimporta el archivo oficial o verifica tu conexión para validar el 100% de RFCs.
             </span>
           </div>
         </div>

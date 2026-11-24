@@ -115,7 +115,7 @@ export function Anexo24OptionsBar({
         {isOrden ? (
           <div className="space-y-1 min-w-[220px]">
             <label htmlFor="anexo24-num-orden" className="block font-bold text-slate-700">
-              NumOrden (Formato: [A-Z]&#123;3&#125;[0-6]\d&#123;6&#125;/\d&#123;2&#125;)
+              Número de Orden SAT (3 letras, 7 dígitos, / y 2 dígitos)
             </label>
             <input
               id="anexo24-num-orden"
@@ -138,19 +138,19 @@ export function Anexo24OptionsBar({
             />
             {ordenMissing && (
               <p id="anexo24-num-orden-error" className="text-[11px] text-amber-800 font-semibold">
-                Requerido para {options.tipoSolicitud}: captura el NumOrden oficial del SAT.
+                Requerido para {options.tipoSolicitud}: captura el Número de Orden oficial del citatorio u oficio SAT.
               </p>
             )}
             {ordenInvalid && (
               <p id="anexo24-num-orden-error" className="text-[11px] text-red-700 font-semibold">
-                Debe cumplir patrón SAT XSD 1.3: 3 letras + dígito [0-6] + 6 dígitos + / + 2 dígitos.
+                Formato SAT inválido: inicia con 3 letras, 1 dígito del 0 al 6, 6 dígitos más, diagonal y 2 dígitos finales (ej. ABC1234567/01).
               </p>
             )}
           </div>
         ) : (
           <div className="space-y-1 min-w-[220px]">
             <label htmlFor="anexo24-num-tramite" className="block font-bold text-slate-700">
-              NumTramite (Formato: AA000000000000)
+              Número de Trámite SAT (2 letras + 12 dígitos)
             </label>
             <input
               id="anexo24-num-tramite"
@@ -173,12 +173,12 @@ export function Anexo24OptionsBar({
             />
             {tramiteMissing && (
               <p id="anexo24-num-tramite-error" className="text-[11px] text-amber-800 font-semibold">
-                Requerido para {options.tipoSolicitud}: captura el NumTramite oficial del SAT.
+                Requerido para {options.tipoSolicitud}: captura el folio de trámite asignado por el SAT.
               </p>
             )}
             {tramiteInvalid && (
               <p id="anexo24-num-tramite-error" className="text-[11px] text-red-700 font-semibold">
-                Debe cumplir patrón SAT XSD 1.3: 2 letras mayúsculas seguidas de 12 dígitos (ej. DE202600000001).
+                Formato SAT inválido: captura 2 letras mayúsculas seguidas de 12 dígitos numéricos (ej. DE202600000001).
               </p>
             )}
           </div>

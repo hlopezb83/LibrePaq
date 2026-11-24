@@ -65,10 +65,11 @@ export function DeliverableModalHeader({
 }: DeliverableModalHeaderProps) {
   const isNoDossierDocs = activeTab === 'DOSSIER' && selectedDocsCount === 0;
   const isPrintDisabled = !isDataReady || activeTab === 'CONFIG' || isNoDossierDocs;
+  const isCsvDisabled = !isDataReady || selectedDocsCount === 0;
 
   return (
     <>
-      <header className="px-4 sm:px-5 py-2.5 sm:py-3.5 bg-[#0A1120] text-white flex items-start justify-between gap-3 shrink-0 no-print">
+      <header className="dark-surface px-4 sm:px-5 py-2.5 sm:py-3.5 bg-[#0A1120] text-white flex items-start justify-between gap-3 shrink-0 no-print">
         <div className="flex flex-wrap items-center justify-between gap-3 flex-1 min-w-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-blue-700/60 border border-blue-500/40 flex items-center justify-center text-blue-300 shrink-0">
@@ -139,13 +140,15 @@ export function DeliverableModalHeader({
 
           <button
             type="button"
-            disabled={!isDataReady}
+            disabled={isCsvDisabled}
             onClick={onExportCsv}
             aria-label="Descargar paquete ZIP con cédulas en formato CSV"
             title={
-              isDataReady
-                ? 'Descargar paquete .ZIP con todas las cédulas en formato CSV para Excel'
-                : 'Esperando cálculo de estados financieros...'
+              !isDataReady
+                ? 'Esperando cálculo de estados financieros...'
+                : selectedDocsCount === 0
+                  ? 'Selecciona al menos una cédula del dossier para exportar el paquete ZIP'
+                  : 'Descargar paquete .ZIP con todas las cédulas seleccionadas en formato CSV para Excel'
             }
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111C35] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed border border-[#1E293B] text-xs font-semibold text-slate-200 transition cursor-pointer"
           >

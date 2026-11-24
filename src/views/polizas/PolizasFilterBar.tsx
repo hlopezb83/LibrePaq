@@ -291,6 +291,10 @@ export function PolizasFilterBar({
           totalCount={polizas.length}
           filteredCount={filteredPolizas.length}
           totals={filteredTotals}
+          periodScope={periodScope}
+          currentPeriod={currentPeriod}
+          periodFrom={periodFrom}
+          periodTo={periodTo}
         />
       </div>
     </>

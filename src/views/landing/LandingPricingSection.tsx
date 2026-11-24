@@ -6,7 +6,7 @@ interface LandingPricingSectionProps {
 
 export function LandingPricingSection({ onOpenAuth }: LandingPricingSectionProps) {
   return (
-    <section id="precios" className="py-14 sm:py-20 lg:py-24 bg-white relative border-t border-slate-200">
+    <section id="precios" className="scroll-mt-16 py-14 sm:py-20 lg:py-24 bg-white relative border-t border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
           <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold inline-flex items-center gap-1.5 shadow-xs">
@@ -78,7 +78,7 @@ export function LandingPricingSection({ onOpenAuth }: LandingPricingSectionProps
           </div>
 
           {/* Plan Pro (Destacado - $0 Promoción) */}
-          <div className="p-5 sm:p-8 pt-7 sm:pt-8 rounded-2xl bg-gradient-to-b from-blue-50/70 via-white to-white border-2 border-blue-600 flex flex-col justify-between relative shadow-xl shadow-blue-500/10">
+          <div className="mt-3 md:mt-0 p-5 sm:p-8 pt-7 sm:pt-8 rounded-2xl bg-gradient-to-b from-blue-50/70 via-white to-white border-2 border-blue-600 flex flex-col justify-between relative shadow-xl shadow-blue-500/10">
             <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider font-mono shadow-md flex items-center gap-1 whitespace-nowrap">
               <Zap className="w-3.5 h-3.5 fill-current text-yellow-300 shrink-0" aria-hidden="true" />
               <span>100% Gratis por Lanzamiento</span>
@@ -180,7 +180,7 @@ export function LandingPricingSection({ onOpenAuth }: LandingPricingSectionProps
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
-                  <span>Servicio de Nube Dedicado y Seguro</span>
+                  <span>Nube Segura y Soporte Prioritario para Equipos</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
@@ -199,8 +199,12 @@ export function LandingPricingSection({ onOpenAuth }: LandingPricingSectionProps
           </div>
         </div>
 
+        <p className="mt-6 max-w-3xl mx-auto text-center text-xs text-slate-600">
+          Garantía post-promoción: avisaremos con al menos 30 días de aviso previo ante cualquier cambio de tarifas, con exportación completa de tu contabilidad garantizada en 1 clic.
+        </p>
+
         {/* Soberanía de Datos y Respaldo Local Callout */}
-        <div className="mt-12 max-w-4xl mx-auto p-6 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center gap-5 shadow-xs">
+        <div className="mt-8 max-w-4xl mx-auto p-6 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center gap-5 shadow-xs">
           <div className="p-3.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
             <HardDrive className="w-7 h-7" aria-hidden="true" />
           </div>
@@ -212,7 +216,7 @@ export function LandingPricingSection({ onOpenAuth }: LandingPricingSectionProps
               </span>
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed text-pretty">
-              Tu información contable nunca queda atrapada. Trabaja desde cualquier computadora con respaldo automático en la nube y, cuando lo desees, descarga en 1 clic toda tu contabilidad a tu equipo (Excel, XMLs oficiales del SAT y archivo de restauración completo).
+              Tu información contable nunca queda atrapada. Trabaja desde cualquier computadora con respaldo automático en la nube y, cuando lo desees, descarga en 1 clic toda tu contabilidad a tu equipo (Excel, archivos XML oficiales del SAT y archivo de restauración completo).
             </p>
           </div>
           <button
@@ -221,7 +225,7 @@ export function LandingPricingSection({ onOpenAuth }: LandingPricingSectionProps
             className="shrink-0 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm"
           >
             <Download className="w-4 h-4" aria-hidden="true" />
-            <span>Probar Respaldo</span>
+            <span>Crear Cuenta y Probar Respaldo</span>
           </button>
         </div>
       </div>

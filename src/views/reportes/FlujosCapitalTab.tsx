@@ -265,8 +265,8 @@ export function FlujosCapitalTab({
                 Comparativo Interanual: Ejercicio {ejercicio} vs. {prevYearHeader}
               </h3>
             </div>
-            <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={hideZeroRows} onChange={(e) => setHideZeroRows(e.target.checked)} className="rounded border-slate-300" />
+            <label htmlFor="comparative-hide-zero" className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+              <input id="comparative-hide-zero" type="checkbox" checked={hideZeroRows} onChange={(e) => setHideZeroRows(e.target.checked)} className="rounded border-slate-300" />
               Ocultar cuentas sin saldo
             </label>
           </div>

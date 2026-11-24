@@ -1,4 +1,5 @@
 import {
+  ChevronRight,
   FileCheck2,
   FileSpreadsheet,
   Download,
@@ -135,11 +136,11 @@ export function ReportesHeaderBar({
         </div>
       </div>
 
-      <div className="fb-tabbar-shell">
+      <div className="fb-tabbar-shell relative no-print">
         <div
           role="tablist"
           aria-label="Secciones de estados financieros y formatos SAT"
-          className="flex flex-nowrap md:flex-wrap md:overflow-visible items-center gap-2 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-300/90 shadow-2xs erp-tab-scroller no-print"
+          className="flex flex-nowrap md:flex-wrap md:overflow-visible items-center gap-2 bg-white p-2.5 sm:p-3 pr-8 md:pr-3 rounded-2xl border border-slate-300/90 shadow-2xs erp-tab-scroller"
         >
           {TABS.map((t) => {
             const isSelected = activeTab === t.id;
@@ -164,6 +165,12 @@ export function ReportesHeaderBar({
               </button>
             );
           })}
+        </div>
+        <div
+          aria-hidden="true"
+          className="md:hidden pointer-events-none absolute inset-y-1 right-1 w-8 rounded-r-xl bg-gradient-to-l from-white via-white/90 to-transparent flex items-center justify-end pr-1 text-slate-500"
+        >
+          <ChevronRight className="w-4 h-4" />
         </div>
       </div>
     </div>

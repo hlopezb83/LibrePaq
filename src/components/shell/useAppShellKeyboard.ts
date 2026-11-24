@@ -115,13 +115,14 @@ export function useAppShellKeyboard({
       }
 
       if (e.altKey && !e.ctrlKey && !e.metaKey && !isEditableTarget()) {
+        if (typeof document !== 'undefined' && document.querySelector('dialog[open]')) {
+          return;
+        }
+
         const idx = Number(e.key) - 1;
         const targetItem = Number.isInteger(idx) && idx >= 0 ? navItems[idx] : undefined;
         if (targetItem) {
           e.preventDefault();
-          document.querySelectorAll('dialog[open]').forEach((d) => {
-            if (d instanceof HTMLDialogElement) d.close();
-          });
           closeAllModals?.();
           const parsed = parseNavTarget(targetItem.to);
           if (!activeCompany && !isOwner && idx > 0 && !parsed.to.startsWith('/admin')) {
@@ -130,10 +131,6 @@ export function useAppShellKeyboard({
             return;
           }
           navigate(parsed);
-          return;
-        }
-
-        if (typeof document !== 'undefined' && document.querySelector('dialog[open]')) {
           return;
         }
 

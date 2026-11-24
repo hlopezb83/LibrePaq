@@ -22,31 +22,31 @@ export function AjustesAtajosTab() {
               Navegación del Sistema
             </h3>
             <div className="space-y-1.5 text-xs">
-              <div className="flex items-center justify-between py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Módulos principales (Dashboard a Ajustes)</span>
-                <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold">
+                <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Alt + 1 .. 7
                 </kbd>
               </div>
-              <div className="flex items-center justify-between py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Buscador global de cuentas y comandos</span>
-                <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold">
+                <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Ctrl + K
                 </kbd>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Colapsar / Expandir barra lateral</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Ctrl + B
                 </kbd>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Abrir guía rápida de atajos / ayuda</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   F1
                 </kbd>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Cerrar diálogo o cancelar acción inline</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Esc
@@ -62,7 +62,7 @@ export function AjustesAtajosTab() {
               Control de Periodos
             </h3>
             <div className="space-y-1.5 text-xs">
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Retroceder al mes anterior</span>
                 <div className="flex items-center gap-2 shrink-0">
                   <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold">
@@ -74,7 +74,7 @@ export function AjustesAtajosTab() {
                   </kbd>
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Avanzar al mes siguiente</span>
                 <div className="flex items-center gap-2 shrink-0">
                   <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold">
@@ -96,19 +96,19 @@ export function AjustesAtajosTab() {
               Captura de Pólizas
             </h3>
             <div className="space-y-1.5 text-xs">
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Abrir modal de nueva póliza</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Alt + N
                 </kbd>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Guardar póliza activa</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Ctrl + Enter
                 </kbd>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Auto-cuadre de saldo en renglón</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   = (tecla igual)
@@ -124,19 +124,19 @@ export function AjustesAtajosTab() {
               Bóveda ADD y Catálogo
             </h3>
             <div className="space-y-1.5 text-xs">
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Subir XML de factura en ADD</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Alt + U
                 </kbd>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Abrir captura manual de CFDIs</span>
                 <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold shrink-0">
                   Alt + S
                 </kbd>
               </div>
-              <div className="flex items-center justify-between gap-2 py-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-slate-700">Crear nueva cuenta contable</span>
                 <div className="flex items-center gap-2 shrink-0">
                   <kbd className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold">

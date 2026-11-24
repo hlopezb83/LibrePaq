@@ -34,7 +34,9 @@ export function useCatalogoKeyboardNavigation({
 }: UseCatalogoKeyboardNavigationProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const isModalOpen = Boolean(dialogRef.current?.open || ledgerAccountId);
+      const isModalOpen = Boolean(
+        dialogRef.current?.open || ledgerAccountId || document.querySelector('dialog[open]')
+      );
       const activeElement = document.activeElement;
       const isInputActive =
         activeElement instanceof HTMLInputElement ||

@@ -26,8 +26,18 @@ export async function uploadXmlsInSequentialBatches(params: {
 }): Promise<{ uploadedCount: number; skippedDuplicates: number }> {
   const { companyId, xmls, toast, onProgress } = params;
   if (xmls.length <= SAFETY_BOUNDS.MAX_BATCH_CFDI) {
-    const res = await apiClient.batchUploadCfdiXmls(companyId, xmls);
-    return { uploadedCount: res.uploaded.length, skippedDuplicates: res.skippedDuplicates };
+    if (xmls.length >= 2) {
+      onProgress({ currentBatch: 1, totalBatches: 1, processed: 0, total: xmls.length });
+    }
+    try {
+      const res = await apiClient.batchUploadCfdiXmls(companyId, xmls);
+      if (xmls.length >= 2) {
+        onProgress({ currentBatch: 1, totalBatches: 1, processed: xmls.length, total: xmls.length });
+      }
+      return { uploadedCount: res.uploaded.length, skippedDuplicates: res.skippedDuplicates };
+    } finally {
+      if (xmls.length >= 2) onProgress(null);
+    }
   }
 
   const batches = chunkArray(xmls, 200);

@@ -85,7 +85,11 @@ export function CfdiDropzoneBar({
           e.preventDefault();
           setIsDragging(true);
         }}
-        onDragLeave={() => setIsDragging(false)}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setIsDragging(false);
+          }
+        }}
         onDrop={(e) => {
           if (isReadOnlyClient) {
             e.preventDefault();
@@ -117,15 +121,13 @@ export function CfdiDropzoneBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {pendingCfdisCount > 0 && (
+          {!isReadOnlyClient && pendingCfdisCount > 0 && (
             <button
               type="button"
               disabled={isBatchContabilizarPending || isWriteBlocked}
               onClick={onBatchContabilizarPending}
               title={
-                isReadOnlyClient
-                  ? 'Modo solo lectura'
-                  : isPeriodLocked
+                isPeriodLocked
                   ? 'Periodo bloqueado ante el SAT'
                   : 'Contabilizar comprobantes pendientes en lote'
               }
@@ -144,66 +146,68 @@ export function CfdiDropzoneBar({
                 ? batchProgress
                   ? `Contabilizando (${batchProgress.current}/${batchProgress.total})...`
                   : 'Contabilizando...'
-                : isReadOnlyClient
-                ? 'Solo Lectura'
                 : isPeriodLocked
                 ? 'Periodo Bloqueado'
                 : `Contabilizar (${pendingCfdisCount})`}
             </button>
           )}
 
-          <button
-            type="button"
-            aria-expanded={showSoapFielPanel}
-            aria-controls="sat-soap-fiel-section"
-            onClick={() => setShowSoapFielPanel((prev) => !prev)}
-            title="Descargar automáticamente facturas emitidas y recibidas del SAT con e.firma"
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer border ${
-              showSoapFielPanel
-                ? 'bg-indigo-700 text-white border-indigo-800 ring-2 ring-indigo-400 ring-offset-1'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700'
-            }`}
-          >
-            <CloudDownload className="w-4 h-4 text-indigo-100" aria-hidden="true" />
-            <span>Descargar del SAT</span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-800/90 text-indigo-100">
-              e.firma
-            </span>
-            <span className="text-[10px] text-indigo-200 font-mono" aria-hidden="true">
-              {showSoapFielPanel ? '▲' : '▼'}
-            </span>
-          </button>
+          {!isReadOnlyClient && (
+            <>
+              <button
+                type="button"
+                aria-expanded={showSoapFielPanel}
+                aria-controls="sat-soap-fiel-section"
+                onClick={() => setShowSoapFielPanel((prev) => !prev)}
+                title="Descargar automáticamente facturas emitidas y recibidas del SAT con e.firma"
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer border ${
+                  showSoapFielPanel
+                    ? 'bg-indigo-700 text-white border-indigo-800 ring-2 ring-indigo-400 ring-offset-1'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700'
+                }`}
+              >
+                <CloudDownload className="w-4 h-4 text-indigo-100" aria-hidden="true" />
+                <span>Descargar del SAT</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-800/90 text-indigo-100">
+                  e.firma
+                </span>
+                <span className="text-[10px] text-indigo-200 font-mono" aria-hidden="true">
+                  {showSoapFielPanel ? '▲' : '▼'}
+                </span>
+              </button>
 
-          <label
-            htmlFor="cfdi-dropzone-upload"
-            aria-busy={isUploadingFiles}
-            title={
-              isReadOnlyClient
-                ? 'Modo solo lectura: carga de XML deshabilitada'
-                : 'Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)'
-            }
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 text-xs font-semibold text-white shadow-2xs transition ${
-              isUploadingFiles || isReadOnlyClient
-                ? 'opacity-50 pointer-events-none cursor-not-allowed'
-                : 'cursor-pointer'
-            }`}
-          >
-            <input
-              id="cfdi-dropzone-upload"
-              ref={fileInputRef}
-              type="file"
-              disabled={isUploadingFiles || isReadOnlyClient}
-              accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
-              multiple
-              onChange={handleFileUpload}
-              className="sr-only"
-            />
-            <UploadCloud className={`w-3.5 h-3.5 text-blue-100 ${isUploadingFiles ? 'animate-pulse' : ''}`} aria-hidden="true" />
-            <span>{isUploadingFiles ? 'Importando XMLs...' : 'Subir XMLs / ZIP'}</span>
-            <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
-              Alt+U
-            </kbd>
-          </label>
+              <label
+                htmlFor="cfdi-dropzone-upload"
+                aria-busy={isUploadingFiles}
+                title={
+                  isUploadingFiles
+                    ? 'Importando archivos XML...'
+                    : 'Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)'
+                }
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 text-xs font-semibold text-white shadow-2xs transition ${
+                  isUploadingFiles
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer'
+                }`}
+              >
+                <input
+                  id="cfdi-dropzone-upload"
+                  ref={fileInputRef}
+                  type="file"
+                  disabled={isUploadingFiles}
+                  accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="sr-only"
+                />
+                <UploadCloud className={`w-3.5 h-3.5 text-blue-100 ${isUploadingFiles ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                <span>{isUploadingFiles ? 'Importando XMLs...' : 'Subir XMLs / ZIP'}</span>
+                <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
+                  Alt+U
+                </kbd>
+              </label>
+            </>
+          )}
 
           <CfdiDropzoneSecondaryActions
             isReadOnlyClient={isReadOnlyClient}

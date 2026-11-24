@@ -246,6 +246,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     authCheckSeqRef.current += 1;
+    const wasGuestDemo =
+      localStorage.getItem(GUEST_DEMO_KEY) === 'true' ||
+      activeUserIdRef.current === GUEST_DEMO_USER.id;
+
     clearSuspension();
     setGuestDemoMode(false);
     localStorage.removeItem(GUEST_DEMO_KEY);
@@ -257,17 +261,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
     } catch { /* Ignore storage errors in restricted contexts */ }
-    void queryClient.cancelQueries();
+
+    await queryClient.cancelQueries();
+    activeUserIdRef.current = null;
+    setPlatformRole('NONE');
+    setUser(null);
+    setSession(null);
+    setApiAuthUser(null);
     queryClient.clear();
-    try {
-      if (supabase) await supabase.auth.signOut();
-    } finally {
-      activeUserIdRef.current = null;
-      setPlatformRole('NONE');
-      setUser(null);
-      setSession(null);
-      setApiAuthUser(null);
-      queryClient.clear();
+
+    if (supabase) {
+      try {
+        if (!wasGuestDemo) {
+          await supabase.auth.signOut();
+        } else {
+          const { data } = await supabase.auth.getSession();
+          if (data.session) await supabase.auth.signOut();
+        }
+      } catch {
+        /* Ignorar errores de red al cerrar sesión */
+      }
     }
     return { error: null };
   }, [queryClient, clearSuspension]);

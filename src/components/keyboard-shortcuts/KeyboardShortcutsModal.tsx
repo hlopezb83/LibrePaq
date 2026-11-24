@@ -77,7 +77,6 @@ export function KeyboardShortcutsModal({
 
   const handleClose = () => {
     dialogRef.current?.close();
-    onClose?.();
   };
 
   useDialogLightDismiss(dialogRef, handleClose);
@@ -92,12 +91,17 @@ export function KeyboardShortcutsModal({
     <dialog
       ref={dialogRef}
       closedby="any"
+      onClose={() => {
+        setSearchQuery('');
+        setActiveTab('all');
+        onClose?.();
+      }}
       aria-labelledby="shortcuts-modal-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-4xl max-h-[92dvh] overflow-hidden backdrop:bg-slate-950/60 backdrop:backdrop-blur-xs p-0 m-auto text-slate-900"
+      className="no-print rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-4xl max-h-[92dvh] overflow-hidden backdrop:bg-slate-950/60 backdrop:backdrop-blur-xs p-0 m-auto text-slate-900"
     >
       <div className="flex flex-col max-h-[92dvh] bg-white">
         {/* Cabecera Obsidian Banking Navy (#0A1120) */}
-        <div className="bg-[#0A1120] text-white p-3.5 sm:p-4 flex items-start justify-between gap-3 border-b border-[#1E293B] shrink-0">
+        <div className="dark-surface bg-[#0A1120] text-white p-3.5 sm:p-4 flex items-start justify-between gap-3 border-b border-[#1E293B] shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-500/50 flex items-center justify-center shrink-0 shadow-inner">
               <Keyboard className="w-5 h-5 text-blue-400" aria-hidden="true" />
@@ -114,21 +118,21 @@ export function KeyboardShortcutsModal({
                   Productividad Contable
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-300 mt-0.5">
                 Diseñado para contadores y captura veloz sin necesidad de usar el ratón
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <kbd className="hidden sm:inline-flex items-center px-2 py-1 text-[10px] font-mono font-bold bg-[#111C35] text-slate-400 rounded-lg border border-slate-700">
+            <kbd className="hidden sm:inline-flex items-center px-2 py-1 text-[10px] font-mono font-bold bg-[#111C35] text-slate-300 rounded-lg border border-slate-700">
               ESC para cerrar
             </kbd>
             <button
               type="button"
               onClick={handleClose}
               aria-label="Cerrar ventana de atajos"
-              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
             >
               <X className="w-5 h-5" aria-hidden="true" />
             </button>
@@ -144,7 +148,7 @@ export function KeyboardShortcutsModal({
                 Filtrar atajos de teclado por acción, tecla o módulo
               </label>
               <Search
-                className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                 aria-hidden="true"
               />
               <input
@@ -154,7 +158,7 @@ export function KeyboardShortcutsModal({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filtrar atajos (ej. 'iva', 'empresa', 'poliza', 'f4', 'cuadrar')..."
-                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white shadow-2xs font-medium"
+                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white shadow-2xs font-medium"
               />
               {searchQuery && (
                 <button
@@ -162,7 +166,7 @@ export function KeyboardShortcutsModal({
                   onClick={() => setSearchQuery('')}
                   aria-label="Limpiar filtro de atajos"
                   title="Limpiar filtro"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5 rounded"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-800 cursor-pointer p-0.5 rounded"
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
@@ -185,7 +189,7 @@ export function KeyboardShortcutsModal({
           <div
             role="group"
             aria-label="Filtrar atajos por categoría"
-            className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none"
+            className="flex items-center gap-1.5 pb-0.5 erp-tab-scroller"
           >
             {categories.map((cat) => {
               const Icon = cat.icon;
@@ -205,7 +209,7 @@ export function KeyboardShortcutsModal({
                   <Icon className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>{cat.label}</span>
                   <span
-                    className={`font-mono text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
                       isActive
                         ? 'bg-blue-800 text-blue-100'
                         : 'bg-slate-100 text-slate-600'
@@ -223,7 +227,7 @@ export function KeyboardShortcutsModal({
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3.5 sm:p-4 space-y-2.5">
           {filteredShortcuts.length === 0 ? (
             <div className="py-12 text-center space-y-2">
-              <Keyboard className="w-8 h-8 text-slate-300 mx-auto" aria-hidden="true" />
+              <Keyboard className="w-8 h-8 text-slate-400 mx-auto" aria-hidden="true" />
               <p className="text-sm font-bold text-slate-700">No se encontraron atajos</p>
               <p className="text-xs text-slate-600">
                 Prueba con otro término de búsqueda como &ldquo;Enter&rdquo;, &ldquo;Ctrl&rdquo;, o cambia de categoría.
@@ -256,7 +260,7 @@ export function KeyboardShortcutsModal({
                           {item.scope}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      <p className="text-[11px] text-slate-600 mt-1 leading-snug">
                         {item.description}
                       </p>
                     </div>
@@ -266,7 +270,7 @@ export function KeyboardShortcutsModal({
                       {item.keys.map((key, kIdx) => (
                         <React.Fragment key={kIdx}>
                           {kIdx > 0 && (
-                            <span className="text-slate-400 text-xs font-mono font-bold" aria-hidden="true">+</span>
+                            <span className="text-slate-600 text-xs font-mono font-bold" aria-hidden="true">+</span>
                           )}
                           <kbd className="inline-flex items-center justify-center min-w-[26px] h-6 px-1.5 rounded-md font-mono text-[11px] font-bold bg-[#0A1120] text-white border border-slate-700 shadow-xs tracking-tight">
                             {key}

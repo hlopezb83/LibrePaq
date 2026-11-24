@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { AlertCircle, Anchor, Calculator, CheckCircle2, DollarSign, FileText, Loader2, X } from 'lucide-react';
 import { AccountPickerCombobox } from '../../components/account-picker/AccountPickerCombobox';
 import { formatCurrency } from '../../lib/formatters';
@@ -40,6 +41,7 @@ export function PedimentoEditorModal({
     currentPeriod,
     isPeriodLocked,
     isReadOnlyClient,
+    isSaving,
     accounts,
     onSavePoliza
   });
@@ -58,13 +60,16 @@ export function PedimentoEditorModal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <dialog
       ref={f.dialogRef}
-      closedby="any"
+      closedby={isSaving ? 'none' : 'any'}
+      onCancel={(e) => {
+        if (isSaving) e.preventDefault();
+      }}
       onClose={onClose}
       aria-labelledby="pedimento-modal-title"
-      className="bg-white rounded-2xl shadow-xl border border-slate-300 w-full max-w-2xl max-h-[92dvh] open:flex open:flex-col overflow-hidden overscroll-contain backdrop:bg-slate-900/60 p-0 m-auto"
+      className="bg-white rounded-2xl shadow-xl border border-slate-300 w-[calc(100vw-1rem)] sm:w-full max-w-2xl max-h-[92dvh] open:flex open:flex-col overflow-hidden overscroll-contain backdrop:bg-slate-900/60 p-0 m-auto"
     >
       <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -82,9 +87,10 @@ export function PedimentoEditorModal({
         </div>
         <button
           type="button"
+          disabled={isSaving}
           onClick={onClose}
           aria-label="Cerrar registro de pedimento"
-          className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer shrink-0"
+          className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -276,18 +282,18 @@ export function PedimentoEditorModal({
               </div>
             </div>
 
-            <div className="space-y-1 font-mono text-[11px] pt-1 border-t border-blue-200">
+            <div className="space-y-1 font-mono tabular-nums text-[11px] pt-1 border-t border-blue-200">
               <div className="flex justify-between py-0.5 border-b border-blue-200/60">
                 <span>[Cargo] IVA Acreditable Aduana ({f.cuentaIvaCode})</span>
-                <span className="font-bold text-emerald-800">{formatCurrency(f.ivaPagado)}</span>
+                <span className="font-bold tabular-nums text-emerald-800">{formatCurrency(f.ivaPagado)}</span>
               </div>
               <div className="flex justify-between py-0.5 border-b border-blue-200/60">
                 <span>[Cargo] Gastos Aduanales / DTA y PRV ({f.cuentaGastoCode})</span>
-                <span className="font-bold text-slate-800">{formatCurrency(f.dta + f.prv)}</span>
+                <span className="font-bold tabular-nums text-slate-800">{formatCurrency(f.dta + f.prv)}</span>
               </div>
               <div className="flex justify-between py-0.5 text-blue-950 font-bold">
                 <span>[Abono] Bancos / Agente ({f.cuentaBancoCode})</span>
-                <span className="text-red-700">-{formatCurrency(f.totalDesembolso)}</span>
+                <span className="text-red-700 tabular-nums">-{formatCurrency(f.totalDesembolso)}</span>
               </div>
             </div>
           </div>
@@ -296,8 +302,9 @@ export function PedimentoEditorModal({
         <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
           <button
             type="button"
+            disabled={isSaving}
             onClick={onClose}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Cancelar
           </button>
@@ -305,7 +312,7 @@ export function PedimentoEditorModal({
             type="submit"
             disabled={isSubmitDisabled}
             title={disabledTitle}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-700 hover:bg-blue-800 text-white cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-700 hover:bg-blue-800 text-white cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed tabular-nums"
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
@@ -318,6 +325,7 @@ export function PedimentoEditorModal({
           </button>
         </div>
       </form>
-    </dialog>
+    </dialog>,
+    document.body
   );
 }

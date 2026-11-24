@@ -9,14 +9,24 @@ import {
 import type { FlattenedItem } from './commandPaletteTypes';
 import { normalizeText } from './commandPaletteTypes';
 
+export interface QuickActionAccessOptions {
+  isReadOnlyClient?: boolean;
+  isOwner?: boolean;
+  isWorkspaceEmpty?: boolean;
+}
+
 export function getQuickActionItems(
   query: string,
   onSelectRoute: (to: string) => void,
   onOpenCompanySwitcher?: () => void,
   onOpenNewCompanyWizard?: () => void,
-  onOpenDeliverables?: () => void
+  onOpenDeliverables?: () => void,
+  access: QuickActionAccessOptions = {}
 ): FlattenedItem[] {
-  const list: FlattenedItem[] = [
+  const { isReadOnlyClient = false, isOwner = false, isWorkspaceEmpty = false } = access;
+  if (isOwner || isWorkspaceEmpty) return [];
+
+  const allItems: Array<FlattenedItem & { requiresWrite?: boolean }> = [
     {
       id: 'act-new-poliza',
       category: 'ACTIONS',
@@ -27,6 +37,7 @@ export function getQuickActionItems(
       badge: 'Partida Doble',
       badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
       icon: Plus,
+      requiresWrite: true,
       action: () => {
         onSelectRoute('/polizas?nueva=true');
       }
@@ -41,6 +52,7 @@ export function getQuickActionItems(
       badge: 'Bóveda Digital',
       badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
       icon: FileCode2,
+      requiresWrite: true,
       action: () => onSelectRoute('/add')
     },
     {
@@ -83,6 +95,7 @@ export function getQuickActionItems(
       badge: 'Asistente Guiado',
       badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
       icon: Sparkles,
+      requiresWrite: true,
       action: () => {
         if (onOpenNewCompanyWizard) onOpenNewCompanyWizard();
       }
@@ -96,9 +109,12 @@ export function getQuickActionItems(
       badge: 'Seguridad',
       badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
       icon: Download,
+      requiresWrite: true,
       action: () => onSelectRoute('/ajustes')
     }
   ];
+
+  const list: FlattenedItem[] = allItems.filter((item) => !(isReadOnlyClient && item.requiresWrite));
 
   const q = normalizeText(query);
   if (!q) return list;

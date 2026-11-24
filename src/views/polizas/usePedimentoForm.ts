@@ -17,13 +17,14 @@ export function sanitizeDecimalInput(raw: string): string {
   return `${parts[0]}.${parts.slice(1).join('')}`;
 }
 
-interface UsePedimentoFormParams {
+export interface UsePedimentoFormParams {
   isOpen: boolean;
   onClose: () => void;
   currentYear: number;
   currentPeriod: number;
   isPeriodLocked?: boolean;
   isReadOnlyClient?: boolean;
+  isSaving?: boolean;
   accounts: Account[];
   onSavePoliza: (poliza: {
     tipo: 'EGRESO' | 'DIARIO';
@@ -40,6 +41,7 @@ export function usePedimentoForm({
   currentPeriod,
   isPeriodLocked = false,
   isReadOnlyClient = false,
+  isSaving = false,
   accounts,
   onSavePoliza
 }: UsePedimentoFormParams) {
@@ -72,7 +74,7 @@ export function usePedimentoForm({
   const [cuentaGastoId, setCuentaGastoId] = useState(defaultGastoAcc?.id || '');
 
   const dialogRef = useRef<HTMLDialogElement>(null);
-  useDialogLightDismiss(dialogRef, onClose, { isOpen });
+  useDialogLightDismiss(dialogRef, isSaving ? undefined : onClose, { isOpen });
 
   useEffect(() => {
     if (!isOpen) return;

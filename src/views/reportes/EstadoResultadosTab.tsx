@@ -142,16 +142,23 @@ export function EstadoResultadosTab({
         <div className="text-right hidden sm:block shrink-0">
           <TrendingUp className="w-8 h-8 text-blue-700 ml-auto" aria-hidden="true" />
           <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-            NIF B-3 Mes + YTD
+            NIF B-3 Mes + Acum. Ejercicio
           </span>
         </div>
       </div>
 
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Detalle del Estado de Resultados Integral NIF B-3"
+        className="overflow-x-auto max-w-full"
+      >
+        <div className="min-w-[540px] space-y-5">
       <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg">
         <span>Rubro Contable / Concepto</span>
         <span className="flex items-center gap-3 font-mono whitespace-nowrap shrink-0">
           <span className="w-24 text-right">Del Mes</span>
-          <span className="w-28 text-right">Acum. YTD</span>
+          <span className="w-28 text-right">Acum. Ejercicio</span>
           <span className="w-14 text-right">% Vert.</span>
         </span>
       </div>
@@ -229,7 +236,7 @@ export function EstadoResultadosTab({
             <strong className="font-mono tabular-nums text-cyan-300">
               {formatCurrency(p?.utilidadNeta ?? 0)}
             </strong>{' '}
-            • Margen Neto YTD:{' '}
+            • Margen Neto Acum. Ejercicio:{' '}
             <strong className={`${isLoss ? 'text-red-300' : 'text-emerald-300'} font-mono tabular-nums`}>
               {fmtPct(incomeStatement.utilidadNeta, incomeStatement.totalIngresos)}
             </strong>
@@ -237,6 +244,8 @@ export function EstadoResultadosTab({
         </div>
         <div className={`text-xl font-bold font-mono tabular-nums whitespace-nowrap ${isLoss ? 'text-red-400' : 'text-emerald-400'}`}>
           {formatCurrency(incomeStatement.utilidadNeta)}
+        </div>
+      </div>
         </div>
       </div>
 

@@ -72,16 +72,27 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
 const METADATA_KEY_LABELS: Record<string, string> = {
   actorRole: 'Rol',
   companyRfc: 'RFC',
+  rfc: 'RFC',
   companyName: 'Empresa',
+  name: 'Empresa',
   planTier: 'Plan',
   maxCompanies: 'Máx. empresas',
   maxCfdisPerMonth: 'Máx. CFDIs/mes',
   maxStorageMb: 'Almacenamiento MB',
   platformRole: 'Nuevo rol',
   status: 'Estatus',
+  reason: 'Motivo',
   title: 'Título',
+  type: 'Tipo',
+  expiresAt: 'Expira',
+  clearedCount: 'Comunicados retirados',
+  alertsCreated: 'Alertas nuevas',
+  openAlertsCount: 'Alertas abiertas',
   code: 'Código',
-  ownerEmail: 'Titular'
+  ownerEmail: 'Titular',
+  userId: 'ID Usuario',
+  workspaceId: 'ID Despacho',
+  companyId: 'ID Empresa'
 };
 
 function formatMetadataSummary(metadata: Record<string, unknown>): string {
@@ -134,6 +145,7 @@ export function SuperAdminAuditTab({
             <option value="workspace">Despachos</option>
             <option value="broadcast">Comunicados</option>
             <option value="platform_alert">Alertas</option>
+            <option value="platform">Plataforma</option>
           </select>
 
           <AdminSearchInput
@@ -147,7 +159,15 @@ export function SuperAdminAuditTab({
           />
 
           {onRetry && (
-            <button type="button" onClick={onRetry} disabled={isLoading || isFetching} aria-label="Actualizar bitácora de auditoría" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer">
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={isLoading || isFetching}
+              aria-busy={isLoading || isFetching}
+              title={isLoading || isFetching ? 'Actualizando bitácora...' : 'Actualizar bitácora de auditoría'}
+              aria-label="Actualizar bitácora de auditoría"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading || isFetching ? 'animate-spin' : ''}`} aria-hidden="true" /> Actualizar
             </button>
           )}
@@ -203,6 +223,7 @@ export function SuperAdminAuditTab({
                         <button
                           type="button"
                           aria-expanded={isExpanded}
+                          aria-controls={`audit-meta-${entry.id}`}
                           aria-label={isExpanded ? `Ocultar detalles de evento ${entry.id}` : `Ver detalles de evento ${entry.id}`}
                           onClick={() => setExpandedId(isExpanded ? null : entry.id)}
                           className="inline-flex items-center justify-center min-h-7 min-w-7 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
@@ -225,7 +246,7 @@ export function SuperAdminAuditTab({
                       <td className="py-2.5 px-3.5 max-w-md"><p className="text-[11px] text-slate-700 line-clamp-2" title={summary}>{summary}</p></td>
                     </tr>
                     {isExpanded && (
-                      <tr className="bg-slate-50/90">
+                      <tr id={`audit-meta-${entry.id}`} className="bg-slate-50/90">
                         <td colSpan={6} className="px-4 py-3 border-t border-slate-200/80">
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                             <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Metadatos completos ({entry.action})</span>
@@ -264,6 +285,9 @@ export function SuperAdminAuditTab({
       </div>
 
       <AdminPaginationBar page={page} totalPages={totalPages} total={total} pageSize={pageSize} itemLabel="eventos" isFetching={isFetching} onPageChange={(nextPage) => onQueryChange({ ...query, page: nextPage })} />
+      <span className="visually-hidden" aria-live="polite">
+        {copiedTargetId ? 'ID objetivo copiado al portapapeles' : ''}
+      </span>
     </div>
   );
 }

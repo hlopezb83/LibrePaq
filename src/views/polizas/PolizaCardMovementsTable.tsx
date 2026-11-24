@@ -66,7 +66,7 @@ export function PolizaCardMovementsTable({
                 {mov.cfdiUuid && (
                   <span
                     title={`UUID CFDI vinculado: ${mov.cfdiUuid}`}
-                    className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono text-[10px]"
+                    className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono text-[10px]"
                   >
                     <FileCode2 className="w-2.5 h-2.5 text-blue-700" aria-hidden="true" />
                     UUID: {mov.cfdiUuid.slice(0, 12)}...

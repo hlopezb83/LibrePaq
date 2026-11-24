@@ -56,10 +56,10 @@ export function useCatalogoColumns({
           const isCollapsed = Boolean(collapsedCodes[row.code]);
           const isParent = !row.isAffectable;
           return (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {row.level > 1 && (
                 <div
-                  style={{ width: `${(row.level - 1) * 18}px` }}
+                  style={{ width: `${(row.level - 1) * 14}px` }}
                   className="shrink-0 flex items-center justify-end select-none pr-0.5"
                   aria-hidden="true"
                 >
@@ -163,7 +163,7 @@ export function useCatalogoColumns({
                 onSelectAccount(row.id);
                 onOpenLedger(row.id);
               }}
-              className={`text-left hover:text-blue-800 cursor-pointer block truncate max-w-[240px] xl:max-w-sm ${
+              className={`text-left hover:text-blue-800 cursor-pointer block truncate max-w-[165px] lg:max-w-[200px] xl:max-w-[225px] ${
                 row.level === 1
                   ? 'font-bold text-slate-900 uppercase tracking-tight text-xs'
                   : row.level === 2
@@ -184,14 +184,14 @@ export function useCatalogoColumns({
             return (
               <span
                 title="Cuenta sin código agrupador SAT Anexo 24 asignado"
-                className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap"
+                className="inline-flex items-center px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap"
               >
                 Sin SAT
               </span>
             );
           }
           return (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md font-mono text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
               SAT {val}
             </span>
           );
@@ -203,10 +203,16 @@ export function useCatalogoColumns({
           const row = info.row.original;
           return (
             <div className="flex items-center gap-1 whitespace-nowrap">
-              <span className="text-[11px] font-semibold text-slate-700">{row.type}</span>
+              {row.type === 'ORDEN' ? (
+                <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 text-[10px] font-bold">
+                  ORDEN
+                </span>
+              ) : (
+                <span className="text-[11px] font-semibold text-slate-700">{row.type}</span>
+              )}
               <span
                 title={row.nature === 'DEUDORA' ? 'Naturaleza Deudora (D)' : 'Naturaleza Acreedora (A)'}
-                className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                className={`text-[10px] font-bold px-1 py-0.5 rounded border ${
                   row.nature === 'DEUDORA'
                     ? 'bg-blue-50 text-blue-800 border-blue-200'
                     : 'bg-slate-100 text-slate-800 border-slate-300'
@@ -219,20 +225,20 @@ export function useCatalogoColumns({
         }
       }),
       columnHelper.accessor('initialBalanceComputed', {
-        header: () => <div className="text-right">Saldo Inicial</div>,
+        header: () => <div className="text-right whitespace-nowrap">Saldo Inicial</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-xs text-slate-700">
+          <div className="text-right font-mono tabular-nums text-xs text-slate-700 whitespace-nowrap">
             {formatCurrency(info.getValue())}
           </div>
         )
       }),
       columnHelper.accessor('finalBalance', {
-        header: () => <div className="text-right">Saldo Final</div>,
+        header: () => <div className="text-right whitespace-nowrap">Saldo Final</div>,
         cell: (info) => {
           const row = info.row.original;
           const isInverted = row.isAffectable && row.finalBalance < 0;
           return (
-            <div className="text-right font-mono text-xs flex items-center justify-end gap-1.5">
+            <div className="text-right font-mono tabular-nums text-xs flex items-center justify-end gap-1 whitespace-nowrap">
               {isInverted && (
                 <span
                   title="Alerta Contable: Saldo contrario a la naturaleza de la cuenta"
@@ -258,7 +264,7 @@ export function useCatalogoColumns({
       }),
       columnHelper.display({
         id: 'actions',
-        header: () => <div className="text-right whitespace-nowrap min-w-[140px] pr-1">Auxiliar / Acciones</div>,
+        header: () => <div className="text-right whitespace-nowrap min-w-[128px] pr-1">Auxiliar / Acciones</div>,
         cell: (info) => (
           <CatalogoActionsCell
             row={info.row.original}

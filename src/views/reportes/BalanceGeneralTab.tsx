@@ -60,8 +60,8 @@ export function BalanceGeneralTab({
               : 'pl-5 pr-2 text-slate-700'
           }`}
         >
-          <span className="min-w-0">
-            <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
+          <span className="min-w-0 break-words">
+            <span className="font-mono mr-2 text-blue-800 underline decoration-dotted whitespace-nowrap">
               {acc.code}
             </span>
             {acc.name}
@@ -77,8 +77,8 @@ export function BalanceGeneralTab({
     });
 
   const renderSubtotal = (label: string, amount: number) => (
-    <div className="pt-1.5 pb-1 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-800 px-2 bg-slate-50/70 rounded">
-      <span>{label}</span>
+    <div className="pt-1.5 pb-1 border-t border-slate-200 flex justify-between gap-2 text-xs font-bold text-slate-800 px-2 bg-slate-50/70 rounded min-w-0">
+      <span className="min-w-0 break-words">{label}</span>
       <span className="flex items-center gap-3 font-mono shrink-0">
         <span className={amount < 0 ? 'text-red-700' : ''}>{formatCurrency(amount)}</span>
         <span className="w-12 text-right text-[11px] text-slate-500">
@@ -93,10 +93,10 @@ export function BalanceGeneralTab({
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-3.5 sm:p-6 border-b-2 border-slate-900">
         <div className="flex items-start justify-between">
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight truncate">
+            <h2 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight break-words">
               {company.name}
             </h2>
-            <div className="text-xs font-mono text-slate-600 mt-0.5 truncate">
+            <div className="text-xs font-mono text-slate-600 mt-0.5 break-words">
               RFC: <span className="font-semibold">{company.rfc}</span> • Régimen Fiscal:{' '}
               {company.regimenFiscal || '601 - General de Ley Personas Morales'}
             </div>
@@ -244,7 +244,13 @@ export function BalanceGeneralTab({
                 <div className="text-[11px] font-bold uppercase tracking-wider text-blue-900 px-2">
                   Capital Contribuido
                 </div>
-                <div className="divide-y divide-slate-100">{renderRows(capContrib, 'ACREEDORA')}</div>
+                <div className="divide-y divide-slate-100">
+                  {capContrib.length === 0 ? (
+                    <p className="text-xs text-slate-500 italic py-2 px-2">Sin movimientos en Capital Contribuido.</p>
+                  ) : (
+                    renderRows(capContrib, 'ACREEDORA')
+                  )}
+                </div>
                 {nif && renderSubtotal('Total Capital Contribuido', nif.totalCapitalContribuido)}
               </div>
 

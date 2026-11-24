@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { BookOpen, Keyboard, ShieldCheck } from 'lucide-react';
 import { sumCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
+import { WhatsAppSupportButton } from '../WhatsAppSupportButton';
 
 interface AppShellFooterProps {
   activeCompany: Company;
@@ -23,7 +24,7 @@ export function AppShellFooter({
   }, [accounts]);
 
   return (
-    <footer className="dark-surface lg:sticky lg:bottom-0 z-20 bg-[#0A1120] text-slate-300 border-t border-[#1E293B] pl-3 pr-14 sm:pl-4 sm:pr-16 lg:pr-24 py-1.5 lg:py-1 text-[11px] no-print">
+    <footer className="dark-surface lg:sticky lg:bottom-0 z-20 bg-[#0A1120] text-slate-300 border-t border-[#1E293B] px-3 sm:px-4 py-1.5 lg:py-1 text-[11px] no-print">
       <div className="max-w-[1800px] mx-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         {/* Indicadores de Entorno Fiscal y Régimen SAT */}
         <div className="flex items-center gap-2 min-w-0">
@@ -36,7 +37,7 @@ export function AppShellFooter({
         </div>
 
         {/* Indicadores de Sistema y Auditoría */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:gap-x-3 min-w-0">
           <a
             href="/Manual_Usuario_LibrePaq_Pro.pdf"
             target="_blank"
@@ -60,8 +61,10 @@ export function AppShellFooter({
             <span className="hidden sm:inline">Atajos [F1]</span>
             <span className="sm:hidden">F1</span>
           </button>
+          <WhatsAppSupportButton variant="inline" />
           <span className="text-slate-600" aria-hidden="true">|</span>
           <span
+            aria-live="polite"
             className={`inline-flex items-center gap-1 font-semibold ${
               !hasAccounts
                 ? 'text-slate-300'
@@ -72,11 +75,17 @@ export function AppShellFooter({
           >
             <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             <span>
-              {!hasAccounts
-                ? 'Sin cuentas / Verificando'
-                : isTrialBalanced
-                ? 'Balanza Cuadrada ✔'
-                : 'Balanza Descuadrada ⚠'}
+              {!hasAccounts ? (
+                'Sin cuentas / Verificando'
+              ) : isTrialBalanced ? (
+                <>
+                  Balanza Cuadrada <span aria-hidden="true">✔</span>
+                </>
+              ) : (
+                <>
+                  Balanza Descuadrada <span aria-hidden="true">⚠</span>
+                </>
+              )}
             </span>
           </span>
         </div>

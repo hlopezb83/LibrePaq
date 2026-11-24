@@ -17,7 +17,7 @@ export function WizardStep2Catalog({
 
       <label
         htmlFor="preset-sat-standard"
-        className={`block p-3.5 rounded-2xl border-2 transition cursor-pointer ${
+        className={`block p-3.5 rounded-2xl border-2 transition cursor-pointer focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 ${
           catalogPreset === 'SAT_STANDARD'
             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
             : 'border-slate-200 hover:border-slate-300'
@@ -53,7 +53,7 @@ export function WizardStep2Catalog({
 
       <label
         htmlFor="preset-resico"
-        className={`block p-3.5 rounded-2xl border-2 transition cursor-pointer ${
+        className={`block p-3.5 rounded-2xl border-2 transition cursor-pointer focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 ${
           catalogPreset === 'RESICO_SIMPLIFIED'
             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
             : 'border-slate-200 hover:border-slate-300'
@@ -86,7 +86,7 @@ export function WizardStep2Catalog({
 
       <label
         htmlFor="preset-custom"
-        className={`block p-3.5 rounded-2xl border-2 transition cursor-pointer ${
+        className={`block p-3.5 rounded-2xl border-2 transition cursor-pointer focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 ${
           catalogPreset === 'CUSTOM'
             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
             : 'border-slate-200 hover:border-slate-300'

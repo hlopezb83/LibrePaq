@@ -46,15 +46,29 @@ export function useExecutiveDeliverables({
   const [isSavingBranding, setIsSavingBranding] = useState(false);
 
   const initialBranding = useMemo(() => readLocalDeliverableBranding(company.id), [company.id]);
-  const [firmName, setFirmName] = useState(initialBranding.firmName);
-  const [preparerName, setPreparerName] = useState(initialBranding.preparerName);
-  const [auditorName, setAuditorName] = useState(initialBranding.auditorName);
-  const [auditorCedula, setAuditorCedula] = useState(initialBranding.auditorCedula);
-  const [legalRepName, setLegalRepName] = useState(initialBranding.legalRepName);
-  const [legalRepTitle, setLegalRepTitle] = useState(initialBranding.legalRepTitle);
-  const [issuanceCity, setIssuanceCity] = useState(initialBranding.issuanceCity);
-  const [logoDataUrl, setLogoDataUrl] = useState(initialBranding.logoDataUrl);
-  const [accountantNotes, setAccountantNotes] = useState(initialBranding.accountantNotes);
+  const [firmName, setFirmNameState] = useState(initialBranding.firmName);
+  const [preparerName, setPreparerNameState] = useState(initialBranding.preparerName);
+  const [auditorName, setAuditorNameState] = useState(initialBranding.auditorName);
+  const [auditorCedula, setAuditorCedulaState] = useState(initialBranding.auditorCedula);
+  const [legalRepName, setLegalRepNameState] = useState(initialBranding.legalRepName);
+  const [legalRepTitle, setLegalRepTitleState] = useState(initialBranding.legalRepTitle);
+  const [issuanceCity, setIssuanceCityState] = useState(initialBranding.issuanceCity);
+  const [logoDataUrl, setLogoDataUrlState] = useState(initialBranding.logoDataUrl);
+  const [accountantNotes, setAccountantNotesState] = useState(initialBranding.accountantNotes);
+
+  const hasLoadedBrandingRef = useRef(false);
+  const isUserDirtyRef = useRef(false);
+  const lastPersistedJsonRef = useRef(JSON.stringify(initialBranding));
+
+  const setFirmName = (v: string) => { isUserDirtyRef.current = true; setFirmNameState(v); };
+  const setPreparerName = (v: string) => { isUserDirtyRef.current = true; setPreparerNameState(v); };
+  const setAuditorName = (v: string) => { isUserDirtyRef.current = true; setAuditorNameState(v); };
+  const setAuditorCedula = (v: string) => { isUserDirtyRef.current = true; setAuditorCedulaState(v); };
+  const setLegalRepName = (v: string) => { isUserDirtyRef.current = true; setLegalRepNameState(v); };
+  const setLegalRepTitle = (v: string) => { isUserDirtyRef.current = true; setLegalRepTitleState(v); };
+  const setIssuanceCity = (v: string) => { isUserDirtyRef.current = true; setIssuanceCityState(v); };
+  const setLogoDataUrl = (v: string) => { isUserDirtyRef.current = true; setLogoDataUrlState(v); };
+  const setAccountantNotes = (v: string) => { isUserDirtyRef.current = true; setAccountantNotesState(v); };
 
   const [issuanceDate, setIssuanceDate] = useState(() =>
     new Date().toLocaleDateString('es-MX', {
@@ -89,17 +103,35 @@ export function useExecutiveDeliverables({
 
   useEffect(() => {
     let active = true;
+    hasLoadedBrandingRef.current = false;
+    isUserDirtyRef.current = false;
+    const local = readLocalDeliverableBranding(company.id);
+    lastPersistedJsonRef.current = JSON.stringify(local);
+    setFirmNameState(local.firmName);
+    setPreparerNameState(local.preparerName);
+    setAuditorNameState(local.auditorName);
+    setAuditorCedulaState(local.auditorCedula);
+    setLegalRepNameState(local.legalRepName);
+    setLegalRepTitleState(local.legalRepTitle);
+    setIssuanceCityState(local.issuanceCity);
+    setLogoDataUrlState(local.logoDataUrl);
+    setAccountantNotesState(local.accountantNotes);
+
     void loadDeliverableBranding(company.id).then((cfg) => {
       if (!active) return;
-      setFirmName(cfg.firmName);
-      setPreparerName(cfg.preparerName);
-      setAuditorName(cfg.auditorName);
-      setAuditorCedula(cfg.auditorCedula);
-      setLegalRepName(cfg.legalRepName);
-      setLegalRepTitle(cfg.legalRepTitle);
-      setIssuanceCity(cfg.issuanceCity);
-      setLogoDataUrl(cfg.logoDataUrl);
-      setAccountantNotes(cfg.accountantNotes);
+      if (!isUserDirtyRef.current) {
+        setFirmNameState(cfg.firmName);
+        setPreparerNameState(cfg.preparerName);
+        setAuditorNameState(cfg.auditorName);
+        setAuditorCedulaState(cfg.auditorCedula);
+        setLegalRepNameState(cfg.legalRepName);
+        setLegalRepTitleState(cfg.legalRepTitle);
+        setIssuanceCityState(cfg.issuanceCity);
+        setLogoDataUrlState(cfg.logoDataUrl);
+        setAccountantNotesState(cfg.accountantNotes);
+        lastPersistedJsonRef.current = JSON.stringify(cfg);
+      }
+      hasLoadedBrandingRef.current = true;
     });
     return () => { active = false; };
   }, [company.id]);
@@ -113,12 +145,20 @@ export function useExecutiveDeliverables({
   );
 
   useEffect(() => {
-    if (isReadOnly) return;
+    if (isReadOnly || !hasLoadedBrandingRef.current || !isUserDirtyRef.current) return;
+    const serialized = JSON.stringify(currentBrandingPayload);
+    if (serialized === lastPersistedJsonRef.current) return;
     const timer = setTimeout(() => {
-      void saveDeliverableBranding(company.id, currentBrandingPayload, { isReadOnly });
+      void saveDeliverableBranding(company.id, currentBrandingPayload, {
+        isReadOnly,
+        organizationId: company.organizationId ?? null
+      }).then(() => {
+        lastPersistedJsonRef.current = serialized;
+        isUserDirtyRef.current = false;
+      });
     }, 600);
     return () => clearTimeout(timer);
-  }, [company.id, currentBrandingPayload, isReadOnly]);
+  }, [company.id, company.organizationId, currentBrandingPayload, isReadOnly]);
 
   const setActiveTab = (next: DeliverableTabId) => {
     setActiveTabState(next);
@@ -128,7 +168,12 @@ export function useExecutiveDeliverables({
     if (isReadOnly) return;
     try {
       setIsSavingBranding(true);
-      const { savedToCloud } = await saveDeliverableBranding(company.id, currentBrandingPayload, { isReadOnly });
+      const { savedToCloud } = await saveDeliverableBranding(company.id, currentBrandingPayload, {
+        isReadOnly,
+        organizationId: company.organizationId ?? null
+      });
+      lastPersistedJsonRef.current = JSON.stringify(currentBrandingPayload);
+      isUserDirtyRef.current = false;
       toast.success(savedToCloud ? 'Membrete y notas guardados en la Nube.' : 'Membrete guardado localmente.');
     } finally {
       setIsSavingBranding(false);

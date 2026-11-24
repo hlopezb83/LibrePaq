@@ -33,6 +33,7 @@ interface AppShellTopHeaderProps {
   effectiveCompanyRole?: DespachoRole | 'OWNER' | null;
   user: User | null;
   onSignOut: () => void;
+  isSigningOut?: boolean;
 }
 
 export function AppShellTopHeader({
@@ -50,7 +51,8 @@ export function AppShellTopHeader({
   isReadOnlyClient = false,
   effectiveCompanyRole = null,
   user,
-  onSignOut
+  onSignOut,
+  isSigningOut = false
 }: AppShellTopHeaderProps) {
   const lockConfirmDialogRef = useRef<HTMLDialogElement>(null);
   const canTogglePeriodLock =
@@ -60,6 +62,9 @@ export function AppShellTopHeader({
       effectiveCompanyRole === 'CONTADOR');
 
   const companyInitials = activeCompany ? getCompanyInitials(activeCompany.name) : '';
+  const isConnectedCloudUser = Boolean(user && !user.user_metadata?.is_guest);
+  const wsLabel = workspaceName || 'Despacho Contable';
+  const wsPrefixMatch = /^(Despacho Contable\s*[—-]\s*)(.+)$/i.exec(wsLabel);
 
   return (
     <header className="@container bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2 sm:px-3.5 py-1.5 shadow-2xs no-print">
@@ -75,7 +80,7 @@ export function AppShellTopHeader({
               className="w-full @[600px]:w-auto @[600px]:max-w-full flex items-center gap-2 bg-slate-50 hover:bg-white border border-slate-300/90 hover:border-blue-500 hover:shadow-xs rounded-xl px-2 py-1 transition group cursor-pointer text-left min-w-0"
             >
               <div
-                title={`Empresa cliente activa: ${activeCompany.name} (${activeCompany.rfc})`}
+                aria-hidden="true"
                 className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg ${currentTheme.bg} ${currentTheme.text} font-mono font-bold text-[10px] flex items-center justify-center shrink-0 shadow-2xs border ${currentTheme.border}`}
               >
                 {companyInitials}
@@ -84,7 +89,14 @@ export function AppShellTopHeader({
                 {/* Fila 1: Despacho Contable (Contexto del Despacho) */}
                 <div className="flex items-center gap-1 min-w-0">
                   <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600 truncate">
-                    {workspaceName || 'Despacho Contable'}
+                    {wsPrefixMatch ? (
+                      <>
+                        <span className="hidden sm:inline">{wsPrefixMatch[1]}</span>
+                        {wsPrefixMatch[2]}
+                      </>
+                    ) : (
+                      wsLabel
+                    )}
                   </span>
                 </div>
                 {/* Fila 2: Empresa Cliente + Badge explícito con su RFC */}
@@ -94,7 +106,6 @@ export function AppShellTopHeader({
                   </span>
                   <span
                     className="font-mono text-[9px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-300/90 shadow-2xs shrink-0 inline-flex items-center gap-0.5"
-                    title={`RFC de la empresa cliente: ${activeCompany.rfc}`}
                   >
                     <span className="hidden @[840px]:inline text-[8px] font-semibold text-slate-600 uppercase">RFC</span>
                     <span>{activeCompany.rfc}</span>
@@ -122,7 +133,14 @@ export function AppShellTopHeader({
                     Despacho Activo
                   </span>
                   <span className="block text-xs font-bold text-slate-900 truncate leading-tight">
-                    {workspaceName || 'Mi Despacho Contable'}
+                    {wsPrefixMatch ? (
+                      <>
+                        <span className="hidden sm:inline">{wsPrefixMatch[1]}</span>
+                        {wsPrefixMatch[2]}
+                      </>
+                    ) : (
+                      workspaceName || 'Mi Despacho Contable'
+                    )}
                   </span>
                 </div>
               </div>
@@ -152,10 +170,10 @@ export function AppShellTopHeader({
           {isReadOnlyClient && effectiveCompanyRole === 'CLIENTE_LECTURA' && (
             <span
               title="Acceso de Cliente (Solo lectura)"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 text-[11px] font-bold shrink-0"
+              className="inline-flex items-center gap-1 px-1.5 @[420px]:px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 text-[11px] font-bold shrink-0"
             >
               <Eye className="w-3.5 h-3.5 text-sky-700 shrink-0" aria-hidden="true" />
-              <span className="hidden @[840px]:inline">Solo lectura</span>
+              <span className="sr-only @[840px]:not-sr-only">Solo lectura</span>
             </span>
           )}
 
@@ -196,7 +214,7 @@ export function AppShellTopHeader({
                     ? 'Periodo bloqueado contra cambios. Clic para reabrir periodo.'
                     : 'Periodo abierto para captura. Clic para bloquear tras presentar declaración mensual.'
                 }
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl border text-xs font-bold transition shrink-0 ${
+                className={`inline-flex items-center gap-1 px-1.5 @[420px]:px-2 py-1 rounded-xl border text-xs font-bold transition shrink-0 ${
                   isTogglingLock
                     ? 'opacity-60 cursor-wait'
                     : !canTogglePeriodLock
@@ -224,30 +242,36 @@ export function AppShellTopHeader({
               </button>
             )}
 
-            {user ? (
+            {isConnectedCloudUser && user ? (
               <>
                 <button
                   type="button"
                   onClick={onOpenAuth}
                   aria-label="Ver perfil y estado de conexión de tu Despacho"
                   title={`Despacho conectado: ${user.email}. Clic para ver perfil.`}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-xl text-xs font-bold transition cursor-pointer border bg-white hover:bg-slate-50 text-slate-700 border-slate-300 shadow-2xs shrink-0"
+                  className="inline-flex items-center gap-1.5 px-1.5 @[420px]:px-2 py-1 rounded-xl text-xs font-bold transition cursor-pointer border bg-white hover:bg-slate-50 text-slate-700 border-slate-300 shadow-2xs shrink-0"
                 >
                   <Cloud className="w-3.5 h-3.5 text-blue-600" aria-hidden="true" />
                   <span className="hidden @[960px]:inline truncate max-w-[120px]">
                     {user.user_metadata?.full_name || user.email?.split('@')[0]}
                   </span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" title="Sesión activa" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true" />
                 </button>
                 <button
                   type="button"
+                  disabled={isSigningOut}
+                  aria-busy={isSigningOut}
                   onClick={onSignOut}
-                  title="Cerrar sesión"
-                  aria-label="Cerrar sesión"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 text-slate-600 hover:text-red-700 shadow-2xs shrink-0"
+                  title={isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
+                  aria-label={isSigningOut ? 'Cerrando sesión' : 'Cerrar sesión'}
+                  className="inline-flex items-center gap-1 px-1.5 @[420px]:px-2 py-1 rounded-xl text-xs font-bold transition cursor-pointer border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 text-slate-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-wait shadow-2xs shrink-0"
                 >
-                  <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span className="hidden @[920px]:inline">Salir</span>
+                  {isSigningOut ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+                  )}
+                  <span className="hidden @[920px]:inline">{isSigningOut ? 'Saliendo...' : 'Salir'}</span>
                 </button>
               </>
             ) : (

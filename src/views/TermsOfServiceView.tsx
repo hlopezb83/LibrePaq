@@ -5,6 +5,12 @@ import { LibrePaqLogo } from '../components/LibrePaqLogo';
 export function TermsOfServiceView() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
+      <a
+        href="#main-content"
+        className="visually-hidden focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-xl focus:bg-blue-700 focus:text-white focus:text-xs focus:font-bold focus:shadow-lg"
+      >
+        Saltar al contenido principal
+      </a>
       {/* Barra Superior */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
         <div className="max-w-5xl mx-auto px-3 sm:px-6 min-h-14 py-2 flex flex-wrap items-center justify-between gap-2">
@@ -35,7 +41,7 @@ export function TermsOfServiceView() {
       </header>
 
       {/* Contenido Principal de Términos del Servicio */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+      <main id="main-content" tabIndex={-1} className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 outline-none">
         <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/80 space-y-8">
           {/* Encabezado */}
           <div className="border-b border-slate-100 pb-6">
@@ -43,7 +49,7 @@ export function TermsOfServiceView() {
               <FileCheck className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Contrato de Licencia y Términos de Uso</span>
             </div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               Términos y Condiciones de Servicio
             </h1>
             <p className="mt-2 text-xs text-slate-500">
@@ -128,17 +134,17 @@ export function TermsOfServiceView() {
               Estos términos se rigen por las leyes federales de los Estados Unidos Mexicanos y el Código de Comercio. Para la resolución de cualquier controversia, las partes se someten expresamente a la jurisdicción de los tribunales competentes en México, renunciando a cualquier otro fuero que pudiera corresponderles por razón de sus domicilios presentes o futuros.
             </p>
           </section>
-
-          {/* Footer legal */}
-          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
-            <p>© {new Date().getFullYear()} LibrePaq Pro • librepaq.com</p>
-            <div className="flex items-center gap-4">
-              <Link to="/privacy" className="hover:text-blue-600 transition font-medium">Aviso de Privacidad</Link>
-              <Link to="/" className="hover:text-blue-600 transition">Volver al Inicio</Link>
-            </div>
-          </div>
         </div>
       </main>
+
+      {/* Footer legal */}
+      <footer className="max-w-4xl mx-auto px-4 sm:px-6 pt-2 pb-24 sm:pb-20 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
+        <p>© {new Date().getFullYear()} LibrePaq Pro • librepaq.com</p>
+        <div className="flex items-center gap-4">
+          <Link to="/privacy" className="hover:text-blue-600 transition font-medium">Aviso de Privacidad</Link>
+          <Link to="/" className="hover:text-blue-600 transition">Volver al Inicio</Link>
+        </div>
+      </footer>
     </div>
   );
 }

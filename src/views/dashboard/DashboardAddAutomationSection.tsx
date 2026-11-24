@@ -30,6 +30,8 @@ export function DashboardAddAutomationSection({
 }: DashboardAddAutomationSectionProps) {
   const totalPending = cfdisPendientesContabilizar ?? pendingCfdis.length;
   const isTruncated = totalPending > pendingCfdis.length && pendingCfdis.length > 0;
+  const isWriteSuppressed = isPeriodLocked || isReadOnly;
+  const isAnyPending = isBatchPending || isSinglePending;
 
   return (
     <section className="lg:col-span-7 bg-white rounded-2xl border border-slate-300/90 shadow-2xs flex flex-col min-w-0">
@@ -56,15 +58,13 @@ export function DashboardAddAutomationSection({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {pendingCfdis.length > 1 && (
+          {pendingCfdis.length > 1 && !isWriteSuppressed && (
             <button
               type="button"
-              disabled={isBatchPending || isPeriodLocked || isReadOnly}
+              disabled={isAnyPending}
               title={
-                isReadOnly
-                  ? 'Modo solo lectura: no tienes permisos para generar pólizas'
-                  : isPeriodLocked
-                  ? 'Periodo cerrado con candado fiscal'
+                isAnyPending
+                  ? 'Procesando generación de pólizas contables...'
                   : isTruncated
                   ? `Contabilizar lote visible (${pendingCfdis.length} de ${totalPending} pendientes)`
                   : `Contabilizar lote de ${pendingCfdis.length} CFDIs pendientes`
@@ -101,7 +101,9 @@ export function DashboardAddAutomationSection({
                   Aún no tienes facturas registradas en este periodo
                 </p>
                 <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                  Sincroniza automáticamente tus facturas del SAT con tu e.firma o sube tus archivos XML en la Bóveda ADD.
+                  {isWriteSuppressed
+                    ? 'Modo solo consulta: no hay comprobantes XML registrados para revisar en este periodo.'
+                    : 'Sincroniza automáticamente tus facturas del SAT con tu e.firma o sube tus archivos XML en la Bóveda ADD.'}
                 </p>
               </>
             ) : (
@@ -117,22 +119,24 @@ export function DashboardAddAutomationSection({
                 </p>
               </>
             )}
-            <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-              <Link
-                to="/add"
-                search={{ sat: 'open' }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer"
-              >
-                <CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Descargar del SAT (e.firma)</span>
-              </Link>
-              <Link
-                to="/add"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 transition cursor-pointer"
-              >
-                Subir Archivos XML
-              </Link>
-            </div>
+            {!isWriteSuppressed && (
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  to="/add"
+                  search={{ sat: 'open' }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer"
+                >
+                  <CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Descargar del SAT (e.firma)</span>
+                </Link>
+                <Link
+                  to="/add"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 transition cursor-pointer"
+                >
+                  Subir Archivos XML
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -181,32 +185,34 @@ export function DashboardAddAutomationSection({
                         IVA: {formatCurrency(cfdi.ivaTrasladado)}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      disabled={isSinglePending || isPeriodLocked || isReadOnly}
-                      aria-busy={isRowPending}
-                      aria-label={`Generar póliza para CFDI ${serieFolio} (${cfdi.uuid.slice(0, 8)})`}
-                      title={
-                        isReadOnly
-                          ? 'Modo solo lectura: no tienes permisos para generar pólizas'
-                          : isPeriodLocked
-                          ? 'Periodo cerrado con candado fiscal'
-                          : isRowPending
-                          ? 'Generando póliza contable...'
-                          : isSinglePending
-                          ? 'Procesando otra póliza contable...'
-                          : 'Generar póliza cuadrada desde este CFDI'
-                      }
-                      onClick={() => onSingleAutoPoliza(cfdi.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs cursor-pointer"
-                    >
-                      {isRowPending ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                      )}
-                      <span>{isRowPending ? 'Generando...' : 'Generar Póliza'}</span>
-                    </button>
+                    {!isWriteSuppressed ? (
+                      <button
+                        type="button"
+                        disabled={isAnyPending}
+                        aria-busy={isRowPending}
+                        aria-label={`Generar póliza para CFDI ${serieFolio} (${cfdi.uuid.slice(0, 8)})`}
+                        title={
+                          isRowPending
+                            ? 'Generando póliza contable...'
+                            : isAnyPending
+                            ? 'Procesando otra póliza contable...'
+                            : 'Generar póliza cuadrada desde este CFDI'
+                        }
+                        onClick={() => onSingleAutoPoliza(cfdi.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs cursor-pointer"
+                      >
+                        {isRowPending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                        )}
+                        <span>{isRowPending ? 'Generando...' : 'Generar Póliza'}</span>
+                      </button>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        Solo consulta
+                      </span>
+                    )}
                   </div>
                 </div>
               );

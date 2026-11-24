@@ -1,4 +1,4 @@
-import { Ban, Building2, Check, Copy, HelpCircle } from 'lucide-react';
+import { Ban, Building2, Check, Copy, HelpCircle, Loader2 } from 'lucide-react';
 import type { Company } from '../../shared/types';
 import {
   DESPACHO_ROLE_LABELS,
@@ -143,7 +143,12 @@ export function AjustesEquipoMemberRow({
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
         <button
           type="button"
-          disabled={!canManageTeam || isSavingCompanies}
+          disabled={!canManageTeam || isSavingCompanies || (m.role === 'CLIENTE_LECTURA' && editingCompanyIds.length === 0)}
+          title={
+            m.role === 'CLIENTE_LECTURA' && editingCompanyIds.length === 0
+              ? 'Selecciona al menos una empresa para Cliente Solo Lectura'
+              : undefined
+          }
           onClick={() => onSaveCompanies(m.id, editingCompanyIds)}
           className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
@@ -157,6 +162,11 @@ export function AjustesEquipoMemberRow({
           Cancelar
         </button>
       </div>
+      {m.role === 'CLIENTE_LECTURA' && editingCompanyIds.length === 0 && (
+        <p className="text-[11px] text-amber-800 font-medium">
+          Cliente Solo Lectura requiere al menos 1 empresa asignada.
+        </p>
+      )}
     </fieldset>
   ) : (
     <div className="space-y-1">
@@ -239,10 +249,12 @@ export function AjustesEquipoMemberRow({
           <button
             type="button"
             disabled={!canManageTeam || isRevoking}
+            aria-busy={isRevoking}
             onClick={() => onConfirmRevoke(m.id)}
-            className="px-2 py-1 rounded text-[11px] font-bold text-rose-800 hover:bg-rose-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold text-rose-800 hover:bg-rose-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Confirmar
+            {isRevoking && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
+            <span>{isRevoking ? 'Revocando...' : 'Confirmar'}</span>
           </button>
           <span className="text-rose-300" aria-hidden="true">|</span>
           <button

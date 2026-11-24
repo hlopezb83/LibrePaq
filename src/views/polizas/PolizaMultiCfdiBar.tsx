@@ -42,15 +42,15 @@ export function PolizaMultiCfdiBar({
   );
 
   return (
-    <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2 text-xs text-blue-950">
+    <div className="p-3 sm:p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5 w-full max-w-full min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 text-xs text-blue-950 min-w-0">
           <Sparkles className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
-          <div>
+          <div className="min-w-0">
             <span className="font-bold block">
               Comprobantes CFDI 4.0 Asociados ({cfdiUuids.length})
             </span>
-            <span className="text-[11px] text-blue-800">
+            <span className="text-[11px] text-blue-800 block">
               {editingPolizaId
                 ? 'Agrega o quita múltiples UUIDs en cabecera o por partida individual.'
                 : 'Selecciona un CFDI para autocompletar o vincula múltiples UUIDs a esta póliza.'}
@@ -58,7 +58,7 @@ export function PolizaMultiCfdiBar({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto max-w-full min-w-0">
           {availableToLink.length > 0 ? (
             <select
               aria-label="Seleccionar CFDI para asociar a la póliza"
@@ -73,7 +73,7 @@ export function PolizaMultiCfdiBar({
                 }
                 setSelectedAddUuid('');
               }}
-              className="px-2.5 py-1.5 rounded-xl border border-blue-300 bg-white text-xs font-mono text-slate-800 max-w-xs cursor-pointer"
+              className="w-full sm:w-auto max-w-full sm:max-w-xs min-w-0 px-2.5 py-1.5 rounded-xl border border-blue-300 bg-white text-xs font-mono text-slate-800 cursor-pointer"
             >
               <option value="">
                 {cfdiUuids.length === 0 && !editingPolizaId
@@ -88,13 +88,13 @@ export function PolizaMultiCfdiBar({
               ))}
             </select>
           ) : (
-            <span className="text-[11px] text-blue-900/80 bg-white/80 border border-blue-200 rounded-xl px-2.5 py-1.5">
+            <span className="text-[11px] text-blue-900/80 bg-white/80 border border-blue-200 rounded-xl px-2.5 py-1.5 max-w-full">
               Sin CFDIs pendientes en ADD (puedes pegar un UUID manual)
             </span>
           )}
 
-          <div className="flex flex-col items-start gap-1">
-            <div className="inline-flex items-center gap-1">
+          <div className="flex flex-col items-start gap-1 w-full sm:w-auto max-w-full min-w-0">
+            <div className="inline-flex flex-wrap items-center gap-1 w-full sm:w-auto max-w-full min-w-0">
               <input
                 type="text"
                 value={manualUuidInput}
@@ -109,7 +109,7 @@ export function PolizaMultiCfdiBar({
                 aria-label="Pegar UUID CFDI manual"
                 aria-invalid={isManualUuidInvalid}
                 aria-describedby={isManualUuidInvalid ? 'manual-uuid-error' : undefined}
-                className={`w-48 px-2.5 py-1.5 rounded-xl border bg-white text-[11px] font-mono text-slate-800 uppercase ${
+                className={`flex-1 sm:flex-initial w-full sm:w-48 min-w-0 max-w-full px-2.5 py-1.5 rounded-xl border bg-white text-[11px] font-mono text-slate-800 uppercase ${
                   isManualUuidInvalid
                     ? 'border-red-500 ring-1 ring-red-500/30'
                     : 'border-blue-300'

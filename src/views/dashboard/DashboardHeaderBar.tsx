@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Clock, FileCode2, Lock, Printer, ReceiptText, ShieldAlert, Sparkles } from 'lucide-react';
+import { Clock, Eye, FileCode2, Lock, Printer, ReceiptText, ShieldAlert, Sparkles } from 'lucide-react';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
 
@@ -37,7 +37,7 @@ export function DashboardHeaderBar({
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
 
   return (
-    <div className="bg-[#0A1120] border border-[#1E293B] rounded-2xl p-3.5 sm:px-5 sm:py-4 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div className="bg-[#0A1120] border border-[#1E293B] rounded-2xl p-3.5 sm:px-5 sm:py-4 text-white shadow-md flex flex-col xl:flex-row xl:items-center justify-between gap-3">
       <div className="space-y-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-200 bg-[#111C35] border border-blue-800/70 px-2.5 py-0.5 rounded-full">
@@ -63,6 +63,16 @@ export function DashboardHeaderBar({
               <ShieldAlert className="w-3 h-3 text-red-300" aria-hidden="true" />
               <span>{efosAlertCount} EFOS 69-B</span>
             </Link>
+          )}
+          {isReadOnly && (
+            <div
+              role="status"
+              title="Acceso en modo solo consulta: las acciones de escritura y captura están deshabilitadas."
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-200 bg-cyan-950/70 border border-cyan-500/40 px-2.5 py-0.5 rounded-full"
+            >
+              <Eye className="w-3 h-3 text-cyan-300" aria-hidden="true" />
+              <span>Solo Consulta</span>
+            </div>
           )}
           {isPeriodLocked && (
             <div

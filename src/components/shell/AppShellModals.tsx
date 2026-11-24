@@ -63,6 +63,9 @@ interface AppShellModalsProps {
   hasOpenedSwitcher?: boolean;
   hasOpenedShortcuts?: boolean;
   hasOpenedAuth?: boolean;
+  isReadOnlyClient?: boolean;
+  isOwner?: boolean;
+  isWorkspaceEmpty?: boolean;
 }
 
 export function AppShellModals({
@@ -93,7 +96,10 @@ export function AppShellModals({
   hasOpenedWizard = false,
   hasOpenedSwitcher = false,
   hasOpenedShortcuts = false,
-  hasOpenedAuth = false
+  hasOpenedAuth = false,
+  isReadOnlyClient = false,
+  isOwner = false,
+  isWorkspaceEmpty = false
 }: AppShellModalsProps) {
   const { isModalOpen, closeModal, deliverablesTab, openDeliverables } = useUIModal();
 
@@ -140,6 +146,9 @@ export function AppShellModals({
           onOpenCompanySwitcher={openCompanySwitcherModal}
           onOpenNewCompanyWizard={openNewCompanyModal}
           onOpenDeliverables={() => openDeliverables('DOSSIER')}
+          isReadOnlyClient={isReadOnlyClient}
+          isOwner={isOwner}
+          isWorkspaceEmpty={isWorkspaceEmpty}
         />
       )}
 

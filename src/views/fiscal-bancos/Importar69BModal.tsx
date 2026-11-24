@@ -9,6 +9,7 @@ import {
   Upload,
   X
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
@@ -39,6 +40,7 @@ export function Importar69BModal({
   onClose,
   onImportComplete
 }: Importar69BModalProps) {
+  const { isSuperAdmin } = useAuth();
   const { activeCompanyId } = useCompany();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -152,7 +154,7 @@ export function Importar69BModal({
     const array = Array.from(parseResult.records.values());
     let cloudSynced = false;
 
-    if (isSupabaseConfigured && supabase) {
+    if (isSuperAdmin && isSupabaseConfigured && supabase) {
       try {
         setParseError(null);
         setSyncProgress({ done: 0, total: array.length });
@@ -241,7 +243,9 @@ export function Importar69BModal({
             </span>
           </div>
           <p className="text-blue-700 text-[11px] leading-relaxed">
-            El SAT publica periódicamente el archivo oficial <code>Listado_Completo_69-B.csv</code>. Al importarlo, LibrePaq sincroniza el padrón completo en la nube en lotes de 1,000 RFCs y audita automáticamente tus CFDIs y proveedores.
+            {isSuperAdmin
+              ? 'El SAT publica periódicamente el archivo oficial Listado_Completo_69-B.csv. Al importarlo, LibrePaq sincroniza el padrón global en la nube en lotes de 1,000 RFCs y audita automáticamente los CFDIs y proveedores.'
+              : 'El padrón global en la nube es administrado centralmente por LibrePaq. Al importar el archivo oficial Listado_Completo_69-B.csv del SAT, actualizarás la verificación local de proveedores y CFDIs en este navegador.'}
           </p>
           <a
             href="https://omawww.sat.gob.mx/cifras_sat/Documents/Listado_Completo_69-B.csv"
@@ -315,13 +319,19 @@ export function Importar69BModal({
               ? 'Sincronizando padrón 69-B...'
               : !parseResult || parseResult.total === 0
                 ? 'Selecciona un archivo CSV válido del SAT primero'
-                : 'Guardar padrón 69-B y sincronizar con la nube'
+                : isSuperAdmin
+                  ? 'Guardar padrón 69-B y sincronizar con la nube'
+                  : 'Cargar padrón 69-B para verificación en este navegador'
           }
           onClick={() => void handleApply()}
           className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer"
         >
           {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="w-4 h-4" aria-hidden="true" />}
-          {isSyncing ? 'Sincronizando con nube...' : `Aplicar y Sincronizar (${parseResult ? parseResult.total.toLocaleString() : 0} RFCs)`}
+          {isSyncing
+            ? 'Sincronizando con nube...'
+            : isSuperAdmin
+              ? `Aplicar y Sincronizar (${parseResult ? parseResult.total.toLocaleString() : 0} RFCs)`
+              : `Cargar en este navegador (${parseResult ? parseResult.total.toLocaleString() : 0} RFCs)`}
         </button>
       </div>
     </dialog>

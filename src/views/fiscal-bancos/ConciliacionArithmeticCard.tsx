@@ -9,6 +9,7 @@ interface ConciliacionArithmeticCardProps {
   bankStatementFinalBalance: number;
   bankBalanceDraft: string;
   hasCapturedBankBalance: boolean;
+  closureSaveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   onBankBalanceDraftChange?: (value: string) => void;
   isLocked?: boolean;
 }
@@ -19,6 +20,7 @@ export function ConciliacionArithmeticCard({
   bankStatementFinalBalance,
   bankBalanceDraft,
   hasCapturedBankBalance,
+  closureSaveStatus = 'idle',
   onBankBalanceDraftChange,
   isLocked = false
 }: ConciliacionArithmeticCardProps) {
@@ -120,13 +122,28 @@ export function ConciliacionArithmeticCard({
                 const cleaned = e.target.value.replace(/[^0-9.-]/g, '');
                 onBankBalanceDraftChange?.(cleaned);
               }}
-              className="w-full max-w-[180px] px-2.5 py-1.5 rounded-lg bg-[#111C35] border border-slate-600 text-white placeholder:text-slate-400 font-mono tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+              className="w-full max-w-[180px] px-2.5 py-1.5 rounded-lg bg-[#111C35] border border-slate-600 text-white placeholder:text-slate-300 font-mono tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
             />
-            {!hasCapturedBankBalance && (
-              <span className="text-[11px] text-slate-300 font-sans">
-                Captura el saldo real de tu estado de cuenta bancario
-              </span>
-            )}
+            <span
+              aria-live="polite"
+              className={`text-[11px] font-sans ${
+                closureSaveStatus === 'error'
+                  ? 'text-red-300 font-semibold'
+                  : closureSaveStatus === 'saved'
+                  ? 'text-emerald-300'
+                  : 'text-slate-300'
+              }`}
+            >
+              {closureSaveStatus === 'saving'
+                ? 'Guardando...'
+                : closureSaveStatus === 'saved'
+                ? 'Guardado'
+                : closureSaveStatus === 'error'
+                ? 'Error al guardar'
+                : !hasCapturedBankBalance
+                ? 'Captura el saldo real de tu estado de cuenta bancario'
+                : ''}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-slate-300">

@@ -1,5 +1,4 @@
 import { AlertCircle, RefreshCw } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
 import { DashboardHeaderBar } from './dashboard/DashboardHeaderBar';
 import { DashboardAuditBar } from './dashboard/DashboardAuditBar';
 import { DashboardKpisGrid } from './dashboard/DashboardKpisGrid';
@@ -12,7 +11,6 @@ import { DashboardTieoutCard } from './dashboard/DashboardTieoutCard';
 import { useDashboardManager } from './dashboard/useDashboardManager';
 
 export function DashboardView() {
-  const navigate = useNavigate();
   const {
     activeCompanyId,
     updatePeriod,
@@ -115,20 +113,6 @@ export function DashboardView() {
         onOpenDeliverables={() => openDeliverables()}
       />
 
-      {/* Tarjetas de KPIs Principales y Posición Financiera (visible arriba del pliegue a 1280×800) */}
-      <DashboardKpisGrid
-        kpis={kpis}
-        mesActualNombre={mesActualNombre}
-        activeCompanyId={activeCompanyId}
-        proporcionGastoIngreso={proporcionGastoIngreso}
-        margenOperativo={margenOperativo}
-        razonCoberturaBancos={razonCoberturaBancos}
-        onOpenLedger={handleOpenLedgerByCode}
-        onNavigateReportes={() =>
-          navigate({ to: '/reportes', search: { tab: 'RESULTADOS' } as unknown as Record<string, string> })
-        }
-      />
-
       {/* Ruta de Arranque Guiada para nuevas empresas sin operaciones */}
       <DashboardOnboardingBanner
         companyName={company.name}
@@ -140,6 +124,19 @@ export function DashboardView() {
         ingresosPeriodo={kpis.ingresosPeriodo}
         accountsCount={accountsCount}
         pendingCfdisCount={kpis.cfdisPendientesContabilizar}
+        isPeriodLocked={isPeriodLocked}
+        isReadOnly={isReadOnly}
+      />
+
+      {/* Tarjetas de KPIs Principales y Posición Financiera (visible arriba del pliegue a 1280×800) */}
+      <DashboardKpisGrid
+        kpis={kpis}
+        mesActualNombre={mesActualNombre}
+        activeCompanyId={activeCompanyId}
+        proporcionGastoIngreso={proporcionGastoIngreso}
+        margenOperativo={margenOperativo}
+        razonCoberturaBancos={razonCoberturaBancos}
+        onOpenLedger={handleOpenLedgerByCode}
       />
 
       {/* Centro de Acciones Rápidas y Auditoría de Pendientes */}
@@ -156,6 +153,7 @@ export function DashboardView() {
         pendingCfdis={pendingCfdis}
         efosSummary={efosSummary}
         isBatchAutoPolizaPending={batchAutoPolizaMutation.isPending}
+        isSingleAutoPolizaPending={autoPolizaMutation.isPending}
         onBatchAutoPoliza={(ids) => batchAutoPolizaMutation.mutate(ids)}
         isPeriodLocked={isPeriodLocked}
         isReadOnly={isReadOnly}
@@ -167,6 +165,7 @@ export function DashboardView() {
         companyYear={company.currentYear}
         closingChecks={closingChecks}
         completedChecks={completedChecks}
+        hasActivity={kpis.totalPolizasPeriodo > 0 || kpis.cfdisTotalesPeriodo > 0}
         onOpenDeliverables={() => openDeliverables()}
       />
 
@@ -201,6 +200,8 @@ export function DashboardView() {
       <DashboardRecentPolizasTable
         totalPolizasPeriodo={kpis.totalPolizasPeriodo}
         recentPolizas={recentPolizas}
+        isPeriodLocked={isPeriodLocked}
+        isReadOnly={isReadOnly}
       />
     </div>
   );

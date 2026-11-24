@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ChangeEvent, type RefObject } from 'react';
-import { AlertTriangle, Database, Download, FileSpreadsheet, FolderTree, Loader2, RefreshCw, Upload } from 'lucide-react';
+import { useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react';
+import { AlertTriangle, Download, FileSpreadsheet, FolderTree, Loader2, Upload } from 'lucide-react';
 import { downloadCsvFile } from '../../lib/formatters';
 import type { Company, CompanyBackupBundle } from '../../shared/types';
+import { AjustesRespaldosMetricsCard } from './AjustesRespaldosMetricsCard';
 
 export interface PendingBackupRestore {
   bundle: CompanyBackupBundle;
@@ -21,6 +22,7 @@ export interface AjustesRespaldosTabProps {
   refetchMetrics?: () => void;
   isExportingBackup: boolean;
   isRestoringBackup: boolean;
+  isImportingCsv?: boolean;
   pendingRestore: PendingBackupRestore | null;
   confirmRestoreBackup: () => void;
   cancelRestoreBackup: () => void;
@@ -43,6 +45,7 @@ export function AjustesRespaldosTab({
   refetchMetrics,
   isExportingBackup,
   isRestoringBackup,
+  isImportingCsv = false,
   pendingRestore,
   confirmRestoreBackup,
   cancelRestoreBackup,
@@ -55,8 +58,10 @@ export function AjustesRespaldosTab({
   canImportCsv = true
 }: AjustesRespaldosTabProps) {
   const restoreDialogRef = useRef<HTMLDialogElement>(null);
+  const [confirmRfcText, setConfirmRfcText] = useState('');
 
   useEffect(() => {
+    setConfirmRfcText('');
     const dlg = restoreDialogRef.current;
     if (!dlg) return;
     if (pendingRestore && !dlg.open) {
@@ -69,6 +74,8 @@ export function AjustesRespaldosTab({
   const isRfcMismatch = Boolean(
     pendingRestore && pendingRestore.backupRfc !== activeCompany.rfc.toUpperCase()
   );
+  const isRfcConfirmMatched =
+    !isRfcMismatch || confirmRfcText.trim().toUpperCase() === pendingRestore?.backupRfc;
   return (
     <section className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -82,8 +89,10 @@ export function AjustesRespaldosTab({
             <p className="text-xs text-slate-600 leading-relaxed">
               Exporta todas tus cuentas, pólizas, movimientos, CFDIs, terceros y parámetros en un archivo portátil de respaldo LibrePaq.
             </p>
-            <div className="p-2 rounded-lg bg-blue-50/60 border border-blue-100 text-[11px] text-blue-900 font-mono break-words">
-              Incluye: {accountsList?.length ?? 0} cuentas • {polizasData?.length ?? 0} pólizas • {cfdisList?.length ?? 0} CFDIs
+            <div className="p-2 rounded-lg bg-blue-50/60 border border-blue-100 text-[11px] text-blue-900 font-mono tabular-nums break-words">
+              {isLoadingMetrics
+                ? 'Consultando registros...'
+                : `Incluye: ${accountsList?.length ?? 0} cuentas • ${polizasData?.length ?? 0} pólizas • ${cfdisList?.length ?? 0} CFDIs`}
             </div>
           </div>
 
@@ -159,9 +168,10 @@ export function AjustesRespaldosTab({
           <div className="space-y-2">
             <label
               htmlFor="ajustes-import-csv-input"
+              aria-busy={isImportingCsv}
               title={!canImportCsv ? 'Modo solo lectura: no tienes permisos para importar catálogo' : undefined}
               className={`w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition shadow-2xs focus-within:outline-2 focus-within:outline-purple-700 focus-within:outline-offset-2 ${
-                !canImportCsv ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                !canImportCsv || isImportingCsv ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
               }`}
             >
               <input
@@ -170,12 +180,16 @@ export function AjustesRespaldosTab({
                 name="csvCatalogFile"
                 type="file"
                 accept=".csv,.txt,.xml"
-                disabled={!canImportCsv}
+                disabled={!canImportCsv || isImportingCsv}
                 onChange={handleImportCsvCatalog}
                 className="sr-only"
               />
-              <FolderTree className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>Importar CSV / TXT / XML</span>
+              {isImportingCsv ? (
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
+              ) : (
+                <FolderTree className="w-4 h-4 shrink-0" aria-hidden="true" />
+              )}
+              <span>{isImportingCsv ? 'Importando catálogo...' : 'Importar CSV / TXT / XML'}</span>
             </label>
             <button
               type="button"
@@ -235,12 +249,25 @@ export function AjustesRespaldosTab({
             </div>
 
             {isRfcMismatch && (
-              <div role="alert" className="p-3 rounded-xl border border-red-300 bg-red-50 text-red-950 space-y-1">
+              <div role="alert" className="p-3 rounded-xl border border-red-300 bg-red-50 text-red-950 space-y-2">
                 <p className="font-bold">Alerta: El RFC del respaldo no coincide con la empresa activa</p>
                 <p>
                   Respaldo: <span className="font-mono font-bold">{pendingRestore.backupRfc}</span> · Empresa activa:{' '}
                   <span className="font-mono font-bold">{activeCompany.rfc}</span>. Se restaurará la empresa destino indicada en el respaldo.
                 </p>
+                <div className="space-y-1 pt-1">
+                  <label htmlFor="confirm-restore-rfc-input" className="block font-bold text-[11px] text-red-950">
+                    Para continuar, escribe el RFC del respaldo ({pendingRestore.backupRfc}):
+                  </label>
+                  <input
+                    id="confirm-restore-rfc-input"
+                    type="text"
+                    value={confirmRfcText}
+                    onChange={(e) => setConfirmRfcText(e.target.value.toUpperCase())}
+                    placeholder={pendingRestore.backupRfc}
+                    className="w-full px-3 py-1.5 rounded-lg border border-red-300 bg-white font-mono uppercase text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
               </div>
             )}
 
@@ -261,7 +288,7 @@ export function AjustesRespaldosTab({
               </button>
               <button
                 type="button"
-                disabled={isRestoringBackup || !canRestoreBackup}
+                disabled={isRestoringBackup || !canRestoreBackup || !isRfcConfirmMatched}
                 aria-busy={isRestoringBackup}
                 onClick={confirmRestoreBackup}
                 className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -276,55 +303,15 @@ export function AjustesRespaldosTab({
         )}
       </dialog>
 
-      {/* Estadísticas de Almacenamiento Contable */}
-      <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
-            <Database className="w-4 h-4 text-blue-700" aria-hidden="true" />
-            Métricas de Almacenamiento Contable ({activeCompany.rfc})
-          </h3>
-          {isErrorMetrics && refetchMetrics && (
-            <button
-              type="button"
-              onClick={refetchMetrics}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 cursor-pointer"
-            >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" />
-              Reintentar métricas
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-600 block">Cuentas en Catálogo</span>
-            <span className="text-xl font-bold font-mono tabular-nums text-slate-900">
-              {isLoadingMetrics ? '...' : isErrorMetrics ? '—' : (accountsList?.length ?? 0)}
-            </span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-600 block">Pólizas del Periodo</span>
-            <span className="text-xl font-bold font-mono tabular-nums text-slate-900">
-              {isLoadingMetrics ? '...' : isErrorMetrics ? '—' : (polizasData?.length ?? 0)}
-            </span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-600 block">CFDIs 4.0 en Bóveda</span>
-            <span className="text-xl font-bold font-mono tabular-nums text-slate-900">
-              {isLoadingMetrics ? '...' : isErrorMetrics ? '—' : (cfdisList?.length ?? 0)}
-            </span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-600 block">Estado de Bóveda</span>
-            {isLoadingMetrics ? (
-              <span className="text-xs font-bold text-slate-600 block mt-1.5">Consultando...</span>
-            ) : isErrorMetrics ? (
-              <span className="text-xs font-bold text-red-700 block mt-1.5">Error al consultar</span>
-            ) : (
-              <span className="text-sm font-bold text-emerald-700 block mt-1">Sincronizado • 100% OK</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <AjustesRespaldosMetricsCard
+        companyRfc={activeCompany.rfc}
+        accountsCount={accountsList?.length ?? 0}
+        polizasCount={polizasData?.length ?? 0}
+        cfdisCount={cfdisList?.length ?? 0}
+        isLoadingMetrics={isLoadingMetrics}
+        isErrorMetrics={isErrorMetrics}
+        refetchMetrics={refetchMetrics}
+      />
     </section>
   );
 }

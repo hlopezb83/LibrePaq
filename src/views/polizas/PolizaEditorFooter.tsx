@@ -45,7 +45,7 @@ export function PolizaEditorFooter({
 
   return (
     <footer
-      className={`shrink-0 px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-semibold transition-colors ${
+      className={`shrink-0 w-full min-w-0 max-w-full px-3 sm:px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-semibold transition-colors ${
         isBalanced
           ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
           : isEmpty
@@ -99,14 +99,14 @@ export function PolizaEditorFooter({
               </span>
               <span className="text-[11px] text-amber-900 font-mono tabular-nums block truncate">
                 Sumas Iguales: Cargos {formatCurrency(totalCargos)} • Abonos {formatCurrency(totalAbonos)} • Pulsa{' '}
-                <kbd className="font-mono bg-white px-1 py-0.2 rounded border border-amber-300 font-bold">=</kbd>
+                <kbd className="font-mono bg-white px-1 py-0.5 rounded border border-amber-300 font-bold">=</kbd>
               </span>
             </div>
           </>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+      <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 w-full sm:w-auto min-w-0">
         {confirmDiscard ? (
           <div
             role="alertdialog"
@@ -186,7 +186,7 @@ export function PolizaEditorFooter({
                   ? 'Guardar cambios de la póliza'
                   : 'Guardar y aplicar póliza'
               }
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md transition whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-md transition whitespace-normal sm:whitespace-nowrap shrink-0"
             >
               {isPendingSave ? (
                 <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />

@@ -22,16 +22,21 @@ export interface PolizaCardItemProps {
   compactMode: boolean;
   isExactMatch: boolean;
   isPeriodLocked: boolean;
+  currentPeriod?: number;
   isReadOnlyClient?: boolean;
   isDeleting?: boolean;
   isReversing?: boolean;
   copiedPolizaId: string | null;
   confirmDeleteId: string | null;
+  confirmReverseId?: string | null;
   onToggleExpand: (id: string) => void;
   onCopyPoliza: (pol: Poliza) => void;
   onPrintPoliza?: (pol: Poliza) => void;
   onDuplicate: (pol: Poliza) => void;
   onReverse?: (pol: Poliza) => void;
+  onConfirmReverse?: (pol: Poliza) => void;
+  onCancelReverse?: () => void;
+  onRequestReverse?: (id: string) => void;
   onEdit: (pol: Poliza) => void;
   onConfirmDelete: (id: string) => void;
   onCancelDelete: () => void;
@@ -45,16 +50,21 @@ function PolizaCardItemBase({
   compactMode,
   isExactMatch,
   isPeriodLocked,
+  currentPeriod,
   isReadOnlyClient = false,
   isDeleting = false,
   isReversing = false,
   copiedPolizaId,
   confirmDeleteId,
+  confirmReverseId = null,
   onToggleExpand,
   onCopyPoliza,
   onPrintPoliza,
   onDuplicate,
   onReverse,
+  onConfirmReverse,
+  onCancelReverse,
+  onRequestReverse,
   onEdit,
   onConfirmDelete,
   onCancelDelete,
@@ -161,14 +171,14 @@ function PolizaCardItemBase({
         </div>
 
         <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2.5 shrink-0">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-mono tabular-nums">
             <div>
               <span className="text-slate-500 mr-1">Cargos:</span>
-              <strong className="text-slate-900">{formatCurrency(pol.totalCargos)}</strong>
+              <strong className="text-slate-900 tabular-nums">{formatCurrency(pol.totalCargos)}</strong>
             </div>
             <div>
               <span className="text-slate-500 mr-1">Abonos:</span>
-              <strong className="text-slate-900">{formatCurrency(pol.totalAbonos)}</strong>
+              <strong className="text-slate-900 tabular-nums">{formatCurrency(pol.totalAbonos)}</strong>
             </div>
           </div>
 
@@ -178,7 +188,7 @@ function PolizaCardItemBase({
               Cuadrada
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-800 border border-red-200 font-mono">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-800 border border-red-200 font-mono tabular-nums">
               <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
               Descuadrada ({formatCurrency(discrepancyAmount)})
             </span>
@@ -189,14 +199,19 @@ function PolizaCardItemBase({
             isWriteBlocked={isWriteBlocked}
             isReadOnlyClient={isReadOnlyClient}
             isPeriodLocked={isPeriodLocked}
+            currentPeriod={currentPeriod}
             isDeleting={isDeleting}
             isReversing={isReversing}
             copiedPolizaId={copiedPolizaId}
             confirmDeleteId={confirmDeleteId}
+            confirmReverseId={confirmReverseId}
             onCopyPoliza={onCopyPoliza}
             onPrintPoliza={onPrintPoliza}
             onDuplicate={onDuplicate}
             onReverse={onReverse}
+            onConfirmReverse={onConfirmReverse}
+            onCancelReverse={onCancelReverse}
+            onRequestReverse={onRequestReverse}
             onEdit={onEdit}
             onConfirmDelete={onConfirmDelete}
             onCancelDelete={onCancelDelete}

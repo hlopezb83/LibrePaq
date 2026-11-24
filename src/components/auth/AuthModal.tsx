@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Lock, User, Eye, EyeOff, X, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, X, ArrowRight, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { trackAnalyticsEvent, trackDirectGoogleAdsSignupConversion } from '../../lib/analytics';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { LibrePaqLogo } from '../LibrePaqLogo';
 import {
   AuthActiveSessionPanel,
+  AuthAlertBanner,
   AuthGoogleButton,
   AuthModeTabs,
   AuthForgotHeader,
-  AuthFooterTrust
+  AuthFooterTrust,
+  getAuthModalTitle
 } from './AuthModalSubcomponents';
 import { translateAuthError } from './authErrorTranslator';
 
@@ -20,8 +22,9 @@ export interface AuthModalProps {
 }
 
 export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthModalProps) {
-  const { user, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, resetPassword } =
+  const { user, isGuest, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, resetPassword } =
     useAuth();
+  const hasActiveAccountSession = Boolean(user && !isGuest);
 
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(initialMode);
   const [email, setEmail] = useState('');
@@ -127,9 +130,12 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
 
   const handleSignOut = async () => {
     setLoading(true);
-    await signOut();
-    setLoading(false);
-    handleClose();
+    try {
+      await signOut();
+    } finally {
+      setLoading(false);
+      handleClose();
+    }
   };
 
   return (
@@ -146,17 +152,13 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
           <div>
             <LibrePaqLogo variant="horizontal" size="sm" theme="dark" badge="PRO" />
             <h2 id="auth-modal-title" className="sr-only">
-              {mode === 'signup'
-                ? 'Crear Cuenta Gratis en LibrePaq Pro'
-                : mode === 'signin'
-                ? 'Iniciar Sesión en LibrePaq Pro'
-                : 'Recuperar Contraseña de tu Despacho'}
+              {getAuthModalTitle(hasActiveAccountSession, mode)}
             </h2>
           </div>
           <button
             type="button"
             onClick={handleClose}
-            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
             aria-label="Cerrar ventana de autenticación"
           >
             <X className="w-5 h-5" aria-hidden="true" />
@@ -164,7 +166,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-3.5 sm:space-y-4">
-        {user ? (
+        {hasActiveAccountSession && user ? (
           <AuthActiveSessionPanel
             user={user}
             loading={loading}
@@ -193,24 +195,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
               </>
             )}
 
-            {message && (
-              <div
-                id="auth-alert-msg"
-                role="alert"
-                className={`p-3 rounded-xl text-xs flex items-center gap-2 border ${
-                  message.type === 'success'
-                    ? 'bg-emerald-950/60 text-emerald-200 border-emerald-800'
-                    : 'bg-red-950/60 text-red-200 border-red-800'
-                }`}
-              >
-                {message.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" aria-hidden="true" />
-                )}
-                <span className="leading-tight">{message.text}</span>
-              </div>
-            )}
+            {message && <AuthAlertBanner message={message} />}
 
             <form
               id={mode === 'signup' ? 'signup-form' : mode === 'signin' ? 'signin-form' : 'recovery-form'}
@@ -224,7 +209,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                     Tu Nombre o Despacho Contable
                   </label>
                   <div className="relative">
-                    <User className="w-4 h-4 absolute left-3 top-2.5 text-slate-300" aria-hidden="true" />
+                    <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" aria-hidden="true" />
                     <input
                       id="auth-fullname"
                       name="name"
@@ -237,7 +222,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Ej. C.P. Héctor López o Despacho Fiscal"
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
+                      className="w-full min-h-[40px] pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -248,7 +233,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                   {mode === 'forgot' ? 'Correo Electrónico Registrado' : 'Correo Electrónico'}
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-300" aria-hidden="true" />
+                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" aria-hidden="true" />
                   <input
                     id="auth-email"
                     name={mode === 'signin' ? 'username' : 'email'}
@@ -264,7 +249,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="contador@despacho.mx"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
+                    className="w-full min-h-[40px] pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -286,7 +271,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                     )}
                   </div>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-300" aria-hidden="true" />
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" aria-hidden="true" />
                     <input
                       id="auth-password"
                       name="password"
@@ -300,14 +285,14 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={mode === 'signup' ? 'Mínimo 6 caracteres' : 'Tu contraseña de acceso'}
-                      className="w-full pl-9 pr-10 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
+                      className="w-full min-h-[40px] pl-9 pr-10 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
                     />
                     <button
                       type="button"
                       aria-pressed={showPassword}
                       onClick={() => setShowPassword((prev) => !prev)}
                       aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 min-h-[28px] min-w-[28px] inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/70 cursor-pointer"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 min-h-[32px] min-w-[32px] inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/70 cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                     </button>
@@ -319,7 +304,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                 type="submit"
                 disabled={loading}
                 aria-busy={loading}
-                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="w-full min-h-[40px] py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                 <span>

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Check, Copy, Info, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react';
+import { AlertCircle, Check, Copy, Info, Loader2, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react';
 import { checkIsSuperAdmin, useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
@@ -18,16 +18,21 @@ export interface AjustesEquipoTabProps {
 }
 
 export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEquipoTabProps) {
-  const { user, hasAdminAccess } = useAuth();
+  const { user, session, isGuest, hasAdminAccess } = useAuth();
+  const isAuthenticated = Boolean(user && (session || isGuest));
   const supportSession = useSupportSession();
   const isSupportImpersonation = Boolean(supportSession && (hasAdminAccess || checkIsSuperAdmin(user)));
   const { workspace, isReadOnlySupportMode, effectiveCompanyRole } = useCompany();
   const queryClient = useQueryClient();
   const { copiedKey, copy } = useCopyToClipboard<string>(2200);
 
-  const ownWorkspaceId = workspace?.id || (user ? `ws_${user.id.slice(0, 8)}` : 'ws_demo');
+  const ownWorkspaceId = !isAuthenticated ? '' : (workspace?.id || (user ? `ws_${user.id.slice(0, 8)}` : ''));
   const isOwnWorkspace = !activeCompany?.userId || activeCompany.userId === 'demo' || activeCompany.userId === user?.id;
-  const workspaceId = isOwnWorkspace ? ownWorkspaceId : `ws_${activeCompany.userId!.slice(0, 8)}`;
+  const workspaceId = !isAuthenticated
+    ? ''
+    : isOwnWorkspace
+      ? ownWorkspaceId
+      : `ws_${activeCompany.userId!.slice(0, 8)}`;
   const isReadOnlyClientRole = effectiveCompanyRole === 'CLIENTE_LECTURA';
   const canManageTeam = !isReadOnlySupportMode && !isSupportImpersonation && (effectiveCompanyRole === 'OWNER' || effectiveCompanyRole === 'SOCIO');
 
@@ -42,13 +47,13 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
   const { data: members = [], isLoading: membersLoading, isError: membersIsError, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['workspace-members', workspaceId],
     queryFn: () => workspaceRbacClient.listWorkspaceMembers(workspaceId),
-    enabled: Boolean(workspaceId) && !isReadOnlyClientRole
+    enabled: isAuthenticated && Boolean(workspaceId) && !isReadOnlyClientRole
   });
 
   const { data: auditLogs = [], isLoading: auditLoading, isError: auditIsError, error: auditError, refetch: refetchAudit } = useQuery({
     queryKey: ['company-audit-logs', activeCompany?.id],
     queryFn: () => workspaceRbacClient.listCompanyAuditLogs(activeCompany!.id, 60),
-    enabled: Boolean(activeCompany?.id)
+    enabled: isAuthenticated && Boolean(activeCompany?.id)
   });
 
   const refreshMembers = () => void queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
@@ -97,6 +102,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
   const handleCopyInstructions = (email: string, role: DespachoRole, key: string) => {
     void copy(buildAccessInstructions(email, role), key).then((ok) => {
       if (ok) toast.success(`Instrucciones de acceso copiadas para ${email}`);
+      else toast.error('No se pudo copiar las instrucciones al portapapeles.');
     });
   };
 
@@ -106,7 +112,18 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
     onCancelEditCompanies: () => setEditingMemberId(null),
     onSaveCompanies: (memberId: string, companyIds: string[]) => accessMutation.mutate({ memberId, companyIds }),
     isSavingCompanies: accessMutation.isPending,
-    onChangeRole: (memberId: string, role: DespachoRole) => roleMutation.mutate({ memberId, role }),
+    onChangeRole: (memberId: string, role: DespachoRole) => {
+      const target = members.find((mem) => mem.id === memberId);
+      if (role === 'CLIENTE_LECTURA' && (!target || (target.companyAccess?.length ?? 0) === 0)) {
+        toast.error('Asigna al menos una empresa al miembro antes de cambiarlo a Cliente Solo Lectura.');
+        if (target) {
+          setEditingMemberId(target.id);
+          setEditingCompanyIds([]);
+        }
+        return;
+      }
+      roleMutation.mutate({ memberId, role });
+    },
     isChangingRole: roleMutation.isPending,
     onConfirmRevoke: (memberId: string) => revokeMutation.mutate(memberId),
     isRevoking: revokeMutation.isPending,
@@ -136,6 +153,11 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
           <div role="status" className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
             Modo soporte de solo lectura: la autorización de colaboradores y cambios de permisos están deshabilitados.
           </div>
+        ) : isReadOnlyClientRole ? (
+          <div role="status" className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-950 flex items-start gap-2">
+            <Info className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" aria-hidden="true" />
+            <span>Acceso Cliente Solo Lectura: la administración del equipo y autorizaciones corresponde al Titular o Socio del despacho.</span>
+          </div>
         ) : (
           <>
             {!canManageTeam && (
@@ -157,8 +179,8 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
                 </select>
               </div>
               <div className="md:col-span-3 flex items-end">
-                <button type="submit" disabled={!canManageTeam || inviteMutation.isPending} title={!canManageTeam ? 'Solo el Titular o un Socio puede autorizar accesos' : undefined} className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 text-white text-xs font-bold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
-                  <UserPlus className="w-4 h-4" aria-hidden="true" />
+                <button type="submit" disabled={!canManageTeam || inviteMutation.isPending} aria-busy={inviteMutation.isPending} title={!canManageTeam ? 'Solo el Titular o un Socio puede autorizar accesos' : undefined} className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 text-white text-xs font-bold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                  {inviteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <UserPlus className="w-4 h-4" aria-hidden="true" />}
                   <span>{inviteMutation.isPending ? 'Guardando...' : 'Autorizar acceso'}</span>
                 </button>
               </div>
@@ -203,7 +225,9 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
       <div className="bg-white rounded-2xl border border-slate-300/90 p-4 sm:p-5 shadow-2xs space-y-3">
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-slate-700" aria-hidden="true" />
-          <h3 className="text-sm font-bold text-slate-900">Miembros del Despacho ({members.length})</h3>
+          <h3 className="text-sm font-bold text-slate-900">
+            Miembros del Despacho{!isReadOnlyClientRole ? ` (${members.length})` : ''}
+          </h3>
         </div>
         {isReadOnlyClientRole ? (
           <p role="status" className="text-xs text-slate-600 p-3 rounded-xl bg-slate-50 border border-slate-200">

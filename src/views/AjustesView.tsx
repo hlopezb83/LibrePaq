@@ -53,7 +53,13 @@ export function AjustesView() {
   useEffect(() => {
     updateTabScrollState();
     window.addEventListener('resize', updateTabScrollState);
-    return () => window.removeEventListener('resize', updateTabScrollState);
+    const el = tabListRef.current;
+    const ro = typeof ResizeObserver !== 'undefined' && el ? new ResizeObserver(updateTabScrollState) : null;
+    if (ro && el) ro.observe(el);
+    return () => {
+      window.removeEventListener('resize', updateTabScrollState);
+      ro?.disconnect();
+    };
   }, [updateTabScrollState]);
 
   const scrollTabsBy = (delta: number) => {
@@ -156,7 +162,7 @@ export function AjustesView() {
                   <span>{tab.label}</span>
                   {tab.id === 'efirma' && s.fielStatus?.hasCredentials && (
                     <span
-                      className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"
+                      className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white/90 shrink-0"
                       role="img"
                       aria-label="e.firma activa"
                       title="e.firma activa"
@@ -218,6 +224,7 @@ export function AjustesView() {
             confirmDeleteCompany={s.confirmDeleteCompany}
             setConfirmDeleteCompany={s.setConfirmDeleteCompany}
             onConfigureFicha={() => setActiveTab('empresa')}
+            onOpenEfirma={() => setActiveTab('efirma')}
             canDeleteCompany={s.canDeleteOrRestore}
             canCreateCompany={!s.isReadOnlySupportMode && !s.isReadOnlyClient && s.effectiveCompanyRole !== 'CLIENTE_LECTURA'}
             canViewDespachoMonitor={
@@ -293,6 +300,7 @@ export function AjustesView() {
             onResetFiscal={s.resetFiscalForm}
             saveFiscalParamsMutation={s.saveFiscalParamsMutation}
             fiscalWp={s.fiscalWp}
+            isLoadingFiscalWp={s.isLoadingFiscalWp}
             isReadOnly={!s.canEditFiscalConfig}
           />
         )}
@@ -308,6 +316,7 @@ export function AjustesView() {
             refetchMetrics={s.refetchMetrics}
             isExportingBackup={s.isExportingBackup}
             isRestoringBackup={s.isRestoringBackup}
+            isImportingCsv={s.isImportingCsv}
             pendingRestore={s.pendingRestore}
             confirmRestoreBackup={s.confirmRestoreBackup}
             cancelRestoreBackup={s.cancelRestoreBackup}

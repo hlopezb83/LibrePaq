@@ -83,6 +83,11 @@ export function useWorkspaceQuotaForm({
     notes.trim() !== baseline.notes.trim();
 
   useEffect(() => {
+    if (lastSyncedWorkspaceRef.current !== workspaceId) {
+      lastSyncedUpdatedAtRef.current = undefined;
+    }
+    if (quotaQuery.isLoading || quotaQuery.isError) return;
+
     const workspaceChanged = lastSyncedWorkspaceRef.current !== workspaceId;
     const currentUpdatedAt = quotaQuery.data?.updatedAt;
     const updatedAtChanged = currentUpdatedAt !== undefined && currentUpdatedAt !== lastSyncedUpdatedAtRef.current;
@@ -96,7 +101,7 @@ export function useWorkspaceQuotaForm({
       lastSyncedWorkspaceRef.current = workspaceId;
       lastSyncedUpdatedAtRef.current = currentUpdatedAt;
     }
-  }, [workspaceId, quotaQuery.data?.updatedAt, baseline, isDirty]);
+  }, [workspaceId, quotaQuery.isLoading, quotaQuery.isError, quotaQuery.data?.updatedAt, baseline, isDirty]);
 
   const parsedCompanies = parseQuotaInt(maxCompaniesInput);
   const parsedCfdis = parseQuotaInt(maxCfdisInput);

@@ -18,7 +18,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
   const savingsPercent = 100;
 
   return (
-    <section id="calculadora" className="py-14 sm:py-20 lg:py-24 bg-white relative border-t border-slate-200">
+    <section id="calculadora" className="scroll-mt-16 py-14 sm:py-20 lg:py-24 bg-white relative border-t border-slate-200">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
           <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold tracking-wider">
@@ -60,7 +60,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                         setNumRfcs(preset.rfcs);
                         setNumUsers(preset.users);
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                      className={`min-h-[40px] px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer border inline-flex items-center ${
                         isActive
                           ? 'bg-blue-700 text-white border-blue-700 shadow-2xs font-bold'
                           : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
@@ -81,7 +81,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                   <span>Empresas / RFCs Administrados:</span>
                 </label>
                 <span className="text-base sm:text-xl font-bold font-mono text-blue-700 bg-blue-50 px-3 py-0.5 sm:px-3.5 sm:py-1 rounded-lg border border-blue-200">
-                  {numRfcs} RFCs
+                  {numRfcs === 1 ? '1 RFC' : `${numRfcs} RFCs`}
                 </span>
               </div>
               <div className="min-h-[44px] flex items-center">
@@ -94,7 +94,7 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                   aria-valuemin={1}
                   aria-valuemax={60}
                   aria-valuenow={numRfcs}
-                  aria-valuetext={`${numRfcs} empresas o RFCs administrados`}
+                  aria-valuetext={numRfcs === 1 ? '1 empresa o RFC administrado' : `${numRfcs} empresas o RFCs administrados`}
                   onChange={(e) => setNumRfcs(Number(e.target.value))}
                   className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 [--slider-thumb-color:#2563eb] focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-4"
                 />
@@ -157,6 +157,9 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                 <p className="text-[11px] text-emerald-700 mt-0.5 font-semibold">Promoción $0 por Tiempo Limitado</p>
               </div>
             </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Estimación referencial anual: licencias, módulos, usuarios extra y soporte técnico frente al plan promocional vigente.
+            </p>
           </div>
 
           {/* Tarjeta de Ahorro Destacado en Navy Focal Contrast */}

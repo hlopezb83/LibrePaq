@@ -4,17 +4,7 @@ import { apiClient } from '../../../lib/api-client';
 import { useDialogLightDismiss } from '../../../hooks/useDialogLightDismiss';
 import { handleTablistKeyDown } from '../../../hooks/useTablistKeyboard';
 import {
-  Check,
-  Code2,
-  Copy,
-  Download,
-  ExternalLink,
-  FileCode2,
-  FileText,
-  Printer,
-  Scale,
-  Sparkles,
-  X
+  Check, Code2, Copy, Download, ExternalLink, FileCode2, FileText, Printer, Scale, Sparkles, X
 } from 'lucide-react';
 import {
   buildAutoPolizaPlan,
@@ -128,15 +118,11 @@ export function CfdiInvoicePreviewModal({
   if (!effectiveCfdi) return null;
 
   const tipoLabel =
-    effectiveCfdi.tipoComprobante === 'I'
-      ? 'I - Ingreso (Factura Comercial)'
-      : effectiveCfdi.tipoComprobante === 'E'
-      ? 'E - Egreso (Nota de Crédito)'
-      : effectiveCfdi.tipoComprobante === 'P'
-      ? 'P - Recepción de Pagos (REP 2.0)'
-      : effectiveCfdi.tipoComprobante === 'N'
-      ? 'N - Nómina Digital'
-      : 'T - Traslado';
+    effectiveCfdi.tipoComprobante === 'I' ? 'I - Ingreso (Factura Comercial)'
+    : effectiveCfdi.tipoComprobante === 'E' ? 'E - Egreso (Nota de Crédito)'
+    : effectiveCfdi.tipoComprobante === 'P' ? 'P - Recepción de Pagos (REP 2.0)'
+    : effectiveCfdi.tipoComprobante === 'N' ? 'N - Nómina Digital'
+    : 'T - Traslado';
 
   const satParams = new URLSearchParams({
     id: effectiveCfdi.uuid,
@@ -154,7 +140,7 @@ export function CfdiInvoicePreviewModal({
       closedby="any"
       onClose={onClose}
       aria-labelledby="cfdi-preview-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-4xl open:flex open:flex-col max-h-[92dvh] overflow-hidden p-0 m-auto backdrop:bg-slate-900/60"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-[calc(100vw-1rem)] sm:w-full max-w-4xl open:flex open:flex-col max-h-[92dvh] overflow-hidden p-0 m-auto backdrop:bg-slate-900/60"
     >
       {/* Barra superior sticky de herramientas y pestañas de vista */}
       <div className="p-4 sm:px-5 sm:py-4 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 no-print bg-white">
@@ -250,7 +236,14 @@ export function CfdiInvoicePreviewModal({
 
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() => {
+                if (activeTab !== 'FACTURA') {
+                  setActiveTab('FACTURA');
+                  requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+                } else {
+                  window.print();
+                }
+              }}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer"
               title="Imprimir representación impresa"
               aria-label="Imprimir factura"

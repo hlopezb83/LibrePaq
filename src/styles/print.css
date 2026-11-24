@@ -195,6 +195,12 @@
     width: 100% !important;
   }
 
+  table thead th,
+  table td {
+    font-size: 9px !important;
+    padding: 2px 4px !important;
+  }
+
   thead {
     display: table-header-group !important;
   }

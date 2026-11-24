@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 
 export interface AdminSearchInputProps {
@@ -23,6 +23,12 @@ export function AdminSearchInput({
   className = 'w-full sm:w-64'
 }: AdminSearchInputProps) {
   const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const onDebouncedChangeRef = useRef(onDebouncedChange);
+
+  useEffect(() => {
+    onDebouncedChangeRef.current = onDebouncedChange;
+  }, [onDebouncedChange]);
 
   useEffect(() => {
     setInputValue(value);
@@ -31,15 +37,16 @@ export function AdminSearchInput({
   useEffect(() => {
     const timer = setTimeout(() => {
       if (inputValue !== value) {
-        onDebouncedChange(inputValue);
+        onDebouncedChangeRef.current(inputValue);
       }
     }, 220);
     return () => clearTimeout(timer);
-  }, [inputValue, value, onDebouncedChange]);
+  }, [inputValue, value]);
 
   const handleClear = () => {
     setInputValue('');
-    onDebouncedChange('');
+    onDebouncedChangeRef.current('');
+    inputRef.current?.focus();
   };
 
   return (
@@ -59,6 +66,7 @@ export function AdminSearchInput({
         />
       )}
       <input
+        ref={inputRef}
         id={id}
         type="search"
         value={inputValue}
@@ -74,7 +82,7 @@ export function AdminSearchInput({
         spellCheck={false}
         enterKeyHint="search"
         placeholder={placeholder}
-        className="w-full pl-9 pr-9 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        className="w-full pl-9 pr-9 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 [&::-webkit-search-cancel-button]:appearance-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
       />
       {inputValue && (
         <button

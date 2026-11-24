@@ -131,14 +131,17 @@
   #toast-portal-popover:not(:popover-open) {
     display: none;
   }
+}
 
-  /* Validación no intrusiva tras interacción del usuario (:user-invalid) */
-  input:user-invalid,
-  select:user-invalid,
-  textarea:user-invalid {
-    border-color: #b91c1c;
-    background-color: #fef2f2;
-  }
+/* Validación no intrusiva tras interacción del usuario (:user-invalid) */
+:is(input, select, textarea):user-invalid {
+  border-color: #b91c1c;
+  background-color: #fef2f2;
+}
+
+.dark-surface :is(input, select, textarea):user-invalid {
+  border-color: #f87171;
+  background-color: rgba(127, 29, 29, 0.35);
 }
 
 /* Cabeceras de tabla pegajosas (Sticky Table Headers) para libros contables largos */
@@ -151,7 +154,7 @@
 }
 
 /* Calibración Única de Densidad Contable Profesional (Equilibrio de Alta Legibilidad y Capacidad) */
-table thead th {
+table:not(.landing-table) thead th {
   padding-top: 0.45rem !important;
   padding-bottom: 0.45rem !important;
   font-size: 0.75rem !important;
@@ -159,7 +162,7 @@ table thead th {
   letter-spacing: 0.025em;
 }
 
-table td {
+table:not(.landing-table) td {
   padding-top: 0.4rem !important;
   padding-bottom: 0.4rem !important;
   font-size: 0.8125rem !important;

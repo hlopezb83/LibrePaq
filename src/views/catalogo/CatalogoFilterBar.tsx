@@ -235,7 +235,7 @@ export function CatalogoFilterBar({
               )}
               <span>{pill.label}</span>
               <span
-                className={`inline-flex items-center justify-center px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold ${
+                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full font-mono text-[10px] font-bold ${
                   isActive
                     ? isRedPill
                       ? 'bg-red-800 text-red-100'

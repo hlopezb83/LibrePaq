@@ -59,7 +59,7 @@ export function useAjustesFiscalParams(
   canEditFiscalConfig: boolean,
   toast: ToastContextType
 ) {
-  const { data: fiscalWp, refetch: refetchFiscalWp } = useQuery({
+  const { data: fiscalWp, isLoading: isLoadingFiscalWp, refetch: refetchFiscalWp } = useQuery({
     queryKey: ['fiscal-workpaper', activeCompanyId, currentYear, currentPeriod],
     queryFn: () =>
       activeCompanyId
@@ -152,6 +152,7 @@ export function useAjustesFiscalParams(
 
   return {
     fiscalWp,
+    isLoadingFiscalWp,
     coefUtilidad,
     setCoefUtilidad,
     tcDof,

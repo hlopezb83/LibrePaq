@@ -16,7 +16,7 @@ const SAT_ERROR_DICTIONARY: Record<string, Omit<SatErrorTranslation, 'code'>> = 
   '301': {
     shortLabel: 'Fecha futura o XML inválido (301)',
     title: 'Rango de fechas o estructura XML rechazada (Código 301)',
-    explanation: 'La fecha final solicitada supera la fecha actual del servidor SAT o la petición SOAP tiene un parámetro fuera de rango.',
+    explanation: 'La fecha final solicitada supera la fecha actual del servidor SAT o la solicitud a los servicios digitales del SAT tiene un parámetro fuera de rango.',
     hint: 'Asegúrate de que la Fecha Final no sea posterior a hoy ni anterior a la Fecha Inicial.'
   },
   '302': {
@@ -52,7 +52,7 @@ const SAT_ERROR_DICTIONARY: Record<string, Omit<SatErrorTranslation, 'code'>> = 
   '5000': {
     shortLabel: 'Solicitud recibida (5000)',
     title: 'Solicitud aceptada por el SAT (Código 5000)',
-    explanation: 'La petición fue recibida correctamente por el Web Service del SAT.',
+    explanation: 'La petición fue recibida correctamente por los servicios digitales del SAT.',
     hint: 'Espera unos minutos y presiona "Comprobar con el SAT" para descargar los paquetes.'
   },
   '5001': {

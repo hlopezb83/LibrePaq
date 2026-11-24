@@ -51,7 +51,7 @@ export function ConciliacionToolbar({
           value={effectiveBankId}
           disabled={bankAccounts.length === 0}
           onChange={(e) => setSelectedBankId(e.target.value)}
-          className="w-full min-w-[300px] sm:flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-semibold bg-white text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+          className="w-full min-w-0 sm:min-w-[240px] sm:flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-semibold bg-white text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
         >
           {bankAccounts.length === 0 ? (
             <option value="">Sin cuentas bancarias 102-* configuradas en el catálogo</option>
@@ -175,13 +175,13 @@ export function ConciliacionToolbar({
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <button
             type="button"
             disabled={isSearchingN1 || isApplyingN1 || isWriteLocked || !hasBankAccounts}
             title={isWriteLocked ? lockTitle : !hasBankAccounts ? 'Sin cuenta bancaria 102-*' : 'Buscar grupos de varias pólizas que sumen un solo movimiento bancario'}
             onClick={onProposeN1}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition"
           >
             {isSearchingN1 ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <GitMerge className="w-4 h-4" aria-hidden="true" />}
             {isSearchingN1 ? 'Buscando grupos...' : 'Conciliar Múltiples Pólizas'}
@@ -192,7 +192,7 @@ export function ConciliacionToolbar({
             disabled={isAutoMatchPending || isWriteLocked || !hasBankAccounts}
             onClick={onAutoMatch}
             title={isWriteLocked ? lockTitle : !hasBankAccounts ? 'Sin cuenta bancaria 102-*' : 'Emparejar automáticamente movimientos coincidentes'}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-xs cursor-pointer transition"
           >
             <RefreshCw className={`w-4 h-4 ${isAutoMatchPending ? 'animate-spin' : ''}`} aria-hidden="true" />
             Conciliar Automáticamente

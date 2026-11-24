@@ -36,13 +36,16 @@ export function CxcCxpTable({
       tabIndex={0}
       role="region"
       aria-label={mode === 'CXC' ? 'Documentos PPD por cobrar' : 'Documentos PPD por pagar'}
-      className="overflow-x-auto max-w-full"
+      className="overflow-x-auto max-h-[460px] overflow-y-auto max-w-full"
     >
-      <table className="w-full text-left border-collapse">
+      <span className="visually-hidden" role="status" aria-live="polite">
+        {copiedKey ? 'UUID fiscal copiado al portapapeles' : ''}
+      </span>
+      <table className="w-full text-left border-collapse erp-sticky-table">
         <caption className="visually-hidden">
           {mode === 'CXC' ? 'Documentos PPD por cobrar' : 'Documentos PPD por pagar'}
         </caption>
-        <thead>
+        <thead className="sticky top-0 z-10">
           <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
             <th scope="col" className="py-2.5 px-3 w-11"><span className="visually-hidden">Parcialidades</span></th>
             <th scope="col" className="py-2.5 px-3">{mode === 'CXC' ? 'Cliente (Receptor)' : 'Proveedor (Emisor)'}</th>

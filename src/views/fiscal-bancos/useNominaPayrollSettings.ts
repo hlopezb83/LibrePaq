@@ -73,7 +73,7 @@ export function useNominaPayrollSettings(params: {
   };
 
   const setIsnRateInput = (v: string) => { setIsnRateInputState(v); setIsDirty(true); };
-  const setBaseInput = (v: string | null) => { setBaseInputState(v); setIsDirty(true); };
+  const setBaseInput = (v: string | null) => { setBaseInputState(v); };
   const setImssInput = (v: string) => { setImssInputState(v); setIsDirty(true); };
   const setRcvInput = (v: string) => { setRcvInputState(v); setIsDirty(true); };
   const setInfonavitInput = (v: string) => { setInfonavitInputState(v); setIsDirty(true); };

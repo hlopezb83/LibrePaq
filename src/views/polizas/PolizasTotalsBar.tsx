@@ -1,21 +1,36 @@
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
+import type { PolizaPeriodScope } from './filterPolizas';
 
 export interface PolizasTotalsBarProps {
   totalCount: number;
   filteredCount: number;
   totals: { cargos: number; abonos: number };
+  periodScope?: PolizaPeriodScope;
+  currentPeriod?: number;
+  periodFrom?: number;
+  periodTo?: number;
 }
 
 export function PolizasTotalsBar({
   totalCount,
   filteredCount,
-  totals
+  totals,
+  periodScope = 'CURRENT',
+  currentPeriod = 1,
+  periodFrom = 1,
+  periodTo = 12
 }: PolizasTotalsBarProps) {
   const diffCents = Math.abs(
     Math.round(totals.cargos * 100) - Math.round(totals.abonos * 100)
   );
   const isBalanced = diffCents === 0;
+  const scopeLabel =
+    periodScope === 'YTD'
+      ? `en Ene–P${String(currentPeriod).padStart(2, '0')}`
+      : periodScope === 'RANGE'
+      ? `en P${String(periodFrom).padStart(2, '0')}–P${String(periodTo).padStart(2, '0')}`
+      : `en P${String(currentPeriod).padStart(2, '0')}`;
 
   return (
     <div
@@ -26,13 +41,17 @@ export function PolizasTotalsBar({
       {/* Conteo de pólizas e indicador de Partida Doble */}
       <div className="flex flex-wrap items-center gap-2.5">
         <span className="text-slate-600">
-          Mostrando <strong>{filteredCount}</strong> {filteredCount === 1 ? 'póliza' : 'pólizas'} en vista actual
+          Mostrando <strong>{filteredCount}</strong> {filteredCount === 1 ? 'póliza' : 'pólizas'} {scopeLabel}
           {filteredCount !== totalCount && (
-            <span className="text-slate-600 font-normal"> (de {totalCount} en el periodo)</span>
+            <span className="text-slate-600 font-normal"> (de {totalCount} {scopeLabel})</span>
           )}
         </span>
 
-        {isBalanced ? (
+        {filteredCount === 0 ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+            Sin pólizas en vista
+          </span>
+        ) : isBalanced ? (
           <span
             title="Principio de Partida Doble verificado: Cargos y Abonos coinciden exactamente al centavo"
             className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"

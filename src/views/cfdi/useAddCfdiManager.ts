@@ -46,10 +46,7 @@ export function useAddCfdiManager() {
     return p.get('sat') === 'open' || p.get('openSat') === 'true';
   });
 
-  const hasAutoOpenedPanelRef = useRef(false);
-
   useEffect(() => {
-    hasAutoOpenedPanelRef.current = false;
     setSelectedCfdi(null);
     setConfirmDeleteCfdiId(null);
     setPreviewInvoiceCfdi(null);
@@ -61,6 +58,10 @@ export function useAddCfdiManager() {
   useBeforeUnloadGuard(isUploadingFiles);
 
   useEffect(() => {
+    if (isReadOnlyClient) {
+      setShowSoapFielPanel(false);
+      return;
+    }
     if (typeof window !== 'undefined' && (window.location.search.includes('sat=open') || window.location.search.includes('openSat=true'))) {
       setShowSoapFielPanel(true);
       requestAnimationFrame(() => {
@@ -69,7 +70,7 @@ export function useAddCfdiManager() {
         });
       });
     }
-  }, []);
+  }, [isReadOnlyClient]);
 
   const currentYear = activeCompany?.currentYear ?? 2026;
   const currentPeriod = activeCompany?.currentPeriod ?? 10;
@@ -88,13 +89,6 @@ export function useAddCfdiManager() {
     queryFn: () => apiClient.getCfdis(activeCompanyId),
     enabled: Boolean(activeCompanyId)
   });
-
-  useEffect(() => {
-    if (!isLoading && cfdis.length === 0 && !hasAutoOpenedPanelRef.current) {
-      hasAutoOpenedPanelRef.current = true;
-      setShowSoapFielPanel(true);
-    }
-  }, [isLoading, cfdis.length]);
 
   useCloud69BSync(activeCompanyId, cfdis);
 

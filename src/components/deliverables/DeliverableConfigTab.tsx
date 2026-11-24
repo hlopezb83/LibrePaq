@@ -83,9 +83,9 @@ export function DeliverableConfigTab({
   const docsList = [
     { id: 'deliv-include-cover', label: '0. Portada Ejecutiva, Razones Financieras y Notas', checked: includeCoverRatios, set: setIncludeCoverRatios },
     { id: 'deliv-include-balanza', label: '1. Balanza de Comprobación Anexo 24 (SAT)', checked: includeBalanza, set: setIncludeBalanza },
-    { id: 'deliv-include-resultados', label: '2. Estado de Resultados Integral (NIF B-3 Mes + YTD)', checked: includeResultados, set: setIncludeResultados },
+    { id: 'deliv-include-resultados', label: '2. Estado de Resultados Integral (NIF B-3 Mes + Acum. Ejercicio)', checked: includeResultados, set: setIncludeResultados },
     { id: 'deliv-include-balance', label: '3. Balance General Clasificado (NIF B-6)', checked: includeBalance, set: setIncludeBalance },
-    { id: 'deliv-include-nif-aging', label: '4. Flujos (NIF B-2), Capital (NIF B-4) y Aging CxC/CxP', checked: includeNifAging, set: setIncludeNifAging },
+    { id: 'deliv-include-nif-aging', label: '4. Flujos (NIF B-2), Capital (NIF B-4) y Antigüedad CxC/CxP', checked: includeNifAging, set: setIncludeNifAging },
     { id: 'deliv-include-dia17', label: '5. Cédula Impuestos Federales Día 17', checked: includeDia17, set: setIncludeDia17 }
   ];
 
@@ -104,6 +104,7 @@ export function DeliverableConfigTab({
           <button
             type="button"
             disabled={isSavingBranding}
+            aria-busy={isSavingBranding}
             onClick={onSaveBranding}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-xs font-bold text-white transition cursor-pointer"
           >
@@ -162,7 +163,7 @@ export function DeliverableConfigTab({
           </div>
           {!isReadOnly && (
             <div className="flex items-center gap-2">
-              <label htmlFor="deliv-logo-upload" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-700 cursor-pointer">
+              <label htmlFor="deliv-logo-upload" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-700 cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-blue-600">
                 <ImagePlus className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Subir Imagen</span>
                 <input id="deliv-logo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoFileChange} className="sr-only" />
@@ -175,7 +176,7 @@ export function DeliverableConfigTab({
             </div>
           )}
         </div>
-        {logoError && <p className="text-red-700 font-medium">{logoError}</p>}
+        {logoError && <p role="alert" className="text-red-700 font-medium">{logoError}</p>}
         {logoDataUrl && (
           <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 inline-flex items-center gap-3">
             <img src={logoDataUrl} alt="Logotipo del despacho" className="max-h-12 w-auto object-contain rounded" />
