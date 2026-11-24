@@ -163,7 +163,7 @@ export function useCatalogoColumns({
                 onSelectAccount(row.id);
                 onOpenLedger(row.id);
               }}
-              className={`text-left hover:text-blue-800 cursor-pointer block truncate max-w-[165px] lg:max-w-[200px] xl:max-w-[225px] ${
+              className={`text-left hover:text-blue-800 cursor-pointer block truncate max-w-[150px] lg:max-w-[165px] xl:max-w-[180px] ${
                 row.level === 1
                   ? 'font-bold text-slate-900 uppercase tracking-tight text-xs'
                   : row.level === 2

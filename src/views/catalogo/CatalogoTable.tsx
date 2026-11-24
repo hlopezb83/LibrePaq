@@ -124,7 +124,7 @@ export function CatalogoTable({
                 <th
                   key={header.id}
                   scope="col"
-                  className={`py-2 px-2 ${
+                  className={`py-2 px-1.5 ${
                     header.column.id === 'actions'
                       ? 'md:sticky md:right-0 bg-slate-50 z-20 md:shadow-[-1px_0_0_#e2e8f0]'
                       : ''
@@ -210,7 +210,7 @@ export function CatalogoTable({
                     {row.getAllCells().map((cell) => (
                       <td
                         key={cell.id}
-                        className={`py-2 px-2 ${
+                        className={`py-2 px-1.5 ${
                           cell.column.id === 'actions'
                             ? `md:sticky md:right-0 ${stickyActionsBg} group-hover:bg-slate-50 md:shadow-[-1px_0_0_#e2e8f0]`
                             : ''

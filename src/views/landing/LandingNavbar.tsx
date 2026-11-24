@@ -28,11 +28,11 @@ export function LandingNavbar({ user, onOpenAuth, onOpenSignIn }: LandingNavbarP
   return (
     <header className="relative lg:sticky lg:top-0 z-40 w-full backdrop-blur-md bg-white/95 border-b border-slate-200/80 shadow-xs transition-all">
       <div className="max-w-7xl mx-auto px-2 min-[420px]:px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-2">
-        <div className="flex items-center gap-6 min-w-0 shrink">
+        <div className="flex items-center gap-4 xl:gap-6 min-w-0">
           <Link
             to="/"
             aria-label="Inicio LibrePaq Pro"
-            className="flex items-center group focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2 rounded-xl p-0.5 shrink min-w-0"
+            className="flex items-center group focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2 rounded-xl p-0.5 shrink sm:shrink-0 min-w-0"
           >
             <div className="min-[420px]:hidden">
               <LibrePaqLogo
@@ -51,13 +51,13 @@ export function LandingNavbar({ user, onOpenAuth, onOpenSignIn }: LandingNavbarP
                 showSubtitle={false}
               />
             </div>
-            <div className="hidden sm:block">
+            <div className="hidden sm:block shrink-0">
               <LibrePaqLogo variant="horizontal" size="md" theme="light" badge="PRO" />
             </div>
           </Link>
 
           {/* Menú de navegación desktop */}
-          <nav aria-label="Navegación principal" className="hidden lg:flex items-center gap-5 xl:gap-6 text-sm font-semibold text-slate-700">
+          <nav aria-label="Navegación principal" className="hidden lg:flex items-center gap-3.5 xl:gap-5 text-sm font-semibold text-slate-700">
             <a href="#comparativa" className="hover:text-blue-600 transition-colors flex items-center gap-1.5 whitespace-nowrap">
               <span>vs. CONTPAQi®</span>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
@@ -89,7 +89,7 @@ export function LandingNavbar({ user, onOpenAuth, onOpenSignIn }: LandingNavbarP
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {user ? (
             <div className="flex items-center gap-1.5 sm:gap-2.5">
-              <span className="hidden md:inline-block text-xs font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full font-semibold truncate max-w-[180px]">
+              <span className="hidden 2xl:inline-block text-xs font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full font-semibold truncate max-w-[180px]">
                 <span aria-hidden="true">●</span> Conectado: {user.email?.split('@')[0]}
               </span>
               <Link
