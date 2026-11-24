@@ -3,14 +3,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
+import { isSupabaseConfigured, supabase } from '../../lib/supabase';
+import { checkRfcsAgainstCloud69B } from '../../lib/supabase/supabase-cxc-sat';
 import type { CfdiDocument } from '../../shared/types';
 import {
+  buildContabilizarPreviewMovements,
+  computeNextCfdiSelection,
   downloadCfdiXmlFile,
   extractXmlStringsFromFiles,
-  resolveDefaultAccountsForCfdi
+  resolveDefaultAccountsForCfdi,
+  uploadXmlsInSequentialBatches,
+  type UploadBatchProgress
 } from './cfdiXmlUploadHelpers';
 import { exportCfdisCsv } from './exportCfdisCsv';
+import { exportCfdisZip } from './exportCfdisZip';
 import { buildSimulatedCfdiXml, type SimulatedCfdiPayload } from './simulateCfdiXml';
 import { useAddCfdiMutations } from './useAddCfdiMutations';
 import { useCfdiFilters } from './useCfdiFilters';
@@ -33,6 +39,10 @@ export function useAddCfdiManager() {
   const [previewInvoiceCfdi, setPreviewInvoiceCfdi] = useState<CfdiDocument | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const [uploadBatchProgress, setUploadBatchProgress] = useState<UploadBatchProgress | null>(null);
+  const [isExportingZip, setIsExportingZip] = useState(false);
+  const [, setCloud69BRev] = useState(0);
+  const checked69BKeyRef = useRef('');
   const [copiedUuid, setCopiedUuid] = useState<string | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
   const [confirmDeleteCfdiId, setConfirmDeleteCfdiId] = useState<string | null>(null);
@@ -88,6 +98,23 @@ export function useAddCfdiManager() {
     }
   }, [isLoading, cfdis.length]);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !activeCompanyId || cfdis.length === 0) return;
+    const rfcs = Array.from(
+      new Set(cfdis.flatMap((c) => [c.emisorRfc, c.receptorRfc]).filter(Boolean))
+    ).sort();
+    const key = `${activeCompanyId}:${rfcs.join(',')}`;
+    if (rfcs.length === 0 || checked69BKeyRef.current === key) return;
+    checked69BKeyRef.current = key;
+    void checkRfcsAgainstCloud69B(rfcs, activeCompanyId)
+      .then((res) => {
+        if (res.matches.length > 0) setCloud69BRev((v) => v + 1);
+      })
+      .catch(() => {
+        // Silencioso en caso de sesión offline o sin permisos
+      });
+  }, [activeCompanyId, cfdis]);
+
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getAccounts(activeCompanyId, currentYear, currentPeriod),
@@ -97,22 +124,11 @@ export function useAddCfdiManager() {
   const {
     pendingCfdis,
     filters: {
-      tab,
-      setTab,
-      tipoFilter,
-      setTipoFilter,
-      metodoFilter,
-      setMetodoFilter,
-      searchQuery,
-      setSearchQuery,
-      periodScope,
-      setPeriodScope,
-      countInCurrentPeriod,
-      scopedCfdis,
-      emitidosCount,
-      recibidosCount,
-      filteredCfdis,
-      filteredTotals
+      tab, setTab, tipoFilter, setTipoFilter, metodoFilter, setMetodoFilter,
+      statusSatFilter, setStatusSatFilter, formaPagoFilter, setFormaPagoFilter,
+      searchQuery, setSearchQuery, periodScope, setPeriodScope,
+      countInCurrentPeriod, countInCurrentYear, scopedCfdis, emitidosCount, recibidosCount,
+      filteredCfdis, filteredTotals
     }
   } = useCfdiFilters(cfdis, currentPeriodPrefix);
 
@@ -162,14 +178,20 @@ export function useAddCfdiManager() {
         return;
       }
 
-      const res = await apiClient.batchUploadCfdiXmls(activeCompanyId, boundedXmls);
+      const res = await uploadXmlsInSequentialBatches({
+        companyId: activeCompanyId,
+        xmls: boundedXmls,
+        toast,
+        onProgress: setUploadBatchProgress
+      });
       invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
       toast.success(
-        `Se importaron ${res.uploaded.length} archivos XML al ADD${
+        `Se importaron ${res.uploadedCount} archivos XML al ADD${
           res.skippedDuplicates > 0 ? ` (${res.skippedDuplicates} duplicados omitidos)` : ''
         }.`
       );
     } finally {
+      setUploadBatchProgress(null);
       setIsUploadingFiles(false);
     }
   };
@@ -232,24 +254,16 @@ export function useAddCfdiManager() {
     void downloadCfdiXmlFile(selectedCfdi, toast);
   };
 
-  const previewMovements = useMemo(() => {
-    if (!selectedCfdi || affectableAccounts.length === 0) return [];
-    try {
-      const plan = buildAutoPolizaPlan(selectedCfdi, affectableAccounts, {
-        operationAccountCode: operationAccountCode || undefined,
-        counterAccountCode: counterAccountCode || undefined
-      });
-      return plan.movements.map((m) => ({
-        code: m.accountCode,
-        name: m.accountName,
-        concepto: m.concepto,
-        cargo: m.cargo,
-        abono: m.abono
-      }));
-    } catch {
-      return [];
-    }
-  }, [selectedCfdi, operationAccountCode, counterAccountCode, affectableAccounts]);
+  const previewMovements = useMemo(
+    () =>
+      buildContabilizarPreviewMovements(
+        selectedCfdi,
+        affectableAccounts,
+        operationAccountCode,
+        counterAccountCode
+      ),
+    [selectedCfdi, operationAccountCode, counterAccountCode, affectableAccounts]
+  );
 
   const toggleSelectAll = () => {
     if (selectedCfdiIds.size === filteredCfdis.length && filteredCfdis.length > 0) {
@@ -260,51 +274,37 @@ export function useAddCfdiManager() {
   };
 
   const toggleSelectOne = (id: string, shiftKey = false) => {
-    setSelectedCfdiIds((prev) => {
-      const next = new Set(prev);
-      const shouldSelect = !prev.has(id);
-
-      if (shiftKey && lastSelectedIdRef.current) {
-        const startIdx = filteredCfdis.findIndex((c) => c.id === lastSelectedIdRef.current);
-        const endIdx = filteredCfdis.findIndex((c) => c.id === id);
-        if (startIdx !== -1 && endIdx !== -1) {
-          const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
-          for (let i = from; i <= to; i++) {
-            const doc = filteredCfdis[i];
-            if (!doc) continue;
-            if (shouldSelect) next.add(doc.id);
-            else next.delete(doc.id);
-          }
-          lastSelectedIdRef.current = id;
-          return next;
-        }
-      }
-
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      lastSelectedIdRef.current = id;
-      return next;
-    });
+    const lastId = lastSelectedIdRef.current;
+    lastSelectedIdRef.current = id;
+    setSelectedCfdiIds((prev) => computeNextCfdiSelection(prev, filteredCfdis, id, lastId, shiftKey));
   };
 
   const hasActiveFilters =
-    tab !== 'ALL' || tipoFilter !== 'ALL' || metodoFilter !== 'ALL' || searchQuery.trim().length > 0;
+    tab !== 'ALL' || tipoFilter !== 'ALL' || metodoFilter !== 'ALL' ||
+    statusSatFilter !== 'ALL' || formaPagoFilter !== 'ALL' || searchQuery.trim().length > 0;
 
   const resetFilters = () => {
     setTab('ALL');
     setTipoFilter('ALL');
     setMetodoFilter('ALL');
+    setStatusSatFilter('ALL');
+    setFormaPagoFilter('ALL');
     setSearchQuery('');
   };
 
   const handleExportCsv = () => {
-    exportCfdisCsv(
-      filteredCfdis,
-      activeCompany?.rfc || 'Empresa',
-      currentYear,
-      currentPeriod,
-      toast
-    );
+    exportCfdisCsv(filteredCfdis, activeCompany?.rfc || 'Empresa', currentYear, currentPeriod, toast);
+  };
+
+  const handleExportZipSelected = async () => {
+    const selected = filteredCfdis.filter((c) => selectedCfdiIds.has(c.id));
+    const targets = selected.length > 0 ? selected : filteredCfdis;
+    setIsExportingZip(true);
+    try {
+      await exportCfdisZip(targets, activeCompany?.rfc || 'Empresa', currentYear, currentPeriod, toast);
+    } finally {
+      setIsExportingZip(false);
+    }
   };
 
   const onSoapDownloadSuccess = (msg: string) => {
@@ -323,13 +323,15 @@ export function useAddCfdiManager() {
     isPeriodLocked, isReadOnlyClient, isWriteBlocked,
     xmlModalRef, contabilizarModalRef, simModalRef, fileInputRef,
     tab, setTab, tipoFilter, setTipoFilter, metodoFilter, setMetodoFilter,
+    statusSatFilter, setStatusSatFilter, formaPagoFilter, setFormaPagoFilter,
     searchQuery, setSearchQuery, selectedCfdi, setSelectedCfdi,
     operationAccountCode, setOperationAccountCode, counterAccountCode, setCounterAccountCode,
     selectedCfdiIds, setSelectedCfdiIds, previewInvoiceCfdi, setPreviewInvoiceCfdi,
-    isDragging, setIsDragging, isUploadingFiles, copiedUuid, confirmDeleteCfdiId, setConfirmDeleteCfdiId,
+    isDragging, setIsDragging, isUploadingFiles, uploadBatchProgress, isExportingZip,
+    copiedUuid, confirmDeleteCfdiId, setConfirmDeleteCfdiId,
     hasActiveFilters, resetFilters,
     showSoapFielPanel, setShowSoapFielPanel, periodScope, setPeriodScope,
-    cfdis, countInCurrentPeriod, accounts, affectableAccounts, pendingCfdis, isLoading, isError, error, refetch,
+    cfdis, countInCurrentPeriod, countInCurrentYear, accounts, affectableAccounts, pendingCfdis, isLoading, isError, error, refetch,
     verifyingCfdiId: verifySatMutation.isPending ? verifySatMutation.variables ?? null : null,
     uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
     batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
@@ -337,7 +339,7 @@ export function useAddCfdiManager() {
     processXmlFiles, handleFileUpload, handleDrop,
     openContabilizarModal, openXmlViewer, handleCopyUuid, handleDownloadSelectedXml,
     previewMovements, filteredCfdis, filteredTotals,
-    toggleSelectAll, toggleSelectOne, handleExportCsv,
+    toggleSelectAll, toggleSelectOne, handleExportCsv, handleExportZipSelected,
     handleSimulateSubmit, onSoapDownloadSuccess, batchProgress,
     scopedCfdis, emitidosCount, recibidosCount
   };

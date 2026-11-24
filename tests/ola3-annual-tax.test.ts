@@ -196,7 +196,8 @@ describe('Ola 3A — Declaración Anual, Ajuste Inflación INPC, CUCA, CUFIN y P
     expect(res.reconciliation.perdidasFiscalesActualizadas).toBe(104_310);
     expect(res.reconciliation.resultadoFiscal).toBe(618_620);
 
-    expect(res.determination.nuevoCoeficienteUtilidad).toBe(0.3615);
+    // Art. 14 Fracc. I LISR ordena truncamiento a 4 decimales (0.36149 -> 0.3614)
+    expect(res.determination.nuevoCoeficienteUtilidad).toBe(0.3614);
     expect(res.determination.ptuPorPagar10Pct).toBe(75_293);
     expect(res.determination.isrAnualCausado).toBe(185_586);
     expect(res.determination.isrACargo).toBe(65_586);

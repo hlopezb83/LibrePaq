@@ -3,6 +3,7 @@ import type {
   CfdiDocument,
   Company,
   FiscalWorkpaperResponse,
+  RetencionDesgloseItem,
   TaxParametersRecord
 } from '../types';
 import { parseCalendarDate } from '../date-utils';
@@ -140,12 +141,19 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
   const accIvaPagado = trialBalance.find(
     (a) => a.code === '118-01-001' || a.satGroupCode === '118.01'
   );
-  const accRetIsr = trialBalance.find(
-    (a) => a.code === '216-01-001' || a.satGroupCode === '216.01'
+  const isIvaRetentionAcc = (a: AccountWithBalance): boolean => {
+    const sat = (a.satGroupCode ?? '').trim();
+    if (sat === '216.10') return true;
+    if (sat.startsWith('216.') && sat !== '216.10') return false;
+    if (a.code === '216-01-002') return true;
+    const lower = a.name.toLowerCase();
+    return lower.includes('iva') && !lower.includes('isr');
+  };
+  const retention216Accounts = trialBalance.filter(
+    (a) => a.isAffectable && (a.code.startsWith('216') || (a.satGroupCode ?? '').startsWith('216'))
   );
-  const accRetIva = trialBalance.find(
-    (a) => a.code === '216-01-002' || a.satGroupCode === '216.02'
-  );
+  const accRetIvaList = retention216Accounts.filter(isIvaRetentionAcc);
+  const accRetIsrList = retention216Accounts.filter((a) => !isIvaRetentionAcc(a));
   const accIsrFavor = trialBalance.find(
     (a) => a.code === '113-02-001' || a.satGroupCode === '113.02'
   );
@@ -165,12 +173,21 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     cfdis.length > 0 && cashResult.isCashBasisRegime && cashResult.hasCfdiCashActivity;
 
   const tbIvaPagado = accIvaPagado?.periodCharges ?? 0;
+  const prorationFactor = cashResult.ivaBreakdown.prorationFactor;
   const ivaAcreditablePagado =
     useCashFlow && cashResult.hasRecibidosCashActivity
       ? cashResult.ivaAcreditablePagadoPeriodo
-      : useCashFlow && cashResult.ivaBreakdown.prorationFactor < 1
-        ? fromCents(Math.round(toCents(tbIvaPagado) * cashResult.ivaBreakdown.prorationFactor))
+      : prorationFactor < 1
+        ? fromCents(Math.round(toCents(tbIvaPagado) * prorationFactor))
         : tbIvaPagado;
+  const effectiveIvaBreakdown =
+    !useCashFlow && prorationFactor < 1 && tbIvaPagado > 0 && cashResult.ivaBreakdown.ivaAcreditableSinProrrateo === 0
+      ? {
+          ...cashResult.ivaBreakdown,
+          ivaAcreditableSinProrrateo: tbIvaPagado,
+          ivaAcreditableProrrateado: ivaAcreditablePagado
+        }
+      : cashResult.ivaBreakdown;
 
   const ivaTrasladadoCobrado =
     useCashFlow && cashResult.hasEmitidosCashActivity
@@ -189,17 +206,54 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
       ? cashResult.ivaRetenidoFavorPeriodo
       : tbIvaFavor;
 
-  const tbIsrPorPagar = accRetIsr?.periodCredits ?? 0;
+  const tbIsrPorPagar = fromCents(
+    sumCents(accRetIsrList.map((a) => Math.max(0, a.periodCredits)))
+  );
   const isrRetenidoPorPagar =
     useCashFlow && cashResult.hasRecibidosCashActivity && tbIsrPorPagar === 0
       ? cashResult.isrRetenidoPorPagarPeriodo
       : tbIsrPorPagar;
 
-  const tbIvaPorPagar = accRetIva?.periodCredits ?? 0;
+  const tbIvaPorPagar = fromCents(
+    sumCents(accRetIvaList.map((a) => Math.max(0, a.periodCredits)))
+  );
   const ivaRetenidoPorPagar =
     useCashFlow && cashResult.hasRecibidosCashActivity && tbIvaPorPagar === 0
       ? cashResult.ivaRetenidoPorPagarPeriodo
       : tbIvaPorPagar;
+
+  const retencionesDesglose: RetencionDesgloseItem[] = retention216Accounts
+    .filter((a) => toCents(a.periodCredits) > 0)
+    .map((a) => {
+      const isIva = isIvaRetentionAcc(a);
+      return {
+        code: a.code,
+        satGroupCode: a.satGroupCode || (isIva ? '216.10' : '216.01'),
+        name: a.name,
+        tipo: isIva ? 'IVA' : 'ISR',
+        amount: fromCents(Math.max(0, toCents(a.periodCredits)))
+      };
+    });
+  if (retencionesDesglose.length === 0) {
+    if (isrRetenidoPorPagar > 0) {
+      retencionesDesglose.push({
+        code: '216-01-001',
+        satGroupCode: '216.04',
+        name: 'ISR Retenido por Pagar (CFDIs)',
+        tipo: 'ISR',
+        amount: isrRetenidoPorPagar
+      });
+    }
+    if (ivaRetenidoPorPagar > 0) {
+      retencionesDesglose.push({
+        code: '216-01-002',
+        satGroupCode: '216.10',
+        name: 'IVA Retenido por Pagar (CFDIs)',
+        tipo: 'IVA',
+        amount: ivaRetenidoPorPagar
+      });
+    }
+  }
 
   return computeFiscalWorkpaper({
     company,
@@ -219,6 +273,7 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     usdCfdis,
     cashBasisSummary: cashResult.cashBasisSummary,
     resicoThresholdAlert: cashResult.resicoThresholdAlert,
-    ivaBreakdown: cashResult.ivaBreakdown
+    ivaBreakdown: effectiveIvaBreakdown,
+    retencionesDesglose
   });
 }

@@ -214,11 +214,20 @@ export interface FixedAssetsResponse {
 export interface TaxParametersRecord {
   companyId: string;
   ejercicio: number;
+  periodo?: number;
   coeficienteUtilidad: number;
   perdidasFiscalesPendientes: number;
   pagosProvisionalesAnteriores: number;
   saldoFavorIvaAnterior: number;
   tipoCambioDofCierre: number;
+}
+
+export interface RetencionDesgloseItem {
+  code: string;
+  satGroupCode: string;
+  name: string;
+  tipo: 'ISR' | 'IVA';
+  amount: number;
 }
 
 export interface FiscalWorkpaperResponse {
@@ -297,6 +306,7 @@ export interface FiscalWorkpaperResponse {
     ivaAcreditableSinProrrateo: number;
     ivaAcreditableProrrateado: number;
   };
+  retencionesDesglose?: RetencionDesgloseItem[];
 }
 
 export * from './cxc-sat.types';

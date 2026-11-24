@@ -14,11 +14,33 @@ export interface PolizaMovementInput {
   concepto?: string;
   cargo: number;
   abono: number;
+  cfdiUuid?: string | null;
+}
+
+export function collectPolizaCfdiUuids(
+  headerCfdiUuid?: string | null,
+  headerCfdiUuids?: ReadonlyArray<string> | null,
+  movements?: ReadonlyArray<{ cfdiUuid?: string | null }>
+): string[] {
+  const seen = new Set<string>();
+  const add = (val?: string | null) => {
+    const clean = val?.trim().toUpperCase();
+    if (clean) seen.add(clean);
+  };
+  if (headerCfdiUuids) {
+    for (const u of headerCfdiUuids) add(u);
+  }
+  add(headerCfdiUuid);
+  if (movements) {
+    for (const m of movements) add(m.cfdiUuid);
+  }
+  return Array.from(seen);
 }
 
 export function mapSupabasePoliza(
   row: Record<string, unknown>,
-  movementsRaw: unknown = []
+  movementsRaw: unknown = [],
+  cfdiLinksRaw?: unknown
 ): Poliza {
   const movsList = Array.isArray(movementsRaw)
     ? (movementsRaw as Array<Record<string, unknown>>)
@@ -36,6 +58,21 @@ export function mapSupabasePoliza(
     cfdiUuid: m.cfdi_uuid ? String(m.cfdi_uuid) : null
   }));
 
+  const rawLinks = Array.isArray(cfdiLinksRaw)
+    ? cfdiLinksRaw
+    : Array.isArray(row.poliza_cfdis)
+      ? (row.poliza_cfdis as Array<Record<string, unknown>>)
+      : [];
+  const linkUuids = rawLinks
+    .map((l) => (l && typeof l === 'object' ? (l as { cfdi_uuid?: unknown }).cfdi_uuid : null))
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+
+  const cfdiUuids = collectPolizaCfdiUuids(
+    row.cfdi_uuid ? String(row.cfdi_uuid) : null,
+    linkUuids,
+    movements
+  );
+
   const totalCargosCents = sumCents(movements.map((m) => m.cargo));
   const totalAbonosCents = sumCents(movements.map((m) => m.abono));
   const totalCargos = fromCents(totalCargosCents);
@@ -52,7 +89,8 @@ export function mapSupabasePoliza(
     ejercicio: Number(row.ejercicio || fallbackPeriod.year),
     periodo: Number(row.periodo || fallbackPeriod.period),
     concepto: String(row.concepto || ''),
-    cfdiUuid: row.cfdi_uuid ? String(row.cfdi_uuid) : null,
+    cfdiUuid: row.cfdi_uuid ? String(row.cfdi_uuid) : (cfdiUuids[0] ?? null),
+    cfdiUuids,
     origin: (row.origin as 'MANUAL' | 'ADD_AUTO') || 'MANUAL',
     totalCargos,
     totalAbonos,
@@ -132,24 +170,48 @@ export async function resolveAccountsMap(
 export async function syncUpdatedPolizaCfdiLink(
   compId: string,
   polizaId: string,
-  prevUuid: string | null | undefined,
-  nextUuid: string | null
+  prevUuidsInput: string | null | undefined | ReadonlyArray<string>,
+  nextUuidsInput: string | null | ReadonlyArray<string>
 ): Promise<void> {
   if (!supabase) return;
-  if (prevUuid && prevUuid !== nextUuid) {
+  const toList = (v: string | null | undefined | ReadonlyArray<string>): string[] =>
+    Array.isArray(v)
+      ? Array.from(new Set(v.map((u) => u.trim().toUpperCase()).filter(Boolean)))
+      : typeof v === 'string' && v.trim()
+        ? [v.trim().toUpperCase()]
+        : [];
+  const prevUuids = toList(prevUuidsInput);
+  const nextUuids = toList(nextUuidsInput);
+  const nextSet = new Set(nextUuids);
+  const removedUuids = prevUuids.filter((u) => !nextSet.has(u));
+
+  if (removedUuids.length > 0) {
     await supabase
       .from('cfdi_documents')
       .update({ poliza_id: null })
       .eq('company_id', compId)
       .eq('poliza_id', polizaId)
-      .eq('uuid', prevUuid);
+      .in('uuid', removedUuids);
   }
-  if (nextUuid && nextUuid !== prevUuid) {
-    await supabase
+
+  await supabase.from('poliza_cfdis').delete().eq('poliza_id', polizaId);
+
+  if (nextUuids.length > 0) {
+    const linkRows = nextUuids.map((u) => ({
+      id: `pc_${crypto.randomUUID().slice(0, 12)}`,
+      company_id: compId,
+      poliza_id: polizaId,
+      cfdi_uuid: u
+    }));
+    const { error: pcErr } = await supabase.from('poliza_cfdis').insert(linkRows);
+    if (pcErr) throw new Error(pcErr.message);
+
+    const { error: cfdiErr } = await supabase
       .from('cfdi_documents')
       .update({ poliza_id: polizaId })
       .eq('company_id', compId)
-      .eq('uuid', nextUuid);
+      .in('uuid', nextUuids);
+    if (cfdiErr) throw new Error(cfdiErr.message);
   }
 }
 
@@ -162,6 +224,7 @@ export function buildPolizaMovementInsertRows(
 ) {
   return movements.map((m, idx) => {
     const cached = accMap.get(m.accountId);
+    const movUuid = m.cfdiUuid !== undefined ? (m.cfdiUuid?.trim().toUpperCase() || null) : (cfdiUuid?.trim().toUpperCase() || null);
     return {
       id: `mov_${polizaId}_${idx + 1}`,
       poliza_id: polizaId,
@@ -172,12 +235,32 @@ export function buildPolizaMovementInsertRows(
       concepto: m.concepto || defaultConcepto,
       cargo: Number(m.cargo || 0),
       abono: Number(m.abono || 0),
-      cfdi_uuid: cfdiUuid || null
+      cfdi_uuid: movUuid
     };
   });
 }
 
-/** Limpia conciliaciones bancarias 1-a-1 y N-a-1 (`bank_statement_matches`) ligadas a una póliza. */
+export async function fetchPolizaCfdisMap(
+  polizaIds: readonly string[]
+): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  if (!supabase || polizaIds.length === 0) return map;
+  for (const chunk of chunkArray(polizaIds, 150)) {
+    const { data, error } = await supabase
+      .from('poliza_cfdis')
+      .select('poliza_id, cfdi_uuid')
+      .in('poliza_id', chunk);
+    if (error || !data) continue;
+    for (const row of data as Array<{ poliza_id?: string; cfdi_uuid?: string }>) {
+      if (!row.poliza_id || !row.cfdi_uuid) continue;
+      const list = map.get(row.poliza_id) ?? [];
+      list.push(row.cfdi_uuid);
+      map.set(row.poliza_id, list);
+    }
+  }
+  return map;
+}
+
 export async function clearSupabaseBankMatchesForPoliza(
   polizaId: string,
   movIds: readonly string[]

@@ -172,13 +172,13 @@ describe('repositories — Companies & Accounts Catalog', () => {
   test('batchImportAccountsCatalog imports multiple accounts with upsert', () => {
     const result = batchImportAccountsCatalog(testCompanyId, [
       {
-        code: '107-01-001',
+        code: '107-01-002',
         name: 'Deudor Diverso Lic. Gomez',
         parentCode: '100-00-000',
         initialBalance: 12000
       },
       {
-        code: '107-01-002',
+        code: '107-01-003',
         name: 'Deudor Diverso Ing. Perez',
         parentCode: '100-00-000',
         initialBalance: 8500
@@ -187,7 +187,7 @@ describe('repositories — Companies & Accounts Catalog', () => {
 
     expect(result.importedCount).toBe(2);
     const accounts = getAccounts(testCompanyId);
-    expect(accounts.some((a) => a.code === '107-01-001')).toBe(true);
     expect(accounts.some((a) => a.code === '107-01-002')).toBe(true);
+    expect(accounts.some((a) => a.code === '107-01-003')).toBe(true);
   });
 });

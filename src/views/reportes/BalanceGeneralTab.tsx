@@ -47,6 +47,40 @@ export function BalanceGeneralTab({
     return `${((amount / base) * 100).toFixed(1)}%`;
   };
 
+  const renderAccountRows = (
+    items: AccountWithBalance[],
+    expectedNature: 'DEUDORA' | 'ACREEDORA'
+  ) =>
+    items.map((acc) => {
+      const displayBal = acc.nature !== expectedNature ? -acc.finalBalance : acc.finalBalance;
+      return (
+        <button
+          key={acc.id}
+          type="button"
+          onClick={() => onSelectAccount(acc.id)}
+          title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
+          className={`w-full py-2 flex justify-between gap-2 text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
+            acc.level === 2
+              ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
+              : 'pl-5 pr-2 text-slate-700'
+          }`}
+        >
+          <span className="min-w-0">
+            <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
+              {acc.code}
+            </span>
+            {acc.name}
+          </span>
+          <span className={`flex items-center gap-3 font-mono shrink-0 ${displayBal < 0 ? 'text-red-700' : ''}`}>
+            <span>{formatCurrency(displayBal)}</span>
+            <span className="w-12 text-right text-[11px] text-slate-500">
+              {formatVerticalPct(displayBal, balanceSheet.totalActivo)}
+            </span>
+          </span>
+        </button>
+      );
+    });
+
   return (
     <div className="space-y-6">
       {/* Membrete Ejecutivo Formal para Presentación y Auditoría */}
@@ -135,32 +169,7 @@ export function BalanceGeneralTab({
                   Sin cuentas de activo registradas en el periodo.
                 </p>
               ) : (
-                balanceSheet.activos.map((acc) => (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => onSelectAccount(acc.id)}
-                    title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
-                    className={`w-full py-2 flex justify-between gap-2 text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
-                      acc.level === 2
-                        ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
-                        : 'pl-5 pr-2 text-slate-700'
-                    }`}
-                  >
-                    <span className="min-w-0">
-                      <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                        {acc.code}
-                      </span>
-                      {acc.name}
-                    </span>
-                    <span className="flex items-center gap-3 font-mono shrink-0">
-                      <span>{formatCurrency(acc.finalBalance)}</span>
-                      <span className="w-12 text-right text-[11px] text-slate-500">
-                        {formatVerticalPct(acc.finalBalance, balanceSheet.totalActivo)}
-                      </span>
-                    </span>
-                  </button>
-                ))
+                renderAccountRows(balanceSheet.activos, 'DEUDORA')
               )}
             </div>
           </div>
@@ -189,32 +198,7 @@ export function BalanceGeneralTab({
                     Sin cuentas de pasivo registradas en el periodo.
                   </p>
                 ) : (
-                  balanceSheet.pasivos.map((acc) => (
-                    <button
-                      key={acc.id}
-                      type="button"
-                      onClick={() => onSelectAccount(acc.id)}
-                      title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
-                      className={`w-full py-2 flex justify-between gap-2 text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
-                        acc.level === 2
-                          ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
-                          : 'pl-5 pr-2 text-slate-700'
-                      }`}
-                    >
-                      <span className="min-w-0">
-                        <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                          {acc.code}
-                        </span>
-                        {acc.name}
-                      </span>
-                      <span className="flex items-center gap-3 font-mono shrink-0">
-                        <span>{formatCurrency(acc.finalBalance)}</span>
-                        <span className="w-12 text-right text-[11px] text-slate-500">
-                          {formatVerticalPct(acc.finalBalance, balanceSheet.totalActivo)}
-                        </span>
-                      </span>
-                    </button>
-                  ))
+                  renderAccountRows(balanceSheet.pasivos, 'ACREEDORA')
                 )}
               </div>
               <div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-900 px-2">
@@ -238,32 +222,7 @@ export function BalanceGeneralTab({
                 <span className="font-mono text-[10px] text-slate-600">Saldo | % Activo</span>
               </div>
               <div className="divide-y divide-slate-100">
-                {balanceSheet.capital.map((acc) => (
-                  <button
-                    key={acc.id}
-                    type="button"
-                    onClick={() => onSelectAccount(acc.id)}
-                    title={`Ver auxiliar de ${acc.code} — ${acc.name}`}
-                    className={`w-full py-2 flex justify-between gap-2 text-left text-xs hover:bg-blue-50/40 transition cursor-pointer ${
-                      acc.level === 2
-                        ? 'font-bold text-slate-900 bg-slate-50/80 px-2 rounded'
-                        : 'pl-5 pr-2 text-slate-700'
-                    }`}
-                  >
-                    <span className="min-w-0">
-                      <span className="font-mono mr-2 text-blue-800 underline decoration-dotted">
-                        {acc.code}
-                      </span>
-                      {acc.name}
-                    </span>
-                    <span className="flex items-center gap-3 font-mono shrink-0">
-                      <span>{formatCurrency(acc.finalBalance)}</span>
-                      <span className="w-12 text-right text-[11px] text-slate-500">
-                        {formatVerticalPct(acc.finalBalance, balanceSheet.totalActivo)}
-                      </span>
-                    </span>
-                  </button>
-                ))}
+                {renderAccountRows(balanceSheet.capital, 'ACREEDORA')}
                 {onViewIncomeStatement ? (
                   <button
                     type="button"

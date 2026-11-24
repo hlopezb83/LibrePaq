@@ -15,9 +15,11 @@ import {
 } from '../_shared/admin-edge-auth.ts';
 import {
   handleCheck69B,
+  handleUpsert69BBatch,
   handleVerifyBatch,
   type Check69BPayload,
   type SatStatusVerifyPayload,
+  type Upsert69BBatchPayload,
   type VerifyBatchPayload
 } from './handlers.ts';
 
@@ -52,22 +54,37 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: false, error: 'Cuerpo JSON inválido' }, 400, headers);
     }
 
-    if (!payload?.companyId || typeof payload.companyId !== 'string') {
-      return jsonResponse({ ok: false, error: 'companyId es requerido' }, 400, headers);
-    }
-
     const action = payload.action || 'VERIFY_BATCH';
-    if (action !== 'VERIFY_BATCH' && action !== 'CHECK_69B') {
+    if (action !== 'VERIFY_BATCH' && action !== 'CHECK_69B' && action !== 'UPSERT_69B_BATCH') {
       return jsonResponse({ ok: false, error: `Acción '${String(action)}' no reconocida` }, 400, headers);
     }
 
-    const access = await authorizeCompanyRole(supabase, auth, payload.companyId, 'AUXILIAR');
-    if (!access.ok) {
-      return jsonResponse({ ok: false, error: access.error }, access.status, headers);
+    if (action === 'VERIFY_BATCH') {
+      if (!payload?.companyId || typeof payload.companyId !== 'string') {
+        return jsonResponse({ ok: false, error: 'companyId es requerido' }, 400, headers);
+      }
+      const access = await authorizeCompanyRole(supabase, auth, payload.companyId, 'AUXILIAR');
+      if (!access.ok) {
+        return jsonResponse({ ok: false, error: access.error }, access.status, headers);
+      }
+      return await handleVerifyBatch(supabase, payload as VerifyBatchPayload, headers);
     }
 
-    if (action === 'VERIFY_BATCH') {
-      return await handleVerifyBatch(supabase, payload as VerifyBatchPayload, headers);
+    if (payload?.companyId && typeof payload.companyId === 'string') {
+      const access = await authorizeCompanyRole(supabase, auth, payload.companyId, 'AUXILIAR');
+      if (!access.ok) {
+        return jsonResponse({ ok: false, error: access.error }, access.status, headers);
+      }
+    } else if (auth.platformRole === 'SUPPORT_READONLY') {
+      return jsonResponse(
+        { ok: false, error: 'Acceso denegado: soporte de solo lectura no tiene permisos de operación' },
+        403,
+        headers
+      );
+    }
+
+    if (action === 'UPSERT_69B_BATCH') {
+      return await handleUpsert69BBatch(supabase, payload as Upsert69BBatchPayload, headers);
     }
     return await handleCheck69B(supabase, payload as Check69BPayload, headers);
   } catch (err: unknown) {

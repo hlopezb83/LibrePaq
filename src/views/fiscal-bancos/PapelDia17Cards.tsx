@@ -3,13 +3,21 @@ import { formatCurrency } from '../../lib/formatters';
 import type { FiscalWorkpaperResponse } from '../../shared/types';
 
 export function PapelDia17IsrCard({ workpaper, period }: { workpaper: FiscalWorkpaperResponse; period: number }) {
+  const isPersonaFisica = workpaper.company.rfc.trim().length === 13;
+  const isPfGeneral = isPersonaFisica && !workpaper.isrProvisional.esResico;
+  const isrMethodLabel = workpaper.isrProvisional.esResico
+    ? 'RESICO Flujo'
+    : isPfGeneral
+      ? 'Art. 106 LISR — Tarifa Progresiva'
+      : 'Art. 14 C.U.';
+
   return (
     <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-2.5">
-      <div className="border-b border-slate-200 pb-2 flex items-center justify-between">
+      <div className="border-b border-slate-200 pb-2 flex items-center justify-between gap-2">
         <h3 className="text-xs font-bold uppercase tracking-wider text-blue-800">
-          1. Pago Provisional ISR ({workpaper.isrProvisional.esResico ? 'RESICO Flujo' : 'Art. 14 C.U.'})
+          1. Pago Provisional ISR ({isrMethodLabel})
         </h3>
-        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-800 font-semibold">
+        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-800 font-semibold shrink-0">
           Tasa {workpaper.isrProvisional.tasaIsrPct}%
         </span>
       </div>
@@ -30,7 +38,9 @@ export function PapelDia17IsrCard({ workpaper, period }: { workpaper: FiscalWork
           <dt className="font-sans text-slate-600">
             {workpaper.isrProvisional.esResico
               ? '(-) Deducciones Autorizadas:'
-              : `(x) Coeficiente Utilidad (${workpaper.isrProvisional.coeficienteUtilidadAplicado.toFixed(4)}):`}
+              : isPfGeneral
+                ? '(=) Utilidad Fiscal (Ing. - Ded.):'
+                : `(x) Coeficiente Utilidad (${workpaper.isrProvisional.coeficienteUtilidadAplicado.toFixed(4)}):`}
           </dt>
           <dd className="font-semibold text-slate-900">
             {formatCurrency(
@@ -106,9 +116,9 @@ export function PapelDia17IvaCard({ workpaper }: { workpaper: FiscalWorkpaperRes
           </dd>
         </div>
         <div className="flex justify-between">
-          <dt className="font-sans text-slate-600">(-) IVA Retenido en el Mes:</dt>
+          <dt className="font-sans text-slate-600">(-) IVA Retenido Acreditable (por Clientes):</dt>
           <dd className="text-emerald-700">
-            -{formatCurrency(workpaper.ivaDefinitivo.ivaRetenidoPorPagar)}
+            -{formatCurrency(workpaper.ivaDefinitivo.ivaRetenidoAcreditable ?? 0)}
           </dd>
         </div>
         <div className="flex justify-between">

@@ -5,11 +5,16 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { getDefaultDateForPeriod } from '../../lib/formatters';
-import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
 import type { Poliza, PolizaType } from '../../shared/types';
 import { isCfdiPendingForPoliza } from '../cfdi/filterCfdis';
 import { exportPolizasCsv } from './exportPolizasCsv';
-import { computePolizasTotals, filterPolizas } from './filterPolizas';
+import {
+  buildPlanDraftsFromCfdi,
+  collectPolizaUniqueUuids,
+  computePolizasTotals,
+  filterPolizas,
+  formatPolizaCopyText
+} from './filterPolizas';
 import { useDraftPolizaMovements } from './useDraftPolizaMovements';
 import { usePolizasMutations } from './usePolizasMutations';
 
@@ -59,7 +64,7 @@ export function usePolizasManager() {
     setTipo('DIARIO');
     setFecha(defaultPeriodDate);
     setConcepto('');
-    setCfdiUuid('');
+    setCfdiUuids([]);
     setFormError(null);
     setConfirmDeleteId(null);
     setLedgerAccountId(null);
@@ -74,7 +79,8 @@ export function usePolizasManager() {
   const [tipo, setTipo] = useState<PolizaType>('DIARIO');
   const [fecha, setFecha] = useState<string>(defaultPeriodDate);
   const [concepto, setConcepto] = useState('');
-  const [cfdiUuid, setCfdiUuid] = useState('');
+  const [cfdiUuids, setCfdiUuids] = useState<string[]>([]);
+  const cfdiUuid = cfdiUuids[0] || '';
 
   // Queries
   const { data: polizas = [], isLoading, isError, error, refetch } = useQuery({
@@ -140,6 +146,7 @@ export function usePolizasManager() {
     fecha,
     concepto,
     cfdiUuid,
+    cfdiUuids,
     movements,
     accounts,
     dialogRef,
@@ -164,7 +171,7 @@ export function usePolizasManager() {
     setTipo('DIARIO');
     setFecha(defaultPeriodDate);
     setConcepto('');
-    setCfdiUuid('');
+    setCfdiUuids([]);
     setFormError(null);
     const defaultAcc1 = affectableAccounts[0]?.id || '';
     const defaultAcc2 = affectableAccounts[1]?.id || defaultAcc1;
@@ -182,7 +189,7 @@ export function usePolizasManager() {
     setTipo(pol.tipo);
     setFecha(pol.fecha);
     setConcepto(pol.concepto);
-    setCfdiUuid(pol.cfdiUuid || '');
+    setCfdiUuids(collectPolizaUniqueUuids(pol));
     setFormError(null);
     setMovements(
       pol.movements.map((m) => ({
@@ -191,7 +198,8 @@ export function usePolizasManager() {
         referencia: m.referencia,
         concepto: m.concepto,
         cargo: m.cargo,
-        abono: m.abono
+        abono: m.abono,
+        cfdiUuid: m.cfdiUuid ?? null
       }))
     );
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
@@ -204,7 +212,7 @@ export function usePolizasManager() {
     setTipo(pol.tipo);
     setFecha(defaultPeriodDate);
     setConcepto(`${pol.concepto} (Copia)`);
-    setCfdiUuid('');
+    setCfdiUuids([]);
     setFormError(null);
     setMovements(
       pol.movements.map((m) => ({
@@ -221,16 +229,8 @@ export function usePolizasManager() {
   };
 
   const handleCopyPoliza = (pol: Poliza) => {
-    const lines = [
-      `PÓLIZA ${pol.tipo} #${pol.folio} | Fecha: ${pol.fecha}`,
-      `Concepto: ${pol.concepto}`,
-      ...pol.movements.map(
-        (m) => `  ${m.accountCode} ${m.accountName} | Debe: ${m.cargo.toFixed(2)} | Haber: ${m.abono.toFixed(2)}`
-      ),
-      `Sumas Iguales: Debe ${pol.totalCargos.toFixed(2)} | Haber ${pol.totalAbonos.toFixed(2)}`
-    ].join('\n');
     navigator.clipboard
-      ?.writeText(lines)
+      ?.writeText(formatPolizaCopyText(pol))
       .then(() => {
         setCopiedPolizaId(pol.id);
         toast.success('Asiento copiado al portapapeles');
@@ -241,26 +241,34 @@ export function usePolizasManager() {
       });
   };
 
+  const handleAddCfdiUuid = (rawUuid: string) => {
+    const clean = rawUuid.trim().toUpperCase();
+    if (!clean) return;
+    setCfdiUuids((prev) => (prev.includes(clean) ? prev : [...prev, clean]));
+  };
+
+  const handleRemoveCfdiUuid = (rawUuid: string) => {
+    const clean = rawUuid.trim().toUpperCase();
+    setCfdiUuids((prev) => prev.filter((u) => u !== clean));
+    setMovements((prev) =>
+      prev.map((mv) =>
+        mv.cfdiUuid?.trim().toUpperCase() === clean ? { ...mv, cfdiUuid: null } : mv
+      )
+    );
+  };
+
   const handleSelectCfdiForForm = (uuid: string) => {
-    setCfdiUuid(uuid);
-    if (!uuid) return;
-    const target = cfdis.find((c) => c.uuid === uuid);
+    const clean = uuid.trim().toUpperCase();
+    if (!clean) { setCfdiUuids([]); return; }
+    setCfdiUuids((prev) => (prev.includes(clean) ? prev : [...prev, clean]));
+    const target = cfdis.find((c) => c.uuid.toUpperCase() === clean);
     if (!target) return;
     try {
-      const plan = buildAutoPolizaPlan(target, accounts);
-      setTipo(plan.polizaType);
-      setFecha(target.fecha);
-      setConcepto(plan.polizaConcept);
-      setMovements(
-        plan.movements.map((m) => ({
-          _rowId: crypto.randomUUID(),
-          accountId: m.accountId,
-          referencia: m.referencia,
-          concepto: m.concepto,
-          cargo: m.cargo,
-          abono: m.abono
-        }))
-      );
+      const built = buildPlanDraftsFromCfdi(target, accounts);
+      setTipo(built.tipo);
+      setFecha(built.fecha);
+      setConcepto(built.concepto);
+      setMovements(built.movements);
       setFormError(null);
       toast.info('Asiento Pre-Llenado desde CFDI', 'Cuentas e IVA sugeridos por el ADD.');
     } catch (err: unknown) {
@@ -328,11 +336,12 @@ export function usePolizasManager() {
     expandedIds, setExpandedIds, confirmDeleteId, setConfirmDeleteId,
     ledgerAccountId, setLedgerAccountId, copiedPolizaId, editingPolizaId,
     tipo, setTipo, fecha, setFecha, concepto, setConcepto,
-    cfdiUuid, formError, setFormError, accounts, affectableAccounts, pendingCfdis,
+    cfdiUuid, cfdiUuids, cfdis, formError, setFormError, accounts, affectableAccounts, pendingCfdis,
     predictedNextFolio, isDateDifferentPeriod, savePolizaMutation, deletePolizaMutation,
     closeYearMutation, createPedimentoMutation, isPedimentoModalOpen, setIsPedimentoModalOpen,
     openNewPolizaModal, openEditPolizaModal, openDuplicatePolizaModal,
-    handleCopyPoliza, handleSelectCfdiForForm, handleExportPolizasCsv,
+    handleCopyPoliza, handleSelectCfdiForForm, handleAddCfdiUuid, handleRemoveCfdiUuid,
+    handleExportPolizasCsv,
     ...draft
   };
 }

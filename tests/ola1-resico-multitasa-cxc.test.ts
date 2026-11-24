@@ -451,13 +451,14 @@ describe('Ola 1 Bloque 1A — Multi-tasa, Flujo RESICO, Prorrateo IVA, CxC/CxP y
     expect(row.iepsPagado).toBe(100);
 
     const cols = row.batchLine.split('|');
-    expect(cols).toHaveLength(20);
+    expect(cols).toHaveLength(54);
     expect(cols[0]).toBe('05');
     expect(cols[1]).toBe('03');
     expect(cols[4]).toBe('AWS CLOUD CORP');
     expect(cols[7]).toBe('1000');
-    expect(cols[8]).toBe('1000');
-    expect(cols[10]).toBe('500');
-    expect(cols[11]).toBe('250');
+    expect(cols[9]).toBe('1000');
+    expect(cols[29]).toBe('500');
+    expect(cols[30]).toBe('250');
+    expect(cols[53]).toBe('01');
   });
 });

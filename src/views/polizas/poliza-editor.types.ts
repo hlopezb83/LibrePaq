@@ -8,6 +8,7 @@ export interface DraftMovement {
   concepto: string;
   cargo: number;
   abono: number;
+  cfdiUuid?: string | null;
 }
 
 export interface PolizaEditorModalProps {
@@ -25,8 +26,12 @@ export interface PolizaEditorModalProps {
   concepto: string;
   setConcepto: (c: string) => void;
   cfdiUuid: string;
+  cfdiUuids: string[];
   pendingCfdis: CfdiDocument[];
+  allCfdis?: CfdiDocument[];
   handleSelectCfdiForForm: (uuid: string) => void;
+  handleAddCfdiUuid: (uuid: string) => void;
+  handleRemoveCfdiUuid: (uuid: string) => void;
   formError: string | null;
   setFormError: (e: string | null) => void;
   movements: DraftMovement[];

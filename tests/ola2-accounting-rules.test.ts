@@ -158,7 +158,7 @@ describe('Ola 2B — Reglas Contables Aprendidas y No Deducibles (801)', () => {
       priority: 999
     });
 
-    // RFC beats ClaveProdServ & UsoCFDI regardless of numeric priority; within RFC, higher priority wins
+    // RFC beats ClaveProdServ & UsoCFDI regardless of numeric priority; within RFC, menor número = mayor prioridad (ASC)
     const matched = resolveMatchingAccountingRule(cfdi, [
       ruleUso,
       ruleClave,
@@ -166,7 +166,7 @@ describe('Ola 2B — Reglas Contables Aprendidas y No Deducibles (801)', () => {
       ruleRfcHighPrio,
       ruleEmitido
     ]);
-    expect(matched?.id).toBe('r-rfc-high');
+    expect(matched?.id).toBe('r-rfc-low');
 
     // Without RFC rule, ClaveProdServ beats UsoCFDI
     const matchedNoRfc = resolveMatchingAccountingRule(cfdi, [ruleUso, ruleClave]);

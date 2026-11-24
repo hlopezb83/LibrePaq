@@ -1,7 +1,5 @@
-import { strToU8, zipSync } from 'fflate';
 import {
   AlertCircle,
-  AlertTriangle,
   Check,
   CheckCircle2,
   Copy,
@@ -14,10 +12,17 @@ import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { downloadBlobFile } from '../../lib/formatters';
 import type { SatXmlType } from '../../shared/sat-anexo24';
+import { buildSatAnexo24Zip } from '../../shared/sat-anexo24-zip';
+import { Anexo24OptionsBar, type Anexo24UiOptions } from './Anexo24OptionsBar';
 
 interface Anexo24TabProps {
+  companyRfc: string;
+  ejercicio: number;
+  periodo: number;
   satXmlType: SatXmlType;
   setSatXmlType: (type: SatXmlType) => void;
+  anexo24Options: Anexo24UiOptions;
+  setAnexo24Options: (next: Anexo24UiOptions) => void;
   satXmlData: { xml: string; filename: string; type: string } | undefined;
   isLoadingXml: boolean;
   isErrorXml?: boolean;
@@ -26,9 +31,22 @@ interface Anexo24TabProps {
   onDownloadXml: () => void;
 }
 
+const XML_TYPE_BUTTONS: ReadonlyArray<{ id: SatXmlType; label: string }> = [
+  { id: 'balanza', label: 'Balanza (BN/BC)' },
+  { id: 'catalogo', label: 'Catálogo (CT)' },
+  { id: 'polizas', label: 'Pólizas (PL)' },
+  { id: 'auxiliar_folios', label: 'Aux. Folios (XF)' },
+  { id: 'auxiliar_cuentas', label: 'Aux. Cuentas (XC)' }
+];
+
 export function Anexo24Tab({
+  companyRfc,
+  ejercicio,
+  periodo,
   satXmlType,
   setSatXmlType,
+  anexo24Options,
+  setAnexo24Options,
   satXmlData,
   isLoadingXml,
   isErrorXml,
@@ -48,17 +66,20 @@ export function Anexo24Tab({
   const handleDownloadZip = () => {
     if (!satXmlData?.xml || !satXmlData.filename) return;
     try {
-      const xmlFilename = satXmlData.filename;
-      const zipFilename = /\.xml$/i.test(xmlFilename)
-        ? xmlFilename.replace(/\.xml$/i, '.zip')
-        : `${xmlFilename}.zip`;
-      const zipped = zipSync({ [xmlFilename]: strToU8(satXmlData.xml) }, { level: 6 });
-      const zipBuffer = zipped.buffer.slice(
-        zipped.byteOffset,
-        zipped.byteOffset + zipped.byteLength
+      const zipRes = buildSatAnexo24Zip({
+        company: { rfc: companyRfc },
+        year: ejercicio,
+        period: periodo,
+        type: satXmlType,
+        xmlResult: satXmlData,
+        tipoEnvio: anexo24Options.tipoEnvio
+      });
+      const zipBuffer = zipRes.zipBytes.buffer.slice(
+        zipRes.zipBytes.byteOffset,
+        zipRes.zipBytes.byteOffset + zipRes.zipBytes.byteLength
       ) as ArrayBuffer;
-      downloadBlobFile(zipFilename, zipBuffer, 'application/zip');
-      toast.success(`Paquete ZIP SAT descargado: ${zipFilename}`);
+      downloadBlobFile(zipRes.zipFilename, zipBuffer, 'application/zip');
+      toast.success(`Paquete ZIP SAT descargado: ${zipRes.zipFilename}`);
     } catch {
       toast.error('No se pudo empaquetar el archivo .ZIP para el SAT');
     }
@@ -78,47 +99,22 @@ export function Anexo24Tab({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div
-            className="flex flex-wrap items-center gap-2"
-            role="group"
-            aria-label="Tipo de archivo XML SAT"
-          >
-            <button
-              type="button"
-              aria-pressed={satXmlType === 'balanza'}
-              onClick={() => setSatXmlType('balanza')}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
-                satXmlType === 'balanza'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Balanza XML (BN.xml)
-            </button>
-            <button
-              type="button"
-              aria-pressed={satXmlType === 'catalogo'}
-              onClick={() => setSatXmlType('catalogo')}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
-                satXmlType === 'catalogo'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Catálogo XML (CT.xml)
-            </button>
-            <button
-              type="button"
-              aria-pressed={satXmlType === 'polizas'}
-              onClick={() => setSatXmlType('polizas')}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
-                satXmlType === 'polizas'
-                  ? 'bg-blue-600 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Pólizas XML (PL.xml)
-            </button>
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tipo de archivo XML SAT">
+            {XML_TYPE_BUTTONS.map((btn) => (
+              <button
+                key={btn.id}
+                type="button"
+                aria-pressed={satXmlType === btn.id}
+                onClick={() => setSatXmlType(btn.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                  satXmlType === btn.id
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -176,19 +172,11 @@ export function Anexo24Tab({
         </div>
       </div>
 
-      {satXmlType === 'polizas' && (
-        <div
-          role="note"
-          className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-950"
-        >
-          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
-          <p>
-            <strong>Aviso Pólizas (PL.xml):</strong> Verifica y sustituye el valor de ejemplo en{' '}
-            <code className="font-mono font-semibold">NumOrden</code> /{' '}
-            <code className="font-mono font-semibold">NumTramite</code> por el folio oficial asignado por el SAT en tu requerimiento, devolución o compensación.
-          </p>
-        </div>
-      )}
+      <Anexo24OptionsBar
+        satXmlType={satXmlType}
+        options={anexo24Options}
+        onChange={setAnexo24Options}
+      />
 
       {isErrorXml ? (
         <div
@@ -242,8 +230,8 @@ export function Anexo24Tab({
           </figcaption>
           <p className="text-[11px] text-slate-600 px-1">
             Regla 2.8.1.5 RMF:{' '}
-            {satXmlType === 'polizas'
-              ? 'El archivo de Pólizas (PL) se presenta ante el SAT únicamente en solicitudes de devolución, compensación o facultades de comprobación; el botón "Descargar .ZIP SAT Oficial" ya lo empaqueta con la nomenclatura SAT.'
+            {satXmlType === 'polizas' || satXmlType === 'auxiliar_folios' || satXmlType === 'auxiliar_cuentas'
+              ? 'Los archivos PL, XF y XC se presentan ante el SAT en solicitudes de devolución, compensación o facultades de comprobación; el botón "Descargar .ZIP SAT Oficial" ya los empaqueta con la nomenclatura SAT.'
               : 'El botón "Descargar .ZIP SAT Oficial" ya empaqueta este XML dentro de un comprimido .ZIP conservando exactamente la nomenclatura oficial del SAT para enviarlo por Buzón Tributario.'}
           </p>
           <pre

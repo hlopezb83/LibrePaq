@@ -41,7 +41,13 @@ accountsRoutes.get('/accounts/:id/ledger', (c) => {
     c.req.query('period'),
     company
   );
-  const ledger = getAccountLedger(company.id, accountId, year, period);
+  const rawPeriodTo = c.req.query('periodTo');
+  const parsedTo = rawPeriodTo ? Number(rawPeriodTo) : undefined;
+  const periodTo =
+    parsedTo && Number.isInteger(parsedTo) && parsedTo >= 1 && parsedTo <= 13
+      ? parsedTo
+      : undefined;
+  const ledger = getAccountLedger(company.id, accountId, year, period, periodTo);
   if (!ledger) return c.json({ error: 'Cuenta no encontrada' }, 404);
   return c.json(ledger);
 });

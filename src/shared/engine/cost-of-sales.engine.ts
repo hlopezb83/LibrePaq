@@ -8,9 +8,14 @@ import type { Account, AccountWithBalance } from '../types/core.types';
 import type {
   CostOfSalesComputation,
   CostOfSalesPolizaMovementDraft,
-  CostOfSalesPolizaPlan
+  CostOfSalesPolizaPlan,
+  InventoryMethod
 } from '../types/cost-of-sales.types';
 import type { JoinedPolizaMovementInput } from './financial-reports.engine';
+
+export type CostPolizaMovementInput = JoinedPolizaMovementInput & {
+  poliza_id?: string;
+};
 import {
   AccountingInvariantError,
   assertAccountingInvariant,
@@ -32,6 +37,10 @@ export interface BuildCostOfSalesPolizaInput {
   fecha?: string;
   costOfSales: number;
   accounts: readonly Account[];
+  method?: InventoryMethod;
+  initialInventory?: number;
+  purchasesPeriod?: number;
+  finalInventory?: number;
 }
 
 /**
@@ -80,20 +89,50 @@ export function computePurchasesFromTrialBalanceAccounts(
   return fromCents(Math.max(0, netCents));
 }
 
+export function isInventoryAssetAccount(
+  account: Pick<Account, 'isAffectable' | 'code' | 'satGroupCode'>
+): boolean {
+  if (!account.isAffectable) return false;
+  const sat = account.satGroupCode ?? '';
+  return account.code.startsWith('115') || sat.startsWith('115');
+}
+
 /**
- * Suma compras netas del periodo (cargos - abonos) desde movimientos de póliza del periodo.
+ * Suma compras netas del periodo (cargos - abonos) desde movimientos de póliza del periodo,
+ * excluyendo la póliza de Costo de Ventas vinculada para evitar doble conteo circular.
  */
 export function computePurchasesFromMovements(
   accounts: readonly Account[],
-  movs: readonly JoinedPolizaMovementInput[]
+  movs: readonly CostPolizaMovementInput[],
+  excludedPolizaId?: string | null
 ): number {
   const purchaseAccIds = new Set(accounts.filter(isPurchaseCostAccount).map((a) => a.id));
   let netCents = 0;
   for (const mov of movs) {
+    if (excludedPolizaId && mov.poliza_id === excludedPolizaId) continue;
     if (!purchaseAccIds.has(mov.account_id)) continue;
     netCents += toCents(mov.cargo) - toCents(mov.abono);
   }
   return fromCents(Math.max(0, netCents));
+}
+
+/**
+ * Suma entradas a Almacén (cargos en cuentas 115-*) para método de Inventarios Perpetuos,
+ * excluyendo la póliza de Costo de Ventas vinculada.
+ */
+export function computeInventoryInputsFromMovements(
+  accounts: readonly Account[],
+  movs: readonly CostPolizaMovementInput[],
+  excludedPolizaId?: string | null
+): number {
+  const invAccIds = new Set(accounts.filter(isInventoryAssetAccount).map((a) => a.id));
+  let inputCents = 0;
+  for (const mov of movs) {
+    if (excludedPolizaId && mov.poliza_id === excludedPolizaId) continue;
+    if (!invAccIds.has(mov.account_id)) continue;
+    inputCents += Math.max(0, toCents(mov.cargo));
+  }
+  return fromCents(Math.max(0, inputCents));
 }
 
 function resolveCostOfSalesAccount(accounts: readonly Account[]): Account {
@@ -170,26 +209,90 @@ export function buildCostOfSalesPolizaPlan(
   const referencia = `CV-${input.year}-${String(input.period).padStart(2, '0')}`;
   const resolvedFecha = resolveCdmxPolizaDate(input.year, input.period, input.fecha);
 
-  const movements: CostOfSalesPolizaMovementDraft[] = [
-    {
-      accountId: costAcc.id,
-      accountCode: costAcc.code,
-      accountName: costAcc.name,
-      referencia,
-      concepto: `Costo de ventas del periodo ${periodLabel}`,
-      cargo: amount,
-      abono: 0
-    },
-    {
-      accountId: invAcc.id,
-      accountCode: invAcc.code,
-      accountName: invAcc.name,
-      referencia,
-      concepto: `Descarga de inventario / compras ${periodLabel}`,
-      cargo: 0,
-      abono: amount
+  const useAnalyticalAdjustment =
+    input.method === 'ANALITICO' &&
+    input.initialInventory !== undefined &&
+    input.finalInventory !== undefined;
+
+  let movements: CostOfSalesPolizaMovementDraft[];
+
+  if (useAnalyticalAdjustment) {
+    const initialCents = Math.max(0, toCents(input.initialInventory ?? 0));
+    const finalCents = Math.max(0, toCents(input.finalInventory ?? 0));
+    assertAccountingInvariant(
+      initialCents > 0 || finalCents > 0,
+      'ZERO_ANALYTICAL_ADJUSTMENT',
+      'En método Analítico con Inventario Inicial $0.00 e Inventario Final $0.00, las compras en 501 ya reflejan el Costo de Ventas.'
+    );
+    movements = [];
+    if (initialCents > 0) {
+      const initAmt = fromCents(initialCents);
+      movements.push(
+        {
+          accountId: costAcc.id,
+          accountCode: costAcc.code,
+          accountName: costAcc.name,
+          referencia,
+          concepto: `Traspaso de Inventario Inicial a Costo de Ventas ${periodLabel}`,
+          cargo: initAmt,
+          abono: 0
+        },
+        {
+          accountId: invAcc.id,
+          accountCode: invAcc.code,
+          accountName: invAcc.name,
+          referencia,
+          concepto: `Cancelación de Inventario Inicial ${periodLabel}`,
+          cargo: 0,
+          abono: initAmt
+        }
+      );
     }
-  ];
+    if (finalCents > 0) {
+      const finAmt = fromCents(finalCents);
+      movements.push(
+        {
+          accountId: invAcc.id,
+          accountCode: invAcc.code,
+          accountName: invAcc.name,
+          referencia,
+          concepto: `Reconocimiento de Inventario Final ${periodLabel}`,
+          cargo: finAmt,
+          abono: 0
+        },
+        {
+          accountId: costAcc.id,
+          accountCode: costAcc.code,
+          accountName: costAcc.name,
+          referencia,
+          concepto: `Deducción de Inventario Final al Costo de Ventas ${periodLabel}`,
+          cargo: 0,
+          abono: finAmt
+        }
+      );
+    }
+  } else {
+    movements = [
+      {
+        accountId: costAcc.id,
+        accountCode: costAcc.code,
+        accountName: costAcc.name,
+        referencia,
+        concepto: `Costo de ventas del periodo ${periodLabel}`,
+        cargo: amount,
+        abono: 0
+      },
+      {
+        accountId: invAcc.id,
+        accountCode: invAcc.code,
+        accountName: invAcc.name,
+        referencia,
+        concepto: `Descarga de almacén / inventario ${periodLabel}`,
+        cargo: 0,
+        abono: amount
+      }
+    ];
+  }
 
   const accById = new Map(input.accounts.map((a) => [a.id, a]));
   const { totalCargo, totalAbono } = validateDoubleEntryMovements(movements, accById);

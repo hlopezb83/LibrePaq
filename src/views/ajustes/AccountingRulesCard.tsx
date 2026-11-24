@@ -21,6 +21,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
   const [matchClaveProdServ, setMatchClaveProdServ] = useState('');
   const [matchUsoCfdi, setMatchUsoCfdi] = useState('');
   const [operationAccountCode, setOperationAccountCode] = useState('601-01-003');
+  const [counterAccountCode, setCounterAccountCode] = useState('');
   const [deductiblePct, setDeductiblePct] = useState(100);
   const [priority, setPriority] = useState(20);
   const [confirmDeleteRuleId, setConfirmDeleteRuleId] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
         matchClaveProdServ: matchClaveProdServ.trim().toUpperCase() || null,
         matchUsoCfdi: matchUsoCfdi.trim().toUpperCase() || null,
         operationAccountCode,
+        counterAccountCode: counterAccountCode.trim() || null,
         deductiblePct: direction === 'RECIBIDO' ? deductiblePct : 100,
         priority,
         autoLearned: false
@@ -67,6 +69,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
       setMatchRfc('');
       setMatchClaveProdServ('');
       setMatchUsoCfdi('');
+      setCounterAccountCode('');
       setDeductiblePct(100);
       toast.success('Regla contable guardada.');
     },
@@ -131,7 +134,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
       )}
 
       <form onSubmit={handleSubmit} className="p-5 border-b border-slate-200 bg-slate-50/40 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 text-xs">
           <div>
             <label htmlFor="rule-direction" className="block font-semibold text-slate-700 mb-1">Dirección</label>
             <select id="rule-direction" disabled={isReadOnly} value={direction} onChange={(e) => setDirection(e.target.value as AccountingRuleDirection)} className={`${inputCls} font-medium cursor-pointer`}>
@@ -163,20 +166,33 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
               <input id="rule-account" type="text" disabled={isReadOnly} value={operationAccountCode} onChange={(e) => setOperationAccountCode(e.target.value)} className={`${inputCls} font-mono`} />
             )}
           </div>
+          <div>
+            <label htmlFor="rule-counter-account" className="block font-semibold text-slate-700 mb-1">Contrapartida (Opc.)</label>
+            {affectableAccounts.length > 0 ? (
+              <select id="rule-counter-account" disabled={isReadOnly} value={counterAccountCode} onChange={(e) => setCounterAccountCode(e.target.value)} className={`${inputCls} font-mono cursor-pointer`}>
+                <option value="">Automática (PUE/PPD)</option>
+                {affectableAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.code}>{acc.code} - {acc.name}</option>
+                ))}
+              </select>
+            ) : (
+              <input id="rule-counter-account" type="text" disabled={isReadOnly} value={counterAccountCode} onChange={(e) => setCounterAccountCode(e.target.value)} placeholder="201-01-001" className={`${inputCls} font-mono`} />
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label htmlFor="rule-deductible" className="block font-semibold text-slate-700 mb-1">% Deducible</label>
               <input id="rule-deductible" type="number" min={0} max={100} value={deductiblePct} disabled={isReadOnly || direction === 'EMITIDO'} onChange={(e) => setDeductiblePct(Number(e.target.value))} className={`${inputCls} font-mono`} />
             </div>
             <div>
-              <label htmlFor="rule-priority" title="Menor número = se evalúa primero" className="block font-semibold text-slate-700 mb-1">Prioridad</label>
+              <label htmlFor="rule-priority" title="Menor número = mayor prioridad (ej. 10 antes que 20)" className="block font-semibold text-slate-700 mb-1">Prioridad (1=↑)</label>
               <input id="rule-priority" type="number" title="Menor número = mayor prioridad (ej. 10 antes que 20)" disabled={isReadOnly} value={priority} onChange={(e) => setPriority(Number(e.target.value))} className={`${inputCls} font-mono`} />
             </div>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <span className="text-[11px] text-slate-600">
-            Precedencia: <strong>RFC</strong> &gt; <strong>ClaveProdServ</strong> &gt; <strong>Uso CFDI</strong> (menor número de prioridad aplica primero). Deducibilidad &lt; 100% envía diferencia + IVA a cuenta 801.
+            Precedencia: <strong>RFC</strong> &gt; <strong>ClaveProdServ</strong> &gt; <strong>Uso CFDI</strong>. Prioridad: <strong>menor número = mayor prioridad</strong> (ej. 10 antes que 20). Deducibilidad &lt; 100% envía diferencia + IVA a cuenta 801.
           </span>
           <button
             type="submit"
@@ -239,6 +255,9 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
                     {rule.matchClaveProdServ && <span>ClaveProdServ: {rule.matchClaveProdServ}</span>}
                     {rule.matchUsoCfdi && <span>Uso CFDI: {rule.matchUsoCfdi}</span>}
                     <span className="text-blue-800 font-bold">→ Cuenta {rule.operationAccountCode}</span>
+                    {rule.counterAccountCode && (
+                      <span className="text-indigo-800 font-semibold">· Contrapartida {rule.counterAccountCode}</span>
+                    )}
                     <span className="text-slate-600">Prioridad: {rule.priority}</span>
                   </div>
                 </div>

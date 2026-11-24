@@ -12,45 +12,65 @@ import type {
   Poliza,
   TaxParametersRecord
 } from '../../shared/types';
+import { logCompanyAuditEvent } from './audit-logger';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { supabaseCfdi } from './supabase-cfdi';
 import { supabasePolizas } from './supabase-polizas';
 
 export const supabaseFiscalWorkpaper = {
-  async getTaxParameters(companyId: string, ejercicio: number): Promise<TaxParametersRecord> {
-    if (!supabase) {
-      return {
-        companyId,
-        ejercicio,
-        coeficienteUtilidad: 0.1845,
-        perdidasFiscalesPendientes: 45000,
-        pagosProvisionalesAnteriores: 128500,
-        saldoFavorIvaAnterior: 0,
-        tipoCambioDofCierre: 19.865
-      };
-    }
+  async getTaxParameters(
+    companyId: string,
+    ejercicio: number,
+    periodo = 0
+  ): Promise<TaxParametersRecord> {
+    const emptyDefaults: TaxParametersRecord = {
+      companyId,
+      ejercicio,
+      periodo,
+      coeficienteUtilidad: 0,
+      perdidasFiscalesPendientes: 0,
+      pagosProvisionalesAnteriores: 0,
+      saldoFavorIvaAnterior: 0,
+      tipoCambioDofCierre: 0
+    };
+    if (!supabase) return emptyDefaults;
 
-    const { data } = await supabase
+    const { data: exact } = await supabase
       .from('tax_parameters')
       .select('*')
       .eq('company_id', companyId)
       .eq('ejercicio', ejercicio)
+      .eq('periodo', periodo)
       .maybeSingle();
+
+    let row = exact;
+    if (!row && periodo !== 0) {
+      const { data: fallback } = await supabase
+        .from('tax_parameters')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('ejercicio', ejercicio)
+        .eq('periodo', 0)
+        .maybeSingle();
+      row = fallback;
+    }
 
     return {
       companyId,
       ejercicio,
-      coeficienteUtilidad: Number(data?.coeficiente_utilidad ?? 0.1845),
-      perdidasFiscalesPendientes: Number(data?.perdidas_fiscales_pendientes ?? 45000),
-      pagosProvisionalesAnteriores: Number(data?.pagos_provisionales_anteriores ?? 128500),
-      saldoFavorIvaAnterior: Number(data?.saldo_favor_iva_anterior ?? 0),
-      tipoCambioDofCierre: Number(data?.tipo_cambio_dof_cierre ?? 19.865)
+      periodo,
+      coeficienteUtilidad: Number(row?.coeficiente_utilidad ?? 0),
+      perdidasFiscalesPendientes: Number(row?.perdidas_fiscales_pendientes ?? 0),
+      pagosProvisionalesAnteriores: Number(row?.pagos_provisionales_anteriores ?? 0),
+      saldoFavorIvaAnterior: Number(row?.saldo_favor_iva_anterior ?? 0),
+      tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0)
     };
   },
 
   async saveTaxParameters(payload: {
     companyId: string;
     ejercicio: number;
+    periodo?: number;
     coeficienteUtilidad?: number;
     perdidasFiscalesPendientes?: number;
     pagosProvisionalesAnteriores?: number;
@@ -58,10 +78,12 @@ export const supabaseFiscalWorkpaper = {
     tipoCambioDofCierre?: number;
   }): Promise<TaxParametersRecord> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const current = await this.getTaxParameters(payload.companyId, payload.ejercicio);
+    const targetPeriod = payload.periodo ?? 0;
+    const current = await this.getTaxParameters(payload.companyId, payload.ejercicio, targetPeriod);
     const next: TaxParametersRecord = {
       companyId: payload.companyId,
       ejercicio: payload.ejercicio,
+      periodo: targetPeriod,
       coeficienteUtilidad: payload.coeficienteUtilidad ?? current.coeficienteUtilidad,
       perdidasFiscalesPendientes:
         payload.perdidasFiscalesPendientes ?? current.perdidasFiscalesPendientes,
@@ -73,17 +95,28 @@ export const supabaseFiscalWorkpaper = {
         payload.tipoCambioDofCierre ?? current.tipoCambioDofCierre
     };
 
-    const { error } = await supabase.from('tax_parameters').upsert({
-      company_id: next.companyId,
-      ejercicio: next.ejercicio,
-      coeficiente_utilidad: next.coeficienteUtilidad,
-      perdidas_fiscales_pendientes: fromCents(toCents(next.perdidasFiscalesPendientes)),
-      pagos_provisionales_anteriores: fromCents(toCents(next.pagosProvisionalesAnteriores)),
-      saldo_favor_iva_anterior: fromCents(toCents(next.saldoFavorIvaAnterior)),
-      tipo_cambio_dof_cierre: next.tipoCambioDofCierre
-    });
+    const { error } = await supabase.from('tax_parameters').upsert(
+      {
+        company_id: next.companyId,
+        ejercicio: next.ejercicio,
+        periodo: targetPeriod,
+        coeficiente_utilidad: next.coeficienteUtilidad,
+        perdidas_fiscales_pendientes: fromCents(toCents(next.perdidasFiscalesPendientes)),
+        pagos_provisionales_anteriores: fromCents(toCents(next.pagosProvisionalesAnteriores)),
+        saldo_favor_iva_anterior: fromCents(toCents(next.saldoFavorIvaAnterior)),
+        tipo_cambio_dof_cierre: next.tipoCambioDofCierre
+      },
+      { onConflict: 'company_id,ejercicio,periodo' }
+    );
 
     if (error) throw new Error(error.message);
+    logCompanyAuditEvent({
+      companyId: next.companyId,
+      action: 'TAX_PARAMS_SAVE',
+      entityType: 'tax_parameters',
+      entityId: `${next.ejercicio}-${targetPeriod}`,
+      metadata: { ejercicio: next.ejercicio, periodo: targetPeriod, coeficienteUtilidad: next.coeficienteUtilidad }
+    });
     return next;
   },
 
@@ -99,7 +132,7 @@ export const supabaseFiscalWorkpaper = {
     const ejercicio = year || company.currentYear || 2026;
     const periodo = period || company.currentPeriod || 10;
 
-    const parameters = await this.getTaxParameters(company.id, ejercicio);
+    const parameters = await this.getTaxParameters(company.id, ejercicio, periodo);
     const trialBalance = await supabaseCompaniesAndAccounts.getAccounts(company.id, ejercicio, periodo);
     const cfdis = await supabaseCfdi.getCfdis(company.id);
 
@@ -123,6 +156,23 @@ export const supabaseFiscalWorkpaper = {
     if (!company) throw new Error(`Empresa no encontrada: ${companyId || 'sin ID'}`);
     const ejercicio = year || company.currentYear || 2026;
     const periodo = period || company.currentPeriod || 10;
+
+    const existingPolizas = await supabasePolizas.getPolizas(companyId, ejercicio, periodo);
+    const hasExistingTaxProvision = existingPolizas.some((p) => {
+      const lower = p.concepto.toLowerCase();
+      return (
+        lower.includes('provisión de impuestos federales') ||
+        lower.includes('provision de impuestos federales') ||
+        p.movements.some(
+          (m) => m.referencia === `ISR-M${periodo}` || m.referencia === `IVA-M${periodo}`
+        )
+      );
+    });
+    if (hasExistingTaxProvision) {
+      throw new Error(
+        `Ya existe una póliza de provisión de impuestos ISR/IVA para ${ejercicio}-${String(periodo).padStart(2, '0')}. Elimínala antes de regenerar.`
+      );
+    }
 
     const wp = await this.getFiscalWorkpaper(companyId, ejercicio, periodo);
     const accounts = await supabaseCompaniesAndAccounts.getAccounts(companyId, ejercicio, periodo);

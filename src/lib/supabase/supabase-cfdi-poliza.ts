@@ -2,6 +2,7 @@ import { supabase } from '../supabase';
 import { buildAutoPolizaPlan } from '../../shared/accounting-engine';
 import { parseCalendarDate } from '../../shared/date-utils';
 import type { Poliza } from '../../shared/types';
+import { logCompanyAuditEvent } from './audit-logger';
 import { supabaseAccountingRules } from './supabase-accounting-rules';
 import { mapSupabaseCfdi } from './supabase-cfdi-mappers';
 import { fetchCompanyAccountsFromDb } from './supabase-mappers';
@@ -133,6 +134,14 @@ export async function runSupabaseAutoPolizaFromCfdi(
     await supabase.from('polizas').delete().eq('id', polizaId);
     throw new Error(linkErr.message);
   }
+
+  logCompanyAuditEvent({
+    companyId: cfdi.companyId,
+    action: 'POLIZA_CREATE',
+    entityType: 'poliza',
+    entityId: polizaId,
+    metadata: { origin: 'ADD_AUTO', cfdiUuid: cfdi.uuid, folio: nextFolio, ejercicio: year, periodo: period }
+  });
 
   return mapSupabasePoliza(polizaData, movementsToInsert);
 }

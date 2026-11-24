@@ -27,6 +27,7 @@ export interface PolizasFilterBarProps {
   onNewPoliza: () => void;
   onOpenPedimentoModal?: () => void;
   onExportCsv: () => void;
+  onPrintPdf?: () => void;
   onCloseYear: () => void;
   isCloseYearPending: boolean;
 }
@@ -49,6 +50,7 @@ export function PolizasFilterBar({
   onNewPoliza,
   onOpenPedimentoModal,
   onExportCsv,
+  onPrintPdf,
   onCloseYear,
   isCloseYearPending
 }: PolizasFilterBarProps) {
@@ -78,6 +80,7 @@ export function PolizasFilterBar({
           onNewPoliza={onNewPoliza}
           onOpenPedimentoModal={onOpenPedimentoModal}
           onExportCsv={onExportCsv}
+          onPrintPdf={onPrintPdf}
           onCloseYear={onCloseYear}
         />
       </div>

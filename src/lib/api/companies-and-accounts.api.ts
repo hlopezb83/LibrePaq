@@ -73,13 +73,19 @@ export const companiesAndAccountsApi = {
       handleResponse<AccountWithBalance[]>(r)
     ),
 
-  getAccountLedger: (companyId: string, accountId: string, year?: number, period?: number) =>
+  getAccountLedger: (
+    companyId: string,
+    accountId: string,
+    year?: number,
+    period?: number,
+    periodTo?: number
+  ) =>
     fetchWithTimeout(
       `/api/accounts/${encodeURIComponent(accountId)}/ledger?${buildPeriodQuery(
         companyId,
         year,
         period
-      )}`
+      )}${periodTo ? `&periodTo=${encodeURIComponent(periodTo)}` : ''}`
     ).then((r) => handleResponse<AccountLedgerResponse>(r)),
 
   createAccount: (payload: {

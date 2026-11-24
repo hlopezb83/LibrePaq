@@ -30,6 +30,27 @@ export const supabaseCfdi = {
           .range(from, to);
       });
       const rows = data as unknown as Array<Record<string, unknown>>;
+      if (opts?.includeXml !== false) {
+        const nominaIds = rows
+          .filter((r) => r.tipo_comprobante === 'N' && !r.xml_raw && r.id)
+          .map((r) => String(r.id));
+        if (nominaIds.length > 0) {
+          const xmlById = new Map<string, string>();
+          for (const idChunk of chunkArray(nominaIds, 100)) {
+            const { data: xmlRows } = await getRequiredSupabase()
+              .from('cfdi_documents')
+              .select('id, xml_raw')
+              .in('id', idChunk);
+            for (const xr of (xmlRows || []) as Array<{ id: string; xml_raw?: string | null }>) {
+              if (xr.xml_raw) xmlById.set(String(xr.id), xr.xml_raw);
+            }
+          }
+          for (const r of rows) {
+            const hydratedXml = xmlById.get(String(r.id));
+            if (hydratedXml) r.xml_raw = hydratedXml;
+          }
+        }
+      }
       const polizaLookup = await fetchCfdiPolizaLookup(rows);
       return rows.map((r) => mapSupabaseCfdi(r, polizaLookup));
     } catch (error) {
@@ -207,19 +228,46 @@ export const supabaseCfdi = {
     cfdiIds: string[],
     options?: AutoPolizaClientOptions,
     onProgress?: (current: number, total: number) => void
-  ): Promise<{ createdPolizas: Poliza[]; count: number }> {
+  ): Promise<{
+    createdPolizas: Poliza[];
+    count: number;
+    failedCount: number;
+    errors: Array<{ cfdiId: string; uuid?: string; error: string }>;
+  }> {
     const createdPolizas: Poliza[] = [];
+    const errors: Array<{ cfdiId: string; uuid?: string; error: string }> = [];
+    const uuidById = new Map<string, string>();
+
+    if (supabase && cfdiIds.length > 0) {
+      for (const idChunk of chunkArray(cfdiIds, 100)) {
+        const { data: metaRows } = await supabase
+          .from('cfdi_documents')
+          .select('id, uuid')
+          .in('id', idChunk);
+        for (const r of (metaRows || []) as Array<{ id: string; uuid?: string | null }>) {
+          if (r.uuid) uuidById.set(String(r.id), String(r.uuid));
+        }
+      }
+    }
+
     for (let i = 0; i < cfdiIds.length; i++) {
       const id = cfdiIds[i]!;
       try {
         const pol = await this.autoPolizaFromCfdi(id, options);
         createdPolizas.push(pol);
       } catch (e) {
-        console.warn(`[Supabase AutoPoliza] Error al contabilizar CFDI ${id}:`, e);
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push({ cfdiId: id, uuid: uuidById.get(id), error: msg });
+        console.warn(`[Supabase AutoPoliza] Error al contabilizar CFDI ${id} (${uuidById.get(id) ?? 'sin UUID'}):`, msg);
       }
       onProgress?.(i + 1, cfdiIds.length);
     }
-    return { createdPolizas, count: createdPolizas.length };
+    return {
+      createdPolizas,
+      count: createdPolizas.length,
+      failedCount: errors.length,
+      errors
+    };
   },
 
   async deleteCfdi(cfdiId: string): Promise<{ deleted: boolean }> {

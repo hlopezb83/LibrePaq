@@ -95,7 +95,7 @@ export const supabaseAnnualTax = {
           .range(from, to)
       ),
       sb.from('annual_tax_snapshots').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).maybeSingle(),
-      sb.from('tax_parameters').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).maybeSingle(),
+      sb.from('tax_parameters').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).order('periodo', { ascending: false }).limit(1).maybeSingle(),
       sb.from('fixed_assets').select('*').eq('company_id', company.id)
     ]);
 

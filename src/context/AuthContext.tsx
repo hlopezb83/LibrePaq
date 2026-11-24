@@ -6,72 +6,22 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { setApiAuthUser } from '../lib/api/api-helpers';
 import { captureAdAttributionOnLanding, trackAnalyticsEvent } from '../lib/analytics';
 import { endSupportSession } from '../lib/support-impersonation';
-import { getSuperAdminEmails, hasPlatformAdminAccess, isSuperAdminEmail, normalizePlatformRole } from '../shared/superadmin';
+import { resetGuestDemoState } from '../lib/sandbox/guest-demo-store';
+import { setGuestDemoMode } from '../lib/sandbox/guest-demo-mode';
+import { hasPlatformAdminAccess } from '../shared/superadmin';
 import type { PlatformRole } from '../shared/admin-types';
+import {
+  SUPERADMIN_EMAILS,
+  GUEST_DEMO_KEY,
+  GUEST_DEMO_USER,
+  checkIsSuperAdmin,
+  fetchUserAccessCheck
+} from './authHelpers';
 
-export const SUPERADMIN_EMAILS = getSuperAdminEmails();
-export const GUEST_DEMO_KEY = 'librepaq_guest_demo_active';
+export { SUPERADMIN_EMAILS, GUEST_DEMO_KEY, GUEST_DEMO_USER, checkIsSuperAdmin };
 
 const SUSPENDED_ACCOUNT_MESSAGE =
   'Tu cuenta ha sido suspendida por un administrador. Contacta a soporte para reactivar tu acceso.';
-
-export const GUEST_DEMO_USER: User = {
-  id: 'usr_guest_demo',
-  app_metadata: { provider: 'guest_demo' },
-  user_metadata: {
-    full_name: 'Demostración en Vivo',
-    workspace_name: 'Despacho Contable (Demo)',
-    workspace_id: 'ws_demo',
-    is_guest: true
-  },
-  aud: 'authenticated',
-  role: 'authenticated',
-  email: 'demo@librepaq.com',
-  created_at: new Date().toISOString()
-};
-
-export function checkIsSuperAdmin(user: User | null): boolean {
-  if (!user || user.user_metadata?.is_guest) return false;
-  if (isSuperAdminEmail(user.email)) return true;
-  return user.app_metadata?.role === 'superadmin';
-}
-
-interface UserAccessCheck {
-  suspended: boolean;
-  platformRole: PlatformRole;
-}
-
-async function fetchUserAccessCheck(sessionUser: User): Promise<UserAccessCheck> {
-  const fallbackRole = normalizePlatformRole(
-    String(sessionUser.app_metadata?.platform_role || ''),
-    sessionUser.app_metadata?.role === 'superadmin',
-    sessionUser.email
-  );
-  if (sessionUser.user_metadata?.is_guest) return { suspended: false, platformRole: 'NONE' };
-  if (!supabase || !isSupabaseConfigured || typeof supabase.from !== 'function') {
-    return { suspended: false, platformRole: fallbackRole };
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('status, platform_role, is_superadmin')
-      .eq('id', sessionUser.id)
-      .maybeSingle();
-
-    if (error || !data) return { suspended: false, platformRole: fallbackRole };
-    const row = data as { status?: unknown; platform_role?: unknown; is_superadmin?: unknown };
-    const role = normalizePlatformRole(
-      row.platform_role ? String(row.platform_role) : null,
-      Boolean(row.is_superadmin) || sessionUser.app_metadata?.role === 'superadmin',
-      sessionUser.email
-    );
-    const suspended = role !== 'SUPERADMIN' && String(row.status ?? '').toUpperCase() === 'SUSPENDIDO';
-    return { suspended, platformRole: role };
-  } catch {
-    return { suspended: false, platformRole: fallbackRole };
-  }
-}
 
 function notifySuspendedAccount(): void {
   try {
@@ -149,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isGuestActive = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
 
     const activateGuestDemo = () => {
+      setGuestDemoMode(true);
       activeUserIdRef.current = GUEST_DEMO_USER.id;
       setPlatformRole('NONE');
       setUser(GUEST_DEMO_USER);
@@ -167,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const commitSession = (activeSession: Session, role: PlatformRole) => {
       const wasGuest = localStorage.getItem(GUEST_DEMO_KEY) === 'true';
+      setGuestDemoMode(false);
       localStorage.removeItem(GUEST_DEMO_KEY);
       if (wasGuest) queryClient.clear();
       clearSuspension();
@@ -235,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (localStorage.getItem(GUEST_DEMO_KEY) === 'true') {
         activateGuestDemo();
       } else if (event === 'SIGNED_OUT') {
+        setGuestDemoMode(false);
         endSupportSession();
         activeUserIdRef.current = null;
         setPlatformRole('NONE');
@@ -255,10 +208,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const startGuestDemo = useCallback(async () => {
     authCheckSeqRef.current += 1;
     clearSuspension();
-    try {
-      const { provisionSandboxDemoCompany } = await import('../lib/sandbox-demo-seeder');
-      await provisionSandboxDemoCompany();
-    } catch { /* demo company already exists */ }
+    resetGuestDemoState();
+    setGuestDemoMode(true);
     localStorage.setItem(GUEST_DEMO_KEY, 'true');
     activeUserIdRef.current = GUEST_DEMO_USER.id;
     setPlatformRole('NONE');

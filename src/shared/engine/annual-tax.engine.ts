@@ -280,7 +280,7 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
   const cucaActualizadaCents = Math.round(toCents(resolvedInputs.cucaInicial) * factorActualizacionInpc);
   const cucaFinalCents = Math.max(0, cucaActualizadaCents + toCents(resolvedInputs.aportacionesCapital) - toCents(resolvedInputs.reduccionesCapital));
   const cufinActualizadaCents = Math.round(toCents(resolvedInputs.cufinInicial) * factorActualizacionInpc);
-  const ufinCents = resultadoFiscalCents > 0 ? Math.max(0, resultadoFiscalCents - isrAnualCausadoCents - noDeduciblesManualCents) : 0;
+  const ufinCents = resultadoFiscalCents - isrAnualCausadoCents - noDeduciblesManualCents;
   const cufinFinalCents = Math.max(0, cufinActualizadaCents + ufinCents - toCents(resolvedInputs.dividendosPagados));
 
   const determination: AnnualTaxDetermination = {
@@ -295,7 +295,7 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
     isrAFavor: isrCargoFavorCents < 0 ? fromCents(Math.abs(isrCargoFavorCents)) : 0,
     ptuBase: fromCents(ptuBaseCents),
     ptuPorPagar10Pct: fromCents(Math.round(ptuBaseCents * 0.1)),
-    nuevoCoeficienteUtilidad: utilidadFiscalCents > 0 && ingresosNominalesCents > 0 ? Number((utilidadFiscalCents / ingresosNominalesCents).toFixed(4)) : 0,
+    nuevoCoeficienteUtilidad: utilidadFiscalCents > 0 && ingresosNominalesCents > 0 ? truncate4(utilidadFiscalCents / ingresosNominalesCents) : 0,
     factorActualizacionInpc,
     cucaActualizada: fromCents(cucaActualizadaCents),
     cucaFinal: fromCents(cucaFinalCents),

@@ -6,6 +6,8 @@ import { fiscalAndBankApi } from './api/fiscal-and-bank.api';
 import { adminApi } from './api/admin.api';
 import { isSupabaseConfigured } from './supabase';
 import { supabaseCloudApi } from './supabase/supabase-client-facade';
+import { isGuestDemoMode } from './sandbox/guest-demo-mode';
+import { guestDemoApi } from './sandbox/guest-demo-api';
 import {
   getReadOnlyWriteErrorMessage,
   isReadOnlyBlockedMethod,
@@ -97,6 +99,17 @@ const rawApiClient = shouldUseSupabase
 
 export const apiClient: typeof rawApiClient = new Proxy(rawApiClient, {
   get(target, prop, receiver) {
+    if (typeof prop === 'string' && isGuestDemoMode()) {
+      const demoFn = Reflect.get(guestDemoApi, prop, guestDemoApi);
+      if (typeof demoFn === 'function') {
+        return (...args: unknown[]) => {
+          if (isReadOnlyWriteBlocked() && isReadOnlyBlockedMethod(prop)) {
+            throw new Error(getReadOnlyWriteErrorMessage());
+          }
+          return (demoFn as (...fnArgs: unknown[]) => unknown).apply(guestDemoApi, args);
+        };
+      }
+    }
     const value = Reflect.get(target, prop, receiver);
     if (typeof prop === 'string' && typeof value === 'function') {
       return (...args: unknown[]) => {

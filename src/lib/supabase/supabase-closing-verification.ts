@@ -1,10 +1,28 @@
 import { supabase } from '../supabase';
 import { buildYearCloseMovements } from '../../shared/accounting-engine';
-import { querySatCfdiStatusSoap } from '../../shared/sat-cfdi-status';
 import type { SatCfdiStatusCheckResult } from '../../shared/types';
+import { logCompanyAuditEvent } from './audit-logger';
 import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
 import { supabasePolizas, assertSupabasePeriodOpen } from './supabase-polizas';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
+
+interface SatVerifySingleEdgeItem {
+  cfdiId: string;
+  uuid: string;
+  ok: boolean;
+  statusSat: string | null;
+  codigoEstatus: string | null;
+  esCancelable: string | null;
+  estatusCancelacion: string | null;
+  validacionEfos: string | null;
+  error?: string;
+}
+
+interface SatVerifySingleEdgeResponse {
+  ok: boolean;
+  error?: string;
+  results?: SatVerifySingleEdgeItem[];
+}
 
 export const supabaseClosingAndVerification = {
   async closeYearPoliza(
@@ -27,7 +45,6 @@ export const supabaseClosingAndVerification = {
       'initialBalanceComputed'
     );
 
-    // Eliminar pólizas previas de periodo 13 DESPUÉS de validar que existen cuentas y saldos válidos
     const { data: oldPols, error: oldPolsErr } = await supabase
       .from('polizas')
       .select('id')
@@ -42,7 +59,6 @@ export const supabaseClosingAndVerification = {
       }
     }
 
-    // Crear la póliza oficial de cierre en mes 13
     const createdPol = await supabasePolizas.createPoliza({
       companyId,
       tipo: 'DIARIO',
@@ -55,7 +71,6 @@ export const supabaseClosingAndVerification = {
       movements
     });
 
-    // Actualizar periodo activo de la empresa a 13 solo si se solicita
     if (switchToPeriod13) {
       const { error: updErr } = await supabase
         .from('companies')
@@ -64,6 +79,14 @@ export const supabaseClosingAndVerification = {
       if (updErr) throw new Error(updErr.message);
     }
 
+    logCompanyAuditEvent({
+      companyId,
+      action: 'YEAR_CLOSE',
+      entityType: 'poliza',
+      entityId: createdPol.id,
+      metadata: { ejercicio, utilidadTraspasada }
+    });
+
     return {
       closed: true,
       polizaId: createdPol.id,
@@ -71,30 +94,87 @@ export const supabaseClosingAndVerification = {
     };
   },
 
+  /** Verifica el estatus individual de un CFDI ante el SAT via Edge Function `sat-status-verify` (sin CORS). */
   async verifyCfdiSatStatus(cfdiId: string): Promise<SatCfdiStatusCheckResult> {
     if (!supabase) throw new Error('Supabase no disponible');
 
     const { data: cfdi, error } = await supabase
       .from('cfdi_documents')
-      .select('*')
+      .select('id, company_id, uuid, emisor_rfc, receptor_rfc, total, status_sat')
       .eq('id', cfdiId)
       .single();
 
     if (error || !cfdi) throw new Error('CFDI no encontrado.');
 
-    const result = await querySatCfdiStatusSoap({
-      rfcEmisor: String(cfdi.emisor_rfc || ''),
-      rfcReceptor: String(cfdi.receptor_rfc || ''),
-      total: Number(cfdi.total || 0),
-      uuid: String(cfdi.uuid || ''),
-      currentStatus: cfdi.status_sat as 'VIGENTE' | 'CANCELADO'
-    });
+    const { data: edgeData, error: edgeError } =
+      await supabase.functions.invoke<SatVerifySingleEdgeResponse>('sat-status-verify', {
+        body: {
+          action: 'VERIFY_BATCH',
+          companyId: String(cfdi.company_id),
+          items: [
+            {
+              cfdiId: String(cfdi.id),
+              uuid: String(cfdi.uuid || ''),
+              emisorRfc: String(cfdi.emisor_rfc || ''),
+              receptorRfc: String(cfdi.receptor_rfc || ''),
+              total: Number(cfdi.total || 0)
+            }
+          ]
+        }
+      });
 
-    await supabase
-      .from('cfdi_documents')
-      .update({ status_sat: result.estadoSat })
-      .eq('id', cfdiId);
+    if (edgeError) {
+      let msg = edgeError.message;
+      try {
+        const ctxJson = await (edgeError as { context?: Response }).context?.json();
+        if (ctxJson?.error) msg = String(ctxJson.error);
+      } catch {
+        // ignore
+      }
+      throw new Error(msg);
+    }
 
-    return result;
+    if (!edgeData?.ok) {
+      throw new Error(edgeData?.error || 'Error verificando estatus del CFDI ante el SAT.');
+    }
+
+    const item = edgeData.results?.[0];
+    if (!item) {
+      throw new Error('La Edge Function sat-status-verify no devolvió resultados para el CFDI.');
+    }
+
+    if (!item.ok) {
+      return {
+        uuid: item.uuid || String(cfdi.uuid || ''),
+        codigoEstatus: item.codigoEstatus || item.error || 'N - No verificable ante el SAT.',
+        estadoSat:
+          String(item.statusSat || cfdi.status_sat || 'VIGENTE').toUpperCase() === 'CANCELADO'
+            ? 'CANCELADO'
+            : 'VIGENTE',
+        esCancelable: item.esCancelable || 'No verificable sin conexión',
+        estatusCancelacion: item.estatusCancelacion || 'Sin respuesta del SAT',
+        validacionEfos: 'NO_VERIFICADO_TIMEOUT_SAT',
+        soapEnvelopeXml: '',
+        modoConsulta: 'OFFLINE_UNVERIFIED'
+      };
+    }
+
+    const estadoSat: 'VIGENTE' | 'CANCELADO' =
+      String(item.statusSat || '').toUpperCase() === 'CANCELADO' ? 'CANCELADO' : 'VIGENTE';
+    const validacionEfos: SatCfdiStatusCheckResult['validacionEfos'] =
+      String(item.validacionEfos || '').includes('100')
+        ? '100_PRESUNTO_O_DEFINITIVO_69B'
+        : '200_LIMPIO';
+
+    return {
+      uuid: item.uuid || String(cfdi.uuid || ''),
+      codigoEstatus: item.codigoEstatus || 'S - Comprobante obtenido satisfactoriamente.',
+      estadoSat,
+      esCancelable: item.esCancelable || 'Cancelable con aceptación',
+      estatusCancelacion: item.estatusCancelacion || 'Ninguno',
+      validacionEfos,
+      soapEnvelopeXml: '',
+      modoConsulta: 'SAT_LIVE'
+    };
   }
 };

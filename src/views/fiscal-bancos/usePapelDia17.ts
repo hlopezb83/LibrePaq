@@ -96,6 +96,7 @@ export function usePapelDia17({
       return apiClient.saveTaxParameters({
         companyId,
         ejercicio: year,
+        periodo: period,
         coeficienteUtilidad: Math.min(1, sanitizeFiniteNonNeg(coefUtilidad)),
         perdidasFiscalesPendientes: sanitizeFiniteNonNeg(perdidasAmortizar),
         pagosProvisionalesAnteriores: sanitizeFiniteNonNeg(pagosPreviosInput),

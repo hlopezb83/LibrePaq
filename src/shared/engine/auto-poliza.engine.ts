@@ -68,20 +68,35 @@ export function buildAutoPolizaPlan(
     (overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId)?.trim() || undefined;
   const manualCounter =
     (overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId)?.trim() || undefined;
+  const isRep = cfdi.tipoComprobante === 'P';
+
+  const ruleCounterRaw = matchedRule?.counterAccountCode?.trim() || undefined;
+  const safeRuleCounter =
+    ruleCounterRaw &&
+    !(cfdi.metodoPago === 'PPD' && /^(101|102)/.test(ruleCounterRaw)) &&
+    !(cfdi.metodoPago === 'PUE' && /^(105|201)/.test(ruleCounterRaw))
+      ? ruleCounterRaw
+      : undefined;
 
   const effectiveOverrides: AutoPolizaOverrides | undefined =
     overrides || matchedRule
       ? {
           ...overrides,
-          operationAccountCode:
-            manualOp ?? matchedRule?.operationAccountCode ?? overrides?.thirdParty?.cuentaOperacionCode,
-          counterAccountCode:
-            manualCounter ??
-            matchedRule?.counterAccountCode ??
-            (cfdi.metodoPago === 'PPD'
-              ? overrides?.thirdParty?.cuentaContrapartidaCode
-              : undefined),
-          deductiblePct: overrides?.deductiblePct ?? matchedRule?.deductiblePct
+          operationAccountCode: isRep
+            ? manualOp ?? (overrides?.thirdParty?.cuentaContrapartidaCode?.trim() || undefined)
+            : manualOp ??
+              matchedRule?.operationAccountCode ??
+              overrides?.thirdParty?.cuentaOperacionCode,
+          counterAccountCode: isRep
+            ? manualCounter
+            : manualCounter ??
+              safeRuleCounter ??
+              (cfdi.metodoPago === 'PPD'
+                ? overrides?.thirdParty?.cuentaContrapartidaCode
+                : undefined),
+          deductiblePct: isRep
+            ? overrides?.deductiblePct
+            : overrides?.deductiblePct ?? matchedRule?.deductiblePct
         }
       : undefined;
 

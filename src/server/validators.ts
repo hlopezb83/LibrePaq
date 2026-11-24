@@ -60,15 +60,18 @@ export const PolizaMovementSchema = z.object({
   referencia: z.string().trim().optional(),
   concepto: z.string().trim().optional(),
   cargo: z.number().min(0).default(0),
-  abono: z.number().min(0).default(0)
+  abono: z.number().min(0).default(0),
+  cfdiUuid: z.string().trim().nullable().optional()
 });
 
 export const PolizaPayloadSchema = z.object({
   companyId: z.string().trim().default('comp_tnn_01'),
   tipo: z.enum(['INGRESO', 'EGRESO', 'DIARIO']).default('DIARIO'),
   fecha: z.string().default(() => getTodayLocalIso()),
+  periodo: z.number().int().min(1).max(13).nullable().optional(),
   concepto: z.string().trim().min(1),
   cfdiUuid: z.string().trim().nullable().optional(),
+  cfdiUuids: z.array(z.string().trim()).optional(),
   origin: z.enum(['MANUAL', 'ADD_AUTO']).default('MANUAL'),
   movements: z.array(PolizaMovementSchema).default([])
 });
@@ -176,8 +179,10 @@ export function validatePolizaPayload(raw: unknown): {
   companyId: string;
   tipo: PolizaType;
   fecha: string;
+  periodo?: number | null;
   concepto: string;
   cfdiUuid: string | null;
+  cfdiUuids?: string[];
   origin: 'MANUAL' | 'ADD_AUTO';
   movements: Array<{
     accountId: string;
@@ -185,6 +190,7 @@ export function validatePolizaPayload(raw: unknown): {
     concepto?: string;
     cargo: number;
     abono: number;
+    cfdiUuid?: string | null;
   }>;
 } {
   const result = PolizaPayloadSchema.safeParse(raw);
@@ -198,15 +204,18 @@ export function validatePolizaPayload(raw: unknown): {
     companyId: data.companyId,
     tipo: data.tipo as PolizaType,
     fecha: data.fecha.slice(0, 10),
+    periodo: data.periodo,
     concepto: data.concepto,
     cfdiUuid: data.cfdiUuid || null,
+    cfdiUuids: data.cfdiUuids,
     origin: data.origin,
     movements: data.movements.map((m) => ({
       accountId: m.accountId,
       referencia: m.referencia,
       concepto: m.concepto,
       cargo: m.cargo,
-      abono: m.abono
+      abono: m.abono,
+      cfdiUuid: m.cfdiUuid
     }))
   };
 }

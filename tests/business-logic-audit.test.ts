@@ -429,14 +429,15 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
       const extRow = diot.rows.find((r) => r.rfc === 'XEXX010101000')!;
       expect(extRow.tipoTercero).toBe('05');
       const extCols = extRow.batchLine.split('|');
+      expect(extCols).toHaveLength(54);
       expect(extCols[0]).toBe('05');
       expect(extCols[4]).toBe('STRIPE INC');
       expect(extCols[5]).toBe('USA');
-      expect(extCols[11]).toBe('4000'); // Base exenta en columna 12 (índice 11)
+      expect(extCols[30]).toBe('4000'); // Base exenta en columna 31 (índice 30, layout 54 campos)
 
       const ncRow = diot.rows.find((r) => r.rfc === 'PRO880101AA1')!;
       const ncCols = ncRow.batchLine.split('|');
-      expect(ncCols[15]).toBe('1000'); // Devoluciones/bonificaciones en columna 16 (índice 15)
+      expect(ncCols[48]).toBe('1000'); // Devoluciones/bonificaciones en columna 49 (índice 48, layout 54 campos)
       expect(ncRow.ivaAcreditable16).toBe(-160);
     });
   });

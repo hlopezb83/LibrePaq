@@ -58,6 +58,7 @@ export function computeFiscalWorkpaper(params: {
   cashBasisSummary?: FiscalWorkpaperResponse['cashBasisSummary'];
   resicoThresholdAlert?: FiscalWorkpaperResponse['resicoThresholdAlert'];
   ivaBreakdown?: FiscalWorkpaperResponse['ivaBreakdown'];
+  retencionesDesglose?: FiscalWorkpaperResponse['retencionesDesglose'];
 }): FiscalWorkpaperResponse {
   const {
     company,
@@ -260,6 +261,7 @@ export function computeFiscalWorkpaper(params: {
     },
     ...(params.cashBasisSummary ? { cashBasisSummary: params.cashBasisSummary } : {}),
     ...(params.resicoThresholdAlert ? { resicoThresholdAlert: params.resicoThresholdAlert } : {}),
-    ...(params.ivaBreakdown ? { ivaBreakdown: params.ivaBreakdown } : {})
+    ...(params.ivaBreakdown ? { ivaBreakdown: params.ivaBreakdown } : {}),
+    ...(params.retencionesDesglose ? { retencionesDesglose: params.retencionesDesglose } : {})
   };
 }

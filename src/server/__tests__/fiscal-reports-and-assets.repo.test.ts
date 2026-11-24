@@ -173,9 +173,12 @@ describe('repositories — Activos Fijos, Papel Día 17 e Informátiva DIOT SAT'
     expect(diot.rows[0]?.rfc).toBe('PRO010203AA1');
     expect(diot.rows[0]?.actosPagados16).toBe(10000);
     expect(diot.rows[0]?.ivaAcreditable16).toBe(1600);
-    // SAT Batch txt pipe-delimited format (Formato DEM A-29: 20 campos, sin plepa inicial)
-    expect(diot.batchTxtContent).toContain('04|85|PRO010203AA1|||||10000||||||||||||');
-    expect(diot.batchTxtContent.split('|')).toHaveLength(20);
+    // SAT Batch txt pipe-delimited format (Nueva DIOT SAT 2025/2026: 54 campos)
+    expect(diot.batchTxtContent).toContain('04|85|PRO010203AA1|||||10000|');
+    const diotCols = diot.batchTxtContent.split('|');
+    expect(diotCols).toHaveLength(54);
+    expect(diotCols[46]).toBe('1600');
+    expect(diotCols[53]).toBe('01');
   });
 
   test('getAccountLedger correctly scopes descendant accounts by level without mixing subcuentas', () => {

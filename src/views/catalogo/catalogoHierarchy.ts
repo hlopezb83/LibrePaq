@@ -8,24 +8,28 @@ export function suggestNextCodeForParent(
   if (!pCode) return '700-00-000';
   const children = accounts.filter((a) => a.parentCode === pCode);
   const parts = pCode.split('-');
-  if (parts.length !== 3) return `${pCode}-001`;
+  if (parts.length < 2) return `${pCode}-001`;
 
-  if (parts[1] === '00' && parts[2] === '000' && pCode.endsWith('00-00-000')) {
-    const prefixNum = Number(parts[0]);
-    const maxChildPrefix = children.reduce((max, c) => {
-      const cNum = Number(c.code.split('-')[0] || 0);
-      return cNum > max ? cNum : max;
-    }, prefixNum);
-    return `${String(maxChildPrefix + 1).padStart(3, '0')}-00-000`;
+  // Detect the first all-zero trailing segment to increment, supporting 3- and 4-segment masks
+  const firstZeroIdx = parts.findIndex((seg, idx) => idx > 0 && /^0+$/.test(seg));
+  if (firstZeroIdx > 0) {
+    const segLen = parts[firstZeroIdx]!.length;
+    const maxSeg = children.reduce((max, c) => {
+      const cSeg = Number(c.code.split('-')[firstZeroIdx] || 0);
+      return cSeg > max ? cSeg : max;
+    }, 0);
+    const nextParts = [...parts];
+    nextParts[firstZeroIdx] = String(maxSeg + 1).padStart(segLen, '0');
+    return nextParts.join('-');
   }
 
-  const maxSuffix = children.reduce((max, c) => {
+  // Fallback for level-3 parent creating level-4 subaccount (e.g., 601-01-003 -> 601-01-003-001)
+  const maxSub = children.reduce((max, c) => {
     const cParts = c.code.split('-');
-    const lastNum = Number(cParts[2] || 0);
+    const lastNum = Number(cParts[cParts.length - 1] || 0);
     return lastNum > max ? lastNum : max;
   }, 0);
-  const midSegment = children[0]?.code.split('-')[1] || '01';
-  return `${parts[0]}-${midSegment}-${String(maxSuffix + 1).padStart(3, '0')}`;
+  return `${pCode}-${String(maxSub + 1).padStart(3, '0')}`;
 }
 
 export function isAncestorCollapsed(

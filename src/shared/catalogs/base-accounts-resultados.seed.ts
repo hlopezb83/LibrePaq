@@ -1,307 +1,68 @@
-import type { Account } from '../types';
+import type { Account, AccountNature, AccountType } from '../types';
 
-export const BASE_ACCOUNTS_RESULTADOS: ReadonlyArray<Omit<Account, 'id' | 'companyId'>> = [
+type SeedAccount = Omit<Account, 'id' | 'companyId'>;
+
+function acc(
+  type: AccountType,
+  nature: AccountNature,
+  code: string,
+  name: string,
+  parentCode: string | null,
+  level: number,
+  isAffectable: boolean,
+  satGroupCode: string,
+  initialBalance = 0
+): SeedAccount {
+  return {
+    code,
+    name,
+    parentCode,
+    type,
+    nature,
+    level,
+    isAffectable,
+    satGroupCode,
+    currency: 'MXN',
+    initialBalance
+  };
+}
+
+export const BASE_ACCOUNTS_RESULTADOS: ReadonlyArray<SeedAccount> = [
   // INGRESOS
-  {
-    code: '400-00-000',
-    name: 'INGRESOS',
-    parentCode: null,
-    type: 'INGRESOS',
-    nature: 'ACREEDORA',
-    level: 1,
-    isAffectable: false,
-    satGroupCode: '400',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '401-00-000',
-    name: 'Ingresos por Ventas y Servicios Gravados',
-    parentCode: '400-00-000',
-    type: 'INGRESOS',
-    nature: 'ACREEDORA',
-    level: 2,
-    isAffectable: false,
-    satGroupCode: '401',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '401-01-001',
-    name: 'Ventas y Servicios de Software / SaaS Tasa 16%',
-    parentCode: '401-00-000',
-    type: 'INGRESOS',
-    nature: 'ACREEDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '401.01',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '401-01-002',
-    name: 'Consultoría e Implementación Tecnológica 16%',
-    parentCode: '401-00-000',
-    type: 'INGRESOS',
-    nature: 'ACREEDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '401.01',
-    currency: 'MXN',
-    initialBalance: 0
-  },
+  acc('INGRESOS', 'ACREEDORA', '400-00-000', 'INGRESOS', null, 1, false, '400'),
+  acc('INGRESOS', 'ACREEDORA', '401-00-000', 'Ingresos por Ventas y Servicios Gravados', '400-00-000', 2, false, '401'),
+  acc('INGRESOS', 'ACREEDORA', '401-01-001', 'Ventas y Servicios Gravados Tasa 16%', '401-00-000', 3, true, '401.01'),
+  acc('INGRESOS', 'ACREEDORA', '401-01-002', 'Servicios Profesionales y Consultoría Tasa 16%', '401-00-000', 3, true, '401.01'),
+  acc('INGRESOS', 'DEUDORA', '402-00-000', 'Devoluciones, Descuentos y Bonificaciones s/Ingresos', '400-00-000', 2, false, '402'),
+  acc('INGRESOS', 'DEUDORA', '402-01-001', 'Devoluciones, Descuentos o Bonificaciones sobre Ventas', '402-00-000', 3, true, '402.01'),
   // COSTOS
-  {
-    code: '500-00-000',
-    name: 'COSTOS',
-    parentCode: null,
-    type: 'COSTOS',
-    nature: 'DEUDORA',
-    level: 1,
-    isAffectable: false,
-    satGroupCode: '500',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '501-00-000',
-    name: 'Costo de Venta y Servicios',
-    parentCode: '500-00-000',
-    type: 'COSTOS',
-    nature: 'DEUDORA',
-    level: 2,
-    isAffectable: false,
-    satGroupCode: '501',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '501-01-001',
-    name: 'Costo de Infraestructura Cloud y Servidores',
-    parentCode: '501-00-000',
-    type: 'COSTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '501.02',
-    currency: 'MXN',
-    initialBalance: 0
-  },
+  acc('COSTOS', 'DEUDORA', '500-00-000', 'COSTOS', null, 1, false, '500'),
+  acc('COSTOS', 'DEUDORA', '501-00-000', 'Costo de Venta y Servicios', '500-00-000', 2, false, '501'),
+  acc('COSTOS', 'DEUDORA', '501-01-001', 'Costo de Ventas y Servicios Directos', '501-00-000', 3, true, '501.02'),
   // GASTOS
-  {
-    code: '600-00-000',
-    name: 'GASTOS DE OPERACIÓN',
-    parentCode: null,
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 1,
-    isAffectable: false,
-    satGroupCode: '600',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '601-00-000',
-    name: 'Gastos Generales de Administración',
-    parentCode: '600-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 2,
-    isAffectable: false,
-    satGroupCode: '601',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '601-01-001',
-    name: 'Sueldos y Salarios Administrativos',
-    parentCode: '601-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '601.01',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '601-01-002',
-    name: 'Arrendamiento de Oficinas Corporativas',
-    parentCode: '601-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '601.45',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '601-01-003',
-    name: 'Honorarios Contables, Legales y Auditoría',
-    parentCode: '601-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '601.32',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '601-01-004',
-    name: 'Telecomunicaciones, Internet y Software SaaS',
-    parentCode: '601-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '601.50',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '601-01-005',
-    name: 'Comisiones Bancarias y Financieras',
-    parentCode: '601-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '701.10',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '171-00-000',
-    name: 'Depreciación Acumulada de Activos Fijos',
-    parentCode: '100-00-000',
-    type: 'ACTIVO',
-    nature: 'ACREEDORA',
-    level: 2,
-    isAffectable: false,
-    satGroupCode: '171',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '171-01-001',
-    name: 'Depreciación Acumulada de Equipo de Cómputo y Transporte',
-    parentCode: '171-00-000',
-    type: 'ACTIVO',
-    nature: 'ACREEDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '171',
-    currency: 'MXN',
-    initialBalance: 65000
-  },
-  {
-    code: '213-00-000',
-    name: 'Impuestos y Derechos por Pagar',
-    parentCode: '200-00-000',
-    type: 'PASIVO',
-    nature: 'ACREEDORA',
-    level: 2,
-    isAffectable: false,
-    satGroupCode: '213',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '213-01-001',
-    name: 'IVA Definitivo por Pagar del Periodo',
-    parentCode: '213-00-000',
-    type: 'PASIVO',
-    nature: 'ACREEDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '213.01',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '213-01-002',
-    name: 'ISR Provisional por Pagar del Periodo',
-    parentCode: '213-00-000',
-    type: 'PASIVO',
-    nature: 'ACREEDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '213.03',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '601-01-006',
-    name: 'Depreciación Contable de Activos Fijos',
-    parentCode: '601-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '601.84',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '701-01-001',
-    name: 'Pérdida Cambiaria (Fluctuación Moneda Extranjera)',
-    parentCode: '601-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '701.01',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '702-01-001',
-    name: 'Utilidad Cambiaria (Productos Financieros)',
-    parentCode: '401-00-000',
-    type: 'INGRESOS',
-    nature: 'ACREEDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '702.01',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '801-00-000',
-    name: 'Impuesto Sobre la Renta (Gasto no Deducible)',
-    parentCode: null,
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 1,
-    isAffectable: false,
-    satGroupCode: '611',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '801-01-000',
-    name: 'ISR del Ejercicio',
-    parentCode: '801-00-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 2,
-    isAffectable: false,
-    satGroupCode: '611',
-    currency: 'MXN',
-    initialBalance: 0
-  },
-  {
-    code: '801-01-001',
-    name: 'Provisión de ISR Ejercicio (No Deducible Art. 28 LISR)',
-    parentCode: '801-01-000',
-    type: 'GASTOS',
-    nature: 'DEUDORA',
-    level: 3,
-    isAffectable: true,
-    satGroupCode: '611.01',
-    currency: 'MXN',
-    initialBalance: 0
-  }
+  acc('GASTOS', 'DEUDORA', '600-00-000', 'GASTOS DE OPERACIÓN', null, 1, false, '600'),
+  acc('GASTOS', 'DEUDORA', '601-00-000', 'Gastos Generales de Administración', '600-00-000', 2, false, '601'),
+  acc('GASTOS', 'DEUDORA', '601-01-001', 'Sueldos y Salarios Administrativos', '601-00-000', 3, true, '601.01'),
+  acc('GASTOS', 'DEUDORA', '601-01-002', 'Arrendamiento de Inmuebles y Oficinas', '601-00-000', 3, true, '601.45'),
+  acc('GASTOS', 'DEUDORA', '601-01-003', 'Honorarios Contables, Legales y Servicios Generales', '601-00-000', 3, true, '601.32'),
+  acc('GASTOS', 'DEUDORA', '601-01-004', 'Telecomunicaciones, Internet y Software', '601-00-000', 3, true, '601.50'),
+  acc('GASTOS', 'DEUDORA', '601-01-005', 'Comisiones Bancarias y Financieras', '601-00-000', 3, true, '701.10'),
+  acc('GASTOS', 'DEUDORA', '601-01-006', 'Depreciación Contable de Activos Fijos', '601-00-000', 3, true, '601.84'),
+  acc('GASTOS', 'DEUDORA', '601-01-007', 'Cuotas Patronales IMSS', '601-00-000', 3, true, '601.26'),
+  acc('GASTOS', 'DEUDORA', '601-01-008', 'Aportaciones INFONAVIT y SAR / RCV', '601-00-000', 3, true, '601.27'),
+  acc('GASTOS', 'DEUDORA', '601-01-009', 'Combustibles y Lubricantes', '601-00-000', 3, true, '601.48'),
+  acc('GASTOS', 'DEUDORA', '601-01-010', 'Energía Eléctrica, Agua y Servicios', '601-00-000', 3, true, '601.52'),
+  // CUENTAS COMPLEMENTARIAS DE ACTIVO / PROVISIÓN IMPUESTOS / FINANCIERAS
+  acc('ACTIVO', 'ACREEDORA', '171-00-000', 'Depreciación Acumulada de Activos Fijos', '100-00-000', 2, false, '171'),
+  acc('ACTIVO', 'ACREEDORA', '171-01-001', 'Depreciación Acumulada de Activos Fijos', '171-00-000', 3, true, '171', 65000),
+  acc('PASIVO', 'ACREEDORA', '213-00-000', 'Impuestos y Derechos por Pagar', '200-00-000', 2, false, '213'),
+  acc('PASIVO', 'ACREEDORA', '213-01-001', 'IVA Definitivo por Pagar del Periodo', '213-00-000', 3, true, '213.01'),
+  acc('PASIVO', 'ACREEDORA', '213-01-002', 'ISR Provisional por Pagar del Periodo', '213-00-000', 3, true, '213.03'),
+  acc('GASTOS', 'DEUDORA', '701-01-001', 'Pérdida Cambiaria (Fluctuación Moneda Extranjera)', '601-00-000', 3, true, '701.01'),
+  acc('INGRESOS', 'ACREEDORA', '702-01-001', 'Utilidad Cambiaria (Productos Financieros)', '401-00-000', 3, true, '702.01'),
+  // PARTIDAS NO DEDUCIBLES / PROVISIÓN ISR
+  acc('GASTOS', 'DEUDORA', '801-00-000', 'Impuesto Sobre la Renta y No Deducibles', null, 1, false, '611'),
+  acc('GASTOS', 'DEUDORA', '801-01-000', 'ISR del Ejercicio y Partidas No Deducibles', '801-00-000', 2, false, '611'),
+  acc('GASTOS', 'DEUDORA', '801-01-001', 'Provisión de ISR Ejercicio (No Deducible Art. 28 LISR)', '801-01-000', 3, true, '611.01'),
+  acc('GASTOS', 'DEUDORA', '801-01-002', 'Gastos No Deducibles (Art. 28 LISR)', '801-01-000', 3, true, '601.74')
 ];

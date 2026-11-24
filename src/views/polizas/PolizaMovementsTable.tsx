@@ -10,6 +10,7 @@ interface PolizaMovementsTableProps {
   setMovements: React.Dispatch<React.SetStateAction<DraftMovement[]>>;
   accounts: Account[];
   affectableAccounts: Account[];
+  cfdiUuids?: string[];
   concepto: string;
   difference: number;
   totalCargos: number;
@@ -30,6 +31,7 @@ export function PolizaMovementsTable({
   setMovements,
   accounts,
   affectableAccounts,
+  cfdiUuids = [],
   concepto,
   difference,
   totalCargos,
@@ -159,6 +161,7 @@ export function PolizaMovementsTable({
                 accounts={accounts}
                 accountsById={accountsById}
                 affectableAccounts={affectableAccounts}
+                cfdiUuids={cfdiUuids}
                 concepto={concepto}
                 difference={difference}
                 referenciaRefs={referenciaRefs}

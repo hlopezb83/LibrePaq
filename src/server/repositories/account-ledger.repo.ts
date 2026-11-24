@@ -7,11 +7,17 @@ export function getAccountLedger(
   companyId: string,
   accountId: string,
   ejercicio: number,
-  periodo: number
+  periodo: number,
+  periodTo?: number
 ): AccountLedgerResponse | null {
-  const trialBalance = computeTrialBalance(companyId, ejercicio, periodo);
+  const effectiveFrom = periodTo !== undefined ? Math.min(periodo, periodTo) : periodo;
+  const effectiveTo = periodTo !== undefined ? Math.max(periodo, periodTo) : periodo;
+  const isRange = effectiveTo !== effectiveFrom;
+  const trialBalance = computeTrialBalance(companyId, ejercicio, effectiveFrom);
   const targetAcc = trialBalance.find((a) => a.id === accountId);
   if (!targetAcc) return null;
+  const endTrial = isRange ? computeTrialBalance(companyId, ejercicio, effectiveTo) : trialBalance;
+  const targetAccEnd = endTrial.find((a) => a.id === accountId) ?? targetAcc;
 
   const descendantIds = new Set<string>();
   if (targetAcc.isAffectable) {
@@ -63,11 +69,11 @@ export function getAccountLedger(
         m.abono
       FROM poliza_movements m
       INNER JOIN polizas p ON m.poliza_id = p.id
-      WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo = ?
+      WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo BETWEEN ? AND ?
         AND m.account_id IN (${placeholders})
       ORDER BY p.fecha ASC, p.folio ASC, m.id ASC
     `)
-    .all(companyId, ejercicio, periodo, ...idsArray) as Array<{
+    .all(companyId, ejercicio, effectiveFrom, effectiveTo, ...idsArray) as Array<{
     movement_id: string;
     poliza_id: string;
     fecha: string;
@@ -84,9 +90,13 @@ export function getAccountLedger(
   }>;
 
   let runningCents = toCents(targetAcc.initialBalanceComputed);
+  let sumChargesCents = 0;
+  let sumCreditsCents = 0;
   const entries: AccountLedgerEntry[] = rows.map((r) => {
     const cargoCents = toCents(r.cargo);
     const abonoCents = toCents(r.abono);
+    sumChargesCents += cargoCents;
+    sumCreditsCents += abonoCents;
     if (targetAcc.nature === 'DEUDORA') {
       runningCents += cargoCents - abonoCents;
     } else {
@@ -113,11 +123,11 @@ export function getAccountLedger(
   return {
     account: targetAcc,
     ejercicio,
-    periodo,
+    periodo: effectiveFrom,
     initialBalance: targetAcc.initialBalanceComputed,
-    totalCharges: targetAcc.periodCharges,
-    totalCredits: targetAcc.periodCredits,
-    finalBalance: targetAcc.finalBalance,
+    totalCharges: isRange ? fromCents(sumChargesCents) : targetAcc.periodCharges,
+    totalCredits: isRange ? fromCents(sumCreditsCents) : targetAcc.periodCredits,
+    finalBalance: targetAccEnd.finalBalance,
     entries
   };
 }

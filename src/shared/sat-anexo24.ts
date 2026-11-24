@@ -1,8 +1,23 @@
 import type { AccountWithBalance, Company, Poliza, PolizaMovement } from './types';
-import { escapeXmlAttr } from './cfdi-xml';
 import { getTodayLocalIso } from './date-utils';
+import {
+  buildAnexo24SolicitudAttrs,
+  buildAuxiliarCuentasXml,
+  buildAuxiliarFoliosXml,
+  isValidSatNumOrden,
+  isValidSatNumTramite,
+  truncXml,
+  type SatSolicitudTipo
+} from './sat-anexo24-auxiliaries';
 
-export type SatXmlType = 'balanza' | 'catalogo' | 'polizas';
+export { isValidSatNumOrden, isValidSatNumTramite };
+
+export type SatXmlType =
+  | 'balanza'
+  | 'catalogo'
+  | 'polizas'
+  | 'auxiliar_folios'
+  | 'auxiliar_cuentas';
 
 export interface Anexo24CfdiMetadata {
   total: number;
@@ -15,7 +30,7 @@ export interface SatAnexo24Options {
   tipoEnvio?: 'N' | 'C';
   fechaModBal?: string;
   counterpartRfc?: string;
-  tipoSolicitud?: 'AF' | 'FC' | 'DE' | 'CO';
+  tipoSolicitud?: SatSolicitudTipo;
   numOrden?: string;
   numTramite?: string;
   cfdiLookup?: ReadonlyMap<string, Anexo24CfdiMetadata>;
@@ -25,12 +40,6 @@ export interface SatAnexo24XmlResult {
   filename: string;
   type: string;
   xml: string;
-}
-
-function truncXml(value: string | null | undefined, maxChars: number): string {
-  const clean = (value ?? '').trim();
-  const sliced = clean.length > maxChars ? clean.slice(0, maxChars) : clean;
-  return escapeXmlAttr(sliced);
 }
 
 const UUID_V4_LIKE_REGEX = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
@@ -177,19 +186,19 @@ ${ctasXml}
     };
   }
 
-  // 2. Pólizas del Periodo (PL.xml — Mes permitido 01..12 en XSD v1.3)
+  // 2. Auxiliar de Folios (XF.xml) y Auxiliar de Cuentas (XC.xml)
+  if (type === 'auxiliar_folios' || type === 'xf') {
+    return buildAuxiliarFoliosXml(company, year, period, polizas, options);
+  }
+  if (type === 'auxiliar_cuentas' || type === 'xc') {
+    return buildAuxiliarCuentasXml(company, year, period, trialBalance, polizas, options);
+  }
+
+  // 3. Pólizas del Periodo (PL.xml — Mes permitido 01..12 en XSD v1.3)
   if (type === 'polizas') {
     const polMes = Math.max(1, Math.min(12, period));
     const polMesStr = String(polMes).padStart(2, '0');
-    const tipoSolicitud = options?.tipoSolicitud || 'AF';
-    let reqSolicitudAttr = '';
-    if (tipoSolicitud === 'AF' || tipoSolicitud === 'FC') {
-      const numOrden = truncXml(options?.numOrden || 'ABC1234567/01', 13);
-      reqSolicitudAttr = ` NumOrden="${numOrden}"`;
-    } else if (tipoSolicitud === 'DE' || tipoSolicitud === 'CO') {
-      const numTramite = truncXml(options?.numTramite || 'DE000000000001', 14);
-      reqSolicitudAttr = ` NumTramite="${numTramite}"`;
-    }
+    const { tipoSolicitud, reqSolicitudAttr } = buildAnexo24SolicitudAttrs(options);
 
     const polizasXml = polizas
       .map((p) => {

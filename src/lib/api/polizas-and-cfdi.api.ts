@@ -1,3 +1,4 @@
+import type { SatAnexo24Options, SatXmlType } from '../../shared/sat-anexo24';
 import type {
   CfdiDocument,
   FinancialStatementsResponse,
@@ -17,8 +18,10 @@ export const polizasAndCfdiApi = {
     companyId: string;
     tipo: PolizaType;
     fecha: string;
+    periodo?: number;
     concepto: string;
     cfdiUuid?: string | null;
+    cfdiUuids?: string[];
     origin?: 'MANUAL' | 'ADD_AUTO';
     movements: Array<{
       accountId: string;
@@ -26,6 +29,7 @@ export const polizasAndCfdiApi = {
       concepto?: string;
       cargo: number;
       abono: number;
+      cfdiUuid?: string | null;
     }>;
   }) =>
     fetchWithTimeout('/api/polizas', {
@@ -39,14 +43,17 @@ export const polizasAndCfdiApi = {
     payload: {
       tipo: PolizaType;
       fecha: string;
+      periodo?: number | null;
       concepto: string;
       cfdiUuid?: string | null;
+      cfdiUuids?: string[];
       movements: Array<{
         accountId: string;
         referencia?: string;
         concepto?: string;
         cargo: number;
         abono: number;
+        cfdiUuid?: string | null;
       }>;
     }
   ) =>
@@ -149,10 +156,24 @@ export const polizasAndCfdiApi = {
       handleResponse<FinancialStatementsResponse>(r)
     ),
 
-  getSatXml: (companyId: string, type: 'catalogo' | 'balanza' | 'polizas', year?: number, period?: number) =>
-    fetchWithTimeout(
-      `/api/sat-xml?${buildPeriodQuery(companyId, year, period)}&type=${encodeURIComponent(type)}`
-    ).then((r) => handleResponse<{ filename: string; type: string; xml: string }>(r)),
+  getSatXml: (
+    companyId: string,
+    type: SatXmlType,
+    year?: number,
+    period?: number,
+    options?: Omit<SatAnexo24Options, 'cfdiLookup'>
+  ) => {
+    const params = new URLSearchParams(buildPeriodQuery(companyId, year, period));
+    params.set('type', type);
+    if (options?.tipoEnvio) params.set('tipoEnvio', options.tipoEnvio);
+    if (options?.fechaModBal) params.set('fechaModBal', options.fechaModBal);
+    if (options?.tipoSolicitud) params.set('tipoSolicitud', options.tipoSolicitud);
+    if (options?.numOrden) params.set('numOrden', options.numOrden);
+    if (options?.numTramite) params.set('numTramite', options.numTramite);
+    return fetchWithTimeout(`/api/sat-xml?${params.toString()}`).then((r) =>
+      handleResponse<{ filename: string; type: string; xml: string }>(r)
+    );
+  },
 
   verifyCfdiSatStatus: (cfdiId: string) =>
     fetchWithTimeout(`/api/cfdis/${encodeURIComponent(cfdiId)}/verify-sat`, {

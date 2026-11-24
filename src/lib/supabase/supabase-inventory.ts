@@ -1,6 +1,10 @@
 import { getRequiredSupabase, supabase } from '../supabase';
-import { computeCostOfSales, computePurchasesFromMovements } from '../../shared/engine/cost-of-sales.engine';
-import type { JoinedPolizaMovementInput } from '../../shared/engine/financial-reports.engine';
+import {
+  computeCostOfSales,
+  computeInventoryInputsFromMovements,
+  computePurchasesFromMovements,
+  type CostPolizaMovementInput
+} from '../../shared/engine/cost-of-sales.engine';
 import { fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type { InventoryMethod, InventoryPeriodRecord, SaveInventoryPeriodPayload } from '../../shared/types/cost-of-sales.types';
 import { mapSupabaseAccount, mapSupabaseCompany } from './supabase-mappers';
@@ -32,7 +36,7 @@ export const supabaseInventory = {
       fetchAllRows(async (from, to) =>
         sb
           .from('poliza_movements')
-          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo)')
+          .select('poliza_id, account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo)')
           .eq('polizas.company_id', company.id)
           .eq('polizas.ejercicio', targetYear)
           .eq('polizas.periodo', targetPeriod)
@@ -44,14 +48,19 @@ export const supabaseInventory = {
     const row = curRes.data as Record<string, unknown> | null;
     const prevRow = prevRes.data as Record<string, unknown> | null;
     const accounts = rawAccounts.map((r) => mapSupabaseAccount(r as Record<string, unknown>));
-    const purchasesFromBalance = computePurchasesFromMovements(accounts, movs as unknown as JoinedPolizaMovementInput[]);
+    const method: InventoryMethod = row?.method === 'PERPETUO' ? 'PERPETUO' : 'ANALITICO';
+    const linkedPolizaId = row?.poliza_id ? String(row.poliza_id) : null;
+    const typedMovs = movs as unknown as CostPolizaMovementInput[];
+    const purchasesFromBalance =
+      method === 'PERPETUO'
+        ? computeInventoryInputsFromMovements(accounts, typedMovs, linkedPolizaId)
+        : computePurchasesFromMovements(accounts, typedMovs, linkedPolizaId);
 
     const prevFinal = prevRow ? cleanAmount(prevRow.final_inventory) : 0;
     const initialInventory = row ? cleanAmount(row.initial_inventory) : prevFinal;
     const purchasesOverride = row && row.purchases_override !== null && row.purchases_override !== undefined ? cleanAmount(row.purchases_override) : null;
     const effectivePurchases = purchasesOverride !== null ? purchasesOverride : purchasesFromBalance;
     const finalInventory = row ? cleanAmount(row.final_inventory) : 0;
-    const method: InventoryMethod = row?.method === 'PERPETUO' ? 'PERPETUO' : 'ANALITICO';
     const computation = computeCostOfSales({ initialInventory, purchasesPeriod: effectivePurchases, finalInventory });
 
     return {

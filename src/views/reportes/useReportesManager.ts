@@ -6,13 +6,20 @@ import { useToast } from '../../context/ToastContext';
 import { annualTaxClient } from '../../lib/annual-tax-client';
 import { apiClient } from '../../lib/api-client';
 import { downloadBlobFile, downloadCsvFile } from '../../lib/formatters';
-import type { SatXmlType } from '../../shared/sat-anexo24';
+import { getTodayLocalIso } from '../../shared/date-utils';
+import {
+  isValidSatNumOrden,
+  isValidSatNumTramite,
+  type SatXmlType
+} from '../../shared/sat-anexo24';
+import type { Anexo24UiOptions } from './Anexo24OptionsBar';
 import type { ReportTabId } from './ReportesHeaderBar';
 
 const VALID_REPORT_TABS: readonly ReportTabId[] = [
   'BALANZA',
   'RESULTADOS',
   'BALANCE',
+  'AUXILIARES',
   'FLUJOS_CAPITAL',
   'ANUAL',
   'ANEXO24',
@@ -47,6 +54,13 @@ export function useReportesManager() {
     () => resolveReportTab(urlTab) ?? getInitialReportTab()
   );
   const [satXmlType, setSatXmlType] = useState<SatXmlType>('balanza');
+  const [anexo24Options, setAnexo24Options] = useState<Anexo24UiOptions>({
+    tipoEnvio: 'N',
+    fechaModBal: getTodayLocalIso(),
+    tipoSolicitud: 'AF',
+    numOrden: '',
+    numTramite: ''
+  });
 
   useEffect(() => {
     const next = resolveReportTab(urlTab);
@@ -80,6 +94,15 @@ export function useReportesManager() {
     enabled: Boolean(activeCompanyId && activeTab === 'ANUAL')
   });
 
+  const validOrdenQuery =
+    !anexo24Options.numOrden.trim() || isValidSatNumOrden(anexo24Options.numOrden)
+      ? anexo24Options.numOrden.trim().toUpperCase() || undefined
+      : undefined;
+  const validTramiteQuery =
+    !anexo24Options.numTramite.trim() || isValidSatNumTramite(anexo24Options.numTramite)
+      ? anexo24Options.numTramite.trim().toUpperCase() || undefined
+      : undefined;
+
   const {
     data: satXmlData,
     isLoading: isLoadingXml,
@@ -87,8 +110,26 @@ export function useReportesManager() {
     error: xmlError,
     refetch: refetchXml
   } = useQuery({
-    queryKey: ['sat-xml', activeCompanyId, satXmlType, currentYear, currentPeriod],
-    queryFn: () => apiClient.getSatXml(activeCompanyId, satXmlType, currentYear, currentPeriod),
+    queryKey: [
+      'sat-xml',
+      activeCompanyId,
+      satXmlType,
+      currentYear,
+      currentPeriod,
+      anexo24Options.tipoEnvio,
+      anexo24Options.fechaModBal,
+      anexo24Options.tipoSolicitud,
+      validOrdenQuery,
+      validTramiteQuery
+    ],
+    queryFn: () =>
+      apiClient.getSatXml(activeCompanyId, satXmlType, currentYear, currentPeriod, {
+        tipoEnvio: anexo24Options.tipoEnvio,
+        fechaModBal: anexo24Options.fechaModBal,
+        tipoSolicitud: anexo24Options.tipoSolicitud,
+        numOrden: validOrdenQuery,
+        numTramite: validTramiteQuery
+      }),
     enabled: Boolean(activeCompanyId && activeTab === 'ANEXO24')
   });
 
@@ -187,6 +228,8 @@ export function useReportesManager() {
     setActiveTab,
     satXmlType,
     setSatXmlType,
+    anexo24Options,
+    setAnexo24Options,
     data,
     prevReports,
     isLoadingPrevReports,

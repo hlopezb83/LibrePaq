@@ -10,6 +10,10 @@ import type { BankReconciliationResponse } from '../../shared/types';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
+import {
+  fetchActiveN1MatchedMovementIds,
+  mapBankStatementLine
+} from './supabase-bank-helpers';
 
 export const supabaseBank = {
   async getBankReconciliation(
@@ -49,24 +53,13 @@ export const supabaseBank = {
       return query.order('fecha', { ascending: true }).order('id', { ascending: true }).range(from, to);
     });
 
-    const statementLines = lines.map((l: Record<string, unknown>) => ({
-      id: String(l.id),
-      companyId: String(l.company_id),
-      accountId: String(l.account_id || effectiveAcc.id),
-      fecha: String(l.fecha),
-      ejercicio: Number(l.ejercicio),
-      periodo: Number(l.periodo),
-      referencia: String(l.referencia || ''),
-      descripcion: String(l.descripcion || ''),
-      cargoBanco: Number(l.cargo_banco || 0),
-      abonoBanco: Number(l.abono_banco || 0),
-      matchedMovementId: l.matched_movement_id ? String(l.matched_movement_id) : null,
-      matchedPolizaFolio: l.matched_poliza_folio ? String(l.matched_poliza_folio) : null
-    }));
-
-    const matchedMovementIds = new Set(
-      statementLines.map((l) => l.matchedMovementId).filter(Boolean) as string[]
-    );
+    const statementLines = lines.map((l) => mapBankStatementLine(l as Record<string, unknown>, effectiveAcc.id));
+    const activeLineIds = new Set(statementLines.filter((l) => Boolean(l.matchedMovementId)).map((l) => l.id));
+    const n1MatchedIds = await fetchActiveN1MatchedMovementIds(companyId, activeLineIds);
+    const matchedMovementIds = new Set<string>([
+      ...(statementLines.map((l) => l.matchedMovementId).filter(Boolean) as string[]),
+      ...n1MatchedIds
+    ]);
 
     const polizas = await supabasePolizas.getPolizas(companyId, currentYear, currentPeriod);
     const bookMovements: BankReconciliationResponse['bookMovements'] = [];
@@ -181,22 +174,12 @@ export const supabaseBank = {
       const { error: insErr } = await supabase.from('bank_statement_lines').insert(toInsert);
       if (insErr) throw new Error(insErr.message);
     }
-    const targetPeriod = payload.lines[0]
-      ? parseCalendarDate(payload.lines[0].fecha)
-      : undefined;
-    return this.getBankReconciliation(
-      payload.companyId,
-      payload.accountId,
-      targetPeriod?.year,
-      targetPeriod?.month
-    );
+    const targetPeriod = payload.lines[0] ? parseCalendarDate(payload.lines[0].fecha) : undefined;
+    return this.getBankReconciliation(payload.companyId, payload.accountId, targetPeriod?.year, targetPeriod?.month);
   },
 
   async autoMatchBankReconciliation(
-    companyId: string,
-    accountId: string,
-    year?: number,
-    period?: number
+    companyId: string, accountId: string, year?: number, period?: number
   ): Promise<{ matchedCount: number; reconciliation: BankReconciliationResponse }> {
     const comp = (await supabaseCompaniesAndAccounts.getCompanies()).find((c) => c.id === companyId);
     const effY = year || comp?.currentYear || 2026;
@@ -218,6 +201,68 @@ export const supabaseBank = {
     return { matchedCount: pairs.length, reconciliation: updated };
   },
 
+  async manualMatchBankLine(
+    lineId: string,
+    movementId: string
+  ): Promise<{ matched: boolean; reconciliation: BankReconciliationResponse }> {
+    if (!supabase) throw new Error('Supabase no disponible');
+    const { data: bLine, error: fetchErr } = await supabase
+      .from('bank_statement_lines')
+      .select('company_id, account_id, ejercicio, periodo, matched_movement_id')
+      .eq('id', lineId)
+      .maybeSingle();
+    if (fetchErr) throw new Error(fetchErr.message);
+    if (!bLine) throw new Error('Movimiento bancario no encontrado');
+    if (bLine.matched_movement_id) throw new Error('La línea bancaria ya está conciliada');
+
+    const lineYear = Number(bLine.ejercicio) || 2026;
+    const linePeriod = Number(bLine.periodo) || 10;
+    await assertSupabasePeriodOpen(String(bLine.company_id), lineYear, linePeriod);
+
+    const { error: updErr } = await supabase
+      .from('bank_statement_lines')
+      .update({ matched_movement_id: movementId })
+      .eq('id', lineId);
+    if (updErr) throw new Error(updErr.message);
+
+    const reconciliation = await this.getBankReconciliation(
+      String(bLine.company_id),
+      String(bLine.account_id),
+      lineYear,
+      linePeriod
+    );
+    return { matched: true, reconciliation };
+  },
+
+  async deleteBankStatementLine(
+    lineId: string
+  ): Promise<{ deleted: boolean; reconciliation: BankReconciliationResponse }> {
+    if (!supabase) throw new Error('Supabase no disponible');
+    const { data: bLine, error: fetchErr } = await supabase
+      .from('bank_statement_lines')
+      .select('company_id, account_id, ejercicio, periodo')
+      .eq('id', lineId)
+      .maybeSingle();
+    if (fetchErr) throw new Error(fetchErr.message);
+    if (!bLine) throw new Error('Movimiento bancario no encontrado');
+
+    const lineYear = Number(bLine.ejercicio) || 2026;
+    const linePeriod = Number(bLine.periodo) || 10;
+    await assertSupabasePeriodOpen(String(bLine.company_id), lineYear, linePeriod);
+
+    await supabase.from('bank_statement_matches').delete().eq('bank_line_id', lineId);
+    const { error: delErr } = await supabase.from('bank_statement_lines').delete().eq('id', lineId);
+    if (delErr) throw new Error(delErr.message);
+
+    const reconciliation = await this.getBankReconciliation(
+      String(bLine.company_id),
+      String(bLine.account_id),
+      lineYear,
+      linePeriod
+    );
+    return { deleted: true, reconciliation };
+  },
+
   async unmatchBankLine(
     lineId: string
   ): Promise<{ unmatched: boolean; reconciliation: BankReconciliationResponse }> {
@@ -234,23 +279,14 @@ export const supabaseBank = {
     const linePeriod = Number(bLine.periodo) || 10;
     await assertSupabasePeriodOpen(String(bLine.company_id), lineYear, linePeriod);
 
-    const { error: matchDelErr } = await supabase
-      .from('bank_statement_matches')
-      .delete()
-      .eq('bank_line_id', lineId);
+    const { error: matchDelErr } = await supabase.from('bank_statement_matches').delete().eq('bank_line_id', lineId);
     if (matchDelErr) throw new Error(matchDelErr.message);
 
-    const { error: updErr } = await supabase
-      .from('bank_statement_lines')
-      .update({ matched_movement_id: null })
-      .eq('id', lineId);
+    const { error: updErr } = await supabase.from('bank_statement_lines').update({ matched_movement_id: null }).eq('id', lineId);
     if (updErr) throw new Error(updErr.message);
 
     const reconciliation = await this.getBankReconciliation(
-      String(bLine.company_id),
-      String(bLine.account_id),
-      lineYear,
-      linePeriod
+      String(bLine.company_id), String(bLine.account_id), lineYear, linePeriod
     );
     return { unmatched: true, reconciliation };
   },
@@ -261,10 +297,7 @@ export const supabaseBank = {
   ): Promise<{ createdPolizaId: string; reconciliation: BankReconciliationResponse }> {
     if (!supabase) throw new Error('Supabase no disponible');
     const { data: bLine, error: fetchErr } = await supabase
-      .from('bank_statement_lines')
-      .select('*')
-      .eq('id', lineId)
-      .maybeSingle();
+      .from('bank_statement_lines').select('*').eq('id', lineId).maybeSingle();
 
     if (fetchErr) throw new Error(fetchErr.message);
     if (!bLine) throw new Error('Movimiento bancario no encontrado');
@@ -296,20 +329,14 @@ export const supabaseBank = {
       concepto: String(bLine.descripcion || 'Póliza generada desde estado de cuenta bancario'),
       cfdiUuid: null,
       movements: plan.movements.map((m) => ({
-        accountId: m.accountId,
-        referencia: m.referencia,
-        concepto: m.concepto,
-        cargo: m.cargo,
-        abono: m.abono
+        accountId: m.accountId, referencia: m.referencia, concepto: m.concepto, cargo: m.cargo, abono: m.abono
       }))
     });
 
     const bankMov = poliza.movements.find((m) => m.accountId === plan.bankAcc.id);
     if (bankMov) {
       const { error: updErr } = await supabase
-        .from('bank_statement_lines')
-        .update({ matched_movement_id: bankMov.id })
-        .eq('id', lineId);
+        .from('bank_statement_lines').update({ matched_movement_id: bankMov.id }).eq('id', lineId);
       if (updErr) throw new Error(updErr.message);
     }
 

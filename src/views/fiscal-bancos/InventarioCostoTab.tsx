@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, AlertTriangle, Boxes, Calculator, CheckCircle2, RefreshCw, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { AlertCircle, Boxes, CheckCircle2, RefreshCw, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { formatCurrency, formatShortDate } from '../../lib/formatters';
+import { formatCurrency } from '../../lib/formatters';
 import { inventoryClient } from '../../lib/inventory-client';
 import { buildCostOfSalesPolizaPlan, computeCostOfSales } from '../../shared/engine/cost-of-sales.engine';
 import type { AccountWithBalance } from '../../shared/types';
 import type { InventoryMethod } from '../../shared/types/cost-of-sales.types';
+import { InventarioCostoPolizaPreview } from './InventarioCostoPolizaPreview';
 
 export interface InventarioCostoTabProps {
   companyId?: string;
@@ -100,14 +101,21 @@ export function InventarioCostoTab({
     }
     try {
       const plan = buildCostOfSalesPolizaPlan({
-        companyId: targetCompanyId, year: targetYear, period: targetPeriod,
-        costOfSales: liveCost.costOfSales, accounts: resolvedAccounts
+        companyId: targetCompanyId,
+        year: targetYear,
+        period: targetPeriod,
+        costOfSales: liveCost.costOfSales,
+        accounts: resolvedAccounts,
+        method,
+        initialInventory: liveCost.initialInventory,
+        purchasesPeriod: liveCost.purchasesPeriod,
+        finalInventory: liveCost.finalInventory
       });
       return { polizaPlan: plan, polizaError: null };
     } catch (err) {
       return { polizaPlan: null, polizaError: err instanceof Error ? err.message : 'Error al preparar póliza.' };
     }
-  }, [targetCompanyId, targetYear, targetPeriod, liveCost.costOfSales, resolvedAccounts]);
+  }, [targetCompanyId, targetYear, targetPeriod, liveCost.costOfSales, liveCost.initialInventory, liveCost.purchasesPeriod, liveCost.finalInventory, method, resolvedAccounts]);
 
   const buildSavePayload = (polizaId?: string | null) => ({
     ejercicio: targetYear,
@@ -182,7 +190,7 @@ export function InventarioCostoTab({
 
   const kpis = [
     { label: 'Inventario Inicial', value: liveCost.initialInventory, box: 'bg-white border-slate-300', lbl: 'text-slate-600', val: 'text-slate-900' },
-    { label: `Compras Netas (${hasOverride ? 'Manual' : 'Balanza 501'})`, value: liveCost.purchasesPeriod, box: 'bg-white border-slate-300', lbl: 'text-slate-600', val: 'text-blue-800' },
+    { label: `${method === 'PERPETUO' ? 'Entradas Almacén' : 'Compras Netas'} (${hasOverride ? 'Manual' : method === 'PERPETUO' ? 'Balanza 115' : 'Balanza 501'})`, value: liveCost.purchasesPeriod, box: 'bg-white border-slate-300', lbl: 'text-slate-600', val: 'text-blue-800' },
     { label: 'Inventario Final', value: liveCost.finalInventory, box: 'bg-white border-slate-300', lbl: 'text-slate-600', val: 'text-slate-900' },
     { label: `Costo de Ventas del Mes (${periodLabel})`, value: liveCost.costOfSales, box: 'bg-emerald-50/70 border-emerald-300', lbl: 'text-emerald-900', val: 'text-emerald-900' }
   ];
@@ -238,11 +246,11 @@ export function InventarioCostoTab({
               <option value="ANALITICO">Analítico / Pormenorizado</option>
               <option value="PERPETUO">Inventarios Perpetuos</option>
             </select>
-            {method === 'PERPETUO' && (
-              <p className="text-[11px] text-slate-600">
-                En Inventarios Perpetuos el costo se registra en cada venta; esta cédula sirve como amarre de cierre.
-              </p>
-            )}
+            <p className="text-[11px] text-slate-600">
+              {method === 'PERPETUO'
+                ? 'Las compras entran a Almacén (115); la póliza carga Costo de Ventas (501) con abono a 115.'
+                : 'Traspasa Inv. Inicial y reconoce Inv. Final entre 115 y 501 sin duplicar compras.'}
+            </p>
           </div>
           <div className="space-y-1">
             <label htmlFor="inv-initial" className="block text-xs font-bold text-slate-700">Inventario Inicial ($)</label>
@@ -265,50 +273,17 @@ export function InventarioCostoTab({
           </div>
         </div>
 
-        <div aria-live="polite" className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-slate-700 font-mono tabular-nums">
-            <Calculator className="w-4 h-4 text-slate-600 shrink-0" aria-hidden="true" />
-            <span>
-              {formatCurrency(liveCost.initialInventory)} + {formatCurrency(liveCost.purchasesPeriod)} − {formatCurrency(liveCost.finalInventory)} ={' '}
-              <strong className="text-emerald-800">{formatCurrency(liveCost.costOfSales)}</strong>
-            </span>
-          </div>
-          {polizaPlan && (
-            <div className="text-[11px] text-slate-600 font-mono">
-              Diario ({formatShortDate(polizaPlan.fecha)}): Cargo {polizaPlan.movements[0]?.accountCode} {polizaPlan.movements[0]?.accountName} / Abono {polizaPlan.movements[1]?.accountCode} {polizaPlan.movements[1]?.accountName}
-            </div>
-          )}
-        </div>
-
-        {exceedsAvailable && (
-          <div role="status" aria-live="polite" className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 font-medium">
-            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
-            <span>
-              El Inventario Final capturado supera la mercancía disponible ({formatCurrency(liveCost.availableMerchandise)}), por lo que el Costo de Ventas se ajustó a <strong className="font-mono">$0.00</strong>.
-            </span>
-          </div>
-        )}
-
-        {confirmPoliza && polizaPlan && (
-          <div role="region" aria-label="Confirmación de póliza de costo de ventas" className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div className="space-y-0.5 text-amber-950">
-              <p className="font-semibold">
-                Ya existe una póliza vinculada para este periodo. ¿Generar una nueva póliza de Costo de Ventas y actualizar el vínculo?
-              </p>
-              <p className="text-[11px] font-mono text-amber-900">
-                Diario ({formatShortDate(polizaPlan.fecha)}): Cargo {polizaPlan.movements[0]?.accountCode} {polizaPlan.movements[0]?.accountName} / Abono {polizaPlan.movements[1]?.accountCode} {polizaPlan.movements[1]?.accountName} · {formatCurrency(liveCost.costOfSales)}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button type="button" autoFocus onClick={() => setConfirmPoliza(false)} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer">
-                Cancelar
-              </button>
-              <button type="button" disabled={isLocked || createPolizaMutation.isPending} title={lockReason ?? 'Confirmar y registrar nueva póliza de costo de ventas'} onClick={() => createPolizaMutation.mutate()} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {createPolizaMutation.isPending ? 'Registrando...' : 'Confirmar'}
-              </button>
-            </div>
-          </div>
-        )}
+        <InventarioCostoPolizaPreview
+          liveCost={liveCost}
+          exceedsAvailable={exceedsAvailable}
+          polizaPlan={polizaPlan}
+          confirmPoliza={confirmPoliza}
+          isLocked={isLocked}
+          lockReason={lockReason}
+          isSubmitting={createPolizaMutation.isPending}
+          onCancelConfirm={() => setConfirmPoliza(false)}
+          onConfirmPoliza={() => createPolizaMutation.mutate()}
+        />
 
         {polizaError && <p role="alert" className="text-xs text-red-700 font-medium">{polizaError}</p>}
 

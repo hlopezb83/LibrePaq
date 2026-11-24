@@ -74,7 +74,7 @@ describe('Ola 3C — Nómina 1.2, Amarre ISR (216-01-001), Provisión SUA e ISN 
     expect(codes.size).toBe(32);
 
     const byCode = new Map(MEXICO_ISN_RATES.map((s) => [s.code, s.ratePct]));
-    expect(byCode.get('CMX')).toBe(3.0);
+    expect(byCode.get('CMX')).toBe(4.0);
     expect(byCode.get('NLE')).toBe(3.0);
     expect(byCode.get('JAL')).toBe(3.0);
     expect(byCode.get('MEX')).toBe(3.0);

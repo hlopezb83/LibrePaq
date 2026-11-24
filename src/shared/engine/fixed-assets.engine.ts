@@ -191,6 +191,27 @@ export function buildDepreciationPolizaPlan(
 }
 
 /**
+ * Calcula el nuevo acumulado de meses depreciados y estatus tras contabilizar la depreciación del periodo.
+ * Retorna null si el activo no se depreció en el periodo (baja, adquirido después, o 100% depreciado).
+ */
+export function computeAssetPostDepreciationUpdate(
+  asset: FixedAssetRecord,
+  targetPeriod?: { ejercicio: number; periodo: number }
+): { mesesDepreciadosPrevios: number; estatus: FixedAssetRecord['estatus'] } | null {
+  if (asset.estatus !== 'ACTIVO') return null;
+  const calc = computeFixedAssetWithDepreciation(asset, targetPeriod);
+  if (toCents(calc.depreciacionMensualContable) <= 0) return null;
+
+  const nextMonths = Math.max(0, Math.floor(asset.mesesDepreciadosPrevios)) + 1;
+  const moiCents = Math.max(0, toCents(asset.montoOriginalInversion));
+  const totalAccumCents = toCents(calc.depreciacionAcumuladaTotal);
+  const nextEstatus: FixedAssetRecord['estatus'] =
+    moiCents > 0 && totalAccumCents >= moiCents ? 'TOTALMENTE_DEPRECIADO' : 'ACTIVO';
+
+  return { mesesDepreciadosPrevios: nextMonths, estatus: nextEstatus };
+}
+
+/**
  * Verifica si ya existe una póliza de depreciación mensual registrada en el periodo.
  */
 export function hasExistingDepreciationPoliza(

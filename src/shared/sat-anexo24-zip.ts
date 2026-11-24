@@ -22,7 +22,7 @@ function resolveSatArchiveSuffix(
   period: number,
   xmlResult: SatAnexo24XmlResult,
   tipoEnvio?: 'N' | 'C'
-): { mesStr: string; suffix: 'CT' | 'PL' | 'BN' | 'BC' } {
+): { mesStr: string; suffix: 'CT' | 'PL' | 'BN' | 'BC' | 'XF' | 'XC' } {
   if (type === 'catalogo') {
     const mes = Math.max(1, Math.min(12, period));
     return { mesStr: String(mes).padStart(2, '0'), suffix: 'CT' };
@@ -30,6 +30,14 @@ function resolveSatArchiveSuffix(
   if (type === 'polizas') {
     const mes = Math.max(1, Math.min(12, period));
     return { mesStr: String(mes).padStart(2, '0'), suffix: 'PL' };
+  }
+  if (type === 'auxiliar_folios' || type === 'xf' || /XF\.xml$/i.test(xmlResult.filename)) {
+    const mes = Math.max(1, Math.min(12, period));
+    return { mesStr: String(mes).padStart(2, '0'), suffix: 'XF' };
+  }
+  if (type === 'auxiliar_cuentas' || type === 'xc' || /XC\.xml$/i.test(xmlResult.filename)) {
+    const mes = Math.max(1, Math.min(12, period));
+    return { mesStr: String(mes).padStart(2, '0'), suffix: 'XC' };
   }
   const mes = Math.max(1, Math.min(13, period));
   const isComplementaria =
@@ -44,7 +52,7 @@ function resolveSatArchiveSuffix(
 
 /**
  * Empaqueta un XML Anexo 24 v1.3 en archivo .ZIP oficial SAT para Buzón Tributario
- * siguiendo la nomenclatura estricta [RFC][AAAA][MM][CT|BN|BC|PL].zip.
+ * siguiendo la nomenclatura estricta [RFC][AAAA][MM][CT|BN|BC|PL|XF|XC].zip.
  */
 export function buildSatAnexo24Zip(input: BuildSatAnexo24ZipInput): SatAnexo24ZipResult {
   const { company, year, period, type, xmlResult, tipoEnvio } = input;

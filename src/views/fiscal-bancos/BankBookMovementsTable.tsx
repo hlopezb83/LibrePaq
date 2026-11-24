@@ -6,12 +6,16 @@ interface BankBookMovementsTableProps {
   reconData: BankReconciliationResponse;
   showOnlyPending?: boolean;
   highlightAmount?: number | null;
+  selectedBookMovementId?: string | null;
+  onSelectBookMovement?: (movementId: string) => void;
 }
 
 export function BankBookMovementsTable({
   reconData,
   showOnlyPending = false,
-  highlightAmount = null
+  highlightAmount = null,
+  selectedBookMovementId = null,
+  onSelectBookMovement
 }: BankBookMovementsTableProps) {
   const visibleMovements = showOnlyPending
     ? reconData.bookMovements.filter((bm) => !bm.isMatched)
@@ -73,15 +77,31 @@ export function BankBookMovementsTable({
             ) : (
               visibleMovements.map((bm) => {
                 const amount = bm.cargoContable > 0 ? bm.cargoContable : bm.abonoContable;
+                const isSelected = selectedBookMovementId === bm.movementId;
                 const isCandidateMatch =
                   highlightAmount != null && !bm.isMatched && Math.abs(amount - highlightAmount) < 0.01;
                 return (
                   <tr
                     key={bm.movementId}
+                    tabIndex={!bm.isMatched && onSelectBookMovement ? 0 : undefined}
+                    aria-selected={!bm.isMatched ? isSelected : undefined}
+                    onClick={() => {
+                      if (!bm.isMatched && onSelectBookMovement) onSelectBookMovement(bm.movementId);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!bm.isMatched && onSelectBookMovement && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        onSelectBookMovement(bm.movementId);
+                      }
+                    }}
                     className={
-                      isCandidateMatch
-                        ? 'bg-blue-50 ring-1 ring-inset ring-blue-300'
-                        : 'hover:bg-blue-50/30'
+                      isSelected
+                        ? 'bg-emerald-100/80 ring-1 ring-inset ring-emerald-500 cursor-pointer'
+                        : isCandidateMatch
+                          ? 'bg-blue-50 ring-1 ring-inset ring-blue-300 cursor-pointer'
+                          : !bm.isMatched && onSelectBookMovement
+                            ? 'hover:bg-blue-50/40 cursor-pointer'
+                            : 'hover:bg-blue-50/30'
                     }
                   >
                 <td className="py-2.5 px-4 font-mono text-slate-600 w-[110px] whitespace-nowrap">

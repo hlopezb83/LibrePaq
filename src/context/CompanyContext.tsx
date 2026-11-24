@@ -6,6 +6,7 @@ import { useAuth, checkIsSuperAdmin } from './AuthContext';
 import { setClientReadOnlyMode, useSupportSession } from '../lib/support-impersonation';
 import { workspaceRbacClient } from '../lib/workspace-rbac-client';
 import { getCurrentFiscalPeriod } from '../shared/date-utils';
+import { loadStoredViewedPeriods, saveStoredViewedPeriods, type ViewedPeriodsMap } from './companyPeriodStorage';
 import type { Company } from '../shared/types';
 import type { DespachoRole } from '../shared/types/despacho-rbac.types';
 
@@ -46,7 +47,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const inFlightInvitesUserRef = useRef<string | null>(null);
 
   const [workspaceNameOverride, setWorkspaceNameOverride] = useState<string | null>(null);
-  const [viewedPeriods, setViewedPeriods] = useState<Record<string, { year: number; period: number }>>({});
+  const [viewedPeriods, setViewedPeriods] = useState<ViewedPeriodsMap>(() => loadStoredViewedPeriods(userScope));
 
   const [activeCompanyId, setActiveCompanyIdState] = useState<string>(() => {
     if (typeof window !== 'undefined' && window.location.search) {
@@ -72,7 +73,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem(storageKey) || '';
     setActiveCompanyIdState(saved);
     setWorkspaceNameOverride(localStorage.getItem(wsStorageKey));
-  }, [storageKey, wsStorageKey]);
+    setViewedPeriods(loadStoredViewedPeriods(userScope));
+  }, [storageKey, wsStorageKey, userScope]);
 
   const defaultWorkspaceName = user
     ? `Despacho Contable — ${user.user_metadata?.full_name || user.email?.split('@')[0] || 'Mi Cartera'}`
@@ -298,14 +300,18 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const updatePeriod = useCallback(
     (year: number, period: number) => {
       if (!resolvedActiveCompanyId) return;
-      // En modo soporte o cliente de solo lectura navegamos periodos localmente sin mutar Supabase
-      if (isReadOnlySupportMode || isReadOnlyClient) {
-        setViewedPeriods((prev) => ({ ...prev, [resolvedActiveCompanyId]: { year, period } }));
-        return;
+      setViewedPeriods((prev) => {
+        const next = { ...prev, [resolvedActiveCompanyId]: { year, period } };
+        saveStoredViewedPeriods(userScope, next);
+        return next;
+      });
+      invalidateAccountingQueries(queryClient, resolvedActiveCompanyId);
+      // Solo persistimos periodo compartido en BD si tiene permiso de escritura en ficha (y sin bloquear si falla)
+      if (!isReadOnlySupportMode && !isReadOnlyClient && effectiveCompanyRole !== 'AUXILIAR') {
+        mutatePeriod({ year, period });
       }
-      mutatePeriod({ year, period });
     },
-    [isReadOnlySupportMode, isReadOnlyClient, resolvedActiveCompanyId, mutatePeriod]
+    [isReadOnlySupportMode, isReadOnlyClient, effectiveCompanyRole, resolvedActiveCompanyId, userScope, queryClient, mutatePeriod]
   );
 
   const contextValue = useMemo<CompanyContextValue>(

@@ -1,7 +1,8 @@
-import { supabase } from '../supabase';
+import { isSupabaseConfigured, supabase } from '../supabase';
 import { chunkArray } from '../../shared/array-utils';
 import { computeCxcCxpAging } from '../../shared/accounting-engine';
-import type { CxcCxpAgingResponse, SatBatchVerifyResult } from '../../shared/types';
+import { merge69BCloudMatches, type Sat69BRecord } from '../../shared/sat-69b';
+import type { CxcCxpAgingResponse, Efos69BStatus, SatBatchVerifyResult } from '../../shared/types';
 import { supabaseCfdi } from './supabase-cfdi';
 
 interface SatVerifyEdgeItemResult {
@@ -21,11 +22,122 @@ interface SatVerifyEdgeResponse {
   results?: SatVerifyEdgeItemResult[];
 }
 
+export interface Cloud69BMatch {
+  rfc: string;
+  nombre: string | null;
+  situacion: string;
+  estatus69b: Efos69BStatus;
+  fechaOficio: string | null;
+  publicacionDof: string | null;
+}
+
+interface Check69BEdgeResponse {
+  ok: boolean;
+  error?: string;
+  checkedCount?: number;
+  foundCount?: number;
+  matches?: Cloud69BMatch[];
+  updatedThirdPartiesCount?: number;
+}
+
+interface Upsert69BEdgeResponse {
+  ok: boolean;
+  error?: string;
+  upsertedCount?: number;
+}
+
+async function extractEdgeErrorMessage(edgeError: unknown): Promise<string> {
+  let errorMsg = edgeError instanceof Error ? edgeError.message : String(edgeError);
+  try {
+    const ctxJson = await (edgeError as { context?: Response }).context?.json();
+    if (ctxJson?.error) errorMsg = String(ctxJson.error);
+  } catch {
+    // ignore
+  }
+  return errorMsg;
+}
+
+/** Consulta RFCs en `public.sat_efos_69b` via Edge Function `sat-status-verify` y fusiona en memoria local. */
+export async function checkRfcsAgainstCloud69B(
+  rfcs: string[],
+  companyId?: string
+): Promise<{ checkedCount: number; matches: Cloud69BMatch[] }> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { checkedCount: 0, matches: [] };
+  }
+  const normalized = Array.from(
+    new Set(
+      rfcs
+        .map((r) => String(r || '').trim().toUpperCase().replace(/[^A-Z0-9&Ñ]/g, ''))
+        .filter((r) => r.length >= 12)
+    )
+  );
+  if (normalized.length === 0) return { checkedCount: 0, matches: [] };
+
+  const allMatches: Cloud69BMatch[] = [];
+  for (const rfcChunk of chunkArray(normalized, 500)) {
+    const { data, error } = await supabase.functions.invoke<Check69BEdgeResponse>('sat-status-verify', {
+      body: {
+        action: 'CHECK_69B',
+        ...(companyId ? { companyId } : {}),
+        rfcs: rfcChunk
+      }
+    });
+    if (error) throw new Error(await extractEdgeErrorMessage(error));
+    if (data && !data.ok) throw new Error(data.error || 'Error consultando padrón 69-B en la nube');
+    if (data?.matches && data.matches.length > 0) {
+      allMatches.push(...data.matches);
+    }
+  }
+
+  merge69BCloudMatches(allMatches);
+  return { checkedCount: normalized.length, matches: allMatches };
+}
+
+/** Sube el padrón completo 69-B en lotes de ~1,000 RFCs a `public.sat_efos_69b`. */
+export async function upsert69BBatchToCloud(
+  records: Sat69BRecord[],
+  opts?: { companyId?: string; onProgress?: (done: number, total: number) => void }
+): Promise<{ upsertedCount: number }> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase Cloud no está configurado en este entorno.');
+  }
+  const batches = chunkArray(records, 1000);
+  let upsertedCount = 0;
+
+  for (let i = 0; i < batches.length; i++) {
+    const chunk = batches[i]!;
+    const { data, error } = await supabase.functions.invoke<Upsert69BEdgeResponse>(
+      'sat-status-verify',
+      {
+        body: {
+          action: 'UPSERT_69B_BATCH',
+          ...(opts?.companyId ? { companyId: opts.companyId } : {}),
+          records: chunk.map((r) => ({
+            rfc: r.rfc,
+            nombre: r.nombre,
+            situacion: r.situacion,
+            publicacionDof: r.publicacionDof ?? null
+          }))
+        }
+      }
+    );
+    if (error) throw new Error(await extractEdgeErrorMessage(error));
+    if (data && !data.ok) throw new Error(data.error || 'Error guardando padrón 69-B en la nube');
+    upsertedCount += data?.upsertedCount ?? chunk.length;
+    opts?.onProgress?.(Math.min((i + 1) * 1000, records.length), records.length);
+  }
+
+  return { upsertedCount };
+}
+
 export const supabaseCxcSat = {
   async getCxcCxpAging(companyId: string): Promise<CxcCxpAgingResponse> {
     const cfdis = await supabaseCfdi.getCfdis(companyId, { includeXml: false });
     return computeCxcCxpAging({ companyId, cfdis });
   },
+
+  checkRfcsAgainstCloud69B,
 
   async verifyCfdisSatBatch(
     companyId: string,
@@ -85,17 +197,7 @@ export const supabaseCxcSat = {
           }
         });
 
-      if (edgeError) {
-        let errorMsg = edgeError.message;
-        try {
-          const ctxJson = await (edgeError as { context?: Response }).context?.json();
-          if (ctxJson?.error) errorMsg = String(ctxJson.error);
-        } catch {
-          // ignore
-        }
-        throw new Error(errorMsg);
-      }
-
+      if (edgeError) throw new Error(await extractEdgeErrorMessage(edgeError));
       if (edgeData && !edgeData.ok) {
         throw new Error(edgeData.error || 'Error verificando CFDIs ante el SAT');
       }

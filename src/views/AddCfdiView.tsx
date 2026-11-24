@@ -21,13 +21,14 @@ export function AddCfdiView() {
     isPeriodLocked, isReadOnlyClient,
     xmlModalRef, contabilizarModalRef, simModalRef, fileInputRef,
     tab, setTab, tipoFilter, setTipoFilter, metodoFilter, setMetodoFilter,
+    statusSatFilter, setStatusSatFilter, formaPagoFilter, setFormaPagoFilter,
     searchQuery, setSearchQuery, selectedCfdi,
     operationAccountCode, setOperationAccountCode, counterAccountCode, setCounterAccountCode,
     selectedCfdiIds, setSelectedCfdiIds, previewInvoiceCfdi, setPreviewInvoiceCfdi,
-    isDragging, setIsDragging, isUploadingFiles, copiedUuid,
+    isDragging, setIsDragging, isUploadingFiles, uploadBatchProgress, isExportingZip, copiedUuid,
     confirmDeleteCfdiId, setConfirmDeleteCfdiId, hasActiveFilters, resetFilters,
     showSoapFielPanel, setShowSoapFielPanel, periodScope, setPeriodScope,
-    cfdis, countInCurrentPeriod, accounts, affectableAccounts, pendingCfdis,
+    countInCurrentPeriod, countInCurrentYear, accounts, affectableAccounts, pendingCfdis,
     isLoading, isError, error, refetch, verifyingCfdiId,
     uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
     batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
@@ -35,7 +36,7 @@ export function AddCfdiView() {
     handleFileUpload, handleDrop, openContabilizarModal, openXmlViewer,
     handleCopyUuid, handleDownloadSelectedXml, previewMovements,
     filteredCfdis, filteredTotals, toggleSelectAll, toggleSelectOne,
-    handleExportCsv, handleSimulateSubmit, onSoapDownloadSuccess, batchProgress,
+    handleExportCsv, handleExportZipSelected, handleSimulateSubmit, onSoapDownloadSuccess, batchProgress,
     scopedCfdis, emitidosCount, recibidosCount
   } = manager;
 
@@ -117,6 +118,7 @@ export function AddCfdiView() {
         isDragging={isDragging}
         setIsDragging={setIsDragging}
         isUploadingFiles={isUploadingFiles}
+        uploadBatchProgress={uploadBatchProgress}
         handleDrop={handleDrop}
         fileInputRef={fileInputRef}
         handleFileUpload={handleFileUpload}
@@ -149,6 +151,8 @@ export function AddCfdiView() {
         onBatchContabilizarSelected={() => batchContabilizarMutation.mutate(Array.from(selectedCfdiIds))}
         isVerifySatBatchPending={verifySatBatchMutation.isPending}
         onVerifySatBatchSelected={() => verifySatBatchMutation.mutate(Array.from(selectedCfdiIds))}
+        isExportZipPending={isExportingZip}
+        onExportZipSelected={() => void handleExportZipSelected()}
         isBatchDeletePending={batchDeleteMutation.isPending}
         onBatchDeleteSelected={() => batchDeleteMutation.mutate(Array.from(selectedCfdiIds))}
         isPeriodLocked={isPeriodLocked}
@@ -210,7 +214,7 @@ export function AddCfdiView() {
         currentYear={currentYear}
         countInCurrentPeriod={countInCurrentPeriod}
         totalCfdisCount={scopedCfdis.length}
-        allYearCount={cfdis.length}
+        allYearCount={countInCurrentYear}
         tab={tab}
         setTab={setTab}
         pendingCount={pendingCfdis.length}
@@ -222,6 +226,10 @@ export function AddCfdiView() {
         setTipoFilter={setTipoFilter}
         metodoFilter={metodoFilter}
         setMetodoFilter={setMetodoFilter}
+        statusSatFilter={statusSatFilter}
+        setStatusSatFilter={setStatusSatFilter}
+        formaPagoFilter={formaPagoFilter}
+        setFormaPagoFilter={setFormaPagoFilter}
         filteredCount={filteredCfdis.length}
       />
 

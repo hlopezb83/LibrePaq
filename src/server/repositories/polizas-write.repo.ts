@@ -11,7 +11,7 @@ import type { Poliza, PolizaType } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
 import { ensureBankN1MatchesTable } from './bank-n1.repo';
 import { assertPeriodOpen } from './period-locks.repo';
-import { getPolizaById } from './polizas.repo';
+import { collectPolizaCfdiUuidsRepo, getPolizaById, syncPolizaCfdisTx } from './polizas.repo';
 
 function clearBankMatchesForPolizaTx(polizaId: string): void {
   ensureBankN1MatchesTable(db);
@@ -104,6 +104,7 @@ export function createPolizaTransaction(input: {
   fecha: string;
   concepto: string;
   cfdiUuid: string | null;
+  cfdiUuids?: string[];
   origin: 'MANUAL' | 'ADD_AUTO';
   movements: ReadonlyArray<{
     accountId: string;
@@ -111,6 +112,7 @@ export function createPolizaTransaction(input: {
     concepto?: string;
     cargo: number;
     abono: number;
+    cfdiUuid?: string | null;
   }>;
 }): Poliza {
   assertPeriodOpen(input.companyId, input.ejercicio, input.periodo);
@@ -119,6 +121,8 @@ export function createPolizaTransaction(input: {
   const accById = new Map(accounts.map((a) => [a.id, a]));
   validateDoubleEntryMovements(input.movements, accById);
 
+  const allUuids = collectPolizaCfdiUuidsRepo(input.cfdiUuid, input.cfdiUuids, input.movements);
+  const primaryUuid = input.cfdiUuid?.trim().toUpperCase() || allUuids[0] || null;
   const maxRow = maxFolioQuery.get(
     input.companyId,
     input.tipo,
@@ -139,7 +143,7 @@ export function createPolizaTransaction(input: {
       input.ejercicio,
       input.periodo,
       input.concepto,
-      input.cfdiUuid,
+      primaryUuid,
       input.origin,
       now
     );
@@ -153,6 +157,7 @@ export function createPolizaTransaction(input: {
         'ACCOUNT_NOT_FOUND',
         `Cuenta contable inválida: ${m.accountId}`
       );
+      const movUuid = m.cfdiUuid !== undefined ? (m.cfdiUuid?.trim().toUpperCase() || null) : primaryUuid;
       insertMovementStmt.run(
         `${polizaId}_m${idx + 1}`,
         polizaId,
@@ -163,17 +168,11 @@ export function createPolizaTransaction(input: {
         m.concepto || input.concepto,
         fromCents(toCents(m.cargo)),
         fromCents(toCents(m.abono)),
-        input.cfdiUuid
+        movUuid
       );
     }
 
-    if (input.cfdiUuid) {
-      db.prepare('UPDATE cfdi_documents SET poliza_id = ? WHERE company_id = ? AND uuid = ?').run(
-        polizaId,
-        input.companyId,
-        input.cfdiUuid
-      );
-    }
+    syncPolizaCfdisTx(db, input.companyId, polizaId, [], allUuids);
   });
 
   tx();
@@ -191,12 +190,14 @@ export function updatePolizaTransaction(
     periodo?: number | null;
     concepto: string;
     cfdiUuid?: string | null;
+    cfdiUuids?: string[];
     movements: ReadonlyArray<{
       accountId: string;
       referencia?: string;
       concepto?: string;
       cargo: number;
       abono: number;
+      cfdiUuid?: string | null;
     }>;
   }
 ): boolean {
@@ -211,7 +212,25 @@ export function updatePolizaTransaction(
 
   const tipo = input.tipo ?? existing.tipo;
   const fecha = input.fecha ?? existing.fecha;
-  const cfdiUuid = input.cfdiUuid !== undefined ? input.cfdiUuid : existing.cfdi_uuid;
+  const hasExplicitUuids = input.cfdiUuid !== undefined || input.cfdiUuids !== undefined;
+  const prevLinkRows = db
+    .query('SELECT cfdi_uuid FROM poliza_cfdis WHERE poliza_id = ?')
+    .all(polizaId) as Array<{ cfdi_uuid: string }>;
+  const prevMovRows = db
+    .query('SELECT cfdi_uuid FROM poliza_movements WHERE poliza_id = ?')
+    .all(polizaId) as Array<{ cfdi_uuid: string | null }>;
+  const prevUuids = collectPolizaCfdiUuidsRepo(
+    existing.cfdi_uuid,
+    prevLinkRows.map((l) => l.cfdi_uuid),
+    prevMovRows.map((m) => ({ cfdiUuid: m.cfdi_uuid }))
+  );
+  const nextUuids = hasExplicitUuids
+    ? collectPolizaCfdiUuidsRepo(input.cfdiUuid, input.cfdiUuids, input.movements)
+    : collectPolizaCfdiUuidsRepo(existing.cfdi_uuid, prevUuids, input.movements);
+  const cfdiUuid =
+    (input.cfdiUuid !== undefined ? input.cfdiUuid?.trim().toUpperCase() || null : existing.cfdi_uuid) ??
+    nextUuids[0] ??
+    null;
 
   const explicitPeriodo =
     input.periodo !== undefined
@@ -248,20 +267,7 @@ export function updatePolizaTransaction(
       UPDATE polizas SET tipo = ?, folio = ?, fecha = ?, ejercicio = ?, periodo = ?, concepto = ?, cfdi_uuid = ? WHERE id = ?
     `).run(tipo, nextFolio, fecha, newYear, newPeriod, input.concepto, cfdiUuid || null, polizaId);
 
-    if (existing.cfdi_uuid && existing.cfdi_uuid !== cfdiUuid) {
-      db.prepare('UPDATE cfdi_documents SET poliza_id = NULL WHERE company_id = ? AND poliza_id = ? AND uuid = ?').run(
-        existing.company_id,
-        polizaId,
-        existing.cfdi_uuid
-      );
-    }
-    if (cfdiUuid && cfdiUuid !== existing.cfdi_uuid) {
-      db.prepare('UPDATE cfdi_documents SET poliza_id = ? WHERE company_id = ? AND uuid = ?').run(
-        polizaId,
-        existing.company_id,
-        cfdiUuid
-      );
-    }
+    syncPolizaCfdisTx(db, existing.company_id, polizaId, prevUuids, nextUuids);
 
     clearBankMatchesForPolizaTx(polizaId);
     db.prepare('DELETE FROM poliza_movements WHERE poliza_id = ?').run(polizaId);
@@ -275,6 +281,7 @@ export function updatePolizaTransaction(
         'ACCOUNT_NOT_FOUND',
         `Cuenta inválida: ${m.accountId}`
       );
+      const movUuid = m.cfdiUuid !== undefined ? (m.cfdiUuid?.trim().toUpperCase() || null) : (cfdiUuid || null);
       insertMovementStmt.run(
         `${polizaId}_m${idx + 1}_${Date.now().toString(36)}`,
         polizaId,
@@ -285,7 +292,7 @@ export function updatePolizaTransaction(
         m.concepto || input.concepto,
         fromCents(toCents(m.cargo)),
         fromCents(toCents(m.abono)),
-        cfdiUuid || null
+        movUuid
       );
     }
   });

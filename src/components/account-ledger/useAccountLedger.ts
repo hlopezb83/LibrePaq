@@ -20,9 +20,18 @@ export function useAccountLedger(
   const dialogRef = useRef<HTMLDialogElement>(null);
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
+  const [periodFrom, setPeriodFrom] = useState<number>(currentPeriod ?? 1);
+  const [periodTo, setPeriodTo] = useState<number>(currentPeriod ?? 1);
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   useDialogLightDismiss(dialogRef, onClose);
+
+  useEffect(() => {
+    if (currentPeriod) {
+      setPeriodFrom(currentPeriod);
+      setPeriodTo(currentPeriod);
+    }
+  }, [currentPeriod, accountId]);
 
   const prevCompanyIdRef = useRef(companyId);
   useEffect(() => {
@@ -42,15 +51,30 @@ export function useAccountLedger(
     }
   }, [accountId]);
 
+  const effectiveFrom = Math.min(periodFrom, periodTo);
+  const effectiveTo = Math.max(periodFrom, periodTo);
+
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['account-ledger', companyId, accountId, currentYear, currentPeriod],
+    queryKey: ['account-ledger', companyId, accountId, currentYear, effectiveFrom, effectiveTo],
     queryFn: () =>
-      apiClient.getAccountLedger(companyId, accountId ?? '', currentYear, currentPeriod),
+      apiClient.getAccountLedger(
+        companyId,
+        accountId ?? '',
+        currentYear,
+        effectiveFrom,
+        effectiveTo
+      ),
     enabled: Boolean(accountId)
   });
 
+  const mesFromNombre =
+    MESES_SAT.find((m) => m.periodo === effectiveFrom)?.corto || `P${effectiveFrom}`;
+  const mesToNombre =
+    MESES_SAT.find((m) => m.periodo === effectiveTo)?.corto || `P${effectiveTo}`;
   const mesNombre = data
-    ? MESES_SAT.find((m) => m.periodo === data.periodo)?.nombre || `P${data.periodo}`
+    ? effectiveFrom !== effectiveTo
+      ? `${mesFromNombre}–${mesToNombre}`
+      : MESES_SAT.find((m) => m.periodo === data.periodo)?.nombre || `P${data.periodo}`
     : '';
 
   const filteredEntries = useMemo(() => {
@@ -144,6 +168,10 @@ export function useAccountLedger(
     error,
     refetch,
     mesNombre,
+    periodFrom,
+    setPeriodFrom,
+    periodTo,
+    setPeriodTo,
     ledgerSearch,
     setLedgerSearch,
     filteredEntries,

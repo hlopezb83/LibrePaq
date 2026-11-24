@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { AlertTriangle, BookOpen, Download, Loader2, Printer, RefreshCw, Search, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
+import { MESES_SAT } from '../../shared/sat-constants';
 import { AccountLedgerTable } from './AccountLedgerTable';
 import { useAccountLedger } from './useAccountLedger';
 
@@ -23,6 +24,10 @@ export function AccountLedgerModal({
     error,
     refetch,
     mesNombre,
+    periodFrom,
+    setPeriodFrom,
+    periodTo,
+    setPeriodTo,
     ledgerSearch,
     setLedgerSearch,
     filteredEntries,
@@ -195,31 +200,57 @@ export function AccountLedgerModal({
               </div>
             </div>
 
-            {/* Barra de Filtro en Vivo dentro del Auxiliar */}
+            {/* Barra de Filtro en Vivo y Rango Multi-Mes dentro del Auxiliar */}
             <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs no-print">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
-                <Search
-                  className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"
-                  aria-hidden="true"
-                />
-                <input
-                  type="search"
-                  value={ledgerSearch}
-                  onChange={(e) => setLedgerSearch(e.target.value)}
-                  aria-label="Filtrar por concepto, referencia o UUID en el auxiliar"
-                  placeholder="Filtrar por concepto, referencia o UUID..."
-                  className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-600"
-                />
-                {ledgerSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setLedgerSearch('')}
-                    aria-label="Limpiar búsqueda en auxiliar"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+                <div className="relative flex-1 min-w-[180px] max-w-xs">
+                  <Search
+                    className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="search"
+                    value={ledgerSearch}
+                    onChange={(e) => setLedgerSearch(e.target.value)}
+                    aria-label="Filtrar por concepto, referencia o UUID en el auxiliar"
+                    placeholder="Filtrar por concepto, referencia o UUID..."
+                    className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  />
+                  {ledgerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setLedgerSearch('')}
+                      aria-label="Limpiar búsqueda en auxiliar"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <label htmlFor="ledger-period-from" className="font-semibold text-slate-600">De:</label>
+                  <select
+                    id="ledger-period-from"
+                    value={periodFrom}
+                    onChange={(e) => setPeriodFrom(Number(e.target.value))}
+                    className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-mono"
                   >
-                    <X className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                )}
+                    {MESES_SAT.map((m) => (
+                      <option key={m.periodo} value={m.periodo}>{m.corto}</option>
+                    ))}
+                  </select>
+                  <label htmlFor="ledger-period-to" className="font-semibold text-slate-600">A:</label>
+                  <select
+                    id="ledger-period-to"
+                    value={periodTo}
+                    onChange={(e) => setPeriodTo(Number(e.target.value))}
+                    className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-mono"
+                  >
+                    {MESES_SAT.map((m) => (
+                      <option key={m.periodo} value={m.periodo}>{m.corto}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div aria-live="polite" className="text-slate-600 text-[11px] font-medium">
                 {ledgerSearch.trim() ? (

@@ -6,9 +6,9 @@ import {
   buildSatSolicitaDescargaSoapXml,
   buildSatVerificaDescargaSoapXml,
   buildSatDescargaPaqueteSoapXml,
-  parseCfdiQuick,
   escapeXmlAttr
 } from './crypto-helpers.ts';
+import { parseCfdiFull, type ParsedCfdiFull } from './cfdi-full-parser.ts';
 import {
   getSatAuthToken,
   jsonResponse,
@@ -463,11 +463,11 @@ async function ingestSatPackage(params: {
   });
   const fileNames = Object.keys(unzipped);
 
-  const parsedList: Array<{ parsed: NonNullable<ReturnType<typeof parseCfdiQuick>>; xmlRaw: string }> = [];
+  const parsedList: Array<{ parsed: ParsedCfdiFull; xmlRaw: string }> = [];
   for (const fName of fileNames) {
     if (!fName.toLowerCase().endsWith('.xml')) continue;
     const xmlRaw = new TextDecoder('utf-8').decode(unzipped[fName]);
-    const parsed = parseCfdiQuick(xmlRaw);
+    const parsed = parseCfdiFull(xmlRaw);
     if (parsed?.uuid) parsedList.push({ parsed, xmlRaw });
   }
   if (parsedList.length === 0) {
@@ -524,6 +524,9 @@ async function ingestSatPackage(params: {
       metodo_pago: p.metodoPago || 'PUE',
       forma_pago: p.formaPago || '03',
       uso_cfdi: p.usoCfdi || 'G03',
+      uuid_relacionado: p.uuidRelacionado || null,
+      tax_breakdown: p.taxBreakdown ?? null,
+      related_docs: p.relatedDocs ?? null,
       xml_raw: item.xmlRaw
     });
   }

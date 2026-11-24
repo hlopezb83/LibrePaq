@@ -1,4 +1,4 @@
-import { CheckCircle2, Landmark, Lock, Sparkles, Unlink } from 'lucide-react';
+import { CheckCircle2, Landmark, Lock, Sparkles, Trash2, Unlink } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { BankReconciliationResponse } from '../../shared/types';
 
@@ -10,6 +10,8 @@ interface BankStatementTableProps {
   onCreatePolizaFromBank: (lineId: string) => void;
   isUnmatchPending: boolean;
   onUnmatchBankLine: (lineId: string) => void;
+  onDeleteBankLine?: (lineId: string) => void;
+  isDeletePending?: boolean;
   showOnlyPending?: boolean;
   selectedLineId?: string | null;
   onSelectLine?: (lineId: string) => void;
@@ -24,6 +26,8 @@ export function BankStatementTable({
   onCreatePolizaFromBank,
   isUnmatchPending,
   onUnmatchBankLine,
+  onDeleteBankLine,
+  isDeletePending = false,
   showOnlyPending = false,
   selectedLineId = null,
   onSelectLine,
@@ -148,31 +152,45 @@ export function BankStatementTable({
                   onClick={(e) => e.stopPropagation()}
                 >
                   {!line.matchedMovementId ? (
-                    <button
-                      type="button"
-                      disabled={isCreatePolizaPending || isLocked}
-                      aria-busy={isCreatePolizaPending && isRowMutating}
-                      onClick={() => onCreatePolizaFromBank(line.id)}
-                      title={
-                        isLocked
-                          ? `${lockReason}. No es posible generar pólizas.`
-                          : 'Crear Póliza y Conciliar'
-                      }
-                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-2xs transition ${
-                        isLocked
-                          ? 'opacity-50 cursor-not-allowed bg-slate-500 text-white'
-                          : 'bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white cursor-pointer'
-                      }`}
-                    >
-                      {isLocked ? (
-                        <Lock className="w-3.5 h-3.5" aria-hidden="true" />
-                      ) : (
-                        <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                    <div className="inline-flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={isCreatePolizaPending || isLocked}
+                        aria-busy={isCreatePolizaPending && isRowMutating}
+                        onClick={() => onCreatePolizaFromBank(line.id)}
+                        title={
+                          isLocked
+                            ? `${lockReason}. No es posible generar pólizas.`
+                            : 'Elegir contracuenta, IVA y generar póliza'
+                        }
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-2xs transition ${
+                          isLocked
+                            ? 'opacity-50 cursor-not-allowed bg-slate-500 text-white'
+                            : 'bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white cursor-pointer'
+                        }`}
+                      >
+                        {isLocked ? (
+                          <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                        )}
+                        {isCreatePolizaPending && isRowMutating
+                          ? 'Creando...'
+                          : 'Crear Póliza'}
+                      </button>
+                      {onDeleteBankLine && (
+                        <button
+                          type="button"
+                          disabled={isDeletePending || isLocked}
+                          onClick={() => onDeleteBankLine(line.id)}
+                          title={isLocked ? lockReason : 'Eliminar línea bancaria mal importada'}
+                          aria-label={`Eliminar movimiento bancario ${line.referencia}`}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 border border-slate-200 hover:border-red-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
                       )}
-                      {isCreatePolizaPending && isRowMutating
-                        ? 'Creando póliza...'
-                        : 'Crear Póliza y Conciliar'}
-                    </button>
+                    </div>
                   ) : (
                     <button
                       type="button"

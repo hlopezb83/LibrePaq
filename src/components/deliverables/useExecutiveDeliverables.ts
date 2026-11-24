@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { MESES_SAT } from '../../shared/sat-constants';
 import { calculateDia17Deadline, MEXICO_TIMEZONE } from '../../shared/date-utils';
+import { computeExtendedFinancialStatements } from '../../shared/engine/extended-statements.engine';
 import type { Company } from '../../shared/types';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
@@ -142,6 +143,25 @@ export function useExecutiveDeliverables({
   });
 
   const {
+    data: prevReportsData
+  } = useQuery({
+    queryKey: ['reports', company.id, year - 1, period],
+    queryFn: () => apiClient.getReports(company.id, year - 1, period),
+    enabled: isOpen && year > 2000
+  });
+
+  const extendedStatements = useMemo(() => {
+    if (!reportsData) return null;
+    return computeExtendedFinancialStatements({
+      company,
+      ejercicio: year,
+      periodo: period,
+      currentTrialBalance: reportsData.trialBalance,
+      previousTrialBalance: prevReportsData?.trialBalance ?? null
+    });
+  }, [company, year, period, reportsData, prevReportsData]);
+
+  const {
     data: fiscalData,
     isLoading: isLoadingFiscal,
     isError: isErrorFiscal,
@@ -213,7 +233,8 @@ export function useExecutiveDeliverables({
         company,
         year,
         period,
-        formatVerticalPct
+        formatVerticalPct,
+        extendedStatements
       });
       toast.success('¡Dossier Ejecutivo descargado exitosamente en Excel (.XLSX)!');
     } catch (err) {
@@ -280,6 +301,7 @@ export function useExecutiveDeliverables({
     copiedSummary,
     reportsData,
     fiscalData,
+    extendedStatements,
     isLoadingData,
     isErrorData,
     dataError,

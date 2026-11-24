@@ -72,6 +72,7 @@ export interface Poliza {
   periodo: number;
   concepto: string;
   cfdiUuid: string | null;
+  cfdiUuids?: string[];
   origin: 'MANUAL' | 'ADD_AUTO';
   totalCargos: number;
   totalAbonos: number;

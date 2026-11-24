@@ -116,13 +116,19 @@ export function inferExpenseAccountForCfdi(
 
 /**
  * Selecciona la regla contable aprendida de mayor especificidad y prioridad para un CFDI.
- * Precedencia: matchRfc (40) > matchClaveProdServ (20, +5 exacto) > matchUsoCfdi (10), luego priority DESC.
+ * Precedencia: matchRfc (40) > matchClaveProdServ (20, +5 exacto) > matchUsoCfdi (10),
+ * luego priority ASC (menor número = mayor prioridad).
+ * Respeta tipoComprobante y metodoPago:
+ * - Reglas de I/E nunca se aplican a REP 2.0 (tipo 'P') ni Traslado ('T').
+ * - Una regla con banco (101-x / 102-x) aprendida para PUE jamás pisa Clientes/Proveedores en PPD.
  */
 export function resolveMatchingAccountingRule(
-  cfdi: Pick<CfdiDocument, 'direction' | 'emisorRfc' | 'receptorRfc' | 'claveProdServ' | 'usoCfdi'>,
+  cfdi: Pick<CfdiDocument, 'direction' | 'emisorRfc' | 'receptorRfc' | 'claveProdServ' | 'usoCfdi'> &
+    Partial<Pick<CfdiDocument, 'tipoComprobante' | 'metodoPago'>>,
   rules?: readonly AccountingRuleRecord[] | null
 ): AccountingRuleRecord | null {
   if (!rules || rules.length === 0) return null;
+  if (cfdi.tipoComprobante === 'P' || cfdi.tipoComprobante === 'T') return null;
 
   const counterpartyRfc = (
     cfdi.direction === 'RECIBIDO' ? cfdi.emisorRfc : cfdi.receptorRfc
@@ -161,7 +167,7 @@ export function resolveMatchingAccountingRule(
     if (
       bestRule === null ||
       specificity > bestScore ||
-      (specificity === bestScore && rule.priority > bestRule.priority) ||
+      (specificity === bestScore && rule.priority < bestRule.priority) ||
       (specificity === bestScore &&
         rule.priority === bestRule.priority &&
         rule.updatedAt > bestRule.updatedAt)
@@ -169,6 +175,16 @@ export function resolveMatchingAccountingRule(
       bestRule = rule;
       bestScore = specificity;
     }
+  }
+
+  if (!bestRule) return null;
+
+  const counterCode = bestRule.counterAccountCode?.trim() || '';
+  if (cfdi.metodoPago === 'PPD' && /^(101|102)/.test(counterCode)) {
+    return { ...bestRule, counterAccountCode: null };
+  }
+  if (cfdi.metodoPago === 'PUE' && /^(105|201)/.test(counterCode)) {
+    return { ...bestRule, counterAccountCode: null };
   }
 
   return bestRule;

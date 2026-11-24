@@ -1,22 +1,31 @@
-import { buildSatAnexo24Xml, type SatXmlType, type Anexo24CfdiMetadata } from '../../shared/sat-anexo24';
-import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
+import {
+  buildSatAnexo24Xml,
+  type Anexo24CfdiMetadata,
+  type SatAnexo24Options,
+  type SatXmlType
+} from '../../shared/sat-anexo24';
 import { supabaseCfdi } from './supabase-cfdi';
 import { supabasePolizas } from './supabase-polizas';
+import { supabaseReportsAndDashboard } from './supabase-reports-dashboard';
 
 export async function getSatXml(
   companyId: string,
   type: SatXmlType | string,
   year?: number,
-  period?: number
+  period?: number,
+  options?: Omit<SatAnexo24Options, 'cfdiLookup'>
 ): Promise<{ filename: string; type: string; xml: string }> {
   const reportData = await supabaseReportsAndDashboard.getReports(companyId, year, period);
-  const polizas =
-    type === 'polizas'
-      ? await supabasePolizas.getPolizas(companyId, year, period)
-      : [];
+  const needsPolizas =
+    type === 'polizas' || type === 'auxiliar_folios' || type === 'auxiliar_cuentas';
+  const needsCfdiLookup = type === 'polizas' || type === 'auxiliar_folios';
+
+  const polizas = needsPolizas
+    ? await supabasePolizas.getPolizas(companyId, year, period)
+    : [];
 
   let cfdiLookup: Map<string, Anexo24CfdiMetadata> | undefined;
-  if (type === 'polizas') {
+  if (needsCfdiLookup) {
     const cfdis = await supabaseCfdi.getCfdis(companyId);
     cfdiLookup = new Map<string, Anexo24CfdiMetadata>();
     for (const c of cfdis) {
@@ -39,6 +48,6 @@ export async function getSatXml(
     type,
     reportData.trialBalance,
     polizas,
-    { cfdiLookup }
+    { ...options, cfdiLookup }
   );
 }

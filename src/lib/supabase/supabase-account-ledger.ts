@@ -15,7 +15,8 @@ export const supabaseAccountLedger = {
     companyId: string,
     accountId: string,
     year?: number,
-    period?: number
+    period?: number,
+    periodTo?: number
   ): Promise<AccountLedgerResponse | null> {
     if (!supabase) throw new Error('Supabase no disponible');
 
@@ -35,14 +36,26 @@ export const supabaseAccountLedger = {
     if (!company) throw new Error(companyId ? `Empresa no encontrada: ${companyId}` : 'No hay empresas registradas');
 
     const ejercicio = year || company.currentYear;
-    const periodo = period || company.currentPeriod;
+    const rawFrom = period || company.currentPeriod;
+    const rawTo = periodTo !== undefined ? periodTo : rawFrom;
+    const periodo = Math.min(rawFrom, rawTo);
+    const effectiveTo = Math.max(rawFrom, rawTo);
+    const isRange = effectiveTo !== periodo;
 
-    // Obtener balanza calculada para saldos iniciales y finales de la cuenta
-    const reports = await supabaseReportsAndDashboard.getReports(company.id, ejercicio, periodo);
-    const targetAcc = reports.trialBalance.find(
+    // Obtener balanza calculada para saldos iniciales (inicio de periodFrom) y finales (cierre de periodTo)
+    const [reportsStart, reportsEnd] = await Promise.all([
+      supabaseReportsAndDashboard.getReports(company.id, ejercicio, periodo),
+      isRange
+        ? supabaseReportsAndDashboard.getReports(company.id, ejercicio, effectiveTo)
+        : Promise.resolve(null)
+    ]);
+    const targetAcc = reportsStart.trialBalance.find(
       (a) => a.id === accountId || a.code === accountId || a.id.endsWith(`_${accountId}`)
     );
     if (!targetAcc) return null;
+    const targetAccEnd =
+      reportsEnd?.trialBalance.find((a) => a.id === targetAcc.id || a.code === targetAcc.code) ??
+      targetAcc;
 
     // Recolectar códigos y IDs de subcuentas afectables
     const descendantCodes = new Set<string>();
@@ -58,7 +71,7 @@ export const supabaseAccountLedger = {
       } else if (targetAcc.code.endsWith('-000')) {
         prefix = `${targetAcc.code.slice(0, 6)}-`;
       }
-      for (const acc of reports.trialBalance) {
+      for (const acc of reportsStart.trialBalance) {
         if (acc.isAffectable && acc.code.startsWith(prefix)) {
           descendantCodes.add(acc.code);
           descendantIds.add(acc.id);
@@ -75,7 +88,7 @@ export const supabaseAccountLedger = {
         initialBalance: targetAcc.initialBalanceComputed,
         totalCharges: 0,
         totalCredits: 0,
-        finalBalance: targetAcc.finalBalance,
+        finalBalance: targetAccEnd.finalBalance,
         entries: []
       };
     }
@@ -83,8 +96,8 @@ export const supabaseAccountLedger = {
     // Consultar movimientos en Supabase paginados y por lotes para evitar el límite de 1,000 filas
     const movementsData: Array<Record<string, unknown>> = [];
     for (const codeChunk of chunkArray(codesArray, 100)) {
-      const chunkRows = await fetchAllRows(async (from, to) =>
-        getRequiredSupabase()
+      const chunkRows = await fetchAllRows(async (from, to) => {
+        let query = getRequiredSupabase()
           .from('poliza_movements')
           .select(`
             id,
@@ -100,12 +113,15 @@ export const supabaseAccountLedger = {
             polizas!inner(id, company_id, ejercicio, periodo, tipo, folio, fecha)
           `)
           .eq('polizas.company_id', company.id)
-          .eq('polizas.ejercicio', ejercicio)
-          .eq('polizas.periodo', periodo)
+          .eq('polizas.ejercicio', ejercicio);
+        query = isRange
+          ? query.gte('polizas.periodo', periodo).lte('polizas.periodo', effectiveTo)
+          : query.eq('polizas.periodo', periodo);
+        return query
           .in('account_code', codeChunk)
           .order('id', { ascending: true })
-          .range(from, to)
-      );
+          .range(from, to);
+      });
       movementsData.push(...chunkRows);
     }
 
@@ -145,9 +161,13 @@ export const supabaseAccountLedger = {
     });
 
     let runningCents = toCents(targetAcc.initialBalanceComputed);
+    let sumChargesCents = 0;
+    let sumCreditsCents = 0;
     const entries: AccountLedgerEntry[] = rows.map((r) => {
       const cargoCents = toCents(Number(r.cargo || 0));
       const abonoCents = toCents(Number(r.abono || 0));
+      sumChargesCents += cargoCents;
+      sumCreditsCents += abonoCents;
 
       if (targetAcc.nature === 'DEUDORA') {
         runningCents += cargoCents - abonoCents;
@@ -178,9 +198,9 @@ export const supabaseAccountLedger = {
       ejercicio,
       periodo,
       initialBalance: targetAcc.initialBalanceComputed,
-      totalCharges: targetAcc.periodCharges,
-      totalCredits: targetAcc.periodCredits,
-      finalBalance: targetAcc.finalBalance,
+      totalCharges: isRange ? fromCents(sumChargesCents) : targetAcc.periodCharges,
+      totalCredits: isRange ? fromCents(sumCreditsCents) : targetAcc.periodCredits,
+      finalBalance: targetAccEnd.finalBalance,
       entries
     };
   }

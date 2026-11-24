@@ -1,9 +1,9 @@
 import React from 'react';
-import { Trash2, Zap } from 'lucide-react';
 import { AccountPickerCombobox } from '../../components/account-picker/AccountPickerCombobox';
 import { formatCurrency } from '../../lib/formatters';
 import type { Account } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
+import { PolizaMovementAmountCells } from './PolizaMovementAmountCells';
 
 export interface PolizaMovementRowProps {
   idx: number;
@@ -12,6 +12,7 @@ export interface PolizaMovementRowProps {
   accounts?: Account[];
   accountsById?: Map<string, Account>;
   affectableAccounts: Account[];
+  cfdiUuids?: string[];
   concepto: string;
   difference: number;
   accountRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
@@ -35,6 +36,7 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
   accounts,
   accountsById,
   affectableAccounts,
+  cfdiUuids = [],
   concepto,
   difference,
   accountRefs,
@@ -51,7 +53,9 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
   onLastRowSubmitFocus
 }: PolizaMovementRowProps) {
   const isLastRow = idx === movementsCount - 1;
-  const currentAcc = accountsById ? accountsById.get(mov.accountId) : accounts?.find((a) => a.id === mov.accountId);
+  const currentAcc = accountsById
+    ? accountsById.get(mov.accountId)
+    : accounts?.find((a) => a.id === mov.accountId);
 
   return (
     <tr className="hover:bg-slate-50/70 transition">
@@ -64,9 +68,7 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
           }}
           onChange={(val) => {
             setMovements((prev) =>
-              prev.map((item, i) =>
-                i === idx ? { ...item, accountId: val } : item
-              )
+              prev.map((item, i) => (i === idx ? { ...item, accountId: val } : item))
             );
           }}
           onAdvance={() => {
@@ -133,16 +135,14 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
           onChange={(e) => {
             const val = e.target.value;
             setMovements((prev) =>
-              prev.map((item, i) =>
-                i === idx ? { ...item, referencia: val } : item
-              )
+              prev.map((item, i) => (i === idx ? { ...item, referencia: val } : item))
             );
           }}
           className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:ring-1 focus:ring-blue-600 focus:outline-none"
         />
       </td>
 
-      <td className="p-2 min-w-[220px]">
+      <td className="p-2 min-w-[220px] space-y-1">
         <input
           ref={(el) => {
             conceptoRefs.current[idx] = el;
@@ -175,169 +175,50 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
           onChange={(e) => {
             const val = e.target.value;
             setMovements((prev) =>
-              prev.map((item, i) =>
-                i === idx ? { ...item, concepto: val } : item
-              )
+              prev.map((item, i) => (i === idx ? { ...item, concepto: val } : item))
             );
           }}
           className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
         />
-      </td>
-
-      <td className="p-2 w-36 text-right">
-        <input
-          ref={(el) => {
-            cargoRefs.current[idx] = el;
-          }}
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          min="0"
-          aria-label={`Cargo partida ${idx + 1}`}
-          value={mov.cargo || ''}
-          placeholder="0.00"
-          onFocus={() => onRowFocus(idx)}
-          onKeyDown={(e) => {
-            if (e.key === 'F4') {
-              e.preventDefault();
-              addIva16Line(idx);
-              return;
-            }
-            if (['e', 'E', '+', '-'].includes(e.key)) {
-              e.preventDefault();
-              return;
-            }
-            if (e.key === '=' || e.key === ' ') {
-              if (difference < 0 && (!mov.cargo || mov.cargo === 0)) {
-                e.preventDefault();
-                applyBalanceToRow(idx, 'cargo');
-                return;
-              }
-            }
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              if (mov.cargo > 0) {
-                if (isLastRow) {
-                  if (Math.abs(difference) >= 0.01) autoBalanceDifference();
-                  else onLastRowSubmitFocus();
-                } else {
-                  accountRefs.current[idx + 1]?.focus();
-                  accountRefs.current[idx + 1]?.select();
-                }
-              } else {
-                abonoRefs.current[idx]?.focus();
-                abonoRefs.current[idx]?.select();
-              }
-            }
-          }}
-          onChange={(e) => {
-            const val = Number(e.target.value || 0);
-            setMovements((prev) =>
-              prev.map((item, i) =>
-                i === idx
-                  ? { ...item, cargo: val, abono: val > 0 ? 0 : item.abono }
-                  : item
-              )
-            );
-          }}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono text-right focus:ring-1 focus:ring-blue-600 focus:outline-none"
-        />
-        {difference < 0 && !mov.cargo && !mov.abono && (
-          <button
-            type="button"
-            onClick={() => applyBalanceToRow(idx, 'cargo')}
-            title="Pulsa = o clic para cuadrar este cargo"
-            className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
+        {cfdiUuids.length > 0 && (
+          <select
+            aria-label={`UUID CFDI partida ${idx + 1}`}
+            value={mov.cfdiUuid ?? ''}
+            onChange={(e) => {
+              const val = e.target.value || null;
+              setMovements((prev) =>
+                prev.map((item, i) => (i === idx ? { ...item, cfdiUuid: val } : item))
+              );
+            }}
+            className="w-full px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] font-mono text-slate-600"
           >
-            <Zap className="w-3 h-3" aria-hidden="true" />
-            <span>Cuadrar</span>
-            <span>{formatCurrency(Math.abs(difference))}</span>
-          </button>
+            <option value="">UUID: Predeterminado cabecera</option>
+            {cfdiUuids.map((u) => (
+              <option key={u} value={u}>
+                CFDI: {u.slice(0, 14)}...
+              </option>
+            ))}
+          </select>
         )}
       </td>
 
-      <td className="p-2 w-36 text-right">
-        <input
-          ref={(el) => {
-            abonoRefs.current[idx] = el;
-          }}
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          min="0"
-          aria-label={`Abono partida ${idx + 1}`}
-          value={mov.abono || ''}
-          placeholder="0.00"
-          onFocus={() => onRowFocus(idx)}
-          onKeyDown={(e) => {
-            if (e.key === 'F4') {
-              e.preventDefault();
-              addIva16Line(idx);
-              return;
-            }
-            if (['e', 'E', '+', '-'].includes(e.key)) {
-              e.preventDefault();
-              return;
-            }
-            if (e.key === '=' || e.key === ' ') {
-              if (difference > 0 && (!mov.abono || mov.abono === 0)) {
-                e.preventDefault();
-                applyBalanceToRow(idx, 'abono');
-                return;
-              }
-            }
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              if (isLastRow) {
-                if (Math.abs(difference) >= 0.01) {
-                  autoBalanceDifference();
-                } else {
-                  onLastRowSubmitFocus();
-                }
-              } else {
-                accountRefs.current[idx + 1]?.focus();
-                accountRefs.current[idx + 1]?.select();
-              }
-            }
-          }}
-          onChange={(e) => {
-            const val = Number(e.target.value || 0);
-            setMovements((prev) =>
-              prev.map((item, i) =>
-                i === idx
-                  ? { ...item, abono: val, cargo: val > 0 ? 0 : item.cargo }
-                  : item
-              )
-            );
-          }}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono text-right focus:ring-1 focus:ring-blue-600 focus:outline-none"
-        />
-        {difference > 0 && !mov.cargo && !mov.abono && (
-          <button
-            type="button"
-            onClick={() => applyBalanceToRow(idx, 'abono')}
-            title="Pulsa = o clic para cuadrar este abono"
-            className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
-          >
-            <Zap className="w-3 h-3" aria-hidden="true" />
-            <span>Cuadrar</span>
-            <span>{formatCurrency(difference)}</span>
-          </button>
-        )}
-      </td>
-
-      <td className="p-2 text-center w-10">
-        {movementsCount > 2 && (
-          <button
-            type="button"
-            aria-label={`Eliminar partida ${idx + 1}`}
-            onClick={() => onDeleteRow(idx)}
-            className="min-w-[28px] min-h-[28px] inline-flex items-center justify-center p-1 text-slate-600 hover:text-red-700 cursor-pointer rounded hover:bg-red-50 transition"
-          >
-            <Trash2 className="w-4 h-4" aria-hidden="true" />
-          </button>
-        )}
-      </td>
+      <PolizaMovementAmountCells
+        idx={idx}
+        mov={mov}
+        movementsCount={movementsCount}
+        isLastRow={isLastRow}
+        difference={difference}
+        accountRefs={accountRefs}
+        cargoRefs={cargoRefs}
+        abonoRefs={abonoRefs}
+        setMovements={setMovements}
+        applyBalanceToRow={applyBalanceToRow}
+        addIva16Line={addIva16Line}
+        onRowFocus={onRowFocus}
+        onDeleteRow={onDeleteRow}
+        autoBalanceDifference={autoBalanceDifference}
+        onLastRowSubmitFocus={onLastRowSubmitFocus}
+      />
     </tr>
   );
 });

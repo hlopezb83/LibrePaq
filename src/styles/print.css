@@ -229,6 +229,13 @@
     background: #ffffff !important;
   }
 
+  dialog[open] header {
+    display: flex !important;
+    border-bottom: 1.5px solid #0f172a !important;
+    padding: 4mm 0 !important;
+    margin-bottom: 4mm !important;
+  }
+
   dialog[open]::backdrop {
     display: none !important;
   }

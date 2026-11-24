@@ -1,6 +1,7 @@
 import { inventoryApi } from './api/inventory.api';
 import { isSupabaseConfigured } from './supabase';
 import { supabaseInventory } from './supabase/supabase-inventory';
+import { withGuestDemoClient } from './sandbox/guest-demo-api';
 import { createReadOnlyGuardedClient } from './support-impersonation';
 
 const shouldUseSupabase =
@@ -10,7 +11,6 @@ const shouldUseSupabase =
 
 const rawClient = shouldUseSupabase ? supabaseInventory : inventoryApi;
 
-export const inventoryClient: typeof rawClient = createReadOnlyGuardedClient(
-  rawClient,
-  new Set(['saveInventoryPeriod'])
+export const inventoryClient: typeof rawClient = withGuestDemoClient(
+  createReadOnlyGuardedClient(rawClient, new Set(['saveInventoryPeriod']))
 );

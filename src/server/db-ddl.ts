@@ -186,12 +186,35 @@ export const CREATE_TABLES_DDL = `
   CREATE TABLE IF NOT EXISTS tax_parameters (
     company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     ejercicio INTEGER NOT NULL,
-    coeficiente_utilidad REAL NOT NULL DEFAULT 0.1845,
-    perdidas_fiscales_pendientes REAL NOT NULL DEFAULT 45000,
-    pagos_provisionales_anteriores REAL NOT NULL DEFAULT 128500,
+    periodo INTEGER NOT NULL DEFAULT 0,
+    coeficiente_utilidad REAL NOT NULL DEFAULT 0,
+    perdidas_fiscales_pendientes REAL NOT NULL DEFAULT 0,
+    pagos_provisionales_anteriores REAL NOT NULL DEFAULT 0,
     saldo_favor_iva_anterior REAL NOT NULL DEFAULT 0,
-    tipo_cambio_dof_cierre REAL NOT NULL DEFAULT 19.865,
-    PRIMARY KEY (company_id, ejercicio)
+    tipo_cambio_dof_cierre REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, ejercicio, periodo)
+  );
+
+  CREATE TABLE IF NOT EXISTS poliza_cfdis (
+    id TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    poliza_id TEXT NOT NULL REFERENCES polizas(id) ON DELETE CASCADE,
+    cfdi_uuid TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(poliza_id, cfdi_uuid)
+  );
+
+  CREATE TABLE IF NOT EXISTS payroll_period_settings (
+    company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    ejercicio INTEGER NOT NULL,
+    periodo INTEGER NOT NULL,
+    state_code TEXT NOT NULL DEFAULT 'CMX',
+    isn_rate REAL NOT NULL DEFAULT 4.0,
+    imss_patronal REAL NOT NULL DEFAULT 0,
+    rcv REAL NOT NULL DEFAULT 0,
+    infonavit REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (company_id, ejercicio, periodo)
   );
 
   CREATE TABLE IF NOT EXISTS sat_efos_69b (
@@ -275,41 +298,8 @@ export const CREATE_TABLES_DDL = `
   CREATE INDEX IF NOT EXISTS idx_platform_alerts_status_detected ON platform_alerts(status, detected_at DESC);
 `;
 
-export interface SqliteDdlTarget {
-  exec: (sql: string) => void;
-  query?: (sql: string) => { all: () => unknown[] };
-}
-
-function ensureOptionalColumnMigrations(database: SqliteDdlTarget): void {
-  if (!database.query) return;
-
-  const overrideCols = database.query('PRAGMA table_info(admin_user_overrides)').all() as Array<{ name: string }>;
-  if (overrideCols.length > 0 && !overrideCols.some((c) => c.name === 'platform_role')) {
-    database.exec('ALTER TABLE admin_user_overrides ADD COLUMN platform_role TEXT;');
-  }
-
-  const profileTables = database
-    .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_profiles'")
-    .all() as Array<{ name: string }>;
-  if (profileTables.length === 0) return;
-
-  const profileCols = database.query('PRAGMA table_info(user_profiles)').all() as Array<{ name: string }>;
-  if (!profileCols.some((c) => c.name === 'platform_role')) {
-    database.exec("ALTER TABLE user_profiles ADD COLUMN platform_role TEXT NOT NULL DEFAULT 'NONE';");
-  }
-
-  const hasSuperFlag = profileCols.some((c) => c.name === 'is_superadmin');
-  const hasEmail = profileCols.some((c) => c.name === 'email');
-  if (hasSuperFlag && hasEmail) {
-    database.exec(
-      "UPDATE user_profiles SET platform_role = 'SUPERADMIN' WHERE is_superadmin = 1 OR lower(email) = 'hlopezb@gmail.com';"
-    );
-  } else if (hasSuperFlag) {
-    database.exec("UPDATE user_profiles SET platform_role = 'SUPERADMIN' WHERE is_superadmin = 1;");
-  } else if (hasEmail) {
-    database.exec("UPDATE user_profiles SET platform_role = 'SUPERADMIN' WHERE lower(email) = 'hlopezb@gmail.com';");
-  }
-}
+export type { SqliteDdlTarget } from './db-migrations';
+import { ensureOptionalColumnMigrations, type SqliteDdlTarget } from './db-migrations';
 
 export function ensureBaseTables(database: SqliteDdlTarget): void {
   database.exec(CREATE_TABLES_DDL);

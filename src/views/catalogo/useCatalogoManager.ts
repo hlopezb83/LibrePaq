@@ -164,9 +164,28 @@ export function useCatalogoManager() {
       }
       return apiClient.deleteAccount(id);
     },
-    onSuccess: () => {
-      invalidateAccountingQueries(queryClient, ['accounts', 'reports', 'dashboard']);
+    onSuccess: (res) => {
       setConfirmDeleteId(null);
+      if (res && typeof res === 'object' && 'deleted' in res && !res.deleted) {
+        const meta = res as { hasMovements?: boolean; hasChildren?: boolean };
+        if (meta.hasMovements) {
+          toast.error(
+            'No se puede eliminar la cuenta',
+            'Esta cuenta tiene pólizas o movimientos contables previos registrados.'
+          );
+          return;
+        }
+        if (meta.hasChildren) {
+          toast.error(
+            'No se puede eliminar la cuenta',
+            'Elimina o reasigna primero las subcuentas dependientes.'
+          );
+          return;
+        }
+        toast.error('Error al eliminar cuenta', 'No fue posible eliminar la cuenta contable.');
+        return;
+      }
+      invalidateAccountingQueries(queryClient, ['accounts', 'reports', 'dashboard']);
       toast.success('Cuenta contable eliminada correctamente');
     },
     onError: (err: Error) => {
@@ -200,7 +219,7 @@ export function useCatalogoManager() {
     }
   };
 
-  const parentAccounts = accounts.filter((a) => !a.isAffectable);
+  const parentAccounts = accounts.filter((a) => !a.isAffectable || a.level <= 3);
 
   return {
     activeCompany,

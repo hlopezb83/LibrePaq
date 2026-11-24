@@ -61,13 +61,14 @@ export async function restoreBackupChildTables(
         {
           company_id: companyId,
           ejercicio: tp.ejercicio || bundle.company.currentYear || getCurrentFiscalPeriod().year,
+          periodo: tp.periodo ?? 0,
           coeficiente_utilidad: tp.coeficienteUtilidad,
           perdidas_fiscales_pendientes: tp.perdidasFiscalesPendientes,
           pagos_provisionales_anteriores: tp.pagosProvisionalesAnteriores,
           saldo_favor_iva_anterior: tp.saldoFavorIvaAnterior,
           tipo_cambio_dof_cierre: tp.tipoCambioDofCierre
         },
-        { onConflict: 'company_id,ejercicio' }
+        { onConflict: 'company_id,ejercicio,periodo' }
       );
     }
   }

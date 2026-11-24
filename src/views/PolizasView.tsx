@@ -5,6 +5,7 @@ import { PedimentoEditorModal } from './polizas/PedimentoEditorModal';
 import { PolizasFilterBar } from './polizas/PolizasFilterBar';
 import { PolizaCardItem } from './polizas/PolizaCardItem';
 import { PolizaEditorModal } from './polizas/PolizaEditorModal';
+import { printPolizasFormalPdf } from './polizas/polizaPrintDocument';
 import { usePolizasManager } from './polizas/usePolizasManager';
 
 export function PolizasView() {
@@ -64,6 +65,7 @@ export function PolizasView() {
           if (!m.isWriteBlocked) m.setIsPedimentoModalOpen(true);
         }}
         onExportCsv={m.handleExportPolizasCsv}
+        onPrintPdf={() => printPolizasFormalPdf(m.filteredPolizas, m.activeCompany)}
         onCloseYear={() => m.closeYearMutation.mutate()}
         isCloseYearPending={m.closeYearMutation.isPending}
       />
@@ -184,6 +186,9 @@ export function PolizasView() {
                   m.setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }))
                 }
                 onCopyPoliza={m.handleCopyPoliza}
+                onPrintPoliza={(p) =>
+                  printPolizasFormalPdf([p], m.activeCompany, `${p.tipo} #${p.folio}`)
+                }
                 onDuplicate={m.openDuplicatePolizaModal}
                 onEdit={m.openEditPolizaModal}
                 onConfirmDelete={(id) => m.deletePolizaMutation.mutate(id)}
@@ -212,8 +217,12 @@ export function PolizasView() {
         concepto={m.concepto}
         setConcepto={m.setConcepto}
         cfdiUuid={m.cfdiUuid}
+        cfdiUuids={m.cfdiUuids}
         pendingCfdis={m.pendingCfdis}
+        allCfdis={m.cfdis}
         handleSelectCfdiForForm={m.handleSelectCfdiForForm}
+        handleAddCfdiUuid={m.handleAddCfdiUuid}
+        handleRemoveCfdiUuid={m.handleRemoveCfdiUuid}
         formError={m.formError}
         setFormError={m.setFormError}
         movements={m.movements}

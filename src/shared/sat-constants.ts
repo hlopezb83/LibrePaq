@@ -1,9 +1,6 @@
-export interface SatGroupCodeItem {
-  code: string;
-  name: string;
-  type: 'ACTIVO' | 'PASIVO' | 'CAPITAL' | 'INGRESOS' | 'COSTOS' | 'GASTOS';
-  nature: 'DEUDORA' | 'ACREEDORA';
-}
+import { SAT_GROUP_CODES, type SatGroupCodeItem } from './sat-group-codes-catalog';
+
+export { SAT_GROUP_CODES, type SatGroupCodeItem };
 
 /**
  * NASA JPL Power of 10 - Regla 2 (H-07):
@@ -70,9 +67,9 @@ export const FISCAL_ACCOUNT_ROLES = {
     fallbackType: 'PASIVO' as const
   },
   SUELDOS_POR_PAGAR: {
-    code: '216-01-001',
-    aliases: ['201-01-099', '201-01-001'],
-    satGroupCode: '216.04',
+    code: '210-01-001',
+    aliases: ['216-01-001', '201-01-099', '201-01-001'],
+    satGroupCode: '210.01',
     fallbackType: 'PASIVO' as const
   },
   IVA_TRASLADADO_COBRADO: {
@@ -86,6 +83,30 @@ export const FISCAL_ACCOUNT_ROLES = {
     aliases: [],
     satGroupCode: '209.01',
     fallbackType: 'PASIVO' as const
+  },
+  IEPS_TRASLADADO_COBRADO: {
+    code: '208-02-001',
+    aliases: ['208-01-001'],
+    satGroupCode: '208.02',
+    fallbackType: 'PASIVO' as const
+  },
+  IEPS_TRASLADADO_NO_COBRADO: {
+    code: '209-02-001',
+    aliases: ['209-01-001'],
+    satGroupCode: '209.02',
+    fallbackType: 'PASIVO' as const
+  },
+  IEPS_ACREDITABLE_PAGADO: {
+    code: '118-03-001',
+    aliases: ['118-01-001'],
+    satGroupCode: '118.03',
+    fallbackType: 'ACTIVO' as const
+  },
+  IEPS_PENDIENTE_PAGO: {
+    code: '119-03-001',
+    aliases: ['119-01-001'],
+    satGroupCode: '119.03',
+    fallbackType: 'ACTIVO' as const
   },
   ISR_RETENIDO_POR_PAGAR: {
     code: '216-01-001',
@@ -112,9 +133,9 @@ export const FISCAL_ACCOUNT_ROLES = {
     fallbackType: 'INGRESOS' as const
   },
   DEVOLUCIONES_DESCUENTOS: {
-    code: '401-01-001',
-    aliases: ['401-01-002'],
-    satGroupCode: '401.01',
+    code: '402-01-001',
+    aliases: ['401-01-001', '401-01-002'],
+    satGroupCode: '402.01',
     fallbackType: 'INGRESOS' as const
   },
   COSTO_CLOUD_SERVIDORES: {
@@ -217,74 +238,6 @@ export const FISCAL_ACCOUNT_ROLES = {
 
 export type FiscalAccountRoleKey = keyof typeof FISCAL_ACCOUNT_ROLES;
 
-export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
-  { code: '101', name: 'Caja', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '101.01', name: 'Caja y efectivo', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '102', name: 'Bancos', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '102.01', name: 'Bancos nacionales', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '102.02', name: 'Bancos extranjeros', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '105', name: 'Clientes', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '105.01', name: 'Clientes nacionales', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '107', name: 'Deudores diversos', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '107.01', name: 'Funcionarios y empleados', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '113', name: 'Impuestos a favor', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '113.01', name: 'IVA a favor', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '113.02', name: 'ISR a favor / Retenciones acreditables', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '115', name: 'Inventario', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '115.01', name: 'Inventario / Almacén general', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '118', name: 'Impuestos acreditables pagados', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '118.01', name: 'IVA acreditable pagado', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '119', name: 'Impuestos acreditables por pagar', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '119.01', name: 'IVA pendiente de pago', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '151', name: 'Terrenos', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '154', name: 'Automóviles, autobuses, camiones de carga', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '156', name: 'Equipo de cómputo', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '156.01', name: 'Equipo de cómputo', type: 'ACTIVO', nature: 'DEUDORA' },
-  { code: '171', name: 'Depreciación acumulada de activos fijos', type: 'ACTIVO', nature: 'ACREEDORA' },
-  { code: '201', name: 'Proveedores', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '201.01', name: 'Proveedores nacionales', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '205', name: 'Acreedores diversos a corto plazo', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '205.01', name: 'Socios, accionistas o representante legal', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '208', name: 'Impuestos trasladados cobrados', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '208.01', name: 'IVA trasladado cobrado', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '209', name: 'Impuestos trasladados no cobrados', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '209.01', name: 'IVA trasladado no cobrado', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '213', name: 'Impuestos y derechos por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '213.01', name: 'IVA por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '213.03', name: 'ISR por pagar', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '216', name: 'Impuestos retenidos', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '216.01', name: 'Impuestos retenidos de ISR por sueldos y salarios', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '216.03', name: 'Impuestos retenidos de ISR por arrendamiento', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '216.04', name: 'Impuestos retenidos de ISR por servicios profesionales', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '216.10', name: 'Impuestos retenidos de IVA', type: 'PASIVO', nature: 'ACREEDORA' },
-  { code: '301', name: 'Capital social', type: 'CAPITAL', nature: 'ACREEDORA' },
-  { code: '301.01', name: 'Capital fijo', type: 'CAPITAL', nature: 'ACREEDORA' },
-  { code: '301.02', name: 'Capital variable', type: 'CAPITAL', nature: 'ACREEDORA' },
-  { code: '304', name: 'Resultado de ejercicios anteriores', type: 'CAPITAL', nature: 'ACREEDORA' },
-  { code: '304.01', name: 'Utilidad de ejercicios anteriores', type: 'CAPITAL', nature: 'ACREEDORA' },
-  { code: '305', name: 'Resultado del ejercicio', type: 'CAPITAL', nature: 'ACREEDORA' },
-  { code: '305.01', name: 'Utilidad del ejercicio', type: 'CAPITAL', nature: 'ACREEDORA' },
-  { code: '401', name: 'Ingresos', type: 'INGRESOS', nature: 'ACREEDORA' },
-  { code: '401.01', name: 'Ventas y/o servicios gravados a la tasa general', type: 'INGRESOS', nature: 'ACREEDORA' },
-  { code: '401.04', name: 'Ventas y/o servicios gravados al 0%', type: 'INGRESOS', nature: 'ACREEDORA' },
-  { code: '402', name: 'Devoluciones, descuentos o bonificaciones sobre ingresos', type: 'INGRESOS', nature: 'DEUDORA' },
-  { code: '501', name: 'Costo de venta y/o servicio', type: 'COSTOS', nature: 'DEUDORA' },
-  { code: '501.01', name: 'Costo de venta', type: 'COSTOS', nature: 'DEUDORA' },
-  { code: '501.02', name: 'Servicios y/o mano de obra directa', type: 'COSTOS', nature: 'DEUDORA' },
-  { code: '601', name: 'Gastos generales', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '601.01', name: 'Sueldos y salarios', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '601.32', name: 'Servicios administrativos y honorarios', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '601.45', name: 'Arrendamiento a personas morales residentes nacionales', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '601.50', name: 'Teléfono, internet y telecomunicaciones', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '601.51', name: 'Agua y energía eléctrica', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '601.55', name: 'Papelería y artículos de oficina', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '601.84', name: 'Otros gastos generales (Suscripciones Cloud / Software)', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '611', name: 'Impuesto Sobre la Renta', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '611.01', name: 'Impuesto Sobre la Renta del ejercicio', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '701', name: 'Gastos financieros', type: 'GASTOS', nature: 'DEUDORA' },
-  { code: '701.10', name: 'Comisiones bancarias', type: 'GASTOS', nature: 'DEUDORA' }
-];
-
 export const MESES_SAT: Array<{ periodo: number; nombre: string; corto: string }> = [
   { periodo: 1, nombre: 'Enero', corto: 'Ene' },
   { periodo: 2, nombre: 'Febrero', corto: 'Feb' },
@@ -304,7 +257,21 @@ export const MESES_SAT: Array<{ periodo: number; nombre: string; corto: string }
 export const REGIMENES_FISCALES_SAT = [
   '601 - General de Ley Personas Morales',
   '603 - Personas Morales con Fines no Lucrativos',
+  '605 - Sueldos y Salarios e Ingresos Asimilados a Salarios',
+  '606 - Arrendamiento',
+  '607 - Régimen de Enajenación o Adquisición de Bienes',
+  '608 - Demás ingresos',
+  '610 - Residentes en el Extranjero sin Establecimiento Permanente en México',
+  '611 - Ingresos por Dividendos (socios y accionistas)',
   '612 - Personas Físicas con Actividades Empresariales y Profesionales',
+  '614 - Ingresos por intereses',
+  '615 - Régimen de los ingresos por obtención de premios',
+  '616 - Sin obligaciones fiscales',
+  '620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos',
+  '621 - Incorporación Fiscal',
+  '622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras',
+  '623 - Opcional para Grupos de Sociedades',
+  '624 - Coordinados',
   '625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas',
   '626 - Régimen Simplificado de Confianza (RESICO)'
 ];

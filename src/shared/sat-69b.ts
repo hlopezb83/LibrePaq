@@ -56,6 +56,13 @@ export const INITIAL_EFOS_DATABASE: Sat69BRecord[] = [
 ];
 
 const STORAGE_KEY = 'librepaq_sat_69b_records_v1';
+const META_STORAGE_KEY = 'librepaq_sat_69b_meta_v1';
+
+export interface Sat69BMeta {
+  totalCount: number;
+  cloudSynced: boolean;
+  updatedAt: string;
+}
 
 /**
  * Parsea el archivo CSV oficial del SAT (Listado_Completo_69-B.csv).
@@ -194,6 +201,10 @@ function parseCsvRow(row: string): string[] {
 
 let cached69bDb: Map<string, Sat69BRecord> | null = null;
 
+export function reset69BDatabaseCache(): void {
+  cached69bDb = null;
+}
+
 /**
  * Carga el registro de EFOS desde localStorage complementado con la base inicial
  */
@@ -224,9 +235,13 @@ export function getLoaded69BDatabase(): Map<string, Sat69BRecord> {
 }
 
 /**
- * Guarda registros importados del SAT en localStorage
+ * Guarda registros importados del SAT en memoria completa y en caché rápida localStorage
+ * (sin truncar el padrón enviado a la nube).
  */
-export function save69BDatabase(records: Sat69BRecord[]): void {
+export function save69BDatabase(
+  records: Sat69BRecord[],
+  opts?: { cloudSynced?: boolean }
+): void {
   const map = new Map<string, Sat69BRecord>();
   for (const r of records) {
     if (r?.rfc) map.set(r.rfc.trim().toUpperCase(), r);
@@ -234,12 +249,76 @@ export function save69BDatabase(records: Sat69BRecord[]): void {
   cached69bDb = map;
 
   if (typeof window === 'undefined' || !window.localStorage) return;
+  const meta: Sat69BMeta = {
+    totalCount: map.size,
+    cloudSynced: Boolean(opts?.cloudSynced),
+    updatedAt: new Date().toISOString()
+  };
   try {
-    // Almacenar hasta un máximo seguro de registros en localStorage para no saturar la cuota ni congelar el hilo principal
-    const safeSlice = records.slice(0, 2000);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(safeSlice));
-  } catch (err) {
-    console.warn('[SAT 69-B] Cuota de almacenamiento local excedida o restringida:', err);
+    window.localStorage.setItem(META_STORAGE_KEY, JSON.stringify(meta));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(map.values())));
+  } catch {
+    // Si excede cuota localStorage (padrón completo SAT >12,000 RFCs), conservar caché rápida parcial sin perder memoria/nube
+    try {
+      const compactSlice = Array.from(map.values()).slice(0, 1500);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compactSlice));
+    } catch (err) {
+      console.warn('[SAT 69-B] Cuota de almacenamiento local excedida o restringida:', err);
+    }
+  }
+}
+
+export function getLoaded69BMeta(): Sat69BMeta | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(META_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Sat69BMeta) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fusiona coincidencias 69-B obtenidas desde la nube en el caché en memoria para consulta inmediata en UI. */
+export function merge69BCloudMatches(
+  matches: Array<{
+    rfc: string;
+    nombre?: string | null;
+    situacion: string;
+    estatus69b?: Efos69BStatus;
+    fechaOficio?: string | null;
+    publicacionDof?: string | null;
+  }>
+): void {
+  if (!matches || matches.length === 0) return;
+  const db = getLoaded69BDatabase();
+  for (const m of matches) {
+    const cleanRfc = String(m.rfc || '').trim().toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
+    if (!cleanRfc) continue;
+    const upperSit = String(m.situacion || '').toUpperCase();
+    const situacion: Sat69BRecord['situacion'] = upperSit.includes('DEFINITIV')
+      ? 'DEFINITIVO'
+      : upperSit.includes('DESVIRTUAD')
+        ? 'DESVIRTUADO'
+        : upperSit.includes('FAVORABLE') || upperSit.includes('SENTENCIA')
+          ? 'FAVORABLE'
+          : 'PRESUNTO';
+    const status: Efos69BStatus =
+      m.estatus69b ||
+      (situacion === 'DEFINITIVO'
+        ? 'DEFINITIVO_EFOS'
+        : situacion === 'DESVIRTUADO'
+          ? 'DESVIRTUADO'
+          : situacion === 'FAVORABLE'
+            ? 'LIMPIO'
+            : 'PRESUNTO_EFOS');
+    db.set(cleanRfc, {
+      rfc: cleanRfc,
+      nombre: m.nombre || '',
+      situacion,
+      status,
+      ...(m.fechaOficio ? { fechaOficio: m.fechaOficio } : {}),
+      ...(m.publicacionDof ? { publicacionDof: m.publicacionDof } : {})
+    });
   }
 }
 

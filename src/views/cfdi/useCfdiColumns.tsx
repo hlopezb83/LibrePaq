@@ -263,25 +263,6 @@ export function useCfdiColumns({
         header: 'Estado Contable',
         cell: (info) => {
           const row = info.row.original;
-          if (row.polizaId) {
-            return (
-              <button
-                type="button"
-                onClick={() =>
-                  navigate({
-                    to: '/polizas',
-                    search: { search: row.polizaFolio || row.uuid.slice(0, 8) } as unknown as Record<string, string>
-                  })
-                }
-                title="Ir a Pólizas Contables para consultar el asiento"
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{row.polizaFolio || 'Contabilizado'}</span>
-                <ExternalLink className="w-3 h-3 ml-0.5 opacity-75" aria-hidden="true" />
-              </button>
-            );
-          }
           return (
             <div className="flex flex-wrap items-center gap-1">
               {row.statusSat === 'CANCELADO' && (
@@ -289,9 +270,27 @@ export function useCfdiColumns({
                   Cancelado SAT
                 </span>
               )}
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-                Sin Póliza
-              </span>
+              {row.polizaId ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate({
+                      to: '/polizas',
+                      search: { search: row.polizaFolio || row.uuid.slice(0, 8) } as unknown as Record<string, string>
+                    })
+                  }
+                  title="Ir a Pólizas Contables para consultar el asiento"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>{row.polizaFolio || 'Contabilizado'}</span>
+                  <ExternalLink className="w-3 h-3 ml-0.5 opacity-75" aria-hidden="true" />
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                  Sin Póliza
+                </span>
+              )}
             </div>
           );
         }

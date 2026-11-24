@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { logCompanyAuditEvent } from './audit-logger';
 import type {
   AccountingRuleDirection,
   AccountingRuleRecord,
@@ -38,7 +39,7 @@ export const supabaseAccountingRules = {
       .from('accounting_rules')
       .select('*')
       .eq('company_id', companyId)
-      .order('priority', { ascending: false })
+      .order('priority', { ascending: true })
       .order('updated_at', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -115,7 +116,15 @@ export const supabaseAccountingRules = {
       .single();
 
     if (error) throw new Error(error.message);
-    return mapSupabaseAccountingRule(data as Record<string, unknown>);
+    const mapped = mapSupabaseAccountingRule(data as Record<string, unknown>);
+    logCompanyAuditEvent({
+      companyId: payload.companyId,
+      action: 'RULE_UPSERT',
+      entityType: 'accounting_rule',
+      entityId: mapped.id,
+      metadata: { name: mapped.name, operationAccountCode: mapped.operationAccountCode }
+    });
+    return mapped;
   },
 
   async deleteAccountingRule(
@@ -130,6 +139,7 @@ export const supabaseAccountingRules = {
       .eq('company_id', companyId);
 
     if (error) throw new Error(error.message);
+    logCompanyAuditEvent({ companyId, action: 'RULE_DELETE', entityType: 'accounting_rule', entityId: ruleId });
     return { deleted: true };
   }
 };

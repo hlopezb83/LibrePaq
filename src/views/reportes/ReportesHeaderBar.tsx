@@ -12,6 +12,7 @@ export type ReportTabId =
   | 'BALANZA'
   | 'RESULTADOS'
   | 'BALANCE'
+  | 'AUXILIARES'
   | 'FLUJOS_CAPITAL'
   | 'ANUAL'
   | 'ANEXO24'
@@ -32,6 +33,7 @@ const TABS: { id: ReportTabId; label: string }[] = [
   { id: 'BALANZA', label: 'Balanza de Comprobación' },
   { id: 'RESULTADOS', label: 'Estado de Resultados (%)' },
   { id: 'BALANCE', label: 'Balance General (%)' },
+  { id: 'AUXILIARES', label: 'Auxiliares y Diario General' },
   { id: 'FLUJOS_CAPITAL', label: 'Flujos y Capital (NIF)' },
   { id: 'ANUAL', label: 'Declaración Anual' },
   { id: 'ANEXO24', label: 'XML SAT Anexo 24' },

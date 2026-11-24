@@ -79,23 +79,34 @@ export function DeliverableBalanceDoc({
           <div className="font-bold text-[11px] uppercase tracking-wider text-slate-900 bg-slate-100 p-1.5 rounded">
             100 — ACTIVO (Bienes y Derechos)
           </div>
-          {balanceSheet.activos.map((a) => (
-            <div
-              key={a.id}
-              className={`flex justify-between py-0.5 balance-row ${
-                a.level === 2
-                  ? 'font-bold text-slate-900 bg-slate-100/70 rounded px-1.5 mt-0.5'
-                  : 'pl-5 pr-1 text-slate-700'
-              }`}
-            >
-              <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
-                {a.code} — {a.name}
-              </span>
-              <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                {formatCurrency(a.finalBalance)}
-              </span>
-            </div>
-          ))}
+          {balanceSheet.activos.map((a) => {
+            const displayBal = a.nature === 'ACREEDORA' ? -a.finalBalance : a.finalBalance;
+            return (
+              <div
+                key={a.id}
+                className={`flex justify-between py-0.5 balance-row ${
+                  a.level === 2
+                    ? 'font-bold text-slate-900 bg-slate-100/70 rounded px-1.5 mt-0.5'
+                    : 'pl-5 pr-1 text-slate-700'
+                }`}
+              >
+                <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
+                  {a.code} — {a.name}
+                </span>
+                <span
+                  className={`font-mono ${
+                    displayBal < 0
+                      ? 'text-red-700 font-semibold'
+                      : a.level === 2
+                        ? 'font-bold text-slate-900'
+                        : 'text-slate-700'
+                  }`}
+                >
+                  {formatCurrency(displayBal)}
+                </span>
+              </div>
+            );
+          })}
           <div className="pt-2 border-t-2 border-slate-800 font-bold flex justify-between text-slate-900 balance-total">
             <span>TOTAL ACTIVO:</span>
             <span className="font-mono text-blue-950 font-extrabold">
@@ -110,23 +121,34 @@ export function DeliverableBalanceDoc({
             <div className="font-bold text-[11px] uppercase tracking-wider text-slate-900 bg-slate-100 p-1.5 rounded">
               200 — PASIVO (Obligaciones y Deudas)
             </div>
-            {balanceSheet.pasivos.map((a) => (
-              <div
-                key={a.id}
-                className={`flex justify-between py-0.5 balance-row ${
-                  a.level === 2
-                    ? 'font-bold text-slate-900 bg-slate-100/70 rounded px-1.5 mt-0.5'
-                    : 'pl-5 pr-1 text-slate-700'
-                }`}
-              >
-                <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
-                  {a.code} — {a.name}
-                </span>
-                <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(a.finalBalance)}
-                </span>
-              </div>
-            ))}
+            {balanceSheet.pasivos.map((a) => {
+              const displayBal = a.nature === 'DEUDORA' ? -a.finalBalance : a.finalBalance;
+              return (
+                <div
+                  key={a.id}
+                  className={`flex justify-between py-0.5 balance-row ${
+                    a.level === 2
+                      ? 'font-bold text-slate-900 bg-slate-100/70 rounded px-1.5 mt-0.5'
+                      : 'pl-5 pr-1 text-slate-700'
+                  }`}
+                >
+                  <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
+                    {a.code} — {a.name}
+                  </span>
+                  <span
+                    className={`font-mono ${
+                      displayBal < 0
+                        ? 'text-red-700 font-semibold'
+                        : a.level === 2
+                          ? 'font-bold text-slate-900'
+                          : 'text-slate-700'
+                    }`}
+                  >
+                    {formatCurrency(displayBal)}
+                  </span>
+                </div>
+              );
+            })}
             <div className="pt-1 border-t border-slate-300 font-bold flex justify-between text-slate-800 balance-total">
               <span>Total Pasivo:</span>
               <span className="font-mono">{formatCurrency(balanceSheet.totalPasivo)}</span>
@@ -137,23 +159,34 @@ export function DeliverableBalanceDoc({
             <div className="font-bold text-[11px] uppercase tracking-wider text-slate-900 bg-slate-100 p-1.5 rounded">
               300 — CAPITAL CONTABLE (Patrimonio)
             </div>
-            {balanceSheet.capital.map((a) => (
-              <div
-                key={a.id}
-                className={`flex justify-between py-0.5 balance-row ${
-                  a.level === 2
-                    ? 'font-bold text-slate-900 bg-slate-100/70 rounded px-1.5 mt-0.5'
-                    : 'pl-5 pr-1 text-slate-700'
-                }`}
-              >
-                <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
-                  {a.code} — {a.name}
-                </span>
-                <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(a.finalBalance)}
-                </span>
-              </div>
-            ))}
+            {balanceSheet.capital.map((a) => {
+              const displayBal = a.nature === 'DEUDORA' ? -a.finalBalance : a.finalBalance;
+              return (
+                <div
+                  key={a.id}
+                  className={`flex justify-between py-0.5 balance-row ${
+                    a.level === 2
+                      ? 'font-bold text-slate-900 bg-slate-100/70 rounded px-1.5 mt-0.5'
+                      : 'pl-5 pr-1 text-slate-700'
+                  }`}
+                >
+                  <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
+                    {a.code} — {a.name}
+                  </span>
+                  <span
+                    className={`font-mono ${
+                      displayBal < 0
+                        ? 'text-red-700 font-semibold'
+                        : a.level === 2
+                          ? 'font-bold text-slate-900'
+                          : 'text-slate-700'
+                    }`}
+                  >
+                    {formatCurrency(displayBal)}
+                  </span>
+                </div>
+              );
+            })}
             <div className={`flex justify-between px-1 py-0.5 font-semibold balance-row ${isLoss ? 'text-red-700' : 'text-blue-900'}`}>
               <span>{isLoss ? 'Pérdida del Ejercicio Actual:' : 'Utilidad del Ejercicio Actual:'}</span>
               <span className="font-mono">{formatCurrency(balanceSheet.utilidadEjercicio)}</span>

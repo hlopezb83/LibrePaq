@@ -38,6 +38,7 @@ export function computeFinancialStatementsData(
   const currentCreditsMap = new Map<string, number>();
   let priorUnclosedCargoCents = 0;
   let priorUnclosedAbonoCents = 0;
+  let hasPriorYearMovements = false;
 
   for (const row of movs) {
     const p = Array.isArray(row.polizas) ? row.polizas[0] : row.polizas;
@@ -47,6 +48,7 @@ export function computeFinancialStatementsData(
     const abonoCents = toCents(row.abono);
 
     if (p.ejercicio < ejercicio) {
+      hasPriorYearMovements = true;
       if (isBsMap.get(accId)) {
         priorChargesMap.set(accId, (priorChargesMap.get(accId) || 0) + cargoCents);
         priorCreditsMap.set(accId, (priorCreditsMap.get(accId) || 0) + abonoCents);
@@ -80,7 +82,8 @@ export function computeFinancialStatementsData(
     priorChargesMap,
     priorCreditsMap,
     currentChargesMap,
-    currentCreditsMap
+    currentCreditsMap,
+    { zeroResultInitialBalances: hasPriorYearMovements }
   );
   return buildFinancialStatementsFromTrialBalance(
     company,
@@ -99,16 +102,22 @@ export function rollUpTrialBalanceAccounts(
   priorChargesMap: ReadonlyMap<string, number>,
   priorCreditsMap: ReadonlyMap<string, number>,
   currentChargesMap: ReadonlyMap<string, number>,
-  currentCreditsMap: ReadonlyMap<string, number>
+  currentCreditsMap: ReadonlyMap<string, number>,
+  options?: { zeroResultInitialBalances?: boolean }
 ): AccountWithBalance[] {
   const byCode = new Map<string, AccountWithBalance>();
+  const zeroResults = Boolean(options?.zeroResultInitialBalances);
   for (const acc of accounts) {
     const priorChg = priorChargesMap.get(acc.id) || 0;
     const priorCred = priorCreditsMap.get(acc.id) || 0;
     const chg = currentChargesMap.get(acc.id) || 0;
     const cred = currentCreditsMap.get(acc.id) || 0;
 
-    const openingCents = acc.isAffectable ? toCents(acc.initialBalance) : 0;
+    const isBalanceSheetAcc =
+      acc.type === 'ACTIVO' || acc.type === 'PASIVO' || acc.type === 'CAPITAL';
+    const allowOpening = !zeroResults || isBalanceSheetAcc;
+    const openingCents =
+      acc.isAffectable && allowOpening ? toCents(acc.initialBalance) : 0;
     const initCents = acc.isAffectable
       ? acc.nature === 'DEUDORA'
         ? openingCents + priorChg - priorCred

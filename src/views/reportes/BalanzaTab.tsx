@@ -85,20 +85,22 @@ export function BalanzaTab({
     });
   }, [trialBalance, levelScope, hideZeroBalances, balanzaSearch]);
 
-  const filteredBalanzaTotals = useMemo(() => {
-    return balanzaRows.reduce(
+  const { filteredBalanzaTotals, rootRowsCount } = useMemo(() => {
+    const visibleCodes = new Set(balanzaRows.map((r) => r.code));
+    const rootRows = balanzaRows.filter(
+      (r) => !r.parentCode || !visibleCodes.has(r.parentCode)
+    );
+    const totals = rootRows.reduce(
       (acc, r) => {
-        if (r.isAffectable) {
-          if (r.nature === 'DEUDORA') {
-            acc.initialDeudor += r.initialBalanceComputed;
-            acc.finalDeudor += r.finalBalance;
-          } else {
-            acc.initialAcreedor += r.initialBalanceComputed;
-            acc.finalAcreedor += r.finalBalance;
-          }
-          acc.cargos += r.periodCharges;
-          acc.abonos += r.periodCredits;
+        if (r.nature === 'DEUDORA') {
+          acc.initialDeudor += r.initialBalanceComputed;
+          acc.finalDeudor += r.finalBalance;
+        } else {
+          acc.initialAcreedor += r.initialBalanceComputed;
+          acc.finalAcreedor += r.finalBalance;
         }
+        acc.cargos += r.periodCharges;
+        acc.abonos += r.periodCredits;
         return acc;
       },
       {
@@ -110,6 +112,7 @@ export function BalanzaTab({
         finalAcreedor: 0
       }
     );
+    return { filteredBalanzaTotals: totals, rootRowsCount: rootRows.length };
   }, [balanzaRows]);
 
   const columns = useBalanzaColumns(onSelectAccount);
@@ -292,9 +295,9 @@ export function BalanzaTab({
           </tbody>
           <BalanzaTotalsFooter
             balanzaSearch={balanzaSearch}
-            onlyAffectable={levelScope === 'AFECTABLES'}
+            onlyAffectable={levelScope !== 'ALL'}
             hideZeroBalances={hideZeroBalances}
-            affectableFilteredCount={balanzaRows.filter((r) => r.isAffectable).length}
+            affectableFilteredCount={rootRowsCount}
             filteredBalanzaTotals={filteredBalanzaTotals}
           />
         </table>

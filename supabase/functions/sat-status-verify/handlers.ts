@@ -1,7 +1,7 @@
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { jsonResponse } from '../_shared/admin-edge-auth.ts';
 
-export type SatVerifyAction = 'VERIFY_BATCH' | 'CHECK_69B';
+export type SatVerifyAction = 'VERIFY_BATCH' | 'CHECK_69B' | 'UPSERT_69B_BATCH';
 
 export interface VerifyBatchItemInput {
   cfdiId: string;
@@ -19,11 +19,25 @@ export interface VerifyBatchPayload {
 
 export interface Check69BPayload {
   action: 'CHECK_69B';
-  companyId: string;
+  companyId?: string;
   rfcs: string[];
 }
 
-export type SatStatusVerifyPayload = VerifyBatchPayload | Check69BPayload;
+export interface Upsert69BRecordInput {
+  rfc: string;
+  nombre?: string;
+  situacion?: string;
+  fechaPublicacion?: string | null;
+  publicacionDof?: string | null;
+}
+
+export interface Upsert69BBatchPayload {
+  action: 'UPSERT_69B_BATCH';
+  companyId?: string;
+  records: Upsert69BRecordInput[];
+}
+
+export type SatStatusVerifyPayload = VerifyBatchPayload | Check69BPayload | Upsert69BBatchPayload;
 
 export type Sat69BSituacion = 'PRESUNTO' | 'DEFINITIVO' | 'DESVIRTUADO' | 'SENTENCIA_FAVORABLE';
 export type ThirdParty69BStatus = 'LIMPIO' | 'PRESUNTO_EFOS' | 'DEFINITIVO_EFOS' | 'DESVIRTUADO';
@@ -505,28 +519,30 @@ export async function handleCheck69B(
   const updatedThirdParties: Array<{ id: string; rfc: string; estatus69b: string }> = [];
   const nowIso = new Date().toISOString();
 
-  for (const [estatus69b, rfcsForStatus] of rfcsByThirdPartyStatus.entries()) {
-    const { data: updatedRows, error: updErr } = await supabase
-      .from('third_parties')
-      .update({ estatus_69b: estatus69b, updated_at: nowIso })
-      .eq('company_id', payload.companyId)
-      .in('rfc', rfcsForStatus)
-      .select('id, rfc, estatus_69b');
+  if (payload.companyId) {
+    for (const [estatus69b, rfcsForStatus] of rfcsByThirdPartyStatus.entries()) {
+      const { data: updatedRows, error: updErr } = await supabase
+        .from('third_parties')
+        .update({ estatus_69b: estatus69b, updated_at: nowIso })
+        .eq('company_id', payload.companyId)
+        .in('rfc', rfcsForStatus)
+        .select('id, rfc, estatus_69b');
 
-    if (updErr) {
-      return jsonResponse(
-        { ok: false, error: `Error actualizando third_parties: ${updErr.message}` },
-        500,
-        headers
-      );
-    }
+      if (updErr) {
+        return jsonResponse(
+          { ok: false, error: `Error actualizando third_parties: ${updErr.message}` },
+          500,
+          headers
+        );
+      }
 
-    for (const row of updatedRows || []) {
-      updatedThirdParties.push({
-        id: String(row.id),
-        rfc: String(row.rfc),
-        estatus69b: String(row.estatus_69b)
-      });
+      for (const row of updatedRows || []) {
+        updatedThirdParties.push({
+          id: String(row.id),
+          rfc: String(row.rfc),
+          estatus69b: String(row.estatus_69b)
+        });
+      }
     }
   }
 
@@ -539,6 +555,77 @@ export async function handleCheck69B(
       matches,
       updatedThirdPartiesCount: updatedThirdParties.length,
       updatedThirdParties
+    },
+    200,
+    headers
+  );
+}
+
+const MAX_UPSERT_69B_BATCH = 1500;
+const RFC_69B_REGEX = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/;
+
+/** Inserta/actualiza un lote del padrón oficial 69-B en `public.sat_efos_69b` con privilegios service_role. */
+export async function handleUpsert69BBatch(
+  supabase: SupabaseClient,
+  payload: Upsert69BBatchPayload,
+  headers: Record<string, string>
+): Promise<Response> {
+  if (!Array.isArray(payload.records)) {
+    return jsonResponse({ ok: false, error: 'records debe ser un arreglo' }, 400, headers);
+  }
+  if (payload.records.length > MAX_UPSERT_69B_BATCH) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `Máximo ${MAX_UPSERT_69B_BATCH} registros por lote en UPSERT_69B_BATCH (recibidos: ${payload.records.length})`
+      },
+      400,
+      headers
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  const deduped = new Map<
+    string,
+    { rfc: string; nombre: string; situacion: Sat69BSituacion; fecha_publicacion: string | null; updated_at: string }
+  >();
+
+  for (const raw of payload.records) {
+    const rfc = normalizeRfc(raw?.rfc || '');
+    if (!RFC_69B_REGEX.test(rfc)) continue;
+    const { situacion } = mapEfosSituacion(raw?.situacion);
+    const fechaPub = raw?.fechaPublicacion ?? raw?.publicacionDof ?? null;
+    deduped.set(rfc, {
+      rfc,
+      nombre: String(raw?.nombre || '').trim().slice(0, 300),
+      situacion,
+      fecha_publicacion: fechaPub ? String(fechaPub).trim().slice(0, 60) : null,
+      updated_at: nowIso
+    });
+  }
+
+  const rows = Array.from(deduped.values());
+  if (rows.length === 0) {
+    return jsonResponse({ ok: true, action: 'UPSERT_69B_BATCH', upsertedCount: 0 }, 200, headers);
+  }
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    const { error } = await supabase.from('sat_efos_69b').upsert(chunk, { onConflict: 'rfc' });
+    if (error) {
+      return jsonResponse(
+        { ok: false, error: `Error guardando padrón 69-B en sat_efos_69b: ${error.message}` },
+        500,
+        headers
+      );
+    }
+  }
+
+  return jsonResponse(
+    {
+      ok: true,
+      action: 'UPSERT_69B_BATCH',
+      upsertedCount: rows.length
     },
     200,
     headers

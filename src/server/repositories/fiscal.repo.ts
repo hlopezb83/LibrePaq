@@ -56,12 +56,17 @@ export function getDiotReport(
   });
 }
 
-export function getTaxParameters(companyId: string, ejercicio: number): TaxParametersRecord {
-  const row = db
-    .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ?')
-    .get(companyId, ejercicio) as {
+export function getTaxParameters(
+  companyId: string,
+  ejercicio: number,
+  periodo = 0
+): TaxParametersRecord {
+  const rowExact = db
+    .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo = ?')
+    .get(companyId, ejercicio, periodo) as {
     company_id: string;
     ejercicio: number;
+    periodo?: number;
     coeficiente_utilidad: number;
     perdidas_fiscales_pendientes: number;
     pagos_provisionales_anteriores: number;
@@ -69,14 +74,23 @@ export function getTaxParameters(companyId: string, ejercicio: number): TaxParam
     tipo_cambio_dof_cierre: number;
   } | null;
 
+  const row =
+    rowExact ??
+    (periodo !== 0
+      ? (db
+          .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo = 0')
+          .get(companyId, ejercicio) as typeof rowExact)
+      : null);
+
   return {
     companyId,
     ejercicio,
-    coeficienteUtilidad: Number(row?.coeficiente_utilidad ?? 0.1845),
-    perdidasFiscalesPendientes: Number(row?.perdidas_fiscales_pendientes ?? 45000),
-    pagosProvisionalesAnteriores: Number(row?.pagos_provisionales_anteriores ?? 128500),
+    periodo,
+    coeficienteUtilidad: Number(row?.coeficiente_utilidad ?? 0),
+    perdidasFiscalesPendientes: Number(row?.perdidas_fiscales_pendientes ?? 0),
+    pagosProvisionalesAnteriores: Number(row?.pagos_provisionales_anteriores ?? 0),
     saldoFavorIvaAnterior: Number(row?.saldo_favor_iva_anterior ?? 0),
-    tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 19.865)
+    tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0)
   };
 }
 
@@ -85,10 +99,12 @@ export function saveTaxParameters(
   ejercicio: number,
   input: Partial<Omit<TaxParametersRecord, 'companyId' | 'ejercicio'>>
 ): TaxParametersRecord {
-  const current = getTaxParameters(companyId, ejercicio);
+  const periodo = input.periodo ?? 0;
+  const current = getTaxParameters(companyId, ejercicio, periodo);
   const next: TaxParametersRecord = {
     companyId,
     ejercicio,
+    periodo,
     coeficienteUtilidad: input.coeficienteUtilidad ?? current.coeficienteUtilidad,
     perdidasFiscalesPendientes:
       input.perdidasFiscalesPendientes ?? current.perdidasFiscalesPendientes,
@@ -100,10 +116,10 @@ export function saveTaxParameters(
 
   db.prepare(`
     INSERT INTO tax_parameters (
-      company_id, ejercicio, coeficiente_utilidad, perdidas_fiscales_pendientes,
+      company_id, ejercicio, periodo, coeficiente_utilidad, perdidas_fiscales_pendientes,
       pagos_provisionales_anteriores, saldo_favor_iva_anterior, tipo_cambio_dof_cierre
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(company_id, ejercicio) DO UPDATE SET
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(company_id, ejercicio, periodo) DO UPDATE SET
       coeficiente_utilidad = excluded.coeficiente_utilidad,
       perdidas_fiscales_pendientes = excluded.perdidas_fiscales_pendientes,
       pagos_provisionales_anteriores = excluded.pagos_provisionales_anteriores,
@@ -112,6 +128,7 @@ export function saveTaxParameters(
   `).run(
     companyId,
     ejercicio,
+    periodo,
     next.coeficienteUtilidad,
     fromCents(toCents(next.perdidasFiscalesPendientes)),
     fromCents(toCents(next.pagosProvisionalesAnteriores)),
@@ -119,7 +136,7 @@ export function saveTaxParameters(
     next.tipoCambioDofCierre
   );
 
-  return getTaxParameters(companyId, ejercicio);
+  return getTaxParameters(companyId, ejercicio, periodo);
 }
 
 export function getFiscalWorkpaperReport(
@@ -130,7 +147,7 @@ export function getFiscalWorkpaperReport(
   const company = getCompanyById(companyId);
   assertAccountingInvariant(company !== null, 'COMPANY_NOT_FOUND', 'Empresa no encontrada.');
 
-  const parameters = getTaxParameters(company.id, ejercicio);
+  const parameters = getTaxParameters(company.id, ejercicio, periodo);
   const trialBalance = computeTrialBalance(company.id, ejercicio, periodo);
   const cfdis = getCfdiDocuments(company.id);
 

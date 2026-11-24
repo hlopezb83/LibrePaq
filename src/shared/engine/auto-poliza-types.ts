@@ -25,6 +25,7 @@ export interface AutoPolizaOverrides {
   thirdParty?: Pick<ThirdPartyRecord, 'cuentaOperacionCode' | 'cuentaContrapartidaCode'> | null;
   rules?: readonly AccountingRuleRecord[];
   deductiblePct?: number;
+  relatedOriginalTipoCambio?: number;
 }
 
 export interface AutoPolizaPlan {

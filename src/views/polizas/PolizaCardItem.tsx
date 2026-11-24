@@ -8,6 +8,7 @@ import {
   CopyPlus,
   FileCode2,
   Pencil,
+  Printer,
   Sparkles,
   Trash2
 } from 'lucide-react';
@@ -27,6 +28,7 @@ export interface PolizaCardItemProps {
   confirmDeleteId: string | null;
   onToggleExpand: (id: string) => void;
   onCopyPoliza: (pol: Poliza) => void;
+  onPrintPoliza?: (pol: Poliza) => void;
   onDuplicate: (pol: Poliza) => void;
   onEdit: (pol: Poliza) => void;
   onConfirmDelete: (id: string) => void;
@@ -46,6 +48,7 @@ function PolizaCardItemBase({
   confirmDeleteId,
   onToggleExpand,
   onCopyPoliza,
+  onPrintPoliza,
   onDuplicate,
   onEdit,
   onConfirmDelete,
@@ -60,6 +63,18 @@ function PolizaCardItemBase({
   function handleCopyUuid(uuid: string) {
     void copy(uuid, uuid);
   }
+
+  const allUuids = Array.from(
+    new Set(
+      [
+        ...(pol.cfdiUuids || []),
+        ...(pol.cfdiUuid ? [pol.cfdiUuid] : []),
+        ...pol.movements.map((mv) => mv.cfdiUuid || '')
+      ]
+        .map((u) => u.trim().toUpperCase())
+        .filter(Boolean)
+    )
+  );
 
   return (
     <article
@@ -110,30 +125,40 @@ function PolizaCardItemBase({
               Auto ADD
             </span>
           )}
-          {pol.cfdiUuid && (
-            <button
-              type="button"
-              onClick={() => handleCopyUuid(pol.cfdiUuid!)}
-              title={`Copiar UUID fiscal completo: ${pol.cfdiUuid}`}
-              aria-label={`Copiar UUID fiscal ${pol.cfdiUuid}`}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-300 transition cursor-pointer group"
-            >
-              {copiedUuid === pol.cfdiUuid ? (
-                <>
-                  <Check className="w-3 h-3 text-emerald-600" aria-hidden="true" />
-                  <span className="text-emerald-700 font-semibold">UUID Copiado</span>
-                </>
-              ) : (
-                <>
-                  <FileCode2 className="w-3 h-3 text-slate-500 group-hover:text-blue-600" aria-hidden="true" />
-                  <span>UUID: {pol.cfdiUuid.slice(0, 11)}...</span>
-                  <Copy className="w-2.5 h-2.5 text-slate-500 group-hover:text-blue-600 opacity-75 group-hover:opacity-100" aria-hidden="true" />
-                </>
+          {allUuids.length > 0 && (
+            <div className="inline-flex flex-wrap items-center gap-1">
+              {allUuids.length > 1 && (
+                <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 text-[10px] font-bold">
+                  {allUuids.length} CFDIs
+                </span>
               )}
-              <span className="visually-hidden" aria-live="polite">
-                {copiedUuid === pol.cfdiUuid ? 'UUID fiscal copiado al portapapeles' : ''}
-              </span>
-            </button>
+              {allUuids.slice(0, 3).map((uuid) => (
+                <button
+                  key={uuid}
+                  type="button"
+                  onClick={() => handleCopyUuid(uuid)}
+                  title={`Copiar UUID fiscal completo: ${uuid}`}
+                  aria-label={`Copiar UUID fiscal ${uuid}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-300 transition cursor-pointer group"
+                >
+                  {copiedUuid === uuid ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" aria-hidden="true" />
+                      <span className="text-emerald-700 font-semibold">Copiado</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileCode2 className="w-3 h-3 text-slate-500 group-hover:text-blue-600" aria-hidden="true" />
+                      <span>UUID: {uuid.slice(0, 10)}...</span>
+                      <Copy className="w-2.5 h-2.5 text-slate-500 group-hover:text-blue-600 opacity-75 group-hover:opacity-100" aria-hidden="true" />
+                    </>
+                  )}
+                </button>
+              ))}
+              {allUuids.length > 3 && (
+                <span className="text-[10px] font-mono text-slate-500">+{allUuids.length - 3}</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -155,6 +180,19 @@ function PolizaCardItemBase({
           </span>
 
           <div className="flex flex-wrap items-center gap-1.5 no-print">
+            {onPrintPoliza && (
+              <button
+                type="button"
+                onClick={() => onPrintPoliza(pol)}
+                title="Imprimir / Exportar póliza en PDF formal"
+                aria-label={`Imprimir PDF de póliza ${pol.tipo} ${pol.folio}`}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                <span className="hidden sm:inline">PDF</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => onCopyPoliza(pol)}

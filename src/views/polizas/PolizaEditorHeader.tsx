@@ -1,7 +1,7 @@
 import React from 'react';
-import { AlertCircle, Lock, ReceiptText, Sparkles, Wand2, X } from 'lucide-react';
-import { formatCurrency } from '../../lib/formatters';
+import { AlertCircle, Lock, ReceiptText, Wand2, X } from 'lucide-react';
 import type { CfdiDocument, Company, PolizaType } from '../../shared/types';
+import { PolizaMultiCfdiBar } from './PolizaMultiCfdiBar';
 
 interface PolizaEditorHeaderProps {
   editingPolizaId: string | null;
@@ -19,8 +19,12 @@ interface PolizaEditorHeaderProps {
   conceptoInputRef: React.RefObject<HTMLInputElement | null>;
   onConceptoEnter: () => void;
   cfdiUuid: string;
+  cfdiUuids: string[];
   pendingCfdis: CfdiDocument[];
+  allCfdis?: CfdiDocument[];
   handleSelectCfdiForForm: (uuid: string) => void;
+  handleAddCfdiUuid: (uuid: string) => void;
+  handleRemoveCfdiUuid: (uuid: string) => void;
   formError: string | null;
   isDateDifferentPeriod: boolean;
   applyQuickTemplate: (tpl: 'GASTO_16' | 'VENTA_PPD' | 'PAGO_IMPUESTOS') => void;
@@ -42,9 +46,12 @@ export function PolizaEditorHeader({
   setConcepto,
   conceptoInputRef,
   onConceptoEnter,
-  cfdiUuid,
+  cfdiUuids,
   pendingCfdis,
+  allCfdis,
   handleSelectCfdiForForm,
+  handleAddCfdiUuid,
+  handleRemoveCfdiUuid,
   formError,
   isDateDifferentPeriod,
   applyQuickTemplate,
@@ -185,36 +192,16 @@ export function PolizaEditorHeader({
         </div>
       )}
 
-      {/* Autocompletado opcional desde CFDI pendiente */}
-      {!editingPolizaId && pendingCfdis.length > 0 && (
-        <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-blue-950">
-            <Sparkles className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
-            <div>
-              <label htmlFor="cfdi-preload" className="font-bold block">
-                Autocompletar desde CFDI 4.0 pendiente en el ADD (Opcional)
-              </label>
-              <span className="text-[11px] text-blue-800">
-                Selecciona una factura para llenar las partidas de subtotal, IVA 16%, retenciones y flujo
-              </span>
-            </div>
-          </div>
-          <select
-            id="cfdi-preload"
-            value={cfdiUuid}
-            onChange={(e) => handleSelectCfdiForForm(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-blue-300 bg-white text-xs font-mono text-slate-800 max-w-xs cursor-pointer"
-          >
-            <option value="">-- Captura Libre (Sin CFDI) --</option>
-            {pendingCfdis.map((c) => (
-              <option key={c.id} value={c.uuid}>
-                [{c.direction}] {c.serie}-{c.folio} ({formatCurrency(c.total)}) -{' '}
-                {c.direction === 'EMITIDO' ? c.receptorNombre : c.emisorNombre}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* Asociación de uno o múltiples CFDIs (creación y edición) */}
+      <PolizaMultiCfdiBar
+        editingPolizaId={editingPolizaId}
+        cfdiUuids={cfdiUuids}
+        pendingCfdis={pendingCfdis}
+        allCfdis={allCfdis}
+        onSelectPrimaryCfdi={handleSelectCfdiForForm}
+        onAddCfdiUuid={handleAddCfdiUuid}
+        onRemoveCfdiUuid={handleRemoveCfdiUuid}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div>

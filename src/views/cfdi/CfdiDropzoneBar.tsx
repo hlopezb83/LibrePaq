@@ -17,6 +17,12 @@ export interface CfdiDropzoneBarProps {
   isDragging: boolean;
   setIsDragging: (val: boolean) => void;
   isUploadingFiles?: boolean;
+  uploadBatchProgress?: {
+    currentBatch: number;
+    totalBatches: number;
+    processed: number;
+    total: number;
+  } | null;
   handleDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -41,6 +47,7 @@ export function CfdiDropzoneBar({
   isDragging,
   setIsDragging,
   isUploadingFiles = false,
+  uploadBatchProgress = null,
   handleDrop,
   fileInputRef,
   handleFileUpload,
@@ -227,6 +234,22 @@ export function CfdiDropzoneBar({
       </div>
 
       {/* Banner de progreso y advertencia de permanencia */}
+      {uploadBatchProgress && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 text-xs font-semibold text-blue-950 flex flex-wrap items-center justify-between gap-2"
+        >
+          <span>
+            Importando XMLs en lotes secuenciales de 200 ({uploadBatchProgress.currentBatch}/
+            {uploadBatchProgress.totalBatches})...
+          </span>
+          <span className="font-mono bg-white px-2 py-0.5 rounded-lg border border-blue-200">
+            {uploadBatchProgress.processed} / {uploadBatchProgress.total} archivos XML
+          </span>
+        </div>
+      )}
+
       {batchProgress && (
         <div
           role="status"

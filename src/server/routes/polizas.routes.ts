@@ -36,11 +36,15 @@ polizasRoutes.post('/polizas', async (c) => {
       company.currentYear,
       company.currentPeriod
     );
+    const resolvedPeriod =
+      payload.periodo && payload.periodo >= 1 && payload.periodo <= 13
+        ? payload.periodo
+        : pPeriod;
 
     const created = createPolizaTransaction({
       ...payload,
       ejercicio: pYear,
-      periodo: pPeriod
+      periodo: resolvedPeriod
     });
     return c.json(created, 201);
   } catch (err) {

@@ -9,6 +9,7 @@ import { Anexo24Tab } from './reportes/Anexo24Tab';
 import { DossierEntregablesTab } from './reportes/DossierEntregablesTab';
 import { FlujosCapitalTab } from './reportes/FlujosCapitalTab';
 import { DeclaracionAnualTab } from './reportes/DeclaracionAnualTab';
+import { AuxiliaresDiarioTab } from './reportes/AuxiliaresDiarioTab';
 import { useReportesManager } from './reportes/useReportesManager';
 
 export function ReportesView() {
@@ -18,6 +19,8 @@ export function ReportesView() {
     setActiveTab,
     satXmlType,
     setSatXmlType,
+    anexo24Options,
+    setAnexo24Options,
     data,
     prevReports,
     isLoadingPrevReports,
@@ -139,6 +142,19 @@ export function ReportesView() {
         </div>
       )}
 
+      {/* PESTAÑA: AUXILIARES Y DIARIO GENERAL */}
+      {activeTab === 'AUXILIARES' && (
+        <div role="tabpanel" id="report-panel-AUXILIARES" aria-labelledby="report-tab-AUXILIARES">
+          <AuxiliaresDiarioTab
+            company={data.company}
+            ejercicio={data.ejercicio}
+            periodo={data.periodo}
+            trialBalance={data.trialBalance}
+            onSelectAccount={openLedger}
+          />
+        </div>
+      )}
+
       {/* PESTAÑA 4: FLUJOS DE EFECTIVO NIF B-2 & CAMBIOS EN EL CAPITAL NIF B-4 */}
       {activeTab === 'FLUJOS_CAPITAL' && (
         <div role="tabpanel" id="report-panel-FLUJOS_CAPITAL" aria-labelledby="report-tab-FLUJOS_CAPITAL">
@@ -166,8 +182,13 @@ export function ReportesView() {
       {activeTab === 'ANEXO24' && (
         <div role="tabpanel" id="report-panel-ANEXO24" aria-labelledby="report-tab-ANEXO24">
           <Anexo24Tab
+            companyRfc={data.company.rfc}
+            ejercicio={data.ejercicio}
+            periodo={data.periodo}
             satXmlType={satXmlType}
             setSatXmlType={setSatXmlType}
+            anexo24Options={anexo24Options}
+            setAnexo24Options={setAnexo24Options}
             satXmlData={satXmlData}
             isLoadingXml={isLoadingXml}
             isErrorXml={isErrorXml}

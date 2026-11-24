@@ -21,7 +21,7 @@ export const MEXICO_ISN_RATES: readonly IsnStateRate[] = [
   { code: 'AGS', name: 'Aguascalientes', ratePct: 2.5 }, { code: 'BCN', name: 'Baja California', ratePct: 4.25, notes: '1.80% + sobretasa' },
   { code: 'BCS', name: 'Baja California Sur', ratePct: 2.5 }, { code: 'CAM', name: 'Campeche', ratePct: 3.0 },
   { code: 'CHP', name: 'Chiapas', ratePct: 2.0 }, { code: 'CHH', name: 'Chihuahua', ratePct: 4.0, notes: 'Incluye contribución extra' },
-  { code: 'CMX', name: 'Ciudad de México', ratePct: 3.0 }, { code: 'COA', name: 'Coahuila de Zaragoza', ratePct: 3.0 },
+  { code: 'CMX', name: 'Ciudad de México', ratePct: 4.0, notes: 'Tasa vigente 4.0% CDMX' }, { code: 'COA', name: 'Coahuila de Zaragoza', ratePct: 3.0 },
   { code: 'COL', name: 'Colima', ratePct: 2.0 }, { code: 'DUR', name: 'Durango', ratePct: 3.0 },
   { code: 'GUA', name: 'Guanajuato', ratePct: 3.0 }, { code: 'GRO', name: 'Guerrero', ratePct: 2.0 },
   { code: 'HID', name: 'Hidalgo', ratePct: 3.0 }, { code: 'JAL', name: 'Jalisco', ratePct: 3.0 },
@@ -48,7 +48,6 @@ function extractImssObreroFromXml(xmlRaw: string): number | null {
   if (!xmlRaw || !xmlRaw.includes('TipoDeduccion')) return null;
   const tagRe = /<(?:[a-z0-9_]+:)?Deduccion\b([^>]*)\/?>/gi;
   let totalCents = 0;
-  let found = false;
   let match: RegExpExecArray | null;
   while ((match = tagRe.exec(xmlRaw)) !== null) {
     const attrs = match[1] ?? '';
@@ -56,10 +55,9 @@ function extractImssObreroFromXml(xmlRaw: string): number | null {
     const impMatch = /Importe=["']([0-9]+(?:\.[0-9]+)?)["']/i.exec(attrs);
     if (impMatch?.[1]) {
       totalCents += toCents(Number.parseFloat(impMatch[1]));
-      found = true;
     }
   }
-  return found ? fromCents(totalCents) : null;
+  return fromCents(totalCents);
 }
 
 function extractSubsidioEmpleo(xmlRaw: string): number {

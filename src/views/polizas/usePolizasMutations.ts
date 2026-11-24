@@ -17,6 +17,7 @@ export interface UsePolizasMutationsParams {
   fecha: string;
   concepto: string;
   cfdiUuid: string;
+  cfdiUuids?: string[];
   movements: DraftMovement[];
   accounts: AccountWithBalance[];
   dialogRef?: RefObject<HTMLDialogElement | null>;
@@ -37,6 +38,7 @@ export function usePolizasMutations({
   fecha,
   concepto,
   cfdiUuid,
+  cfdiUuids = [],
   movements,
   accounts,
   dialogRef,
@@ -58,12 +60,26 @@ export function usePolizasMutations({
             : `El periodo P${String(currentPeriod).padStart(2, '0')}/${currentYear} se encuentra bloqueado ante el SAT. No se pueden registrar o modificar pólizas.`
         );
       }
+      const normalizedUuids = Array.from(
+        new Set(
+          [
+            ...cfdiUuids,
+            cfdiUuid,
+            ...movements.map((m) => m.cfdiUuid || '')
+          ]
+            .map((u) => u.trim().toUpperCase())
+            .filter(Boolean)
+        )
+      );
+      const primaryUuid = normalizedUuids[0] || null;
       if (editingPolizaId) {
         return apiClient.updatePoliza(editingPolizaId, {
           tipo,
           fecha,
+          periodo: currentPeriod ?? undefined,
           concepto,
-          cfdiUuid: cfdiUuid || null,
+          cfdiUuid: primaryUuid,
+          cfdiUuids: normalizedUuids,
           movements
         });
       }
@@ -71,9 +87,11 @@ export function usePolizasMutations({
         companyId: activeCompanyId,
         tipo,
         fecha,
+        periodo: currentPeriod,
         concepto,
-        cfdiUuid: cfdiUuid || null,
-        origin: cfdiUuid ? 'ADD_AUTO' : 'MANUAL',
+        cfdiUuid: primaryUuid,
+        cfdiUuids: normalizedUuids,
+        origin: primaryUuid ? 'ADD_AUTO' : 'MANUAL',
         movements
       });
     },
@@ -156,6 +174,7 @@ export function usePolizasMutations({
     },
     onSuccess: (res) => {
       invalidateAccountingQueries(queryClient, [
+        'companies',
         'polizas',
         'accounts',
         'account-ledger',
@@ -207,6 +226,7 @@ export function usePolizasMutations({
         companyId: activeCompanyId,
         tipo: pedimentoData.tipo,
         fecha: pedimentoData.fecha,
+        periodo: currentPeriod,
         concepto: pedimentoData.concepto,
         movements: mappedMovements
       });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
+import { FileArchive, Loader2, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 
 export interface CfdiBatchActionBarProps {
   selectedCfdiIds: Set<string>;
@@ -9,6 +9,8 @@ export interface CfdiBatchActionBarProps {
   onBatchContabilizarSelected: () => void;
   isVerifySatBatchPending?: boolean;
   onVerifySatBatchSelected?: () => void;
+  isExportZipPending?: boolean;
+  onExportZipSelected?: () => void;
   isBatchDeletePending: boolean;
   onBatchDeleteSelected: () => void;
   isPeriodLocked: boolean;
@@ -23,6 +25,8 @@ export function CfdiBatchActionBar({
   onBatchContabilizarSelected,
   isVerifySatBatchPending = false,
   onVerifySatBatchSelected,
+  isExportZipPending = false,
+  onExportZipSelected,
   isBatchDeletePending,
   onBatchDeleteSelected,
   isPeriodLocked,
@@ -98,6 +102,23 @@ export function CfdiBatchActionBar({
               <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
             )}
             {isVerifySatBatchPending ? 'Validando SAT...' : 'Validar SAT en Lote'}
+          </button>
+        )}
+
+        {onExportZipSelected && (
+          <button
+            type="button"
+            disabled={isExportZipPending || isBatchDeletePending}
+            onClick={onExportZipSelected}
+            title="Descargar los XML originales seleccionados empaquetados en archivo .ZIP"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer transition shadow-2xs"
+          >
+            {isExportZipPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <FileArchive className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            {isExportZipPending ? 'Empaquetando...' : 'Descargar XML (.zip)'}
           </button>
         )}
 

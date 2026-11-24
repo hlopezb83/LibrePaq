@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
+import { logCompanyAuditEvent } from './audit-logger';
 import { assertAccountingInvariant, fromCents, toCents } from '../../shared/accounting-engine';
 import { chunkArray, fetchAllRows } from './supabase-pagination';
 import {
@@ -91,11 +92,16 @@ export async function batchImportAccountsWithClient(
     const level =
       r.level !== undefined && Number(r.level) >= 1
         ? Number(r.level)
-        : code.endsWith('-00-000') || code.endsWith('00-000')
-          ? 1
-          : code.endsWith('-000')
-            ? 2
-            : 3;
+        : code.includes('-')
+          ? Math.max(
+              1,
+              Math.min(
+                4,
+                code.split('-').filter((seg) => !/^0+$/.test(seg)).length
+              )
+            )
+          : 3;
+    const isAffectable = r.isAffectable !== undefined ? r.isAffectable : level >= 3;
 
     const prev = existingByCode.get(code);
     if (prev) {
@@ -122,7 +128,7 @@ export async function batchImportAccountsWithClient(
       type: (r.type as AccountType) || dType,
       nature,
       sat_group_code: r.satGroupCode?.trim() || code.slice(0, 3),
-      is_affectable: r.isAffectable !== undefined ? r.isAffectable : true,
+      is_affectable: isAffectable,
       initial_balance: initialBalance
     });
   }
@@ -194,11 +200,12 @@ export const supabaseBackupRestore = {
     const taxParameters: TaxParametersRecord[] = (taxParamsRes.data || []).map((r) => ({
       companyId: String(r.company_id),
       ejercicio: Number(r.ejercicio),
-      coeficienteUtilidad: Number(r.coeficiente_utilidad || 0.1845),
-      perdidasFiscalesPendientes: Number(r.perdidas_fiscales_pendientes || 0),
-      pagosProvisionalesAnteriores: Number(r.pagos_provisionales_anteriores || 0),
-      saldoFavorIvaAnterior: Number(r.saldo_favor_iva_anterior || 0),
-      tipoCambioDofCierre: Number(r.tipo_cambio_dof_cierre || 19.865)
+      periodo: Number(r.periodo ?? 0),
+      coeficienteUtilidad: Number(r.coeficiente_utilidad ?? 0),
+      perdidasFiscalesPendientes: Number(r.perdidas_fiscales_pendientes ?? 0),
+      pagosProvisionalesAnteriores: Number(r.pagos_provisionales_anteriores ?? 0),
+      saldoFavorIvaAnterior: Number(r.saldo_favor_iva_anterior ?? 0),
+      tipoCambioDofCierre: Number(r.tipo_cambio_dof_cierre ?? 0)
     }));
 
     const bankStatementLines = (rawBankLines as Array<Record<string, unknown>>).map((b) => ({
@@ -243,28 +250,60 @@ export const supabaseBackupRestore = {
     const { data: authData } = await client.auth.getUser();
     const userId = authData?.user?.id || comp.userId || null;
 
-    const { error: compErr } = await client.from('companies').upsert({
-      id: comp.id,
-      name: comp.name,
-      rfc: comp.rfc,
-      regimen_fiscal: comp.regimenFiscal,
-      codigo_postal: comp.codigoPostal,
-      mask_format: comp.maskFormat || 'XXX-XX-XXX',
-      current_year: comp.currentYear || 2026,
-      current_period: comp.currentPeriod || 10,
-      created_at: comp.createdAt || new Date().toISOString(),
-      user_id: userId
+    const enrichedBundle: CompanyBackupBundle = {
+      ...bundle,
+      company: {
+        ...comp,
+        userId
+      }
+    };
+
+    const { error: rpcErr } = await client.rpc('restore_company_backup_atomic', {
+      p_payload: enrichedBundle
     });
 
-    if (compErr) throw new Error(compErr.message);
+    if (rpcErr) {
+      const msg = rpcErr.message || '';
+      const isMissingRpc =
+        rpcErr.code === 'PGRST202' ||
+        rpcErr.code === '42883' ||
+        msg.toLowerCase().includes('could not find the function') ||
+        msg.toLowerCase().includes('does not exist');
+      if (!isMissingRpc) {
+        throw new Error(msg);
+      }
 
-    await clearCompanyChildTables(client, comp.id);
-    await restoreBackupChildTables(
-      client,
-      comp.id,
-      bundle,
-      this.batchImportAccounts.bind(this)
-    );
+      const { error: compErr } = await client.from('companies').upsert({
+        id: comp.id,
+        name: comp.name,
+        rfc: comp.rfc,
+        regimen_fiscal: comp.regimenFiscal,
+        codigo_postal: comp.codigoPostal,
+        mask_format: comp.maskFormat || 'XXX-XX-XXX',
+        current_year: comp.currentYear || 2026,
+        current_period: comp.currentPeriod || 10,
+        created_at: comp.createdAt || new Date().toISOString(),
+        user_id: userId
+      });
+
+      if (compErr) throw new Error(compErr.message);
+
+      await clearCompanyChildTables(client, comp.id);
+      await restoreBackupChildTables(
+        client,
+        comp.id,
+        bundle,
+        this.batchImportAccounts.bind(this)
+      );
+    }
+
+    logCompanyAuditEvent({
+      companyId: comp.id,
+      action: 'COMPANY_UPDATE',
+      entityType: 'company',
+      entityId: comp.id,
+      metadata: { event: 'BACKUP_RESTORE_ATOMIC', accounts: bundle.accounts?.length ?? 0, polizas: bundle.polizas?.length ?? 0 }
+    });
 
     const companies = await supabaseCompaniesAndAccounts.getCompanies();
     const restored = companies.find((c) => c.id === comp.id);

@@ -107,7 +107,13 @@ export function buildCreditNoteEgresoMovements(
     ivaRetCents,
     totalCents
   );
+  const explicitIepsCents = cfdi.taxBreakdown?.ieps
+    ? Math.max(0, toMxnCents(cfdi.taxBreakdown.ieps, cfdi))
+    : 0;
+  const iepsCents = Math.min(nonIvaTaxCents, explicitIepsCents);
+  const otherNonIvaTaxCents = nonIvaTaxCents - iepsCents;
   const effectiveSubtotalCents = subtotalNetoCents + nonIvaTaxCents;
+  const emitidaSubtotalCents = subtotalNetoCents + otherNonIvaTaxCents;
   const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
   const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;
   const movements: AutoPolizaMovementDraft[] = [];
@@ -160,8 +166,14 @@ export function buildCreditNoteEgresoMovements(
     : resolveFiscalAccount(accounts, 'IVA_TRASLADADO_NO_COBRADO');
 
   movements.push(
-    makeDraft(accDevoluciones, ref, effectiveSubtotalCents, 0, `Nota de Crédito: ${cfdi.conceptoPrincipal}`)
+    makeDraft(accDevoluciones, ref, emitidaSubtotalCents, 0, `Nota de Crédito: ${cfdi.conceptoPrincipal}`)
   );
+  if (iepsCents > 0) {
+    const accIeps = esPagado
+      ? resolveFiscalAccount(accounts, 'IEPS_TRASLADADO_COBRADO')
+      : resolveFiscalAccount(accounts, 'IEPS_TRASLADADO_NO_COBRADO');
+    movements.push(makeDraft(accIeps, ref, iepsCents, 0, `Ajuste IEPS Trasladado Nota de Crédito ${ref}`));
+  }
   if (ivaCents > 0) {
     movements.push(makeDraft(accIva, ref, ivaCents, 0, `Ajuste IVA Trasladado Nota de Crédito ${ref}`));
   }
@@ -205,7 +217,13 @@ export function buildStandardIngresoMovements(
     ivaRetCents,
     totalCents
   );
+  const explicitIepsCents = cfdi.taxBreakdown?.ieps
+    ? Math.max(0, toMxnCents(cfdi.taxBreakdown.ieps, cfdi))
+    : 0;
+  const iepsCents = Math.min(nonIvaTaxCents, explicitIepsCents);
+  const otherNonIvaTaxCents = nonIvaTaxCents - iepsCents;
   const effectiveSubtotalCents = subtotalNetoCents + nonIvaTaxCents;
+  const emitidaSubtotalCents = subtotalNetoCents + otherNonIvaTaxCents;
   const opOverride = overrides?.operationAccountCode ?? overrides?.expenseOrIncomeAccountId;
   const counterOverride = overrides?.counterAccountCode ?? overrides?.bankOrCounterpartyAccountId;
   const movements: AutoPolizaMovementDraft[] = [];
@@ -283,7 +301,13 @@ export function buildStandardIngresoMovements(
     const accIvaRet = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_RETENIDO');
     movements.push(makeDraft(accIvaRet, ref, ivaRetCents, 0, `Retención IVA clientes ${ref}`));
   }
-  movements.push(makeDraft(accIngreso, ref, 0, effectiveSubtotalCents, cfdi.conceptoPrincipal));
+  movements.push(makeDraft(accIngreso, ref, 0, emitidaSubtotalCents, cfdi.conceptoPrincipal));
+  if (iepsCents > 0) {
+    const accIeps = esPagado
+      ? resolveFiscalAccount(accounts, 'IEPS_TRASLADADO_COBRADO')
+      : resolveFiscalAccount(accounts, 'IEPS_TRASLADADO_NO_COBRADO');
+    movements.push(makeDraft(accIeps, ref, 0, iepsCents, `IEPS Trasladado ${ref}`));
+  }
   if (ivaCents > 0) {
     movements.push(makeDraft(accIva, ref, 0, ivaCents, `IVA 16% ${ref}`));
   }

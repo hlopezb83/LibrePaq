@@ -98,6 +98,7 @@ export function PapelDia17Tab({
 
   const cap = workpaper.resumenLineaCapturaSat;
   const isResico = workpaper.isrProvisional.esResico;
+  const isPfGeneral = workpaper.company.rfc.trim().length === 13 && !isResico;
 
   return (
     <div className="space-y-5">
@@ -112,7 +113,9 @@ export function PapelDia17Tab({
               <p className="text-xs text-slate-600">
                 {isResico
                   ? 'Régimen de Flujo de Efectivo (RESICO): ajusta pérdidas fiscales por amortizar, pagos provisionales anteriores, saldo a favor de IVA o tipo de cambio DOF'
-                  : 'Ajusta el Coeficiente de Utilidad (Art. 14 LISR), pérdidas fiscales por amortizar, saldo a favor de IVA o tipo de cambio DOF'}
+                  : isPfGeneral
+                    ? 'Persona Física (Art. 106 LISR — Tarifa Progresiva): ajusta pérdidas fiscales, pagos provisionales anteriores, saldo a favor de IVA o tipo de cambio DOF'
+                    : 'Ajusta el Coeficiente de Utilidad (Art. 14 LISR), pérdidas fiscales por amortizar, saldo a favor de IVA o tipo de cambio DOF'}
               </p>
             </div>
           </div>
@@ -168,33 +171,35 @@ export function PapelDia17Tab({
             e.preventDefault();
             if (!isWriteLocked) saveTaxParamsMutation.mutate();
           }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
+          className={`grid grid-cols-1 sm:grid-cols-2 ${isPfGeneral ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs`}
         >
-          <div>
-            <label htmlFor="dia17-coef-utilidad" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Coeficiente Utilidad (C.U.)
-            </label>
-            <input
-              id="dia17-coef-utilidad"
-              type="number"
-              inputMode="decimal"
-              step="0.0001"
-              min="0"
-              max="1"
-              disabled={isWriteLocked || isResico}
-              title={
-                isWriteLocked
-                  ? lockTitle
-                  : isResico
-                    ? 'No aplica en RESICO (tributa sobre flujo de efectivo)'
-                    : 'Coeficiente de Utilidad según última declaración anual (Art. 14 LISR)'
-              }
-              value={coefUtilidad}
-              onChange={(e) => setCoefUtilidad(sanitizeNonNeg(e.target.value, 1))}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-            />
-            {isResico && <p className="mt-1 text-[11px] text-slate-600">No aplica en RESICO</p>}
-          </div>
+          {!isPfGeneral && (
+            <div>
+              <label htmlFor="dia17-coef-utilidad" className="block text-[11px] font-bold text-slate-700 mb-1">
+                Coeficiente Utilidad (C.U.)
+              </label>
+              <input
+                id="dia17-coef-utilidad"
+                type="number"
+                inputMode="decimal"
+                step="0.0001"
+                min="0"
+                max="1"
+                disabled={isWriteLocked || isResico}
+                title={
+                  isWriteLocked
+                    ? lockTitle
+                    : isResico
+                      ? 'No aplica en RESICO (tributa sobre flujo de efectivo)'
+                      : 'Coeficiente de Utilidad según última declaración anual (Art. 14 LISR)'
+                }
+                value={coefUtilidad}
+                onChange={(e) => setCoefUtilidad(sanitizeNonNeg(e.target.value, 1))}
+                className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              />
+              {isResico && <p className="mt-1 text-[11px] text-slate-600">No aplica en RESICO</p>}
+            </div>
+          )}
           <div>
             <label htmlFor="dia17-perdidas-amortizar" className="block text-[11px] font-bold text-slate-700 mb-1">
               Pérdidas x Amortizar ($)
@@ -295,7 +300,7 @@ export function PapelDia17Tab({
         )}
       </div>
 
-      <PapelDia17SummaryBar cap={cap} />
+      <PapelDia17SummaryBar cap={cap} retencionesDesglose={workpaper.retencionesDesglose} />
 
       {/* Flujo RESICO, Semáforo de Topes y Prorrateo IVA */}
       <ResicoCashBasisBanner workpaper={workpaper} />

@@ -2,11 +2,14 @@ import { getRequiredSupabase, supabase } from '../supabase';
 import type { Poliza, PolizaType } from '../../shared/types';
 import { resolvePolizaYearPeriod } from '../../shared/date-utils';
 import { validateDoubleEntryMovements } from '../../shared/accounting-engine';
+import { logCompanyAuditEvent } from './audit-logger';
 import { fetchAllRows } from './supabase-pagination';
 import {
   assertSupabasePeriodOpen,
   buildPolizaMovementInsertRows,
   clearSupabaseBankMatchesForPoliza,
+  collectPolizaCfdiUuids,
+  fetchPolizaCfdisMap,
   mapSupabasePoliza,
   resolveAccountsMap,
   resolveNextSupabasePolizaFolio,
@@ -32,9 +35,13 @@ export const supabasePolizas = {
         .order('id', { ascending: true })
         .range(from, to);
     });
-    return data.map((row) =>
-      mapSupabasePoliza(row as Record<string, unknown>, (row as Record<string, unknown>).poliza_movements)
-    );
+    const ids = data.map((r) => String((r as Record<string, unknown>).id));
+    const cfdisMap = await fetchPolizaCfdisMap(ids);
+    return data.map((row) => {
+      const rec = row as Record<string, unknown>;
+      const links = (cfdisMap.get(String(rec.id)) ?? []).map((u) => ({ cfdi_uuid: u }));
+      return mapSupabasePoliza(rec, rec.poliza_movements, links);
+    });
   },
 
   async createPoliza(payload: {
@@ -43,6 +50,7 @@ export const supabasePolizas = {
     fecha: string;
     concepto: string;
     cfdiUuid?: string | null;
+    cfdiUuids?: string[];
     origin?: 'MANUAL' | 'ADD_AUTO';
     ejercicio?: number;
     periodo?: number;
@@ -54,6 +62,7 @@ export const supabasePolizas = {
       concepto?: string;
       cargo: number;
       abono: number;
+      cfdiUuid?: string | null;
     }>;
   }): Promise<Poliza> {
     if (!supabase) throw new Error('Supabase no disponible');
@@ -69,6 +78,8 @@ export const supabasePolizas = {
     // Validar partida doble contable y existencia de cuentas en catálogo
     validateDoubleEntryMovements(payload.movements, accMap);
 
+    const allUuids = collectPolizaCfdiUuids(payload.cfdiUuid, payload.cfdiUuids, payload.movements);
+    const primaryUuid = payload.cfdiUuid?.trim().toUpperCase() || allUuids[0] || null;
     const polizaId = `pol_${crypto.randomUUID().slice(0, 12)}`;
     const nextFolio = await resolveNextSupabasePolizaFolio(payload.companyId, payload.tipo, year, period);
     const now = new Date().toISOString();
@@ -82,7 +93,7 @@ export const supabasePolizas = {
       ejercicio: year,
       periodo: period,
       concepto: payload.concepto.trim(),
-      cfdi_uuid: payload.cfdiUuid || null,
+      cfdi_uuid: primaryUuid,
       origin: payload.origin || 'MANUAL',
       created_at: now
     });
@@ -94,26 +105,26 @@ export const supabasePolizas = {
       payload.movements,
       accMap,
       payload.concepto,
-      payload.cfdiUuid
+      primaryUuid
     );
 
     if (movementsToInsert.length > 0) {
       const { error: movErr } = await supabase.from('poliza_movements').insert(movementsToInsert);
       if (movErr) {
-        // Rollback atómico: eliminar cabecera si fallan movimientos para prevenir pólizas huérfanas
         await supabase.from('polizas').delete().eq('id', polizaId);
         throw new Error(movErr.message);
       }
     }
 
-    if (payload.cfdiUuid) {
-      const { error: cfdiErr } = await supabase
-        .from('cfdi_documents')
-        .update({ poliza_id: polizaId })
-        .eq('company_id', payload.companyId)
-        .eq('uuid', payload.cfdiUuid);
-      if (cfdiErr) throw new Error(cfdiErr.message);
-    }
+    await syncUpdatedPolizaCfdiLink(payload.companyId, polizaId, [], allUuids);
+
+    logCompanyAuditEvent({
+      companyId: payload.companyId,
+      action: 'POLIZA_CREATE',
+      entityType: 'poliza',
+      entityId: polizaId,
+      metadata: { tipo: payload.tipo, folio: nextFolio, ejercicio: year, periodo: period }
+    });
 
     return mapSupabasePoliza(
       {
@@ -125,11 +136,12 @@ export const supabasePolizas = {
         ejercicio: year,
         periodo: period,
         concepto: payload.concepto,
-        cfdi_uuid: payload.cfdiUuid,
+        cfdi_uuid: primaryUuid,
         origin: payload.origin || 'MANUAL',
         created_at: now
       },
-      movementsToInsert
+      movementsToInsert,
+      allUuids.map((u) => ({ cfdi_uuid: u }))
     );
   },
 
@@ -141,6 +153,7 @@ export const supabasePolizas = {
       periodo?: number | null;
       concepto: string;
       cfdiUuid?: string | null;
+      cfdiUuids?: string[];
       movements: Array<{
         accountId: string;
         accountCode?: string;
@@ -149,6 +162,7 @@ export const supabasePolizas = {
         concepto?: string;
         cargo: number;
         abono: number;
+        cfdiUuid?: string | null;
       }>;
     }
   ): Promise<{ updated: boolean }> {
@@ -197,6 +211,20 @@ export const supabasePolizas = {
       .from('poliza_movements')
       .select('*')
       .eq('poliza_id', polizaId);
+    const prevLinksMap = await fetchPolizaCfdisMap([polizaId]);
+    const prevUuids = collectPolizaCfdiUuids(
+      existingPol.cfdi_uuid ? String(existingPol.cfdi_uuid) : null,
+      prevLinksMap.get(polizaId),
+      ((oldMovs || []) as Array<{ cfdi_uuid?: string | null }>).map((m) => ({
+        cfdiUuid: m.cfdi_uuid
+      }))
+    );
+    const nextUuids = collectPolizaCfdiUuids(
+      payload.cfdiUuid,
+      payload.cfdiUuids,
+      payload.movements
+    );
+    const primaryNextUuid = payload.cfdiUuid?.trim().toUpperCase() || nextUuids[0] || null;
 
     const { error: polErr } = await supabase
       .from('polizas')
@@ -207,7 +235,7 @@ export const supabasePolizas = {
         fecha: payload.fecha,
         ejercicio: newYear,
         periodo: newPeriod,
-        cfdi_uuid: payload.cfdiUuid || null
+        cfdi_uuid: primaryNextUuid
       })
       .eq('id', polizaId);
 
@@ -224,7 +252,7 @@ export const supabasePolizas = {
       payload.movements,
       accMap,
       payload.concepto,
-      payload.cfdiUuid
+      primaryNextUuid
     );
 
     if (movementsToInsert.length > 0) {
@@ -249,12 +277,15 @@ export const supabasePolizas = {
       }
     }
 
-    await syncUpdatedPolizaCfdiLink(
-      compId,
-      polizaId,
-      existingPol.cfdi_uuid ? String(existingPol.cfdi_uuid) : null,
-      payload.cfdiUuid ?? null
-    );
+    await syncUpdatedPolizaCfdiLink(compId, polizaId, prevUuids, nextUuids);
+
+    logCompanyAuditEvent({
+      companyId: compId,
+      action: 'POLIZA_UPDATE',
+      entityType: 'poliza',
+      entityId: polizaId,
+      metadata: { tipo: payload.tipo, folio: nextFolio, ejercicio: newYear, periodo: newPeriod }
+    });
 
     return { updated: true };
   },
@@ -288,6 +319,13 @@ export const supabasePolizas = {
 
     const { error } = await supabase.from('polizas').delete().eq('id', polizaId);
     if (error) throw new Error(error.message);
+    logCompanyAuditEvent({
+      companyId: String(existingPol.company_id),
+      action: 'POLIZA_DELETE',
+      entityType: 'poliza',
+      entityId: polizaId,
+      metadata: { ejercicio: Number(existingPol.ejercicio), periodo: Number(existingPol.periodo) }
+    });
     return { deleted: true };
   }
 };

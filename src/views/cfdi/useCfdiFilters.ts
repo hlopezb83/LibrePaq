@@ -1,28 +1,46 @@
 import { useMemo, useState } from 'react';
 import type { CfdiDocument } from '../../shared/types';
-import { computeCfdiTotals, filterCfdis, isCfdiPendingForPoliza } from './filterCfdis';
+import {
+  computeCfdiTotals,
+  filterCfdis,
+  isCfdiPendingForPoliza,
+  type CfdiFormaPagoFilter,
+  type CfdiMetodoFilter,
+  type CfdiStatusSatFilter,
+  type CfdiTabFilter,
+  type CfdiTipoFilter
+} from './filterCfdis';
 
 /**
  * Estado y selectores memoizados para filtrado de comprobantes CFDI en la Bóveda ADD.
  */
 export function useCfdiFilters(cfdis: CfdiDocument[], currentPeriodPrefix: string) {
-  const [tab, setTab] = useState<'ALL' | 'EMITIDO' | 'RECIBIDO' | 'PENDING'>('ALL');
-  const [tipoFilter, setTipoFilter] = useState<'ALL' | 'I' | 'P' | 'N' | 'RET'>('ALL');
-  const [metodoFilter, setMetodoFilter] = useState<'ALL' | 'PUE' | 'PPD'>('ALL');
+  const [tab, setTab] = useState<CfdiTabFilter>('ALL');
+  const [tipoFilter, setTipoFilter] = useState<CfdiTipoFilter>('ALL');
+  const [metodoFilter, setMetodoFilter] = useState<CfdiMetodoFilter>('ALL');
+  const [statusSatFilter, setStatusSatFilter] = useState<CfdiStatusSatFilter>('ALL');
+  const [formaPagoFilter, setFormaPagoFilter] = useState<CfdiFormaPagoFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [periodScope, setPeriodScope] = useState<'CURRENT' | 'ALL'>('CURRENT');
+
+  const currentYearPrefix = currentPeriodPrefix.slice(0, 4);
 
   const countInCurrentPeriod = useMemo(
     () => cfdis.filter((c) => c.fecha.startsWith(currentPeriodPrefix)).length,
     [cfdis, currentPeriodPrefix]
   );
 
+  const countInCurrentYear = useMemo(
+    () => (currentYearPrefix ? cfdis.filter((c) => c.fecha.startsWith(currentYearPrefix)).length : cfdis.length),
+    [cfdis, currentYearPrefix]
+  );
+
   const scopedCfdis = useMemo(() => {
     if (periodScope === 'CURRENT') {
       return cfdis.filter((c) => c.fecha.startsWith(currentPeriodPrefix));
     }
-    return cfdis;
-  }, [cfdis, periodScope, currentPeriodPrefix]);
+    return currentYearPrefix ? cfdis.filter((c) => c.fecha.startsWith(currentYearPrefix)) : cfdis;
+  }, [cfdis, periodScope, currentPeriodPrefix, currentYearPrefix]);
 
   const pendingCfdis = useMemo(
     () => scopedCfdis.filter(isCfdiPendingForPoliza),
@@ -46,9 +64,21 @@ export function useCfdiFilters(cfdis: CfdiDocument[], currentPeriodPrefix: strin
         searchQuery,
         periodScope,
         currentPeriodPrefix,
-        metodoFilter
+        metodoFilter,
+        statusSatFilter,
+        formaPagoFilter
       ),
-    [cfdis, tab, tipoFilter, searchQuery, periodScope, currentPeriodPrefix, metodoFilter]
+    [
+      cfdis,
+      tab,
+      tipoFilter,
+      searchQuery,
+      periodScope,
+      currentPeriodPrefix,
+      metodoFilter,
+      statusSatFilter,
+      formaPagoFilter
+    ]
   );
 
   const filteredTotals = useMemo(() => computeCfdiTotals(filteredCfdis), [filteredCfdis]);
@@ -62,11 +92,16 @@ export function useCfdiFilters(cfdis: CfdiDocument[], currentPeriodPrefix: strin
       setTipoFilter,
       metodoFilter,
       setMetodoFilter,
+      statusSatFilter,
+      setStatusSatFilter,
+      formaPagoFilter,
+      setFormaPagoFilter,
       searchQuery,
       setSearchQuery,
       periodScope,
       setPeriodScope,
       countInCurrentPeriod,
+      countInCurrentYear,
       scopedCfdis,
       emitidosCount,
       recibidosCount,

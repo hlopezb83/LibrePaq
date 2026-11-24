@@ -22,8 +22,12 @@ export function PolizaEditorModal({
   concepto,
   setConcepto,
   cfdiUuid,
+  cfdiUuids,
   pendingCfdis,
+  allCfdis,
   handleSelectCfdiForForm,
+  handleAddCfdiUuid,
+  handleRemoveCfdiUuid,
   formError,
   setFormError,
   movements,
@@ -117,8 +121,12 @@ export function PolizaEditorModal({
               accountRefs.current[0]?.select();
             }}
             cfdiUuid={cfdiUuid}
+            cfdiUuids={cfdiUuids}
             pendingCfdis={pendingCfdis}
+            allCfdis={allCfdis}
             handleSelectCfdiForForm={handleSelectCfdiForForm}
+            handleAddCfdiUuid={handleAddCfdiUuid}
+            handleRemoveCfdiUuid={handleRemoveCfdiUuid}
             formError={formError}
             isDateDifferentPeriod={isDateDifferentPeriod}
             applyQuickTemplate={applyQuickTemplate}
@@ -141,6 +149,7 @@ export function PolizaEditorModal({
               setMovements={setMovements}
               accounts={accounts}
               affectableAccounts={affectableAccounts}
+              cfdiUuids={cfdiUuids}
               concepto={concepto}
               difference={difference}
               totalCargos={totalCargos}

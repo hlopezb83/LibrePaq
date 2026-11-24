@@ -104,11 +104,19 @@ export function useBancosTabState(params: {
   });
 
   const createPolizaFromBankMutation = useMutation({
-    mutationFn: (lineId: string) => {
+    mutationFn: (
+      arg: string | { lineId: string; counterAccountCode?: string; desglosarIva?: boolean }
+    ) => {
       if (isWriteLocked) {
         throw new Error(lockMsg);
       }
-      return apiClient.createPolizaFromBankLine(lineId, { desglosarIva: true });
+      if (typeof arg === 'string') {
+        return apiClient.createPolizaFromBankLine(arg, { desglosarIva: true });
+      }
+      return apiClient.createPolizaFromBankLine(arg.lineId, {
+        counterAccountCode: arg.counterAccountCode,
+        desglosarIva: arg.desglosarIva ?? true
+      });
     },
     onSuccess: () => {
       invalidateAccountingQueries(
@@ -117,7 +125,7 @@ export function useBancosTabState(params: {
         activeCompanyId
       );
       toast.success(
-        '¡Póliza contable generada desde estado de cuenta (desglose IVA 16%) y partida conciliada!'
+        '¡Póliza contable generada desde estado de cuenta y partida conciliada!'
       );
     },
     onError: (err: Error) => {
@@ -237,7 +245,9 @@ export function useBancosTabState(params: {
   };
 
   const activeBankLineId = createPolizaFromBankMutation.isPending
-    ? createPolizaFromBankMutation.variables ?? null
+    ? (typeof createPolizaFromBankMutation.variables === 'string'
+        ? createPolizaFromBankMutation.variables
+        : createPolizaFromBankMutation.variables?.lineId ?? null)
     : unmatchBankLineMutation.isPending
     ? unmatchBankLineMutation.variables ?? null
     : null;
