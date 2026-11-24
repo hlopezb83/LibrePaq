@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Keyboard, ShieldCheck } from 'lucide-react';
+import { BookOpen, Keyboard, ShieldCheck } from 'lucide-react';
 import { sumCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 
@@ -36,6 +36,18 @@ export function AppShellFooter({
 
         {/* Indicadores de Sistema y Auditoría */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <a
+            href="/Manual_Usuario_LibrePaq_Pro.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Abrir Manual de Usuario en PDF"
+            title="Abrir o descargar el Manual de Usuario de LibrePaq Pro (PDF)"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#111C35] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 font-mono text-[10px] transition cursor-pointer"
+          >
+            <BookOpen className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+            <span className="hidden sm:inline">Manual PDF</span>
+            <span className="sm:hidden">Manual</span>
+          </a>
           <button
             type="button"
             onClick={onOpenShortcuts}

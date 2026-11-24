@@ -83,6 +83,16 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
               <ul className="space-y-2">
                 <li><Link to="/privacy" className="hover:text-white transition">Aviso de Privacidad Integral (LFPDPPP)</Link></li>
                 <li><Link to="/terms" className="hover:text-white transition">Términos y Condiciones de Uso</Link></li>
+                <li>
+                  <a
+                    href="/Manual_Usuario_LibrePaq_Pro.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-cyan-300 transition"
+                  >
+                    Manual de Usuario (PDF)
+                  </a>
+                </li>
                 <li><span className="text-slate-300">Almacenamiento Cifrado y Respaldo 1-Clic</span></li>
                 <li><a href="https://wa.me/528116362252" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition">Soporte WhatsApp: +52 81 1636 2252</a></li>
                 <li><a href="mailto:hlopezb@gmail.com" className="hover:text-white transition">Contacto: hlopezb@gmail.com</a></li>
