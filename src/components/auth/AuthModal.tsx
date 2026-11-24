@@ -36,14 +36,19 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
     setMessage(null);
   }, [initialMode]);
 
-  const handleClose = () => {
+  const resetModalState = () => {
+    setMode(initialMode);
     setMessage(null);
+  };
+
+  const handleClose = () => {
+    resetModalState();
     dialogRef.current?.close();
     onClose?.();
   };
 
   useDialogLightDismiss(dialogRef, () => {
-    setMessage(null);
+    resetModalState();
     onClose?.();
   });
 
@@ -132,11 +137,12 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
       ref={dialogRef}
       closedby="any"
       onCancel={handleClose}
+      onClose={resetModalState}
       aria-labelledby="auth-modal-title"
-      className="p-0 rounded-2xl sm:rounded-3xl backdrop:bg-slate-950/75 backdrop:backdrop-blur-sm shadow-2xl border border-slate-700/60 w-full max-w-md max-h-[92dvh] bg-[#0A1120] text-white overflow-y-auto overscroll-contain m-auto"
+      className="dark-surface p-0 rounded-2xl sm:rounded-3xl backdrop:bg-slate-950/75 backdrop:backdrop-blur-sm shadow-2xl border border-slate-700/60 w-full max-w-md max-h-[92dvh] bg-[#0A1120] text-white overflow-hidden m-auto"
     >
-      <div className="p-4 sm:p-6 space-y-3.5 sm:space-y-4">
-        <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-col max-h-[92dvh]">
+        <div className="px-4 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-3.5 border-b border-slate-800/80 flex items-start justify-between gap-2 shrink-0">
           <div>
             <LibrePaqLogo variant="horizontal" size="sm" theme="dark" badge="PRO" />
             <h2 id="auth-modal-title" className="sr-only">
@@ -150,13 +156,14 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
           <button
             type="button"
             onClick={handleClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
             aria-label="Cerrar ventana de autenticación"
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-3.5 sm:space-y-4">
         {user ? (
           <AuthActiveSessionPanel
             user={user}
@@ -178,7 +185,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                   onSelectMode={(next) => { setMode(next); setMessage(null); }}
                 />
                 <AuthGoogleButton loading={loading} mode={mode} onClick={handleGoogleSignIn} />
-                <div className="flex items-center gap-2 text-slate-500 text-[11px]">
+                <div className="flex items-center gap-2 text-slate-300 text-[11px]">
                   <div className="flex-1 h-px bg-slate-800" />
                   <span>o con correo electrónico</span>
                   <div className="flex-1 h-px bg-slate-800" />
@@ -217,7 +224,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                     Tu Nombre o Despacho Contable
                   </label>
                   <div className="relative">
-                    <User className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" aria-hidden="true" />
+                    <User className="w-4 h-4 absolute left-3 top-2.5 text-slate-300" aria-hidden="true" />
                     <input
                       id="auth-fullname"
                       name="name"
@@ -230,7 +237,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Ej. C.P. Héctor López o Despacho Fiscal"
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -241,7 +248,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                   {mode === 'forgot' ? 'Correo Electrónico Registrado' : 'Correo Electrónico'}
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" aria-hidden="true" />
+                  <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-300" aria-hidden="true" />
                   <input
                     id="auth-email"
                     name={mode === 'signin' ? 'username' : 'email'}
@@ -257,7 +264,7 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="contador@despacho.mx"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -272,14 +279,14 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                       <button
                         type="button"
                         onClick={() => { setMode('forgot'); setMessage(null); }}
-                        className="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer"
+                        className="text-[10px] text-blue-300 hover:text-blue-200 cursor-pointer"
                       >
                         ¿Olvidaste tu contraseña?
                       </button>
                     )}
                   </div>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" aria-hidden="true" />
+                    <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-300" aria-hidden="true" />
                     <input
                       id="auth-password"
                       name="password"
@@ -293,13 +300,14 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={mode === 'signup' ? 'Mínimo 6 caracteres' : 'Tu contraseña de acceso'}
-                      className="w-full pl-9 pr-9 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      className="w-full pl-9 pr-10 py-2 rounded-xl bg-[#111C35] border border-slate-700/80 text-xs text-white placeholder-slate-400 focus:border-blue-500"
                     />
                     <button
                       type="button"
+                      aria-pressed={showPassword}
                       onClick={() => setShowPassword((prev) => !prev)}
                       aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-white cursor-pointer"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 min-h-[28px] min-w-[28px] inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/70 cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
                     </button>
@@ -327,9 +335,10 @@ export function AuthModal({ dialogRef, initialMode = 'signup', onClose }: AuthMo
               </button>
             </form>
 
-            <AuthFooterTrust mode={mode} />
+            <AuthFooterTrust mode={mode} onNavigateLegal={handleClose} />
           </div>
         )}
+        </div>
       </div>
     </dialog>
   );

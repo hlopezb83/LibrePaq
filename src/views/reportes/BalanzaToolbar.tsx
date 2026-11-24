@@ -52,11 +52,15 @@ export function BalanzaToolbar({
           </span>
         )}
         <div className="relative w-full sm:w-64 no-print">
+          <label htmlFor="balanza-search-input" className="visually-hidden">
+            Buscar cuenta o agrupador SAT en la balanza
+          </label>
           <Search
             className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
             aria-hidden="true"
           />
           <input
+            id="balanza-search-input"
             type="search"
             value={balanzaSearch}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -66,7 +70,6 @@ export function BalanzaToolbar({
                 onSearchChange('');
               }
             }}
-            aria-label="Buscar cuenta o agrupador SAT en la balanza"
             placeholder="Buscar cuenta o agrupador SAT..."
             className="w-full pl-8 pr-8 py-1 text-xs rounded-xl border border-slate-300 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 bg-white"
           />

@@ -19,6 +19,19 @@ export interface DashboardClosingCycleProps {
   onOpenDeliverables: () => void;
 }
 
+function renderDetailWithAmounts(detail: string) {
+  const parts = detail.split(/(\$[\d,]+(?:\.\d{2})?)/g);
+  return parts.map((part, idx) =>
+    part.startsWith('$') ? (
+      <span key={idx} className="font-mono tabular-nums font-semibold text-slate-800">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+}
+
 export function DashboardClosingCycle({
   mesActualNombre,
   companyYear,
@@ -35,7 +48,7 @@ export function DashboardClosingCycle({
             Ciclo Contable Mensual y Cierre ({mesActualNombre} {companyYear})
           </h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span
             className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${
               completedChecks === 5
@@ -58,7 +71,7 @@ export function DashboardClosingCycle({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2.5">
         {closingChecks.map((check) => {
           const parsedTarget = parseNavTarget(check.to);
           return (
@@ -66,7 +79,7 @@ export function DashboardClosingCycle({
             key={check.id}
             to={parsedTarget.to}
             search={parsedTarget.search as unknown as Record<string, string>}
-            className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2.5 group ${
+            className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2.5 group min-w-0 ${
               check.done
                 ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-400 hover:shadow-xs'
                 : 'bg-amber-50/70 border-amber-300 hover:border-amber-400 hover:shadow-xs'
@@ -85,8 +98,15 @@ export function DashboardClosingCycle({
                 />
               )}
               <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-900 truncate">{check.label}</div>
-                <div className="text-[11px] text-slate-600 truncate mt-0.5">{check.detail}</div>
+                <div className="text-xs font-bold text-slate-900 line-clamp-2" title={check.label}>
+                  {check.label}
+                </div>
+                <div
+                  className="text-[11px] text-slate-600 line-clamp-2 mt-0.5"
+                  title={check.detail}
+                >
+                  {renderDetailWithAmounts(check.detail)}
+                </div>
               </div>
             </div>
 

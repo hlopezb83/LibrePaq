@@ -141,7 +141,7 @@ export function SuperAdminView() {
           </button>
         </div>
 
-        <div role="tablist" aria-label="Secciones de administración de plataforma" className="flex items-center gap-1.5 overflow-x-auto md:flex-wrap md:overflow-visible [scrollbar-width:none] max-w-full py-0.5 border-t border-slate-100 pt-3">
+        <div role="tablist" aria-label="Secciones de administración de plataforma" className="flex items-center gap-1.5 overflow-x-auto md:flex-wrap md:overflow-visible erp-tab-scroller max-w-full py-0.5 border-t border-slate-100 pt-3">
           {adminTabs.map((tab) => {
             const Icon = tab.icon;
             const isSelected = m.activeTab === tab.id;

@@ -2,9 +2,9 @@ import { Check, Sparkles, X } from 'lucide-react';
 
 export function LandingComparisonSection() {
   return (
-    <section id="comparativa" className="py-24 bg-slate-50/80 border-t border-slate-200">
+    <section id="comparativa" className="py-14 sm:py-20 lg:py-24 bg-slate-50/80 border-t border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-bold uppercase tracking-wider mb-3">
             <Sparkles className="w-3.5 h-3.5 text-blue-600" aria-hidden="true" />
             <span>Comparativa Frente a Frente</span>
@@ -17,6 +17,10 @@ export function LandingComparisonSection() {
             renovaciones forzosas de más de $20,000 MXN, depender de una sola computadora en la oficina, visor de XML lento y cobros extra por cada contador.
           </p>
         </div>
+
+        <p className="sm:hidden text-xs font-semibold text-slate-600 mb-2 text-right">
+          Desliza para comparar →
+        </p>
 
         <div
           tabIndex={0}

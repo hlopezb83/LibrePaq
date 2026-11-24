@@ -1,10 +1,15 @@
 import { type RefObject, useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
-import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
+import { apiClient, invalidateAccountingQueries, type AccountingQueryScope } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
-import { chunkArray } from '../../shared/array-utils';
+import { deleteCfdisInBatches } from './cfdiXmlUploadHelpers';
 import type { SatBatchVerifyResult } from '../../shared/types';
+
+const POLIZA_SCOPES: ReadonlyArray<AccountingQueryScope> = [
+  'cfdis', 'polizas', 'accounts', 'account-ledger', 'reports',
+  'dashboard', 'bank-reconciliation', 'fiscal-workpaper', 'diot', 'sat-xml'
+];
 
 type SatBatchApiClient = typeof apiClient & {
   verifyCfdisSatBatch?: (companyId: string, cfdiIds: string[]) => Promise<SatBatchVerifyResult>;
@@ -84,18 +89,7 @@ export function useAddCfdiMutations({
       });
     },
     onSuccess: (poliza) => {
-      invalidateAccountingQueries(queryClient, [
-        'cfdis',
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard',
-        'bank-reconciliation',
-        'fiscal-workpaper',
-        'diot',
-        'sat-xml'
-      ]);
+      invalidateAccountingQueries(queryClient, POLIZA_SCOPES);
       onAutoPolizaSuccess?.();
       contabilizarModalRef?.current?.close();
       toast.success(
@@ -129,6 +123,15 @@ export function useAddCfdiMutations({
   });
 
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [batchPartialAlert, setBatchPartialAlert] = useState<{
+    title: string;
+    summary: string;
+    items: Array<{ id: string; uuid?: string; error: string }>;
+  } | null>(null);
+
+  useEffect(() => {
+    setBatchPartialAlert(null);
+  }, [activeCompanyId]);
 
   const batchContabilizarMutation = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -152,32 +155,34 @@ export function useAddCfdiMutations({
       }
     },
     onSuccess: (res) => {
-      invalidateAccountingQueries(queryClient, [
-        'cfdis',
-        'polizas',
-        'accounts',
-        'account-ledger',
-        'reports',
-        'dashboard',
-        'bank-reconciliation',
-        'fiscal-workpaper',
-        'diot',
-        'sat-xml'
-      ]);
+      invalidateAccountingQueries(queryClient, POLIZA_SCOPES);
       setSelectedCfdiIds(new Set());
       const typedRes = res as typeof res & {
         failedCount?: number;
         errors?: Array<{ cfdiId: string; uuid?: string; error: string }>;
       };
       const failedCount = typedRes.failedCount ?? 0;
-      const firstErr = typedRes.errors?.[0]?.error || '';
+      const errors = typedRes.errors ?? [];
+      const firstErr = errors[0]?.error || '';
+      if (failedCount > 0) {
+        setBatchPartialAlert({
+          title:
+            typedRes.count === 0
+              ? `No se pudo contabilizar ninguno de los ${failedCount} comprobantes`
+              : `Contabilización parcial: ${typedRes.count} póliza(s) generada(s) y ${failedCount} con error`,
+          summary: firstErr || 'Revisa el detalle de cada comprobante rechazado.',
+          items: errors.map((e) => ({ id: e.cfdiId, uuid: e.uuid, error: e.error }))
+        });
+      } else {
+        setBatchPartialAlert(null);
+      }
       if (typedRes.count === 0 && failedCount > 0) {
         toast.error(
           `Error en contabilización en lote: fallaron los ${failedCount} comprobantes.${firstErr ? ` ${firstErr}` : ''}`
         );
       } else if (failedCount > 0) {
         toast.warning(
-          `Contabilización parcial: ${typedRes.count} póliza(s) generada(s) y ${failedCount} fallido(s).${firstErr ? ` (${firstErr})` : ''}`
+          `Contabilización parcial: ${typedRes.count} póliza(s) generada(s) y ${failedCount} fallido(s).`
         );
       } else {
         toast.success(
@@ -209,16 +214,26 @@ export function useAddCfdiMutations({
             : 'No es posible eliminar comprobantes en un periodo bloqueado.'
         );
       }
-      const batches = chunkArray(ids, 10);
-      for (const batch of batches) {
-        await Promise.all(batch.map((id) => apiClient.deleteCfdi(id)));
+      const res = await deleteCfdisInBatches(ids);
+      if (res.deletedCount === 0 && res.failures.length > 0) {
+        throw new Error(res.failures[0]?.error || 'No se pudieron eliminar los comprobantes seleccionados.');
       }
-      return ids.length;
+      return res;
     },
-    onSuccess: (count) => {
+    onSuccess: ({ deletedCount, failures }) => {
       invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard', 'fiscal-workpaper', 'diot']);
       setSelectedCfdiIds(new Set());
-      toast.success(`${count} comprobantes CFDI eliminados de la Bóveda ADD.`);
+      if (failures.length > 0) {
+        setBatchPartialAlert({
+          title: `Eliminación parcial: ${deletedCount} eliminado(s) y ${failures.length} con error`,
+          summary: failures[0]?.error || 'Algunos comprobantes ya estaban contabilizados o protegidos.',
+          items: failures.map((f) => ({ id: f.id, error: f.error }))
+        });
+        toast.warning(`${deletedCount} comprobantes eliminados; ${failures.length} no pudieron eliminarse.`);
+      } else {
+        setBatchPartialAlert(null);
+        toast.success(`${deletedCount} comprobantes CFDI eliminados de la Bóveda ADD.`);
+      }
     },
     onError: (err: Error) => toast.error(err.message)
   });
@@ -314,6 +329,8 @@ export function useAddCfdiMutations({
     verifySatBatchMutation,
     satBatchAlert,
     dismissSatBatchAlert: () => setSatBatchAlert(null),
+    batchPartialAlert,
+    dismissBatchPartialAlert: () => setBatchPartialAlert(null),
     batchProgress
   };
 }

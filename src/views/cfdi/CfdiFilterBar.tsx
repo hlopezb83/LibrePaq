@@ -1,10 +1,15 @@
-import { Search, X } from 'lucide-react';
-import type {
-  CfdiFormaPagoFilter,
-  CfdiMetodoFilter,
-  CfdiStatusSatFilter,
-  CfdiTabFilter,
-  CfdiTipoFilter
+import { useState } from 'react';
+import { Filter, Search, X } from 'lucide-react';
+import {
+  CFDI_FORMA_PAGO_FILTERS,
+  CFDI_METODO_FILTERS,
+  CFDI_STATUS_SAT_FILTERS,
+  CFDI_TIPO_FILTERS,
+  type CfdiFormaPagoFilter,
+  type CfdiMetodoFilter,
+  type CfdiStatusSatFilter,
+  type CfdiTabFilter,
+  type CfdiTipoFilter
 } from './filterCfdis';
 
 export interface CfdiFilterBarProps {
@@ -31,37 +36,8 @@ export interface CfdiFilterBarProps {
   formaPagoFilter?: CfdiFormaPagoFilter;
   setFormaPagoFilter?: (fp: CfdiFormaPagoFilter) => void;
   filteredCount: number;
+  onResetFilters?: () => void;
 }
-
-const TIPO_FILTERS: ReadonlyArray<{ id: CfdiTipoFilter; label: string }> = [
-  { id: 'ALL', label: 'Todos los Tipos' },
-  { id: 'I', label: 'Tipo I (Ingreso/Gasto)' },
-  { id: 'E', label: 'Tipo E (Nota Créd.)' },
-  { id: 'P', label: 'Tipo P (REP 2.0)' },
-  { id: 'N', label: 'Tipo N (Nómina)' },
-  { id: 'RET', label: 'Con Retenciones' }
-];
-
-const METODO_FILTERS: ReadonlyArray<{ id: CfdiMetodoFilter; label: string }> = [
-  { id: 'ALL', label: 'Todos' },
-  { id: 'PUE', label: 'PUE (Contado)' },
-  { id: 'PPD', label: 'PPD (Crédito)' }
-];
-
-const STATUS_SAT_FILTERS: ReadonlyArray<{ id: CfdiStatusSatFilter; label: string }> = [
-  { id: 'ALL', label: 'Todos' },
-  { id: 'VIGENTE', label: 'Vigente' },
-  { id: 'CANCELADO', label: 'Cancelado' },
-  { id: 'CANCELADO_CON_POLIZA', label: 'Cancelado c/Póliza' }
-];
-
-const FORMA_PAGO_FILTERS: ReadonlyArray<{ id: CfdiFormaPagoFilter; label: string }> = [
-  { id: 'ALL', label: 'Todas' },
-  { id: '01', label: '01 Efectivo' },
-  { id: '03', label: '03 Transf.' },
-  { id: '04', label: '04 Tarjeta' },
-  { id: '99', label: '99 Por def.' }
-];
 
 export function CfdiFilterBar({
   periodScope,
@@ -86,8 +62,21 @@ export function CfdiFilterBar({
   setStatusSatFilter,
   formaPagoFilter = 'ALL',
   setFormaPagoFilter,
-  filteredCount
+  filteredCount,
+  onResetFilters
 }: CfdiFilterBarProps) {
+  const [showMobileAdvanced, setShowMobileAdvanced] = useState(false);
+
+  const secondaryActiveCount = [
+    tipoFilter !== 'ALL',
+    metodoFilter !== 'ALL',
+    statusSatFilter !== 'ALL',
+    formaPagoFilter !== 'ALL'
+  ].filter(Boolean).length;
+
+  const activeFilterCount =
+    secondaryActiveCount + (tab !== 'ALL' ? 1 : 0) + (searchQuery.trim().length > 0 ? 1 : 0);
+
   const tabs = [
     { id: 'ALL', label: 'Todos', count: totalCfdisCount, isWarning: false },
     { id: 'PENDING', label: 'Por Contabilizar', count: pendingCount, isWarning: pendingCount > 0 },
@@ -107,7 +96,7 @@ export function CfdiFilterBar({
   return (
     <div className="bg-white p-4 rounded-2xl border border-slate-300/90 shadow-2xs space-y-3">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="flex items-center gap-2 erp-tab-scroller">
           <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 border border-slate-200 text-xs shrink-0" role="group" aria-label="Alcance temporal de comprobantes">
             <button
               type="button"
@@ -221,13 +210,31 @@ export function CfdiFilterBar({
         </search>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-100 text-xs">
+        <div className="flex flex-wrap items-center gap-2 md:hidden">
+          <button
+            type="button"
+            aria-expanded={showMobileAdvanced}
+            aria-controls="cfdi-advanced-filters"
+            onClick={() => setShowMobileAdvanced((v) => !v)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-semibold text-xs cursor-pointer"
+          >
+            <Filter className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
+            <span>
+              Filtros avanzados{secondaryActiveCount > 0 ? ` (${secondaryActiveCount})` : ''}
+            </span>
+          </button>
+        </div>
+
+        <div
+          id="cfdi-advanced-filters"
+          className={`${showMobileAdvanced ? 'flex' : 'hidden md:flex'} flex-wrap items-center gap-3 w-full md:w-auto`}
+        >
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por tipo SAT">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-0.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mr-0.5">
               Tipo SAT:
             </span>
-            {TIPO_FILTERS.map((tf) => (
+            {CFDI_TIPO_FILTERS.map((tf) => (
               <button
                 key={tf.id}
                 type="button"
@@ -243,11 +250,11 @@ export function CfdiFilterBar({
           {setMetodoFilter && (
             <>
               <div className="hidden sm:block h-4 w-px bg-slate-200" />
-              <div className="flex items-center gap-1.5" role="group" aria-label="Filtrar por método de pago">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-0.5">
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por método de pago">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mr-0.5">
                   Método:
                 </span>
-                {METODO_FILTERS.map((mf) => (
+                {CFDI_METODO_FILTERS.map((mf) => (
                   <button
                     key={mf.id}
                     type="button"
@@ -262,19 +269,34 @@ export function CfdiFilterBar({
             </>
           )}
         </div>
-        <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-600">
-          Mostrando <strong>{filteredCount}</strong> de {totalCfdisCount} comprobantes
-        </span>
+
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
+          {activeFilterCount > 0 && onResetFilters && (
+            <button
+              type="button"
+              onClick={onResetFilters}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer transition"
+            >
+              <X className="w-3 h-3" aria-hidden="true" />
+              Limpiar filtros ({activeFilterCount})
+            </button>
+          )}
+          <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-600">
+            Mostrando <strong>{filteredCount}</strong> de {totalCfdisCount} comprobantes
+          </span>
+        </div>
       </div>
 
       {(setStatusSatFilter || setFormaPagoFilter) && (
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs">
+        <div
+          className={`${showMobileAdvanced ? 'flex' : 'hidden md:flex'} flex-wrap items-center gap-3 pt-2 border-t border-slate-100 text-xs`}
+        >
           {setStatusSatFilter && (
             <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por estatus SAT">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-0.5">
                 Estatus SAT:
               </span>
-              {STATUS_SAT_FILTERS.map((sf) => (
+              {CFDI_STATUS_SAT_FILTERS.map((sf) => (
                 <button
                   key={sf.id}
                   type="button"
@@ -298,7 +320,7 @@ export function CfdiFilterBar({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-0.5">
                   Forma Pago:
                 </span>
-                {FORMA_PAGO_FILTERS.map((fp) => (
+                {CFDI_FORMA_PAGO_FILTERS.map((fp) => (
                   <button
                     key={fp.id}
                     type="button"

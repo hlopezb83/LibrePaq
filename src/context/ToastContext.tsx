@@ -75,8 +75,10 @@ function bringToastPortalToFront() {
     | null;
   if (el && typeof el.showPopover === 'function') {
     try {
-      if (typeof el.hidePopover === 'function') el.hidePopover();
-      el.showPopover();
+      const isAlreadyOpen = typeof el.matches === 'function' && el.matches(':popover-open');
+      if (!isAlreadyOpen) {
+        el.showPopover();
+      }
     } catch {
       // Ignorar fallo de re-apertura en navegador sin soporte
     }
@@ -197,7 +199,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <Toaster
       position="top-right"
       offset={{ top: 76, right: 24 }}
-      mobileOffset={{ top: 12, right: 12, left: 12 }}
+      mobileOffset={{ top: 60, right: 12, left: 12 }}
       gap={12}
       richColors
       closeButton

@@ -62,15 +62,51 @@ function getEntityLabel(entityType: string): string {
   return entityType.replace(/_/g, ' ');
 }
 
+const METADATA_KEY_LABELS: Record<string, string> = {
+  numero: 'Folio',
+  tipo: 'Tipo',
+  concepto: 'Concepto',
+  period: 'Periodo',
+  periodo: 'Periodo',
+  year: 'Ejercicio',
+  ejercicio: 'Ejercicio',
+  email: 'Correo',
+  role: 'Rol',
+  name: 'Nombre',
+  rfc: 'RFC',
+  code: 'Cuenta',
+  cuenta: 'Cuenta',
+  status: 'Estado',
+  estado: 'Estado',
+  total: 'Total',
+  locked: 'Bloqueado',
+  count: 'Cantidad',
+  uuid: 'UUID SAT'
+};
+
 function formatMetadataSummary(metadata: Record<string, unknown> | undefined): string {
   if (!metadata || typeof metadata !== 'object') return '';
   const entries = Object.entries(metadata).filter(
-    ([, val]) => val !== null && val !== undefined && String(val).trim() !== ''
+    ([key, val]) =>
+      key !== 'companyId' &&
+      key !== 'id' &&
+      val !== null &&
+      val !== undefined &&
+      String(val).trim() !== ''
   );
   if (entries.length === 0) return '';
   return entries
     .slice(0, 4)
-    .map(([key, val]) => `${key}: ${typeof val === 'object' ? JSON.stringify(val) : String(val)}`)
+    .map(([key, val]) => {
+      const label = METADATA_KEY_LABELS[key] || METADATA_KEY_LABELS[key.toLowerCase()] || key.replace(/([A-Z])/g, ' $1').trim();
+      const formattedVal =
+        typeof val === 'boolean'
+          ? val ? 'Sí' : 'No'
+          : typeof val === 'object'
+            ? JSON.stringify(val)
+            : String(val);
+      return `${label}: ${formattedVal}`;
+    })
     .join(' · ');
 }
 
@@ -79,10 +115,6 @@ function formatAuditDate(raw: string | Date | null | undefined): string {
   const date = raw instanceof Date ? raw : new Date(raw);
   if (Number.isNaN(date.getTime())) return '—';
   return AUDIT_DATE_FMT.format(date);
-}
-
-function truncateEntityId(id: string): string {
-  return id.length > 14 ? `${id.slice(0, 12)}…` : id;
 }
 
 export interface AjustesBitacoraCardProps {
@@ -225,14 +257,7 @@ export function AjustesBitacoraCard({
                     <span className="text-[11px] text-slate-600 whitespace-nowrap">{formatAuditDate(log.createdAt)}</span>
                   </div>
                   <p className="text-[11px] text-slate-800 font-medium break-all">{log.actorEmail}</p>
-                  <p className="text-[11px] text-slate-600">
-                    {getEntityLabel(log.entityType)}
-                    {log.entityId && (
-                      <span title={log.entityId} className="font-mono ml-1 text-slate-700">
-                        ({truncateEntityId(log.entityId)})
-                      </span>
-                    )}
-                  </p>
+                  <p className="text-[11px] text-slate-600">{getEntityLabel(log.entityType)}</p>
                   {metaSummary && <p className="text-[11px] text-slate-600 break-words">{metaSummary}</p>}
                 </li>
               );
@@ -270,17 +295,9 @@ export function AjustesBitacoraCard({
                         <span className="font-semibold text-blue-900 block">
                           {getActionLabel(log.action)}
                         </span>
-                        <span className="font-mono text-[10px] text-slate-600">{log.action}</span>
                       </td>
                       <td className="py-2 px-3 text-slate-700">
-                        <div>
-                          <span className="font-medium">{getEntityLabel(log.entityType)}</span>
-                          {log.entityId && (
-                            <span title={log.entityId} className="font-mono text-[11px] text-slate-600 ml-1.5">
-                              ({truncateEntityId(log.entityId)})
-                            </span>
-                          )}
-                        </div>
+                        <div className="font-medium">{getEntityLabel(log.entityType)}</div>
                         {metaSummary && (
                           <p className="text-[11px] text-slate-600 mt-0.5 break-words">{metaSummary}</p>
                         )}

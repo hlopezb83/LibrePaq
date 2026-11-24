@@ -3,12 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { isSupabaseConfigured, supabase } from '../../lib/supabase';
-import { checkRfcsAgainstCloud69B } from '../../lib/supabase/supabase-cxc-sat';
 import type { CfdiDocument } from '../../shared/types';
 import {
   buildContabilizarPreviewMovements,
-  computeNextCfdiSelection,
   downloadCfdiXmlFile,
   extractXmlStringsFromFiles,
   resolveDefaultAccountsForCfdi,
@@ -20,6 +17,7 @@ import { exportCfdisZip } from './exportCfdisZip';
 import { buildSimulatedCfdiXml, type SimulatedCfdiPayload } from './simulateCfdiXml';
 import { useAddCfdiMutations } from './useAddCfdiMutations';
 import { useCfdiFilters } from './useCfdiFilters';
+import { useBeforeUnloadGuard, useCfdiSelection, useCloud69BSync } from './useCfdiSelection';
 
 export function useAddCfdiManager() {
   const { activeCompany, activeCompanyId, isReadOnlySupportMode, isReadOnlyClient: rawReadOnlyClient } = useCompany();
@@ -35,16 +33,12 @@ export function useAddCfdiManager() {
   const [selectedCfdi, setSelectedCfdi] = useState<CfdiDocument | null>(null);
   const [operationAccountCode, setOperationAccountCode] = useState<string>('');
   const [counterAccountCode, setCounterAccountCode] = useState<string>('');
-  const [selectedCfdiIds, setSelectedCfdiIds] = useState<Set<string>>(new Set());
   const [previewInvoiceCfdi, setPreviewInvoiceCfdi] = useState<CfdiDocument | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [uploadBatchProgress, setUploadBatchProgress] = useState<UploadBatchProgress | null>(null);
   const [isExportingZip, setIsExportingZip] = useState(false);
-  const [, setCloud69BRev] = useState(0);
-  const checked69BKeyRef = useRef('');
   const [copiedUuid, setCopiedUuid] = useState<string | null>(null);
-  const lastSelectedIdRef = useRef<string | null>(null);
   const [confirmDeleteCfdiId, setConfirmDeleteCfdiId] = useState<string | null>(null);
   const [showSoapFielPanel, setShowSoapFielPanel] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -56,7 +50,6 @@ export function useAddCfdiManager() {
 
   useEffect(() => {
     hasAutoOpenedPanelRef.current = false;
-    setSelectedCfdiIds(new Set());
     setSelectedCfdi(null);
     setConfirmDeleteCfdiId(null);
     setPreviewInvoiceCfdi(null);
@@ -65,11 +58,16 @@ export function useAddCfdiManager() {
     if (xmlModalRef.current?.open) xmlModalRef.current.close();
   }, [activeCompanyId]);
 
+  useBeforeUnloadGuard(isUploadingFiles);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && (window.location.search.includes('sat=open') || window.location.search.includes('openSat=true'))) {
       setShowSoapFielPanel(true);
-      const el = document.getElementById('sat-soap-fiel-section');
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document.getElementById('sat-soap-fiel-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
     }
   }, []);
 
@@ -98,22 +96,7 @@ export function useAddCfdiManager() {
     }
   }, [isLoading, cfdis.length]);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase || !activeCompanyId || cfdis.length === 0) return;
-    const rfcs = Array.from(
-      new Set(cfdis.flatMap((c) => [c.emisorRfc, c.receptorRfc]).filter(Boolean))
-    ).sort();
-    const key = `${activeCompanyId}:${rfcs.join(',')}`;
-    if (rfcs.length === 0 || checked69BKeyRef.current === key) return;
-    checked69BKeyRef.current = key;
-    void checkRfcsAgainstCloud69B(rfcs, activeCompanyId)
-      .then((res) => {
-        if (res.matches.length > 0) setCloud69BRev((v) => v + 1);
-      })
-      .catch(() => {
-        // Silencioso en caso de sesión offline o sin permisos
-      });
-  }, [activeCompanyId, cfdis]);
+  useCloud69BSync(activeCompanyId, cfdis);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', activeCompanyId, currentYear, currentPeriod],
@@ -132,6 +115,13 @@ export function useAddCfdiManager() {
     }
   } = useCfdiFilters(cfdis, currentPeriodPrefix);
 
+  const {
+    selectedCfdiIds,
+    setSelectedCfdiIds,
+    toggleSelectAll,
+    toggleSelectOne
+  } = useCfdiSelection(filteredCfdis, activeCompanyId);
+
   const affectableAccounts = useMemo(
     () => accounts.filter((a) => a.isAffectable),
     [accounts]
@@ -147,6 +137,8 @@ export function useAddCfdiManager() {
     verifySatBatchMutation,
     satBatchAlert,
     dismissSatBatchAlert,
+    batchPartialAlert,
+    dismissBatchPartialAlert,
     batchProgress
   } = useAddCfdiMutations({
     activeCompanyId,
@@ -163,6 +155,7 @@ export function useAddCfdiManager() {
   const processXmlFiles = async (fileList: FileList | File[]) => {
     if (isReadOnlyClient) return;
     setIsUploadingFiles(true);
+    let ranBatch = false;
     try {
       const boundedXmls = await extractXmlStringsFromFiles(fileList, toast);
       if (boundedXmls.length === 0) {
@@ -178,19 +171,22 @@ export function useAddCfdiManager() {
         return;
       }
 
+      ranBatch = true;
       const res = await uploadXmlsInSequentialBatches({
         companyId: activeCompanyId,
         xmls: boundedXmls,
         toast,
         onProgress: setUploadBatchProgress
       });
-      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
       toast.success(
         `Se importaron ${res.uploadedCount} archivos XML al ADD${
           res.skippedDuplicates > 0 ? ` (${res.skippedDuplicates} duplicados omitidos)` : ''
         }.`
       );
     } finally {
+      if (ranBatch) {
+        invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard']);
+      }
       setUploadBatchProgress(null);
       setIsUploadingFiles(false);
     }
@@ -265,20 +261,6 @@ export function useAddCfdiManager() {
     [selectedCfdi, operationAccountCode, counterAccountCode, affectableAccounts]
   );
 
-  const toggleSelectAll = () => {
-    if (selectedCfdiIds.size === filteredCfdis.length && filteredCfdis.length > 0) {
-      setSelectedCfdiIds(new Set());
-    } else {
-      setSelectedCfdiIds(new Set(filteredCfdis.map((c) => c.id)));
-    }
-  };
-
-  const toggleSelectOne = (id: string, shiftKey = false) => {
-    const lastId = lastSelectedIdRef.current;
-    lastSelectedIdRef.current = id;
-    setSelectedCfdiIds((prev) => computeNextCfdiSelection(prev, filteredCfdis, id, lastId, shiftKey));
-  };
-
   const hasActiveFilters =
     tab !== 'ALL' || tipoFilter !== 'ALL' || metodoFilter !== 'ALL' ||
     statusSatFilter !== 'ALL' || formaPagoFilter !== 'ALL' || searchQuery.trim().length > 0;
@@ -336,6 +318,7 @@ export function useAddCfdiManager() {
     uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
     batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
     verifySatBatchMutation, satBatchAlert, dismissSatBatchAlert,
+    batchPartialAlert, dismissBatchPartialAlert,
     processXmlFiles, handleFileUpload, handleDrop,
     openContabilizarModal, openXmlViewer, handleCopyUuid, handleDownloadSelectedXml,
     previewMovements, filteredCfdis, filteredTotals,

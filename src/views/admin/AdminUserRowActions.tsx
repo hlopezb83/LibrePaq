@@ -17,12 +17,22 @@ export function AdminUserRoleControl({
   onChangeUserRole
 }: AdminUserRoleControlProps) {
   const [pendingRole, setPendingRole] = useState<PlatformRole | null>(null);
+  const [submittedPendingRole, setSubmittedPendingRole] = useState(false);
   const selectRef = useRef<HTMLSelectElement>(null);
   const pendingRoleLabel = pendingRole
     ? ADMIN_ROLE_OPTIONS.find((opt) => opt.value === pendingRole)?.label ?? pendingRole
     : '';
 
+  useEffect(() => {
+    if (submittedPendingRole && !isMutating) {
+      setSubmittedPendingRole(false);
+      setPendingRole(null);
+    }
+  }, [submittedPendingRole, isMutating]);
+
   const cancelPendingRole = () => {
+    if (isMutating) return;
+    setSubmittedPendingRole(false);
     setPendingRole(null);
     requestAnimationFrame(() => selectRef.current?.focus());
   };
@@ -41,7 +51,7 @@ export function AdminUserRoleControl({
           const nextRole = e.target.value as PlatformRole;
           setPendingRole(nextRole === currentRole ? null : nextRole);
         }}
-        className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-800 cursor-pointer disabled:opacity-60"
+        className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-800 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {ADMIN_ROLE_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -51,9 +61,9 @@ export function AdminUserRoleControl({
         <div
           role="alertdialog"
           aria-modal="false"
-          aria-label={`Confirmar cambio de rol para ${user.fullName}`}
+          aria-label={`Confirmar cambio de rol para ${user.email}`}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'Escape' && !isMutating) {
               e.preventDefault();
               cancelPendingRole();
             }
@@ -64,21 +74,24 @@ export function AdminUserRoleControl({
           <button
             type="button"
             autoFocus
+            disabled={isMutating}
             onClick={cancelPendingRole}
-            className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+            className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancelar
           </button>
           <button
             type="button"
             disabled={isMutating}
+            aria-busy={isMutating}
             onClick={() => {
+              setSubmittedPendingRole(true);
               onChangeUserRole(user.id, pendingRole);
-              setPendingRole(null);
             }}
-            className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 font-bold text-white cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 font-bold text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Confirmar
+            {isMutating && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
+            <span>{isMutating ? 'Guardando...' : 'Confirmar'}</span>
           </button>
         </div>
       )}
@@ -100,9 +113,18 @@ export function AdminUserStatusControl({
   onToggleUserStatus
 }: AdminUserStatusControlProps) {
   const [pendingStatus, setPendingStatus] = useState<'ACTIVO' | 'SUSPENDIDO' | null>(null);
+  const [submittedPendingStatus, setSubmittedPendingStatus] = useState(false);
   const statusBtnRef = useRef<HTMLButtonElement>(null);
   const shouldRestoreFocusRef = useRef(false);
   const nextStatus: 'ACTIVO' | 'SUSPENDIDO' = isSuspended ? 'ACTIVO' : 'SUSPENDIDO';
+
+  useEffect(() => {
+    if (submittedPendingStatus && !isMutating) {
+      setSubmittedPendingStatus(false);
+      shouldRestoreFocusRef.current = true;
+      setPendingStatus(null);
+    }
+  }, [submittedPendingStatus, isMutating]);
 
   useEffect(() => {
     if (!pendingStatus && shouldRestoreFocusRef.current) {
@@ -112,7 +134,9 @@ export function AdminUserStatusControl({
   }, [pendingStatus]);
 
   const cancelPendingStatus = () => {
+    if (isMutating) return;
     shouldRestoreFocusRef.current = true;
+    setSubmittedPendingStatus(false);
     setPendingStatus(null);
   };
 
@@ -121,38 +145,43 @@ export function AdminUserStatusControl({
       <div
         role="alertdialog"
         aria-modal="false"
-        aria-label={`Confirmar cambio de estado para ${user.fullName}`}
+        aria-label={`Confirmar cambio de estado para ${user.email}`}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') {
+          if (e.key === 'Escape' && !isMutating) {
             e.preventDefault();
             cancelPendingStatus();
           }
         }}
         className="inline-flex flex-wrap items-center justify-end gap-1.5 p-1.5 rounded-lg bg-red-50 border border-red-200 text-[11px]"
       >
-        <span className="font-bold text-red-900">
-          {pendingStatus === 'SUSPENDIDO' ? '¿Suspender?' : '¿Reactivar?'}
+        <span className="font-bold text-red-900 text-left break-all">
+          {pendingStatus === 'SUSPENDIDO'
+            ? `¿Suspender a ${user.email}?`
+            : `¿Reactivar a ${user.email}?`}
         </span>
         <button
           type="button"
           autoFocus
+          disabled={isMutating}
           onClick={cancelPendingStatus}
-          className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+          className="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Cancelar
         </button>
         <button
           type="button"
           disabled={isMutating}
+          aria-busy={isMutating}
           onClick={() => {
+            setSubmittedPendingStatus(true);
             onToggleUserStatus(user.id, pendingStatus);
-            setPendingStatus(null);
           }}
-          className={`px-2 py-0.5 rounded font-bold text-white cursor-pointer disabled:opacity-50 ${
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
             pendingStatus === 'SUSPENDIDO' ? 'bg-red-700 hover:bg-red-800' : 'bg-emerald-700 hover:bg-emerald-800'
           }`}
         >
-          Confirmar
+          {isMutating && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
+          <span>{isMutating ? 'Aplicando...' : 'Confirmar'}</span>
         </button>
       </div>
     );

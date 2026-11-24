@@ -7,25 +7,30 @@ export function PrivacyPolicyView() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Barra Superior */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-2">
-          <Link to="/" aria-label="Ir al inicio de LibrePaq Pro" className="flex items-center gap-2">
-            <LibrePaqLogo variant="horizontal" size="sm" theme="light" badge="PRO" />
+        <div className="max-w-5xl mx-auto px-3 sm:px-6 min-h-14 py-2 flex flex-wrap items-center justify-between gap-2">
+          <Link to="/" aria-label="Ir al inicio de LibrePaq Pro" className="flex items-center gap-2 shrink-0">
+            <span className="sm:hidden">
+              <LibrePaqLogo variant="horizontal" size="xs" theme="light" showSubtitle={false} />
+            </span>
+            <span className="hidden sm:inline-flex">
+              <LibrePaqLogo variant="horizontal" size="sm" theme="light" badge="PRO" />
+            </span>
           </Link>
-          <div className="flex items-center gap-4">
+          <nav aria-label="Navegación legal" className="flex items-center gap-2.5 sm:gap-4">
             <Link
               to="/terms"
-              className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition whitespace-nowrap"
             >
-              Términos de Servicio
+              Términos
             </Link>
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900 transition"
+              className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900 transition whitespace-nowrap"
             >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-              <span>Volver al Inicio</span>
+              <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Inicio</span>
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
@@ -49,7 +54,7 @@ export function PrivacyPolicyView() {
           {/* Sección 1 */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 1
               </span>
               Identidad y Responsable del Tratamiento
@@ -62,7 +67,7 @@ export function PrivacyPolicyView() {
           {/* Sección 2 */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 2
               </span>
               Datos Personales que Recabamos
@@ -107,7 +112,7 @@ export function PrivacyPolicyView() {
           {/* Sección 4 */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 4
               </span>
               Finalidades del Tratamiento
@@ -126,7 +131,7 @@ export function PrivacyPolicyView() {
           {/* Sección 5 */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 5
               </span>
               Soberanía de Datos y Derechos ARCO
@@ -135,7 +140,7 @@ export function PrivacyPolicyView() {
               En LibrePaq Pro tu contabilidad nunca está secuestrada. Tienes pleno derecho de <strong>Acceso, Rectificación, Cancelación y Oposición (ARCO)</strong> sobre tus datos personales y contables. En cualquier momento puedes:
             </p>
             <ul className="text-sm text-slate-600 space-y-1.5 list-disc pl-5">
-              <li>Descargar en 1 clic un respaldo total de todas tus empresas en formato JSON, Excel/CSV y XMLs oficiales en tu equipo local.</li>
+              <li>Descargar en 1 clic un respaldo completo de todas tus empresas (paquete de respaldo, hojas de cálculo Excel y archivos XML oficiales del SAT) en tu equipo local.</li>
               <li>Solicitar la eliminación definitiva de tu cuenta y de tus registros contables de nuestros servidores en la nube.</li>
             </ul>
             <p className="text-sm text-slate-600 mt-2">

@@ -17,7 +17,7 @@ export const SHORTCUT_DATABASE: ShortcutItem[] = [
     categoryLabel: 'Globales del Sistema',
     keys: ['Ctrl', 'K'],
     action: 'Paleta de Comandos y Buscador Universal',
-    description: 'Abre el buscador Spotlight para saltar a cuentas, pólizas, empresas o acciones rápidas.',
+    description: 'Abre el buscador universal para saltar a cuentas, pólizas, empresas o acciones rápidas.',
     scope: 'Toda la aplicación'
   },
   {
@@ -71,7 +71,7 @@ export const SHORTCUT_DATABASE: ShortcutItem[] = [
     categoryLabel: 'Globales del Sistema',
     keys: ['Alt', '['],
     action: 'Periodo Contable Anterior',
-    description: 'Retrocede un mes contable (también con Alt+RePág cuando no se editan inputs).',
+    description: 'Retrocede un mes contable (también con Alt+RePág cuando no estás editando un campo).',
     scope: 'Periodo SAT'
   },
   {
@@ -82,6 +82,15 @@ export const SHORTCUT_DATABASE: ShortcutItem[] = [
     action: 'Periodo Contable Siguiente',
     description: 'Avanza al siguiente periodo contable hasta el Cierre Anual P13 (también con Alt+AvPág).',
     scope: 'Periodo SAT'
+  },
+  {
+    id: 'g-toasts',
+    category: 'global',
+    categoryLabel: 'Globales del Sistema',
+    keys: ['Alt', 'T'],
+    action: 'Enfocar Notificaciones del Sistema',
+    description: 'Mueve el foco de teclado al área de avisos y notificaciones activas.',
+    scope: 'Toda la aplicación'
   },
   {
     id: 'g-esc',

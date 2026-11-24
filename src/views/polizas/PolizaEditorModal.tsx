@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { PolizaEditorHeader } from './PolizaEditorHeader';
-import { PolizaMovementsTable } from './PolizaMovementsTable';
-import { PolizaEditorFooter } from './PolizaEditorFooter';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import type { DraftMovement, PolizaEditorModalProps } from './poliza-editor.types';
+import { createPolizaSnapshot, isPolizaSnapshotDirty } from './polizaDirtyCheck';
+import { PolizaEditorFooter } from './PolizaEditorFooter';
+import { PolizaEditorHeader } from './PolizaEditorHeader';
+import { PolizaEditorTitleBar } from './PolizaEditorTitleBar';
+import { PolizaMovementsTable } from './PolizaMovementsTable';
 export type { DraftMovement, PolizaEditorModalProps };
 
 export function PolizaEditorModal({
@@ -43,6 +45,9 @@ export function PolizaEditorModal({
   difference,
   isBalanced,
   isDateDifferentPeriod,
+  onUseActivePeriodDate,
+  editorSessionId = 0,
+  initialSnapshot = null,
   isPendingSave,
   onSave
 }: PolizaEditorModalProps) {
@@ -55,9 +60,27 @@ export function PolizaEditorModal({
   const abonoRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
+  useEffect(() => {
+    setConfirmDiscard(false);
+  }, [editorSessionId, editingPolizaId]);
+
+  const computeIsDirty = () => {
+    const currentSnap = createPolizaSnapshot({
+      tipo,
+      fecha,
+      concepto,
+      cfdiUuids: cfdiUuids.length > 0 ? cfdiUuids : cfdiUuid ? [cfdiUuid] : [],
+      movements
+    });
+    return isPolizaSnapshotDirty(initialSnapshot, currentSnap);
+  };
+
   const handleSafeClose = () => {
-    const isDirty = (totalCargos > 0 || totalAbonos > 0 || concepto.trim().length > 0) && !editingPolizaId;
-    if (isDirty && !confirmDiscard) {
+    if (confirmDiscard) {
+      setConfirmDiscard(false);
+      return;
+    }
+    if (computeIsDirty()) {
       setConfirmDiscard(true);
       return;
     }
@@ -73,13 +96,23 @@ export function PolizaEditorModal({
       closedby="closerequest"
       onCancel={(e) => {
         e.preventDefault();
+        if (confirmDiscard) {
+          setConfirmDiscard(false);
+          return;
+        }
         handleSafeClose();
       }}
       aria-labelledby="modal-poliza-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-5xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-5xl max-h-[92dvh] open:flex open:flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
       <div
         onKeyDown={(e) => {
+          if (e.key === 'Escape' && confirmDiscard) {
+            e.preventDefault();
+            e.stopPropagation();
+            setConfirmDiscard(false);
+            return;
+          }
           if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             if (isBalanced && !isPendingSave && !isPeriodLocked) {
               e.preventDefault();
@@ -101,14 +134,23 @@ export function PolizaEditorModal({
         }}
         className="flex-1 min-h-0 flex flex-col overflow-hidden"
       >
-        <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain flex-1 min-h-0 scrollable-panel space-y-3.5">
+        <PolizaEditorTitleBar
+          editingPolizaId={editingPolizaId}
+          activeCompany={activeCompany}
+          currentYear={currentYear}
+          currentPeriod={currentPeriod}
+          isPeriodLocked={isPeriodLocked}
+          predictedNextFolio={predictedNextFolio}
+          tipo={tipo}
+          onClose={handleSafeClose}
+        />
+
+        <div className="p-3.5 sm:p-4 overflow-y-auto overscroll-contain flex-1 min-h-0 scrollable-panel space-y-3">
           <PolizaEditorHeader
             editingPolizaId={editingPolizaId}
-            activeCompany={activeCompany}
             currentYear={currentYear}
             currentPeriod={currentPeriod}
             isPeriodLocked={isPeriodLocked}
-            predictedNextFolio={predictedNextFolio}
             tipo={tipo}
             setTipo={setTipo}
             fecha={fecha}
@@ -120,7 +162,6 @@ export function PolizaEditorModal({
               accountRefs.current[0]?.focus();
               accountRefs.current[0]?.select();
             }}
-            cfdiUuid={cfdiUuid}
             cfdiUuids={cfdiUuids}
             pendingCfdis={pendingCfdis}
             allCfdis={allCfdis}
@@ -129,8 +170,8 @@ export function PolizaEditorModal({
             handleRemoveCfdiUuid={handleRemoveCfdiUuid}
             formError={formError}
             isDateDifferentPeriod={isDateDifferentPeriod}
+            onUseActivePeriodDate={onUseActivePeriodDate}
             applyQuickTemplate={applyQuickTemplate}
-            onClose={handleSafeClose}
           />
 
           <form
@@ -142,7 +183,6 @@ export function PolizaEditorModal({
               setFormError(null);
               onSave();
             }}
-            className="space-y-4"
           >
             <PolizaMovementsTable
               movements={movements}
@@ -150,6 +190,7 @@ export function PolizaEditorModal({
               accounts={accounts}
               affectableAccounts={affectableAccounts}
               cfdiUuids={cfdiUuids}
+              allCfdis={allCfdis}
               concepto={concepto}
               difference={difference}
               totalCargos={totalCargos}
@@ -164,27 +205,27 @@ export function PolizaEditorModal({
               applyBalanceToRow={applyBalanceToRow}
               onLastRowSubmitFocus={() => submitButtonRef.current?.focus()}
             />
-
-            <PolizaEditorFooter
-              isBalanced={isBalanced}
-              totalCargos={totalCargos}
-              totalAbonos={totalAbonos}
-              difference={difference}
-              isPendingSave={isPendingSave}
-              isPeriodLocked={isPeriodLocked}
-              editingPolizaId={editingPolizaId}
-              submitButtonRef={submitButtonRef}
-              autoBalanceDifference={autoBalanceDifference}
-              confirmDiscard={confirmDiscard}
-              onCancelDiscard={() => setConfirmDiscard(false)}
-              onConfirmDiscard={() => {
-                setConfirmDiscard(false);
-                dialogRef.current?.close();
-              }}
-              onCancel={handleSafeClose}
-            />
           </form>
         </div>
+
+        <PolizaEditorFooter
+          isBalanced={isBalanced}
+          totalCargos={totalCargos}
+          totalAbonos={totalAbonos}
+          difference={difference}
+          isPendingSave={isPendingSave}
+          isPeriodLocked={isPeriodLocked}
+          editingPolizaId={editingPolizaId}
+          submitButtonRef={submitButtonRef}
+          autoBalanceDifference={autoBalanceDifference}
+          confirmDiscard={confirmDiscard}
+          onCancelDiscard={() => setConfirmDiscard(false)}
+          onConfirmDiscard={() => {
+            setConfirmDiscard(false);
+            dialogRef.current?.close();
+          }}
+          onCancel={handleSafeClose}
+        />
       </div>
     </dialog>,
     document.body

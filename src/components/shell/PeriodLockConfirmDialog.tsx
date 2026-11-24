@@ -35,9 +35,10 @@ export function PeriodLockConfirmDialog({
       onCancel={onCancel}
       role="alertdialog"
       aria-labelledby="period-lock-confirm-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md p-0 overflow-hidden backdrop:bg-slate-950/60"
+      aria-describedby="period-lock-confirm-desc"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md max-h-[92dvh] flex flex-col p-0 overflow-hidden backdrop:bg-slate-950/60"
     >
-      <div className="p-5 space-y-4">
+      <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="flex items-start gap-3">
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
@@ -58,7 +59,7 @@ export function PeriodLockConfirmDialog({
                 ? `¿Reabrir el periodo ${periodLabel}?`
                 : `¿Bloquear el periodo ${periodLabel}?`}
             </h2>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p id="period-lock-confirm-desc" className="text-xs text-slate-600 leading-relaxed">
               {isPeriodLocked
                 ? `Al reabrir ${periodLabel} para ${companyName} (${companyRfc}), se volverá a permitir el registro y modificación de pólizas, CFDIs e inventarios.`
                 : `Al bloquear ${periodLabel} para ${companyName} (${companyRfc}), nadie podrá capturar, editar ni eliminar pólizas o inventarios de ese mes ante el SAT.`}

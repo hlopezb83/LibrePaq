@@ -60,6 +60,14 @@ export function CfdiContabilizarModal({
     ? [selectedCfdi.serie, selectedCfdi.folio].filter(Boolean).join('-') || 'S/F'
     : 'S/F';
 
+  const handleClose = () => {
+    if (dialogRef.current?.open) {
+      dialogRef.current.close();
+    } else {
+      onClose();
+    }
+  };
+
   return (
     <dialog
       ref={dialogRef}
@@ -84,9 +92,9 @@ export function CfdiContabilizarModal({
                 <Sparkles className="w-5 h-5" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <h1 id="modal-contabilizar-title" className="text-base font-bold text-slate-900">
+                <h2 id="modal-contabilizar-title" className="text-base font-bold text-slate-900">
                   Contabilizador Automático CFDI 4.0 → Póliza
-                </h1>
+                </h2>
                 <p className="text-xs text-slate-600 font-mono break-all">
                   {folioDisplay} (Tipo {selectedCfdi.tipoComprobante}) • UUID: {selectedCfdi.uuid}
                 </p>
@@ -94,7 +102,7 @@ export function CfdiContabilizarModal({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               aria-label="Cerrar asistente"
               className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100 cursor-pointer shrink-0"
             >
@@ -147,7 +155,7 @@ export function CfdiContabilizarModal({
                 <div className="font-mono font-bold text-slate-900 mt-0.5 tabular-nums">{formatCurrency(selectedCfdi.subtotal)}</div>
               </div>
               <div>
-                <div className="text-slate-500">IVA 16%</div>
+                <div className="text-slate-500">IVA Trasladado</div>
                 <div className="font-mono font-bold text-slate-900 mt-0.5 tabular-nums">{formatCurrency(selectedCfdi.ivaTrasladado)}</div>
               </div>
               <div>
@@ -231,7 +239,7 @@ export function CfdiContabilizarModal({
           <div className="px-4 sm:px-5 py-3.5 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-end gap-2.5 shrink-0 bg-slate-50/70">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer text-center"
             >
               Cancelar

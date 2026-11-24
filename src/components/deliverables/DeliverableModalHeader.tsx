@@ -36,6 +36,7 @@ interface DeliverableModalHeaderProps {
   year: number;
   copiedSummary: boolean;
   isDataReady?: boolean;
+  selectedDocsCount?: number;
   onCopySummary: () => void;
   onExportCsv: () => void;
   onExportXlsx?: () => void;
@@ -52,6 +53,7 @@ export function DeliverableModalHeader({
   year,
   copiedSummary,
   isDataReady = true,
+  selectedDocsCount = 4,
   onCopySummary,
   onExportCsv,
   onExportXlsx,
@@ -61,29 +63,33 @@ export function DeliverableModalHeader({
   activeTab,
   setActiveTab
 }: DeliverableModalHeaderProps) {
+  const isNoDossierDocs = activeTab === 'DOSSIER' && selectedDocsCount === 0;
+  const isPrintDisabled = !isDataReady || activeTab === 'CONFIG' || isNoDossierDocs;
+
   return (
     <>
-      <header className="px-4 sm:px-5 py-2.5 sm:py-3.5 bg-[#0A1120] text-white flex flex-wrap items-center justify-between gap-3 shrink-0 no-print">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-blue-700/60 border border-blue-500/40 flex items-center justify-center text-blue-300 shrink-0">
-            <FileCheck2 className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 id="executive-deliverables-title" className="text-base sm:text-lg font-bold text-white tracking-tight">
-                Centro de Entregables Contables y Fiscales
-              </h1>
-              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-900/80 text-blue-200 border border-blue-700">
-                Dossier de Cierre
-              </span>
+      <header className="px-4 sm:px-5 py-2.5 sm:py-3.5 bg-[#0A1120] text-white flex items-start justify-between gap-3 shrink-0 no-print">
+        <div className="flex flex-wrap items-center justify-between gap-3 flex-1 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-blue-700/60 border border-blue-500/40 flex items-center justify-center text-blue-300 shrink-0">
+              <FileCheck2 className="w-5 h-5" aria-hidden="true" />
             </div>
-            <p className="text-xs text-slate-300 truncate">
-              {company.name} • RFC: <span className="font-mono">{company.rfc}</span> • {mesNombre} {year}
-            </p>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="executive-deliverables-title" className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  Centro de Entregables Contables y Fiscales
+                </h2>
+                <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-900/80 text-blue-200 border border-blue-700">
+                  Dossier ({selectedDocsCount}/4)
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 truncate">
+                {company.name} • RFC: <span className="font-mono">{company.rfc}</span> • {mesNombre} {year}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={!isDataReady}
@@ -150,7 +156,7 @@ export function DeliverableModalHeader({
 
           <button
             type="button"
-            disabled={!isDataReady || activeTab === 'CONFIG'}
+            disabled={isPrintDisabled}
             onClick={onPrint}
             aria-label="Imprimir o guardar PDF del dossier"
             title={
@@ -158,23 +164,26 @@ export function DeliverableModalHeader({
                 ? 'Esperando cálculo de estados financieros...'
                 : activeTab === 'CONFIG'
                   ? 'Selecciona un documento del dossier (no la pestaña de Firmas) para imprimir o guardar PDF'
-                  : 'Imprimir o guardar como PDF formal el dossier seleccionado'
+                  : isNoDossierDocs
+                    ? 'Selecciona al menos un documento del dossier para imprimir'
+                    : 'Imprimir o guardar como PDF formal el dossier seleccionado'
             }
             className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white shadow-xs transition cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Imprimir / PDF</span>
           </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar ventana de entregables"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer ml-1"
-          >
-            <X className="w-5 h-5" aria-hidden="true" />
-          </button>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar ventana de entregables"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0 self-start"
+        >
+          <X className="w-5 h-5" aria-hidden="true" />
+        </button>
       </header>
 
       <nav
@@ -209,7 +218,7 @@ export function DeliverableModalHeader({
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{tab.label}</span>
+                <span>{tab.id === 'DOSSIER' ? `Dossier (${selectedDocsCount}/4)` : tab.label}</span>
               </button>
             );
           })}

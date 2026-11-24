@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../../lib/api-client';
 import { useToast } from '../../../context/ToastContext';
 import { getTodayLocalIso } from '../../../shared/date-utils';
-import { fileToBase64 } from './satSoapHelpers';
+import { translateSatErrorCode } from './satErrorTranslator';
+import { executeSatSoapDownloadWithSummary, fileToBase64 } from './satSoapHelpers';
 
 export interface UseSatSoapFielManagerParams {
   companyId: string;
@@ -137,9 +138,8 @@ export function useSatSoapFielManager({
         res.rejectedCount > 0 &&
         (!res.pendingCount || res.pendingCount === 0)
       ) {
-        const msg =
-          res.message ||
-          'El SAT reportó solicitud rechazada (Código 5: posible duplicidad o periodo ya descargado).';
+        const translated = translateSatErrorCode('5', res.message);
+        const msg = res.message || `${translated.title}: ${translated.explanation}`;
         setPanelError(msg);
         toast.warning('Aviso del SAT', msg);
       } else if (res.pendingCount && res.pendingCount > 0) {
@@ -225,34 +225,15 @@ export function useSatSoapFielManager({
     mutationFn: async () => {
       if (isReadOnlyClient) throw new Error('Acceso de solo lectura: acción bloqueada.');
       const targetCompanyId = companyId;
-      const exec = (tipo: 'RECIBIDOS' | 'EMITIDOS') =>
-        apiClient.executeSatSoapDownload({
-          companyId: targetCompanyId,
-          tipoSolicitud: tipo,
-          fechaInicial,
-          fechaFinal,
-          modoEjecucion,
-          isDemoCompany
-        });
-      if (tipoSolicitud === 'AMBOS') {
-        const rRec = await exec('RECIBIDOS');
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        const rEmit = await exec('EMITIDOS');
-        return {
-          targetCompanyId,
-          requestRecord: rEmit.requestRecord,
-          receivedRecord: rRec.requestRecord,
-          totalCount: rRec.downloadedCfdis.length + rEmit.downloadedCfdis.length,
-          tipoDescarga: 'AMBOS' as const
-        };
-      }
-      const res = await exec(tipoSolicitud);
-      return {
-        targetCompanyId,
-        requestRecord: res.requestRecord,
-        totalCount: res.downloadedCfdis.length,
-        tipoDescarga: tipoSolicitud
-      };
+      const outcome = await executeSatSoapDownloadWithSummary({
+        companyId: targetCompanyId,
+        tipoSolicitud,
+        fechaInicial,
+        fechaFinal,
+        modoEjecucion,
+        isDemoCompany
+      });
+      return { targetCompanyId, ...outcome };
     },
     onSuccess: (res) => {
       invalidateAccountingQueries(
@@ -261,19 +242,27 @@ export function useSatSoapFielManager({
         res.targetCompanyId
       );
       if (res.targetCompanyId !== latestCompanyIdRef.current) return;
-      setPanelError(null);
+      if (res.partialError) {
+        setPanelError(`Descarga parcial: ${res.partialError}`);
+        toast.warning('Descarga SAT Parcial', res.partialError);
+      } else {
+        setPanelError(null);
+      }
       const desc =
         res.tipoDescarga === 'AMBOS'
           ? 'gastos e ingresos'
           : res.tipoDescarga === 'EMITIDOS'
             ? 'emitidas (ingresos)'
             : 'recibidas (gastos)';
+      const foliosLabel =
+        res.tipoDescarga === 'AMBOS' && res.receivedRecord && res.emittedRecord
+          ? `Folios SAT — Recibidas: ${res.receivedRecord.idSolicitudSat.slice(0, 8)} • Emitidas: ${res.emittedRecord.idSolicitudSat.slice(0, 8)}`
+          : `Folio ${res.requestRecord.idSolicitudSat.slice(0, 8)}`;
       const msg = !isDemoCompany
-        ? res.requestRecord.mensajeSat ||
-          `Solicitud transmitida con Folio ${res.requestRecord.idSolicitudSat.slice(0, 8)}. El SAT está empaquetando tus facturas.`
+        ? `${foliosLabel}. El SAT está empaquetando tus facturas.${res.requestRecord.mensajeSat ? ` (${res.requestRecord.mensajeSat})` : ''}`
         : res.totalCount === 0
-          ? `Sincronización SAT al día: ${res.requestRecord.cfdisDescargados} comprobante(s) de ${desc} ya están en la Bóveda.`
-          : `Sincronización exitosa: ${res.totalCount} factura(s) ${desc} integradas a la Bóveda.`;
+          ? `Sincronización SAT al día: ${res.requestRecord.cfdisDescargados} comprobante(s) de ${desc} ya están en la Bóveda (${foliosLabel}).`
+          : `Sincronización exitosa: ${res.totalCount} factura(s) ${desc} integradas a la Bóveda (${foliosLabel}).`;
       setPanelFeedback(msg);
       onDownloadSuccess?.(msg);
     },

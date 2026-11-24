@@ -51,11 +51,19 @@ const addRoute = createRoute({
   )
 });
 
-function validateStringSearch(search: Record<string, unknown>): Record<string, string> {
+export function validateStringSearch(search: Record<string, unknown>): Record<string, string> {
   const res: Record<string, string> = {};
   for (const [k, v] of Object.entries(search)) {
-    if (typeof v === 'string') res[k] = v;
-    else if (typeof v === 'number' || typeof v === 'boolean') res[k] = String(v);
+    if (typeof v === 'string') {
+      const trimmed = v.trim();
+      const unquoted =
+        trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')
+          ? trimmed.slice(1, -1)
+          : v;
+      res[k] = unquoted;
+    } else if (typeof v === 'number' || typeof v === 'boolean') {
+      res[k] = String(v);
+    }
   }
   return res;
 }

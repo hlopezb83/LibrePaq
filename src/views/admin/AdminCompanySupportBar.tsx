@@ -58,7 +58,12 @@ export function AdminCompanySupportBar({
         targetId: companyId,
         metadata: { rfc: companyRfc, name: companyName, ownerEmail: ownerEmail ?? null }
       });
-    } catch { /* best-effort audit */ }
+    } catch {
+      toast.info(
+        'Modo Soporte abierto sin registro en bitácora',
+        'No se pudo guardar el evento de auditoría previo; la vista continúa en solo lectura.'
+      );
+    }
     startSupportSession({
       companyId,
       companyName,
@@ -87,8 +92,9 @@ export function AdminCompanySupportBar({
           type="button"
           disabled={inspectMutation.isPending}
           aria-busy={inspectMutation.isPending}
+          title="Asentar en bitácora la inspección administrativa sin cambiar de pantalla"
           onClick={() => inspectMutation.mutate()}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-300 bg-white hover:bg-blue-100 text-blue-900 text-xs font-bold transition cursor-pointer disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-300 bg-white hover:bg-blue-100 text-blue-900 text-xs font-bold transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {inspectMutation.isPending ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
@@ -103,8 +109,9 @@ export function AdminCompanySupportBar({
           type="button"
           disabled={enteringSupport}
           aria-busy={enteringSupport}
+          title="Abrir las vistas contables del cliente en Modo Soporte de solo lectura"
           onClick={() => void handleOpenSupportView()}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-xs font-bold transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer"
         >
           {enteringSupport ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />

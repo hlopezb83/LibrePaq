@@ -128,7 +128,7 @@ export function PapelDia17IvaCard({ workpaper }: { workpaper: FiscalWorkpaperRes
       </div>
       <dl className="space-y-1.5 text-xs font-mono">
         <div className="flex justify-between">
-          <dt className="font-sans text-slate-600">(+) IVA Trasladado Cobrado (16%):</dt>
+          <dt className="font-sans text-slate-600">(+) IVA Trasladado Cobrado:</dt>
           <dd className="font-semibold text-slate-900">
             {formatCurrency(workpaper.ivaDefinitivo.ivaTrasladadoCobrado)}
           </dd>
@@ -180,11 +180,13 @@ export function PapelDia17UsdCard({
   workpaper,
   isPeriodLocked = false,
   isReadOnlyClient = false,
+  hasUnsavedParams = false,
   genExchangePolizaMutation
 }: {
   workpaper: FiscalWorkpaperResponse;
   isPeriodLocked?: boolean;
   isReadOnlyClient?: boolean;
+  hasUnsavedParams?: boolean;
   genExchangePolizaMutation: { isPending: boolean; mutate: () => void };
 }) {
   const isLocked = isPeriodLocked || isReadOnlyClient;
@@ -228,15 +230,19 @@ export function PapelDia17UsdCard({
           </div>
           <div className="flex justify-between pt-1 border-t border-slate-200 text-xs font-bold">
             <dt className="font-sans text-slate-800">
-              {workpaper.fluctuacionCambiaria.tipoDiferencia === 'UTILIDAD_CAMBIARIA'
-                ? 'Utilidad Cambiaria:'
-                : 'Pérdida Cambiaria:'}
+              {noExchangeDiff
+                ? 'Diferencia Cambiaria:'
+                : workpaper.fluctuacionCambiaria.tipoDiferencia === 'UTILIDAD_CAMBIARIA'
+                  ? 'Utilidad Cambiaria:'
+                  : 'Pérdida Cambiaria:'}
             </dt>
             <dd
               className={
-                workpaper.fluctuacionCambiaria.tipoDiferencia === 'UTILIDAD_CAMBIARIA'
-                  ? 'text-emerald-700'
-                  : 'text-red-700'
+                noExchangeDiff
+                  ? 'text-slate-700'
+                  : workpaper.fluctuacionCambiaria.tipoDiferencia === 'UTILIDAD_CAMBIARIA'
+                    ? 'text-emerald-700'
+                    : 'text-red-700'
               }
             >
               {formatCurrency(workpaper.fluctuacionCambiaria.diferenciaCambiariaMxn)}
@@ -246,13 +252,15 @@ export function PapelDia17UsdCard({
 
         <button
           type="button"
-          disabled={genExchangePolizaMutation.isPending || isLocked || noExchangeDiff}
+          disabled={genExchangePolizaMutation.isPending || isLocked || noExchangeDiff || hasUnsavedParams}
           title={
             isLocked
               ? (isReadOnlyClient ? 'Modo solo lectura' : 'Periodo fiscal bloqueado ante el SAT')
-              : noExchangeDiff
-                ? 'Sin diferencia cambiaria pendiente por contabilizar'
-                : 'Generar póliza de utilidad o pérdida cambiaria USD'
+              : hasUnsavedParams
+                ? 'Aplica los cambios con Recalcular antes de generar la póliza cambiaria'
+                : noExchangeDiff
+                  ? 'Sin diferencia cambiaria pendiente por contabilizar'
+                  : 'Generar póliza de utilidad o pérdida cambiaria USD'
           }
           onClick={() => genExchangePolizaMutation.mutate()}
           className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"

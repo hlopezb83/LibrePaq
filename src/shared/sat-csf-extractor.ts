@@ -131,7 +131,7 @@ export function extractCompanyFromCsfText(rawText: string): ExtractedCsfCompany 
     rawText.match(/C[oó]digo\s+Postal[:\s]+(\d{5})/i) ||
     rawText.match(/Codigo\s+Postal[:\s]+(\d{5})/i) ||
     rawText.match(/C\.?P\.?[:\s]+(\d{5})/i);
-  const codigoPostal = cpMatch && cpMatch[1] ? cpMatch[1].trim() : '00000';
+  const codigoPostal = cpMatch && cpMatch[1] ? cpMatch[1].trim() : '';
 
   // 5. Régimen Fiscal
   const regimenFiscal = resolveRegimenLabel(rawText, personType);

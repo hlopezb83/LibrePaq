@@ -1,4 +1,4 @@
-import { Pencil, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Info, Pencil, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import type { Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
 
@@ -7,6 +7,12 @@ const EFOS_LABELS: Record<Efos69BStatus, string> = {
   PRESUNTO_EFOS: 'Presunto EFOS',
   DEFINITIVO_EFOS: 'Definitivo EFOS',
   DESVIRTUADO: 'Desvirtuado'
+};
+
+const ROL_LABELS: Record<ThirdPartyRecord['rol'], string> = {
+  PROVEEDOR: 'Proveedor',
+  CLIENTE: 'Cliente',
+  AMBOS: 'Proveedor y Cliente'
 };
 
 export interface PadronProveedoresTableProps {
@@ -27,7 +33,12 @@ export function PadronProveedoresTable({
   onClearSearch
 }: PadronProveedoresTableProps) {
   return (
-    <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+    <div
+      tabIndex={0}
+      role="region"
+      aria-label="Tabla de padrón fiscal de terceros"
+      className="overflow-x-auto max-h-[420px] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-600 rounded-xl"
+    >
       <table className="w-full text-left border-collapse erp-sticky-table">
         <caption className="visually-hidden">
           Padrón fiscal de proveedores, clientes y verificación 69-B SAT
@@ -73,38 +84,38 @@ export function PadronProveedoresTable({
                   key={tp.id}
                   className={isEditing ? 'bg-blue-50/70' : 'hover:bg-blue-50/30'}
                 >
-                  <td className="py-2.5 px-3">
+                  <th scope="row" className="py-2.5 px-3 font-normal text-left">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono font-bold text-blue-800">{tp.rfc}</span>
                       {tpCheck.isValidCheckDigit ? (
                         <span
-                          className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
                           title="Dígito verificador SAT Módulo 11 válido"
                         >
-                          M11 OK
+                          RFC válido
                         </span>
                       ) : (
                         <span
-                          className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                          className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
                           title={`Discrepancia SAT Módulo 11: calcula '${tpCheck.expectedCheckDigit}'`}
                         >
                           M11: {tpCheck.expectedCheckDigit}
                         </span>
                       )}
                     </div>
-                  </td>
+                  </th>
                   <td className="py-2.5 px-3 font-medium text-slate-900">
                     {tp.nombre}
                   </td>
                   <td className="py-2.5 px-3">
                     <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">
-                      {tp.rol}
+                      {ROL_LABELS[tp.rol] ?? tp.rol}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-mono font-semibold text-slate-800">
+                  <td className="py-2.5 px-3 font-mono font-semibold text-slate-800 whitespace-nowrap">
                     {tp.cuentaOperacionCode}
                   </td>
-                  <td className="py-2.5 px-3 font-mono text-slate-600">
+                  <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
                     {tp.cuentaContrapartidaCode}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">
@@ -115,6 +126,14 @@ export function PadronProveedoresTable({
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                         <ShieldCheck className="w-3 h-3" aria-hidden="true" />
                         69-B Limpio
+                      </span>
+                    ) : tp.estatus69B === 'DESVIRTUADO' ? (
+                      <span
+                        title="Contribuyente que desvirtuó los hechos imputados ante el SAT (Art. 69-B CFF)"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200"
+                      >
+                        <Info className="w-3 h-3" aria-hidden="true" />
+                        {EFOS_LABELS.DESVIRTUADO}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-900 border border-red-300">

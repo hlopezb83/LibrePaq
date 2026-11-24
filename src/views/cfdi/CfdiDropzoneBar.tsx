@@ -2,12 +2,11 @@ import React from 'react';
 import {
   CloudDownload,
   FileCode2,
-  FilePlus2,
-  FileSpreadsheet,
   Lock,
   Sparkles,
   UploadCloud
 } from 'lucide-react';
+import { CfdiDropzoneSecondaryActions } from './CfdiDropzoneSecondaryActions';
 import { SatSoapFielPanel } from './sat-soap/SatSoapFielPanel';
 import { getFirstDateForPeriod, getLastDateForPeriod } from '../../lib/formatters';
 import { isSandboxDemoCompany } from '../../lib/sandbox-demo-seeder';
@@ -35,6 +34,9 @@ export interface CfdiDropzoneBarProps {
   showSoapFielPanel: boolean;
   setShowSoapFielPanel: React.Dispatch<React.SetStateAction<boolean>>;
   onExportCsv: () => void;
+  onExportZip?: () => void;
+  isExportingZip?: boolean;
+  hasVisibleCfdis?: boolean;
   onOpenSimulator: () => void;
   activeCompany?: Company | null;
   activeCompanyId: string;
@@ -60,6 +62,9 @@ export function CfdiDropzoneBar({
   showSoapFielPanel,
   setShowSoapFielPanel,
   onExportCsv,
+  onExportZip,
+  isExportingZip = false,
+  hasVisibleCfdis = false,
   onOpenSimulator,
   activeCompany,
   activeCompanyId,
@@ -68,9 +73,12 @@ export function CfdiDropzoneBar({
   onSoapDownloadSuccess
 }: CfdiDropzoneBarProps) {
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
+  const uploadPct = uploadBatchProgress
+    ? Math.round((uploadBatchProgress.processed / Math.max(1, uploadBatchProgress.total)) * 100)
+    : 0;
+
   return (
     <>
-      {/* Encabezado del ADD + Zona Drag & Drop */}
       <div
         onDragOver={(e) => {
           if (isReadOnlyClient) return;
@@ -92,7 +100,7 @@ export function CfdiDropzoneBar({
             : 'border-slate-300/90'
         }`}
       >
-        <div className="flex items-start gap-3 min-w-[260px]">
+        <div className="flex items-start gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
             <FileCode2 className="w-5 h-5" aria-hidden="true" />
           </div>
@@ -100,7 +108,7 @@ export function CfdiDropzoneBar({
             <h1 className="text-base sm:text-lg font-bold text-slate-900">
               Bóveda Digital de Comprobantes (ADD CFDI 4.0)
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               {isDragging
                 ? '¡Suelta tus archivos .XML o .ZIP aquí para importarlos a la Bóveda ADD!'
                 : 'Descarga facturas del mes desde el SAT con e.firma, sube archivos .XML o .ZIP del SAT, o arrástralos aquí'}
@@ -108,7 +116,7 @@ export function CfdiDropzoneBar({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {pendingCfdisCount > 0 && (
             <button
               type="button"
@@ -129,10 +137,8 @@ export function CfdiDropzoneBar({
             >
               {isWriteBlocked ? (
                 <Lock className="w-3.5 h-3.5" aria-hidden="true" />
-              ) : isBatchContabilizarPending ? (
-                <Sparkles className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
               ) : (
-                <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                <Sparkles className={`w-3.5 h-3.5 ${isBatchContabilizarPending ? 'animate-spin' : ''}`} aria-hidden="true" />
               )}
               {isBatchContabilizarPending
                 ? batchProgress
@@ -146,7 +152,6 @@ export function CfdiDropzoneBar({
             </button>
           )}
 
-          {/* 1. Botón Destacado: Descargar del SAT (Superpoder con e.firma) */}
           <button
             type="button"
             aria-expanded={showSoapFielPanel}
@@ -169,7 +174,6 @@ export function CfdiDropzoneBar({
             </span>
           </button>
 
-          {/* 2. Botón Primario: Subir XMLs / ZIP Locales */}
           <label
             htmlFor="cfdi-dropzone-upload"
             aria-busy={isUploadingFiles}
@@ -192,7 +196,7 @@ export function CfdiDropzoneBar({
               accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
               multiple
               onChange={handleFileUpload}
-              className="visually-hidden"
+              className="sr-only"
             />
             <UploadCloud className={`w-3.5 h-3.5 text-blue-100 ${isUploadingFiles ? 'animate-pulse' : ''}`} aria-hidden="true" />
             <span>{isUploadingFiles ? 'Importando XMLs...' : 'Subir XMLs / ZIP'}</span>
@@ -201,35 +205,14 @@ export function CfdiDropzoneBar({
             </kbd>
           </label>
 
-          {/* 3. Botón Secundario: Captura Manual CFDI */}
-          <button
-            type="button"
-            disabled={isReadOnlyClient}
-            onClick={onOpenSimulator}
-            title={
-              isReadOnlyClient
-                ? 'Modo solo lectura: captura manual deshabilitada'
-                : 'Registrar comprobante o retención manual (Alt+S)'
-            }
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 border border-slate-300 text-xs font-semibold transition cursor-pointer"
-          >
-            <FilePlus2 className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
-            <span>Captura Manual</span>
-            <kbd className="hidden sm:inline font-mono text-[9px] bg-white px-1 py-0.5 rounded border border-slate-300 text-slate-500">
-              Alt+S
-            </kbd>
-          </button>
-
-          {/* 4. Botón Reporte: Exportar a Excel */}
-          <button
-            type="button"
-            onClick={onExportCsv}
-            title="Exportar comprobantes visibles a formato Excel / CSV"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold transition cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
-            <span>Exportar Excel</span>
-          </button>
+          <CfdiDropzoneSecondaryActions
+            isReadOnlyClient={isReadOnlyClient}
+            isExportingZip={isExportingZip}
+            hasVisibleCfdis={hasVisibleCfdis}
+            onOpenSimulator={onOpenSimulator}
+            onExportCsv={onExportCsv}
+            onExportZip={onExportZip}
+          />
         </div>
       </div>
 
@@ -238,15 +221,30 @@ export function CfdiDropzoneBar({
         <div
           role="status"
           aria-live="polite"
-          className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 text-xs font-semibold text-blue-950 flex flex-wrap items-center justify-between gap-2"
+          className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 text-xs font-semibold text-blue-950 space-y-2"
         >
-          <span>
-            Importando XMLs en lotes secuenciales de 200 ({uploadBatchProgress.currentBatch}/
-            {uploadBatchProgress.totalBatches})...
-          </span>
-          <span className="font-mono bg-white px-2 py-0.5 rounded-lg border border-blue-200">
-            {uploadBatchProgress.processed} / {uploadBatchProgress.total} archivos XML
-          </span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Importando XMLs en lotes secuenciales de 200 ({uploadBatchProgress.currentBatch}/
+              {uploadBatchProgress.totalBatches})... Mantén esta pestaña abierta.
+            </span>
+            <span className="font-mono tabular-nums bg-white px-2 py-0.5 rounded-lg border border-blue-200">
+              {uploadBatchProgress.processed} / {uploadBatchProgress.total} archivos XML ({uploadPct}%)
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Progreso de importación de archivos XML"
+            aria-valuenow={uploadPct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="w-full bg-blue-200/80 rounded-full h-2 overflow-hidden"
+          >
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-150 ease-out"
+              style={{ width: `${Math.max(4, uploadPct)}%` }}
+            />
+          </div>
         </div>
       )}
 

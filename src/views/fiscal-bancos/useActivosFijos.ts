@@ -100,7 +100,17 @@ export function useActivosFijos({
       : rawFixedAssetsData;
 
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
-  const [assetCode, setAssetCode] = useState('AF-003');
+  const nextSuggestedCode = (() => {
+    const list = rawFixedAssetsData?.assets ?? [];
+    let maxNum = 0;
+    for (const a of list) {
+      const m = /^AF-(\d+)$/i.exec(a.codigo.trim());
+      if (m?.[1]) maxNum = Math.max(maxNum, Number.parseInt(m[1], 10));
+    }
+    return `AF-${String(maxNum + 1).padStart(3, '0')}`;
+  })();
+
+  const [assetCode, setAssetCode] = useState('AF-001');
   const [assetName, setAssetName] = useState('');
   const [assetCat, setAssetCat] = useState<FixedAssetCategory>('COMPUTO_30');
   const [assetDate, setAssetDate] = useState(`${year}-01-15`);
@@ -115,7 +125,7 @@ export function useActivosFijos({
   const resetForm = () => {
     const nextDate = `${year}-01-15`;
     setEditingAssetId(null);
-    setAssetCode('AF-003');
+    setAssetCode(nextSuggestedCode);
     setAssetName('');
     setAssetCat('COMPUTO_30');
     setAssetDate(nextDate);
@@ -126,6 +136,12 @@ export function useActivosFijos({
     setAssetInpcAdq(getInpcForIsoDate(nextDate));
     setAssetInpcUso(getInpcMedioPeriodo(year));
   };
+
+  useEffect(() => {
+    if (!editingAssetId && !assetName) {
+      setAssetCode(nextSuggestedCode);
+    }
+  }, [nextSuggestedCode, editingAssetId, assetName]);
 
   useEffect(() => {
     resetForm();
@@ -149,6 +165,7 @@ export function useActivosFijos({
     setAssetStatus(asset.estatus);
     setAssetInpcAdq(asset.inpcAdquisicion);
     setAssetInpcUso(asset.inpcMedioPeriodo);
+    setTimeout(() => document.getElementById('asset-name')?.focus(), 0);
   };
 
   const createAssetMutation = useMutation({
@@ -207,7 +224,7 @@ export function useActivosFijos({
       if (isWriteLocked) throw new Error(lockMsg);
       if (!editingAssetId) throw new Error('No hay activo seleccionado para editar.');
       if (!isSupabaseConfigured) {
-        throw new Error('La edición de activos fijos requiere conexión Supabase Cloud.');
+        throw new Error('La edición de activos fijos requiere conexión activa en la nube.');
       }
       const cleanMoi = sanitizeFinitePositive(assetMoi, 0);
       if (cleanMoi <= 0) throw new Error('El MOI debe ser un importe numérico mayor a cero.');
@@ -241,7 +258,7 @@ export function useActivosFijos({
     mutationFn: (assetId: string) => {
       if (isWriteLocked) throw new Error(lockMsg);
       if (!isSupabaseConfigured) {
-        throw new Error('La baja de activos fijos requiere conexión Supabase Cloud.');
+        throw new Error('La baja de activos fijos requiere conexión activa en la nube.');
       }
       return supabaseFiscalAndAssets.updateFixedAsset(assetId, { estatus: 'BAJA' }, year, activePeriod);
     },

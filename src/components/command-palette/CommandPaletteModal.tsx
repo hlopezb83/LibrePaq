@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import type { AccountWithBalance, Company, Poliza } from '../../shared/types';
@@ -28,6 +28,7 @@ export interface CommandPaletteModalProps {
   onSelectPeriod?: (year: number, period: number) => void;
   onOpenCompanySwitcher?: () => void;
   onOpenNewCompanyWizard?: () => void;
+  onOpenDeliverables?: () => void;
 }
 
 export function CommandPaletteModal({
@@ -45,11 +46,13 @@ export function CommandPaletteModal({
   onSelectCompany,
   onSelectPeriod,
   onOpenCompanySwitcher,
-  onOpenNewCompanyWizard
+  onOpenNewCompanyWizard,
+  onOpenDeliverables
 }: CommandPaletteModalProps) {
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [pendingSwitchCompany, setPendingSwitchCompany] = useState<Company | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const wasPendingConfirmRef = useRef(false);
   useDialogLightDismiss(dialogRef, () => {
     setPendingSwitchCompany(null);
     dialogRef.current?.close();
@@ -77,8 +80,22 @@ export function CommandPaletteModal({
     onSelectCompany: handleRequestCompanySwitch,
     onSelectPeriod,
     onOpenCompanySwitcher,
-    onOpenNewCompanyWizard
+    onOpenNewCompanyWizard,
+    onOpenDeliverables
   });
+
+  const groupedCategories = useMemo(() => {
+    const groups: Array<{ categoryTitle: string; entries: Array<{ item: FlattenedItem; globalIndex: number }> }> = [];
+    flattenedItems.forEach((item, globalIndex) => {
+      const last = groups[groups.length - 1];
+      if (!last || last.categoryTitle !== item.categoryTitle) {
+        groups.push({ categoryTitle: item.categoryTitle, entries: [{ item, globalIndex }] });
+      } else {
+        last.entries.push({ item, globalIndex });
+      }
+    });
+    return groups;
+  }, [flattenedItems]);
 
   const executeItem = (item: FlattenedItem) => {
     const isSwitchingOtherCompany =
@@ -95,9 +112,27 @@ export function CommandPaletteModal({
   }, [query]);
 
   useEffect(() => {
+    setHighlightedIndex((prev) =>
+      flattenedItems.length === 0 ? 0 : Math.min(prev, flattenedItems.length - 1)
+    );
+  }, [flattenedItems.length]);
+
+  useEffect(() => {
+    if (pendingSwitchCompany) {
+      wasPendingConfirmRef.current = true;
+      requestAnimationFrame(() => {
+        dialogRef.current?.querySelector<HTMLInputElement>('#cmd-switch-rfc-confirm')?.focus();
+      });
+    } else if (wasPendingConfirmRef.current) {
+      wasPendingConfirmRef.current = false;
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [pendingSwitchCompany, dialogRef, inputRef]);
+
+  useEffect(() => {
     const el = itemRefs.current[highlightedIndex];
     if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     }
   }, [highlightedIndex]);
 
@@ -123,7 +158,7 @@ export function CommandPaletteModal({
       e.preventDefault();
       if (flattenedItems.length > 0) setHighlightedIndex((prev) => Math.max(0, prev - 5));
     } else if (e.key === 'Enter') {
-      if (pendingSwitchCompany) return;
+      if (pendingSwitchCompany || e.target !== inputRef.current) return;
       e.preventDefault();
       const currentItem = flattenedItems[highlightedIndex];
       if (currentItem) executeItem(currentItem);
@@ -137,15 +172,18 @@ export function CommandPaletteModal({
     }
   };
 
-  let currentCategory = '';
-  let itemIndexTracker = 0;
-
   return (
     <dialog
       ref={dialogRef}
       closedby="any"
       aria-labelledby="cmd-palette-title"
       onClose={() => setPendingSwitchCompany(null)}
+      onCancel={(e) => {
+        if (pendingSwitchCompany) {
+          e.preventDefault();
+          setPendingSwitchCompany(null);
+        }
+      }}
       onKeyDown={handleKeyDown}
       className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl max-h-[90dvh] overflow-hidden backdrop:bg-slate-950/40 backdrop:backdrop-blur-xs p-0 m-auto"
     >
@@ -163,7 +201,7 @@ export function CommandPaletteModal({
         />
       ) : (
       <div className="flex flex-col max-h-[90dvh] bg-white divide-y divide-slate-100">
-        {/* Cabecera / Input de búsqueda Spotlight */}
+        {/* Cabecera / Input de búsqueda universal */}
         <div className="p-2.5 sm:p-3.5 flex items-center gap-2.5 bg-slate-50/70 shrink-0">
           <div className="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 flex items-center justify-center shrink-0 shadow-xs">
             <Search className="w-4 h-4" aria-hidden="true" />
@@ -178,7 +216,7 @@ export function CommandPaletteModal({
               id="cmd-palette-input"
               type="text"
               role="combobox"
-              aria-expanded={true}
+              aria-expanded={flattenedItems.length > 0}
               aria-controls="cmd-palette-listbox"
               aria-autocomplete="list"
               aria-activedescendant={flattenedItems[highlightedIndex]?.id}
@@ -189,17 +227,20 @@ export function CommandPaletteModal({
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
               placeholder="Escribe un comando, cuenta (102-01), póliza o módulo..."
-              className="w-full text-sm font-medium text-slate-900 placeholder:text-slate-400 bg-transparent border-none focus:outline-none"
+              className="w-full text-sm font-medium text-slate-900 placeholder:text-slate-600 bg-transparent border-none focus:outline-none"
             />
           </div>
 
           {query.trim().length > 0 && (
             <button
               type="button"
-              onClick={() => onQueryChange('')}
+              onClick={() => {
+                onQueryChange('');
+                inputRef.current?.focus();
+              }}
               title="Borrar búsqueda"
               aria-label="Borrar búsqueda"
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition cursor-pointer"
+              className="p-1 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-200 transition cursor-pointer"
             >
               <X className="w-4 h-4" aria-hidden="true" />
             </button>
@@ -210,7 +251,7 @@ export function CommandPaletteModal({
               type="button"
               onClick={() => dialogRef.current?.close()}
               aria-label="Cerrar paleta de comandos"
-              className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-white text-slate-500 border border-slate-200 hover:bg-slate-100 shadow-2xs cursor-pointer"
+              className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 shadow-2xs cursor-pointer"
             >
               ESC
             </button>
@@ -226,7 +267,7 @@ export function CommandPaletteModal({
         >
           {flattenedItems.length === 0 ? (
             <div className="py-12 px-4 text-center">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mb-3">
                 <Search className="w-6 h-6" aria-hidden="true" />
               </div>
               <p className="text-sm font-semibold text-slate-700">
@@ -238,31 +279,25 @@ export function CommandPaletteModal({
               </p>
             </div>
           ) : (
-            flattenedItems.map((item) => {
-              const globalIndex = itemIndexTracker++;
-              const isSelected = globalIndex === highlightedIndex;
-              const isNewCategory = item.categoryTitle !== currentCategory;
-              if (isNewCategory) currentCategory = item.categoryTitle;
-
-              return (
-                <React.Fragment key={item.id}>
-                  {isNewCategory && (
-                    <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
-                      <span>{item.categoryTitle}</span>
-                    </div>
-                  )}
+            groupedCategories.map((group) => (
+              <div key={group.categoryTitle} role="group" aria-label={group.categoryTitle} className="space-y-1">
+                <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
+                  <span>{group.categoryTitle}</span>
+                </div>
+                {group.entries.map(({ item, globalIndex }) => (
                   <CommandPaletteResultOption
+                    key={item.id}
                     item={item}
-                    isSelected={isSelected}
+                    isSelected={globalIndex === highlightedIndex}
                     buttonRef={(el) => {
                       itemRefs.current[globalIndex] = el;
                     }}
                     onSelect={() => executeItem(item)}
                     onHover={() => setHighlightedIndex(globalIndex)}
                   />
-                </React.Fragment>
-              );
-            })
+                ))}
+              </div>
+            ))
           )}
         </div>
 

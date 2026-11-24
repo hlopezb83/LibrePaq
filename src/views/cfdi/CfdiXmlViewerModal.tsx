@@ -71,24 +71,32 @@ export function CfdiXmlViewerModal({
     URL.revokeObjectURL(url);
   };
 
+  const handleClose = () => {
+    if (dialogRef.current?.open) {
+      dialogRef.current.close();
+    } else {
+      onClose();
+    }
+  };
+
   return (
     <dialog
       ref={dialogRef}
       closedby="any"
       onClose={onClose}
       aria-labelledby="modal-xml-viewer-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-3xl overflow-hidden"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-3xl open:flex open:flex-col max-h-[92dvh] overflow-hidden p-0 m-auto backdrop:bg-slate-900/60"
     >
       {selectedCfdi && (
-        <div className="p-4 sm:p-5 max-h-[86dvh] overflow-y-auto overscroll-contain space-y-3.5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <div>
+        <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3.5 scrollable-panel">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+            <div className="min-w-0">
               <h2 id="modal-xml-viewer-title" className="text-base font-bold text-slate-900">
                 Comprobante Fiscal Digital CFDI 4.0 ({selectedCfdi.serie}-{selectedCfdi.folio})
               </h2>
-              <p className="text-xs font-mono text-slate-500">UUID: {selectedCfdi.uuid}</p>
+              <p className="text-xs font-mono text-slate-600 break-all">UUID: {selectedCfdi.uuid}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleDownload}
@@ -99,7 +107,7 @@ export function CfdiXmlViewerModal({
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 aria-label="Cerrar visor XML"
                 className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
@@ -159,7 +167,7 @@ export function CfdiXmlViewerModal({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0A1120] text-white hover:bg-slate-800 cursor-pointer"
             >
               Cerrar Visor

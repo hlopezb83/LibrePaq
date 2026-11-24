@@ -1,10 +1,15 @@
-import { Check, Copy, Download, FileSpreadsheet, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Check, Copy, Download, FileSpreadsheet, ShieldAlert, ShieldCheck, Upload } from 'lucide-react';
+import { useCompany } from '../../context/CompanyContext';
+import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { formatCurrency } from '../../lib/formatters';
-import { checkRfc69BStatus } from '../../shared/sat-69b';
+import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
+import { checkRfc69BStatus, getLoaded69BDatabase, getLoaded69BMeta } from '../../shared/sat-69b';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { DiotReportResponse } from '../../shared/types';
-import { DiotSuppliersTable } from './DiotSuppliersTable';
+import { DiotSuppliersTable, type DiotSupplierRowWithEfos } from './DiotSuppliersTable';
+import { Importar69BModal } from './Importar69BModal';
 
 export interface DiotDeclaracionTabProps {
   isLoadingDiot: boolean;
@@ -15,6 +20,7 @@ export interface DiotDeclaracionTabProps {
   onDownloadDiotTxt: () => void;
   copiedBatch: boolean;
   setCopiedBatch: (b: boolean) => void;
+  onClassifySupplier?: (row: DiotSupplierRowWithEfos) => void;
 }
 
 export function DiotDeclaracionTab({
@@ -25,8 +31,13 @@ export function DiotDeclaracionTab({
   onExportDiotCsv,
   onDownloadDiotTxt,
   copiedBatch,
-  setCopiedBatch
+  setCopiedBatch,
+  onClassifySupplier
 }: DiotDeclaracionTabProps) {
+  const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = isReadOnlyClient || isReadOnlySupportMode;
+  const toast = useToast();
+  const [is69BModalOpen, setIs69BModalOpen] = useState(false);
   const { copiedKey, copy: copyDiotText } = useCopyToClipboard<'diot'>(2000);
   const isCopied = copiedBatch || copiedKey === 'diot';
 
@@ -62,39 +73,42 @@ export function DiotDeclaracionTab({
   }
 
   const mesName = MESES_SAT.find((m) => m.periodo === diotData.periodo)?.nombre || `Mes ${diotData.periodo}`;
+  const db69BCount = Math.max(getLoaded69BDatabase().size, getLoaded69BMeta()?.totalCount ?? 0);
+  const isSampleOnly69B = db69BCount <= 4;
 
   const rowsWithEfos = diotData.rows.map((r) => {
     const efosCheck = checkRfc69BStatus(r.rfc);
     return {
       ...r,
-      isEfos: efosCheck.isEfos || efosCheck.status !== 'LIMPIO',
+      isEfos: efosCheck.isEfos,
       efosStatus: efosCheck.status
     };
   });
   const efosCount = rowsWithEfos.filter((r) => r.isEfos).length;
+  const hasRows = diotData.rows.length > 0;
+  const noRowsTitle = 'No hay operaciones pagadas con terceros en este periodo para exportar';
 
   return (
     <div className="space-y-5">
-      {/* Tarjetas de Determinación Mensual de IVA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs">
           <div className="text-[11px] font-bold uppercase text-slate-500">
-            IVA Trasladado Cobrado (16%)
+            IVA Trasladado Cobrado
           </div>
-          <div className="mt-1 text-lg font-bold font-mono text-slate-900">
+          <div className="mt-1 text-lg font-bold font-mono tabular-nums text-slate-900">
             {formatCurrency(diotData.totals.ivaTrasladadoCobrado)}
           </div>
-          <div className="text-[10px] text-slate-500">Causado por cobros del mes</div>
+          <div className="text-[11px] text-slate-600">Causado por cobros del mes</div>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs">
           <div className="text-[11px] font-bold uppercase text-slate-500">
             (-) IVA Acreditable Pagado DIOT
           </div>
-          <div className="mt-1 text-lg font-bold font-mono text-emerald-800">
+          <div className="mt-1 text-lg font-bold font-mono tabular-nums text-emerald-800">
             {formatCurrency(diotData.totals.ivaAcreditable16)}
           </div>
-          <div className="text-[10px] text-slate-500">
+          <div className="text-[11px] text-slate-600">
             Base pagada: {formatCurrency(diotData.totals.actosPagados16)}
           </div>
         </div>
@@ -104,13 +118,13 @@ export function DiotDeclaracionTab({
             (=) IVA Neto a Cargo / Favor
           </div>
           <div
-            className={`mt-1 text-lg font-bold font-mono ${
+            className={`mt-1 text-lg font-bold font-mono tabular-nums ${
               diotData.totals.ivaNetoCargoFavor >= 0 ? 'text-blue-800' : 'text-emerald-800'
             }`}
           >
             {formatCurrency(diotData.totals.ivaNetoCargoFavor)}
           </div>
-          <div className="text-[10px] text-slate-500">
+          <div className="text-[11px] text-slate-600">
             {diotData.totals.ivaNetoCargoFavor >= 0
               ? 'Impuesto a cargo en pago provisional'
               : 'Saldo a favor del periodo'}
@@ -121,17 +135,15 @@ export function DiotDeclaracionTab({
           <div className="text-[11px] font-bold uppercase text-slate-500">
             Retenciones (ISR + IVA)
           </div>
-          <div className="mt-1 text-lg font-bold font-mono text-red-700">
+          <div className="mt-1 text-lg font-bold font-mono tabular-nums text-red-700">
             {formatCurrency(diotData.totals.isrRetenido + diotData.totals.ivaRetenido)}
           </div>
-          <div className="text-[10px] text-slate-500">
-            ISR: {formatCurrency(diotData.totals.isrRetenido)} | IVA:{' '}
-            {formatCurrency(diotData.totals.ivaRetenido)}
+          <div className="text-[11px] text-slate-600">
+            ISR: {formatCurrency(diotData.totals.isrRetenido)} | IVA: {formatCurrency(diotData.totals.ivaRetenido)}
           </div>
         </div>
       </div>
 
-      {/* Padrón de Proveedores DIOT */}
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
         <div className="p-5 border-b border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -140,15 +152,7 @@ export function DiotDeclaracionTab({
                 <FileSpreadsheet className="w-5 h-5 text-blue-700" aria-hidden="true" />
                 Declaración Informativa de Operaciones con Terceros (DIOT Formato A-29)
               </h2>
-              {efosCount === 0 ? (
-                <span
-                  title="Todos los RFCs de proveedores fueron verificados contra la base de datos oficial del Art. 69-B del CFF"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
-                  <span>0 EFOS 69-B</span>
-                </span>
-              ) : (
+              {efosCount > 0 ? (
                 <span
                   role="status"
                   title="Atención: Se detectaron proveedores con publicación presunta o definitiva en la lista negra del SAT"
@@ -157,9 +161,38 @@ export function DiotDeclaracionTab({
                   <ShieldAlert className="w-3.5 h-3.5 text-red-700" aria-hidden="true" />
                   <span>{efosCount} Proveedor(es) en Lista 69-B</span>
                 </span>
+              ) : isSampleOnly69B ? (
+                <div className="inline-flex flex-wrap items-center gap-2">
+                  <span
+                    role="status"
+                    title="La lista oficial del SAT Art. 69-B aún no ha sido importada; solo están cargados 4 RFCs de muestra"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
+                    <span>Lista 69-B sin cargar (solo 4 muestra)</span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={() => { if (!isReadOnly) setIs69BModalOpen(true); }}
+                    title={isReadOnly ? 'Modo solo lectura' : 'Importar CSV oficial del SAT Art. 69-B'}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Upload className="w-3 h-3" aria-hidden="true" />
+                    Importar CSV 69-B
+                  </button>
+                </div>
+              ) : (
+                <span
+                  title={`Todos los RFCs fueron verificados contra ${db69BCount.toLocaleString()} registros del Art. 69-B del CFF`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                  <span>0 EFOS 69-B</span>
+                </span>
               )}
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Proveedores con CFDIs pagados y contabilizados en {mesName} {diotData.ejercicio} ({diotData.rows.length} terceros reportables)
             </p>
           </div>
@@ -167,16 +200,20 @@ export function DiotDeclaracionTab({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              disabled={!hasRows}
+              title={!hasRows ? noRowsTitle : 'Exportar cédula DIOT a Excel (.CSV)'}
               onClick={onExportDiotCsv}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 cursor-pointer transition shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs"
             >
               <Download className="w-4 h-4 text-slate-500" aria-hidden="true" />
               <span>Exportar Excel (.CSV)</span>
             </button>
             <button
               type="button"
+              disabled={!hasRows}
+              title={!hasRows ? noRowsTitle : `Descargar archivo batch ${diotData.filename}`}
               onClick={onDownloadDiotTxt}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer transition"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
             >
               <Download className="w-4 h-4 text-blue-200" aria-hidden="true" />
               <span>Descargar Carga Batch ({diotData.filename})</span>
@@ -207,13 +244,14 @@ export function DiotDeclaracionTab({
           ejercicio={diotData.ejercicio}
           totals={{
             actosPagados16: diotData.totals.actosPagados16,
+            actosPagados8: fromCents(sumCents(rowsWithEfos.map((r) => r.actosPagados8 ?? 0))),
             ivaAcreditable16: diotData.totals.ivaAcreditable16,
             ivaRetenido: diotData.totals.ivaRetenido,
             isrRetenido: diotData.totals.isrRetenido
           }}
+          onClassifySupplier={onClassifySupplier}
         />
 
-        {/* Visor del Archivo Batch .TXT DIOT */}
         <div className="p-4 bg-[#0A1120] text-slate-200 border-t border-slate-800 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-mono text-slate-300">
@@ -221,6 +259,8 @@ export function DiotDeclaracionTab({
             </span>
             <button
               type="button"
+              disabled={!hasRows || !diotData.batchTxtContent.trim()}
+              title={!hasRows ? noRowsTitle : 'Copiar contenido del archivo batch .TXT al portapapeles'}
               onClick={() => {
                 void copyDiotText(diotData.batchTxtContent, 'diot').then((ok) => {
                   if (ok) {
@@ -229,7 +269,7 @@ export function DiotDeclaracionTab({
                   }
                 });
               }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#111C35] hover:bg-slate-800 text-emerald-300 border border-slate-700 cursor-pointer transition shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#111C35] hover:bg-slate-800 text-emerald-300 border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs"
             >
               {isCopied ? (
                 <>
@@ -247,11 +287,22 @@ export function DiotDeclaracionTab({
           <span className="visually-hidden" aria-live="polite">
             {isCopied ? 'Contenido DIOT copiado al portapapeles' : ''}
           </span>
-          <pre className="text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
-            <code>{diotData.batchTxtContent || '// Sin operaciones gravadas pagadas en este periodo'}</code>
+          <pre className="max-h-60 overflow-y-auto text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
+            <code>
+              {diotData.batchTxtContent || 'Sin operaciones gravadas pagadas registradas en este periodo.'}
+            </code>
           </pre>
         </div>
       </div>
+
+      <Importar69BModal
+        isOpen={!isReadOnly && is69BModalOpen}
+        onClose={() => setIs69BModalOpen(false)}
+        onImportComplete={(count) => {
+          toast.success(`Lista 69-B actualizada (${count.toLocaleString()} RFCs procesados).`);
+          onRetryDiot?.();
+        }}
+      />
     </div>
   );
 }

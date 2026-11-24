@@ -21,6 +21,7 @@ export interface UseCommandPaletteItemsProps {
   onSelectPeriod?: (year: number, period: number) => void;
   onOpenCompanySwitcher?: () => void;
   onOpenNewCompanyWizard?: () => void;
+  onOpenDeliverables?: () => void;
 }
 
 export function useCommandPaletteItems({
@@ -35,11 +36,18 @@ export function useCommandPaletteItems({
   onSelectCompany,
   onSelectPeriod,
   onOpenCompanySwitcher,
-  onOpenNewCompanyWizard
+  onOpenNewCompanyWizard,
+  onOpenDeliverables
 }: UseCommandPaletteItemsProps) {
   const quickActions = useMemo<FlattenedItem[]>(() => {
-    return getQuickActionItems(query, onSelectRoute, onOpenCompanySwitcher, onOpenNewCompanyWizard);
-  }, [query, onSelectRoute, onOpenCompanySwitcher, onOpenNewCompanyWizard]);
+    return getQuickActionItems(
+      query,
+      onSelectRoute,
+      onOpenCompanySwitcher,
+      onOpenNewCompanyWizard,
+      onOpenDeliverables
+    );
+  }, [query, onSelectRoute, onOpenCompanySwitcher, onOpenNewCompanyWizard, onOpenDeliverables]);
 
   const filteredCompanies = useMemo<FlattenedItem[]>(() => {
     const q = normalizeText(query);

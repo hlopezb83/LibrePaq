@@ -161,7 +161,10 @@ export function BalanzaTab({
 
       <div
         ref={parentRef}
-        className="overflow-auto max-h-[min(480px,55dvh)] rounded-xl border border-slate-200 shadow-2xs"
+        tabIndex={0}
+        role="region"
+        aria-label="Tabla de Balanza de Comprobación"
+        className="overflow-auto max-h-[min(480px,55dvh)] rounded-xl border border-slate-200 shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-600"
       >
         <table className="w-full text-left border-collapse erp-sticky-table">
           <caption className="visually-hidden">
@@ -295,6 +298,7 @@ export function BalanzaTab({
           </tbody>
           <BalanzaTotalsFooter
             balanzaSearch={balanzaSearch}
+            levelScope={levelScope}
             onlyAffectable={levelScope !== 'ALL'}
             hideZeroBalances={hideZeroBalances}
             affectableFilteredCount={rootRowsCount}

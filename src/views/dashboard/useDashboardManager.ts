@@ -7,6 +7,7 @@ import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
 import { sumCents } from '../../shared/accounting-engine';
 import { MESES_SAT } from '../../shared/sat-constants';
+import { computeEfosDashboardSummary, resolveLedgerAccountId } from './dashboardHelpers';
 
 export function useDashboardManager() {
   const { activeCompany, activeCompanyId, updatePeriod, isReadOnlyClient, isReadOnlySupportMode } = useCompany();
@@ -18,15 +19,35 @@ export function useDashboardManager() {
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const {
+    data,
+    isLoading: isDashboardLoading,
+    isError: isDashboardError,
+    isFetching: isDashboardFetching,
+    error: dashboardError,
+    refetch: refetchDashboard
+  } = useQuery({
     queryKey: ['dashboard', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getDashboard(activeCompanyId, currentYear, currentPeriod),
     enabled: Boolean(activeCompanyId)
   });
 
-  const { data: accounts = [] } = useQuery({
+  const {
+    data: accounts = [],
+    isLoading: isAccountsLoading,
+    isError: isAccountsError,
+    isFetching: isAccountsFetching,
+    error: accountsError,
+    refetch: refetchAccounts
+  } = useQuery({
     queryKey: ['accounts', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getAccounts(activeCompanyId, currentYear, currentPeriod),
+    enabled: Boolean(activeCompanyId)
+  });
+
+  const { data: thirdParties = [] } = useQuery({
+    queryKey: ['third-parties', activeCompanyId],
+    queryFn: () => apiClient.getThirdParties(activeCompanyId),
     enabled: Boolean(activeCompanyId)
   });
 
@@ -35,7 +56,13 @@ export function useDashboardManager() {
     return found ? found.id : `${activeCompanyId}_102-01-001`;
   }, [accounts, activeCompanyId]);
 
-  const { data: bankRec } = useQuery({
+  const {
+    data: bankRec,
+    isLoading: isBankRecLoading,
+    isError: isBankRecError,
+    isFetching: isBankRecFetching,
+    refetch: refetchBankRec
+  } = useQuery({
     queryKey: ['bank-reconciliation', activeCompanyId, primaryBankAccountId, currentYear, currentPeriod],
     queryFn: () =>
       apiClient.getBankReconciliation(
@@ -54,18 +81,18 @@ export function useDashboardManager() {
   });
   const isPeriodLocked = Boolean(periodLock?.isLocked);
 
+  const isLoading = isDashboardLoading || isAccountsLoading;
+  const isError = isDashboardError || isAccountsError;
+  const error = dashboardError ?? accountsError;
+  const isFetching = isDashboardFetching || isAccountsFetching || isBankRecFetching;
+
+  const refetch = useCallback(async () => {
+    await Promise.all([refetchDashboard(), refetchAccounts(), refetchBankRec()]);
+  }, [refetchDashboard, refetchAccounts, refetchBankRec]);
+
   const handleOpenLedgerByCode = useCallback(
     (codeOrId: string) => {
-      const codeMatch = codeOrId.match(/\b(\d{3}-\d{2}-\d{3}|\d{3}-\d{2}|\d{3})\b/);
-      if (codeMatch && codeMatch[1]) {
-        const targetCode = codeMatch[1];
-        const match = accounts.find((a) => a.code === targetCode || a.code.startsWith(targetCode.slice(0, 3)));
-        if (match) {
-          openLedger(match.id);
-          return;
-        }
-      }
-      openLedger(codeOrId);
+      openLedger(resolveLedgerAccountId(codeOrId, accounts));
     },
     [accounts, openLedger]
   );
@@ -171,8 +198,13 @@ export function useDashboardManager() {
         id: 'polizas',
         stepNum: '2',
         label: '2. Pólizas y Partida Doble',
-        detail: `${kpis.totalPolizasPeriodo} pólizas en ${mesActualNombre}`,
-        done: kpis.totalPolizasPeriodo > 0,
+        detail:
+          kpis.totalPolizasPeriodo === 0
+            ? `0 pólizas en ${mesActualNombre}`
+            : isTrialBalanced
+            ? `${kpis.totalPolizasPeriodo} pólizas cuadradas en ${mesActualNombre}`
+            : `${kpis.totalPolizasPeriodo} pólizas • Descuadre de ${formatCurrency(trialBalanceSummary.difference)}`,
+        done: kpis.totalPolizasPeriodo > 0 && isTrialBalanced,
         to: '/polizas'
       },
       {
@@ -209,6 +241,8 @@ export function useDashboardManager() {
       }
     ];
 
+    const efosSummary = computeEfosDashboardSummary(thirdParties, pendingCfdis);
+
     return {
       company,
       kpis,
@@ -223,9 +257,10 @@ export function useDashboardManager() {
       isBankReconciled,
       isTrialBalanced,
       closingChecks,
-      completedChecks: closingChecks.filter((c) => c.done).length
+      completedChecks: closingChecks.filter((c) => c.done).length,
+      efosSummary
     };
-  }, [data, bankRec, trialBalanceSummary]);
+  }, [data, bankRec, trialBalanceSummary, thirdParties]);
 
   return {
     activeCompanyId,
@@ -235,8 +270,11 @@ export function useDashboardManager() {
     handleOpenLedgerByCode,
     accountsCount: accounts.length,
     bankRec,
+    isBankRecLoading,
+    isBankRecError,
     isLoading,
     isError,
+    isFetching,
     error,
     refetch,
     isPeriodLocked,

@@ -19,13 +19,18 @@ export function RootErrorFallback({ error, reset }: ErrorComponentProps) {
       <h2 className="text-xl font-bold text-slate-100 mb-2">
         Interrupción en el Módulo Contable
       </h2>
-      <p className="text-sm text-slate-400 max-w-md mb-4">
+      <p className="text-sm text-slate-300 max-w-md mb-4">
         Ocurrió un error inesperado al procesar la información. Tus datos locales o borradores previos siguen resguardados.
       </p>
-      
-      <div className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 text-xs font-mono text-red-300 max-w-lg overflow-x-auto mb-6 text-left w-full">
-        {errorMessage}
-      </div>
+
+      <details className="max-w-lg w-full mb-6 text-left p-3 bg-slate-950/80 rounded-lg border border-slate-800">
+        <summary className="text-xs font-semibold text-slate-300 cursor-pointer select-none">
+          Ver detalle técnico del error
+        </summary>
+        <div className="mt-2 pt-2 border-t border-slate-800 text-xs font-mono text-red-300 overflow-x-auto">
+          {errorMessage}
+        </div>
+      </details>
 
       <div className="flex items-center gap-3">
         <button
@@ -36,14 +41,14 @@ export function RootErrorFallback({ error, reset }: ErrorComponentProps) {
           }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg shadow-sm transition-colors cursor-pointer"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className="w-4 h-4" aria-hidden="true" />
           Reintentar Carga
         </button>
         <a
           href="/"
           className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg border border-slate-700 transition-colors"
         >
-          <Home className="w-4 h-4" />
+          <Home className="w-4 h-4" aria-hidden="true" />
           Ir al Inicio
         </a>
       </div>

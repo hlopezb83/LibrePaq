@@ -3,6 +3,7 @@ import type { Company, AccountWithBalance, Poliza } from '../../shared/types';
 import type { CommandPaletteNavItem } from '../command-palette/CommandPaletteModal';
 import type { ToastContextType } from '../../context/ToastContext';
 import { useUIModal } from '../../context/UIModalContext';
+import { MESES_SAT } from '../../shared/sat-constants';
 import { parseNavTarget } from './parseNavTarget';
 
 const CommandPaletteModal = lazy(() =>
@@ -94,7 +95,7 @@ export function AppShellModals({
   hasOpenedShortcuts = false,
   hasOpenedAuth = false
 }: AppShellModalsProps) {
-  const { isModalOpen, closeModal, deliverablesTab } = useUIModal();
+  const { isModalOpen, closeModal, deliverablesTab, openDeliverables } = useUIModal();
 
   return (
     <Suspense fallback={null}>
@@ -133,10 +134,12 @@ export function AppShellModals({
           }}
           onSelectPeriod={(year, period) => {
             updatePeriod(year, period);
-            toast.info(`Periodo contable cambiado a: P${period} ${year}`);
+            const mesNombre = MESES_SAT.find((m) => m.periodo === period)?.nombre || `P${period}`;
+            toast.info(`Periodo contable cambiado a: ${mesNombre} ${year}`);
           }}
           onOpenCompanySwitcher={openCompanySwitcherModal}
           onOpenNewCompanyWizard={openNewCompanyModal}
+          onOpenDeliverables={() => openDeliverables('DOSSIER')}
         />
       )}
 
@@ -149,7 +152,7 @@ export function AppShellModals({
             setLastSwitchedCompany(createdComp || null);
             setActiveCompanyId(newId, createdComp);
             if (createdComp) {
-              toast.info(`🏢 Bienvenido a ${createdComp.name} (${createdComp.rfc})`);
+              toast.info(`Bienvenido a ${createdComp.name} (${createdComp.rfc})`);
             }
             navigate({ to: '/' });
           }}
@@ -165,7 +168,7 @@ export function AppShellModals({
           onSelectCompany={(comp) => {
             setLastSwitchedCompany(comp);
             setActiveCompanyId(comp.id);
-            toast.info(`🏢 Espacio contable abierto: ${comp.name} (${comp.rfc})`);
+            toast.info(`Espacio contable abierto: ${comp.name} (${comp.rfc})`);
           }}
           onOpenNewCompanyWizard={openNewCompanyModal}
         />

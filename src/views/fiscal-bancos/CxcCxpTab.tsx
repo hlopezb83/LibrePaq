@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Clock, FileCheck2, RefreshCw, Search, Wallet, X } from 'lucide-react';
@@ -30,6 +30,12 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
   const [bucketFilter, setBucketFilter] = useState<CxcCxpAgingBucket | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setBucketFilter(null);
+    setSearchQuery('');
+    setExpandedIds(new Set());
+  }, [activeCompanyId]);
 
   const { data, isLoading, isError, error, refetch } = useQuery<CxcCxpAgingResponse>({
     queryKey: ['cxc-cxp', activeCompanyId],
@@ -105,9 +111,22 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
   }
 
   const modeTabs: ReadonlyArray<{ id: AgingMode; label: string }> = [
-    { id: 'CXC', label: `Cuentas por Cobrar (CxC Emitidos PPD) (${data.cxcItems.length})` },
-    { id: 'CXP', label: `Cuentas por Pagar (CxP Recibidos PPD) (${data.cxpItems.length})` }
+    { id: 'CXC', label: `CxC — Emitidos PPD (${data.cxcItems.length})` },
+    { id: 'CXP', label: `CxP — Recibidos PPD (${data.cxpItems.length})` }
   ];
+
+  const handleModeChange = (nextMode: AgingMode) => {
+    setMode(nextMode);
+    setBucketFilter(null);
+  };
+
+  const bucketCounts = useMemo(() => {
+    const counts: Record<CxcCxpAgingBucket, number> = { '0_30': 0, '31_60': 0, '61_90': 0, '90_PLUS': 0 };
+    for (const row of items) {
+      counts[row.bucket] = (counts[row.bucket] ?? 0) + 1;
+    }
+    return counts;
+  }, [items]);
 
   const buckets = mode === 'CXC' ? data.cxcBuckets : data.cxpBuckets;
   const totalInsoluto = mode === 'CXC' ? data.cxcTotal : data.cxpTotal;
@@ -144,8 +163,8 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
                 aria-selected={selected}
                 aria-controls="cxc-cxp-panel"
                 tabIndex={selected ? 0 : -1}
-                onClick={() => { setMode(t.id); setBucketFilter(null); }}
-                onKeyDown={(e) => handleTablistKeyDown(e, modeTabs, mode, setMode, 'cxc-cxp-mode-')}
+                onClick={() => handleModeChange(t.id)}
+                onKeyDown={(e) => handleTablistKeyDown(e, modeTabs, mode, handleModeChange, 'cxc-cxp-mode-')}
                 className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   selected ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-700 hover:bg-white hover:text-slate-900'
                 }`}
@@ -160,6 +179,7 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {BUCKET_META.map((b) => {
           const isActive = bucketFilter === b.key;
+          const docCount = bucketCounts[b.key];
           return (
             <button
               key={b.key}
@@ -180,9 +200,12 @@ export function CxcCxpTab({ activeCompanyId }: CxcCxpTabProps) {
               <div className="mt-1.5 text-base font-bold font-mono text-slate-900 tabular-nums">
                 {formatCurrency(buckets[b.key])}
               </div>
-              {isActive && (
-                <span className="text-[11px] font-semibold text-blue-700 mt-0.5 block">Filtro activo</span>
-              )}
+              <div className="mt-0.5 flex items-center justify-between text-[11px]">
+                <span className="text-slate-600 font-mono">
+                  {docCount} {docCount === 1 ? 'doc.' : 'docs.'}
+                </span>
+                {isActive && <span className="font-semibold text-blue-700">Filtro activo</span>}
+              </div>
             </button>
           );
         })}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Calculator, Plus, Scale, Zap } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
-import type { Account } from '../../shared/types';
+import type { Account, CfdiDocument } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
 import { PolizaMovementRow } from './PolizaMovementRow';
 
@@ -11,6 +11,7 @@ interface PolizaMovementsTableProps {
   accounts: Account[];
   affectableAccounts: Account[];
   cfdiUuids?: string[];
+  allCfdis?: CfdiDocument[];
   concepto: string;
   difference: number;
   totalCargos: number;
@@ -32,6 +33,7 @@ export function PolizaMovementsTable({
   accounts,
   affectableAccounts,
   cfdiUuids = [],
+  allCfdis = [],
   concepto,
   difference,
   totalCargos,
@@ -74,6 +76,11 @@ export function PolizaMovementsTable({
   const accountsById = React.useMemo(
     () => new Map(accounts.map((a) => [a.id, a])),
     [accounts]
+  );
+
+  const cfdisByUuid = React.useMemo(
+    () => new Map(allCfdis.map((c) => [c.uuid.toUpperCase(), c])),
+    [allCfdis]
   );
 
   return (
@@ -134,8 +141,8 @@ export function PolizaMovementsTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
-        <table className="w-full text-left border-collapse erp-sticky-table">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
           <caption className="visually-hidden">Partidas del asiento contable en captura</caption>
           <thead>
             <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 bg-slate-50/90">
@@ -162,6 +169,7 @@ export function PolizaMovementsTable({
                 accountsById={accountsById}
                 affectableAccounts={affectableAccounts}
                 cfdiUuids={cfdiUuids}
+                cfdisByUuid={cfdisByUuid}
                 concepto={concepto}
                 difference={difference}
                 referenciaRefs={referenciaRefs}
@@ -179,7 +187,7 @@ export function PolizaMovementsTable({
               />
             ))}
           </tbody>
-          <tfoot className="sticky bottom-0 z-10 shadow-[0_-1px_0_#cbd5e1]">
+          <tfoot>
             <tr className="bg-slate-100 border-t border-slate-300 font-mono text-xs font-bold">
               <td colSpan={3} className="py-2.5 px-4 text-right text-slate-700">
                 Sumas Iguales (Partida Doble):

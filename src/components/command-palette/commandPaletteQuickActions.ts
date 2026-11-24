@@ -13,7 +13,8 @@ export function getQuickActionItems(
   query: string,
   onSelectRoute: (to: string) => void,
   onOpenCompanySwitcher?: () => void,
-  onOpenNewCompanyWizard?: () => void
+  onOpenNewCompanyWizard?: () => void,
+  onOpenDeliverables?: () => void
 ): FlattenedItem[] {
   const list: FlattenedItem[] = [
     {
@@ -52,6 +53,10 @@ export function getQuickActionItems(
       badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
       icon: Zap,
       action: () => {
+        if (onOpenDeliverables) {
+          onOpenDeliverables();
+          return;
+        }
         onSelectRoute('/reportes?tab=DOSSIER&dossier=true');
       }
     },

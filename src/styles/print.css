@@ -56,22 +56,6 @@
     border: none !important;
   }
 
-  #executive-deliverable-modal > .modal-inner-card {
-    position: static !important;
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-    box-shadow: none !important;
-    border: none !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: #ffffff !important;
-  }
-
   #executive-deliverable-modal .printable-dossier {
     position: static !important;
     display: block !important;
@@ -247,7 +231,11 @@
   }
 
   dialog[open] .scrollable-panel,
-  dialog[open] [class*="max-h-"] {
+  dialog[open] [class*="max-h-"],
+  dialog[open] .overflow-x-auto,
+  main .scrollable-panel,
+  main [class*="max-h-"],
+  main .overflow-x-auto {
     max-height: none !important;
     overflow: visible !important;
     height: auto !important;

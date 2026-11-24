@@ -12,6 +12,7 @@ export interface SatFielDropzoneProps {
   keyInputRef: React.RefObject<HTMLInputElement | null>;
   parsedCerInfo?: ParsedCerInfo | null;
   companyRfc?: string;
+  isReadOnlyClient?: boolean;
 }
 
 export function SatFielDropzone({
@@ -23,7 +24,8 @@ export function SatFielDropzone({
   cerInputRef,
   keyInputRef,
   parsedCerInfo,
-  companyRfc = ''
+  companyRfc = '',
+  isReadOnlyClient = false
 }: SatFielDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const combinedInputRef = useRef<HTMLInputElement | null>(null);
@@ -31,6 +33,7 @@ export function SatFielDropzone({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isReadOnlyClient) return;
     setIsDragging(true);
   };
 
@@ -44,6 +47,7 @@ export function SatFielDropzone({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (isReadOnlyClient) return;
 
     const droppedFiles = Array.from(e.dataTransfer.files || []);
     if (droppedFiles.length > 0) {
@@ -52,6 +56,7 @@ export function SatFielDropzone({
   };
 
   const handleCombinedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnlyClient) return;
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length > 0) {
       await onFilesSelected(selectedFiles);
@@ -67,48 +72,50 @@ export function SatFielDropzone({
   );
 
   return (
-    <div className="space-y-3">
-      {/* Zona Smart Drag & Drop Unificada */}
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label="Seleccionar o arrastrar archivos .cer y .key de tu e.firma"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => combinedInputRef.current?.click()}
-        onKeyDown={(e) => {
-          if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-            e.preventDefault();
-            combinedInputRef.current?.click();
-          }
-        }}
-        className={`relative p-5 sm:p-6 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center flex flex-col items-center justify-center gap-2.5 ${
-          isDragging
-            ? 'border-blue-600 bg-blue-50/90 ring-4 ring-blue-500/20 scale-[1.01]'
-            : bothReady
-            ? 'border-emerald-400/80 bg-emerald-50/40 hover:bg-emerald-50/70'
-            : 'border-slate-300 hover:border-blue-400 bg-white hover:bg-slate-50/80'
-        }`}
-      >
-        <input
-          ref={combinedInputRef}
-          type="file"
-          accept=".cer,.key,.crt,.der,.pem"
-          multiple
-          onChange={handleCombinedChange}
-          tabIndex={-1}
-          className="visually-hidden"
-          aria-label="Cargar archivos de e.firma (.cer y .key)"
-        />
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`relative p-4 sm:p-5 rounded-2xl border-2 border-dashed transition-all space-y-3 ${
+        isReadOnlyClient
+          ? 'border-slate-200 bg-slate-100/70 opacity-75'
+          : isDragging
+          ? 'border-blue-600 bg-blue-50/90 ring-4 ring-blue-500/20'
+          : bothReady
+          ? 'border-emerald-400/80 bg-emerald-50/40'
+          : 'border-slate-300 hover:border-blue-400 bg-white'
+      }`}
+    >
+      <input
+        ref={combinedInputRef}
+        type="file"
+        disabled={isReadOnlyClient}
+        accept=".cer,.key,.crt,.der,.pem"
+        multiple
+        onChange={handleCombinedChange}
+        tabIndex={-1}
+        className="sr-only"
+        aria-label="Cargar archivos de e.firma (.cer y .key)"
+      />
 
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition shadow-xs ${
-          bothReady
-            ? 'bg-emerald-600 text-white'
-            : isDragging
-            ? 'bg-blue-600 text-white animate-bounce'
-            : 'bg-indigo-100 text-indigo-700'
-        }`}>
+      {/* Área interactiva principal (sin botones anidados) */}
+      <button
+        type="button"
+        disabled={isReadOnlyClient}
+        title={isReadOnlyClient ? 'Modo solo lectura: carga de e.firma deshabilitada' : undefined}
+        aria-label="Seleccionar o arrastrar archivos .cer y .key de tu e.firma"
+        onClick={() => combinedInputRef.current?.click()}
+        className="w-full text-center flex flex-col items-center justify-center gap-2 rounded-xl py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed cursor-pointer"
+      >
+        <div
+          className={`w-12 h-12 rounded-2xl flex items-center justify-center transition shadow-xs ${
+            bothReady
+              ? 'bg-emerald-600 text-white'
+              : isDragging
+              ? 'bg-blue-600 text-white'
+              : 'bg-indigo-100 text-indigo-700'
+          }`}
+        >
           {bothReady ? (
             <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
           ) : (
@@ -118,91 +125,107 @@ export function SatFielDropzone({
 
         <div>
           <div className="text-xs sm:text-sm font-bold text-slate-800">
-            {bothReady
+            {isReadOnlyClient
+              ? 'Carga de e.firma deshabilitada en modo solo lectura'
+              : bothReady
               ? '¡Ambos archivos de tu e.firma están listos!'
               : 'Arrastra aquí tus archivos .cer y .key de tu e.firma'}
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className="text-[11px] text-slate-600 mt-0.5">
             Puedes soltar ambos archivos al mismo tiempo o hacer clic para seleccionarlos juntos
           </p>
         </div>
+      </button>
 
-        {/* Estatus interactivo de los dos archivos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg mt-2 text-left" onClick={(e) => e.stopPropagation()}>
-          {/* Badge Certificado (.cer) */}
-          <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition ${
+      {/* Estatus interactivo hermano de los dos archivos (fuera del button principal) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg mx-auto text-left">
+        {/* Badge Certificado (.cer) */}
+        <div
+          className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition ${
             hasCer
               ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
-              : 'bg-slate-50 border-slate-200 text-slate-500'
-          }`}>
-            <div className="flex items-center gap-2 min-w-0">
-              <FileKey className={`w-4 h-4 shrink-0 ${hasCer ? 'text-emerald-600' : 'text-slate-400'}`} aria-hidden="true" />
-              <div className="min-w-0 space-y-0.5">
-                <span className="font-bold text-[10px] uppercase block tracking-wider text-slate-500">Certificado (.cer)</span>
-                <span className="truncate block font-mono text-[11px] font-semibold text-slate-900">
-                  {hasCer ? cerFileName : 'Pendiente de cargar'}
-                </span>
-                {hasCer && parsedCerInfo && (
-                  <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                    {isRfcMatch ? (
-                      <span className="text-[9px] font-bold text-emerald-800 bg-emerald-200/70 px-1.5 py-0.2 rounded font-mono">
-                        ✓ RFC Coincide ({parsedCerInfo.rfcTitular})
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-bold text-amber-900 bg-amber-200 px-1.5 py-0.2 rounded font-mono">
-                        ⚠️ RFC: {parsedCerInfo.rfcTitular}
-                      </span>
-                    )}
-                    {parsedCerInfo.isExpired ? (
-                      <span className="text-[9px] font-bold text-red-800 bg-red-200 px-1.5 py-0.2 rounded">
-                        Vencido
-                      </span>
-                    ) : (
-                      <span className="text-[9px] text-slate-500 font-mono">
-                        Vence: {parsedCerInfo.validTo.slice(0, 10)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
+              : 'bg-slate-50 border-slate-200 text-slate-600'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <FileKey className={`w-4 h-4 shrink-0 ${hasCer ? 'text-emerald-600' : 'text-slate-500'}`} aria-hidden="true" />
+            <div className="min-w-0 space-y-0.5">
+              <span className="font-bold text-[11px] uppercase block tracking-wider text-slate-600">
+                Certificado (.cer)
+              </span>
+              <span className="truncate block font-mono text-[11px] font-semibold text-slate-900">
+                {hasCer ? cerFileName : 'Pendiente de cargar'}
+              </span>
+              {hasCer && parsedCerInfo && (
+                <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                  {isRfcMatch ? (
+                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-200/70 px-1.5 py-0.5 rounded font-mono">
+                      ✓ RFC Coincide ({parsedCerInfo.rfcTitular})
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-amber-900 bg-amber-200 px-1.5 py-0.5 rounded font-mono">
+                      RFC: {parsedCerInfo.rfcTitular}
+                    </span>
+                  )}
+                  {parsedCerInfo.isExpired ? (
+                    <span className="text-[11px] font-bold text-red-800 bg-red-200 px-1.5 py-0.5 rounded">
+                      Vencido
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-600 font-mono">
+                      Vence: {parsedCerInfo.validTo.slice(0, 10)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => cerInputRef.current?.click()}
-              className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 shrink-0 cursor-pointer transition shadow-2xs"
-            >
-              {hasCer ? 'Cambiar' : 'Explorar'}
-            </button>
           </div>
+          <button
+            type="button"
+            disabled={isReadOnlyClient}
+            aria-label={hasCer ? 'Cambiar archivo de certificado (.cer)' : 'Explorar y seleccionar certificado (.cer)'}
+            title={isReadOnlyClient ? 'Modo solo lectura: carga deshabilitada' : undefined}
+            onClick={() => cerInputRef.current?.click()}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 shrink-0 cursor-pointer transition shadow-2xs"
+          >
+            {hasCer ? 'Cambiar' : 'Explorar'}
+          </button>
+        </div>
 
-          {/* Badge Clave Privada (.key) */}
-          <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition ${
+        {/* Badge Clave Privada (.key) */}
+        <div
+          className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition ${
             hasKey
               ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
-              : 'bg-slate-50 border-slate-200 text-slate-500'
-          }`}>
-            <div className="flex items-center gap-2 min-w-0">
-              <KeyRound className={`w-4 h-4 shrink-0 ${hasKey ? 'text-emerald-600' : 'text-slate-400'}`} aria-hidden="true" />
-              <div className="min-w-0">
-                <span className="font-bold text-[10px] uppercase block tracking-wider text-slate-500">Clave Privada (.key)</span>
-                <span className="truncate block font-mono text-[11px] font-semibold text-slate-900">
-                  {hasKey ? keyFileName : 'Pendiente de cargar'}
+              : 'bg-slate-50 border-slate-200 text-slate-600'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <KeyRound className={`w-4 h-4 shrink-0 ${hasKey ? 'text-emerald-600' : 'text-slate-500'}`} aria-hidden="true" />
+            <div className="min-w-0">
+              <span className="font-bold text-[11px] uppercase block tracking-wider text-slate-600">
+                Clave Privada (.key)
+              </span>
+              <span className="truncate block font-mono text-[11px] font-semibold text-slate-900">
+                {hasKey ? keyFileName : 'Pendiente de cargar'}
+              </span>
+              {hasKey && (
+                <span className="text-[11px] text-emerald-700 font-semibold block pt-0.5">
+                  ✓ Llave cargada en memoria
                 </span>
-                {hasKey && (
-                  <span className="text-[9px] text-emerald-700 font-semibold block pt-0.5">
-                    ✓ Llave cargada en memoria
-                  </span>
-                )}
-              </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => keyInputRef.current?.click()}
-              className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 shrink-0 cursor-pointer transition shadow-2xs"
-            >
-              {hasKey ? 'Cambiar' : 'Explorar'}
-            </button>
           </div>
+          <button
+            type="button"
+            disabled={isReadOnlyClient}
+            aria-label={hasKey ? 'Cambiar archivo de clave privada (.key)' : 'Explorar y seleccionar clave privada (.key)'}
+            title={isReadOnlyClient ? 'Modo solo lectura: carga deshabilitada' : undefined}
+            onClick={() => keyInputRef.current?.click()}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 shrink-0 cursor-pointer transition shadow-2xs"
+          >
+            {hasKey ? 'Cambiar' : 'Explorar'}
+          </button>
         </div>
       </div>
     </div>

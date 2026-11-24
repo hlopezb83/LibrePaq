@@ -68,6 +68,9 @@ export function AdminCompanyDeleteZone({
       </div>
       {showDeleteZone && (
         <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby="danger-zone-title"
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.stopPropagation();

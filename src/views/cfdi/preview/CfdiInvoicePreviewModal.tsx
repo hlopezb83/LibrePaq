@@ -163,9 +163,9 @@ export function CfdiInvoicePreviewModal({
             <FileCode2 className="w-5 h-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h1 id="cfdi-preview-title" className="text-base font-bold text-slate-900">
+            <h2 id="cfdi-preview-title" className="text-base font-bold text-slate-900">
               Inspector y Visor de CFDI 4.0
-            </h1>
+            </h2>
             <div className="flex items-center gap-1.5 text-xs text-slate-600 font-mono">
               <span className="truncate">UUID: {effectiveCfdi.uuid.slice(0, 18)}...</span>
               <button
@@ -293,7 +293,7 @@ export function CfdiInvoicePreviewModal({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => dialogRef.current?.close()}
               aria-label="Cerrar vista previa"
               className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
             >
@@ -312,6 +312,7 @@ export function CfdiInvoicePreviewModal({
               tipoLabel={tipoLabel}
               emisorRfcCheck={emisorRfcCheck}
               receptorRfcCheck={receptorRfcCheck}
+              isLoadingXml={isLoadingXml}
             />
           </div>
         )}

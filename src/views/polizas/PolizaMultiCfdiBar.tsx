@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FileCode2, Plus, Sparkles, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { CfdiDocument } from '../../shared/types';
+import { isValidSatUuid } from './polizaDirtyCheck';
 
 interface PolizaMultiCfdiBarProps {
   editingPolizaId: string | null;
@@ -24,6 +25,16 @@ export function PolizaMultiCfdiBar({
 }: PolizaMultiCfdiBarProps) {
   const [selectedAddUuid, setSelectedAddUuid] = useState('');
   const [manualUuidInput, setManualUuidInput] = useState('');
+
+  const trimmedManualUuid = manualUuidInput.trim().toUpperCase();
+  const hasManualInput = trimmedManualUuid.length > 0;
+  const isManualUuidInvalid = hasManualInput && !isValidSatUuid(trimmedManualUuid);
+
+  const handleLinkManualUuid = () => {
+    if (!hasManualInput || isManualUuidInvalid) return;
+    onAddCfdiUuid(trimmedManualUuid);
+    setManualUuidInput('');
+  };
 
   const availableToLink = pendingCfdis.filter((c) => !cfdiUuids.includes(c.uuid.toUpperCase()));
   const cfdiLookup = new Map(
@@ -48,59 +59,82 @@ export function PolizaMultiCfdiBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          {availableToLink.length > 0 && (
-            <>
-              <select
-                aria-label="Seleccionar CFDI para asociar a la póliza"
-                value={selectedAddUuid}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (!val) return;
-                  if (!editingPolizaId && cfdiUuids.length === 0) {
-                    onSelectPrimaryCfdi(val);
-                  } else {
-                    onAddCfdiUuid(val);
-                  }
-                  setSelectedAddUuid('');
-                }}
-                className="px-2.5 py-1.5 rounded-xl border border-blue-300 bg-white text-xs font-mono text-slate-800 max-w-xs cursor-pointer"
-              >
-                <option value="">
-                  {cfdiUuids.length === 0 && !editingPolizaId
-                    ? '-- Autocompletar / Asociar CFDI --'
-                    : '+ Asociar otro CFDI del ADD...'}
+          {availableToLink.length > 0 ? (
+            <select
+              aria-label="Seleccionar CFDI para asociar a la póliza"
+              value={selectedAddUuid}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) return;
+                if (!editingPolizaId && cfdiUuids.length === 0) {
+                  onSelectPrimaryCfdi(val);
+                } else {
+                  onAddCfdiUuid(val);
+                }
+                setSelectedAddUuid('');
+              }}
+              className="px-2.5 py-1.5 rounded-xl border border-blue-300 bg-white text-xs font-mono text-slate-800 max-w-xs cursor-pointer"
+            >
+              <option value="">
+                {cfdiUuids.length === 0 && !editingPolizaId
+                  ? '-- Autocompletar / Asociar CFDI --'
+                  : '+ Asociar otro CFDI del ADD...'}
+              </option>
+              {availableToLink.map((c) => (
+                <option key={c.id} value={c.uuid}>
+                  [{c.direction}] {c.serie}-{c.folio} ({formatCurrency(c.total)}) -{' '}
+                  {c.direction === 'EMITIDO' ? c.receptorNombre : c.emisorNombre}
                 </option>
-                {availableToLink.map((c) => (
-                  <option key={c.id} value={c.uuid}>
-                    [{c.direction}] {c.serie}-{c.folio} ({formatCurrency(c.total)}) -{' '}
-                    {c.direction === 'EMITIDO' ? c.receptorNombre : c.emisorNombre}
-                  </option>
-                ))}
-              </select>
-            </>
+              ))}
+            </select>
+          ) : (
+            <span className="text-[11px] text-blue-900/80 bg-white/80 border border-blue-200 rounded-xl px-2.5 py-1.5">
+              Sin CFDIs pendientes en ADD (puedes pegar un UUID manual)
+            </span>
           )}
 
-          <div className="inline-flex items-center gap-1">
-            <input
-              type="text"
-              value={manualUuidInput}
-              onChange={(e) => setManualUuidInput(e.target.value.toUpperCase())}
-              placeholder="Pegar UUID manual..."
-              aria-label="Pegar UUID CFDI manual"
-              className="w-44 px-2.5 py-1.5 rounded-xl border border-blue-300 bg-white text-[11px] font-mono text-slate-800 uppercase"
-            />
-            <button
-              type="button"
-              disabled={!manualUuidInput.trim()}
-              onClick={() => {
-                onAddCfdiUuid(manualUuidInput.trim().toUpperCase());
-                setManualUuidInput('');
-              }}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold disabled:opacity-40 cursor-pointer"
-            >
-              <Plus className="w-3 h-3" aria-hidden="true" />
-              Vincular
-            </button>
+          <div className="flex flex-col items-start gap-1">
+            <div className="inline-flex items-center gap-1">
+              <input
+                type="text"
+                value={manualUuidInput}
+                onChange={(e) => setManualUuidInput(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLinkManualUuid();
+                  }
+                }}
+                placeholder="Pegar UUID SAT (36 caracteres)..."
+                aria-label="Pegar UUID CFDI manual"
+                aria-invalid={isManualUuidInvalid}
+                aria-describedby={isManualUuidInvalid ? 'manual-uuid-error' : undefined}
+                className={`w-48 px-2.5 py-1.5 rounded-xl border bg-white text-[11px] font-mono text-slate-800 uppercase ${
+                  isManualUuidInvalid
+                    ? 'border-red-500 ring-1 ring-red-500/30'
+                    : 'border-blue-300'
+                }`}
+              />
+              <button
+                type="button"
+                disabled={!hasManualInput || isManualUuidInvalid}
+                title={
+                  isManualUuidInvalid
+                    ? 'Ingresa un UUID SAT válido (8-4-4-4-12 hex)'
+                    : 'Vincular UUID a la póliza'
+                }
+                onClick={handleLinkManualUuid}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Plus className="w-3 h-3" aria-hidden="true" />
+                Vincular
+              </button>
+            </div>
+            {isManualUuidInvalid && (
+              <span id="manual-uuid-error" role="alert" className="text-[10px] font-semibold text-red-700">
+                Formato UUID SAT inválido (ej. 550E8400-E29B-41D4-A716-446655440000)
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -123,9 +157,9 @@ export function PolizaMultiCfdiBar({
                   type="button"
                   onClick={() => onRemoveCfdiUuid(u)}
                   aria-label={`Desvincular UUID ${u}`}
-                  className="text-slate-400 hover:text-red-700 cursor-pointer"
+                  className="min-w-[24px] min-h-[24px] inline-flex items-center justify-center rounded text-slate-600 hover:text-red-700 hover:bg-red-50 cursor-pointer transition"
                 >
-                  <X className="w-3 h-3" aria-hidden="true" />
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               </span>
             );

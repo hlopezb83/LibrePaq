@@ -135,20 +135,7 @@ export function exportAllDeliverablesCsv({
   // 4. Papel Fiscal / Cédula Día 17 (si está disponible)
   if (fiscalData) {
     const d17Headers = ['Concepto Fiscal', 'Fundamento Legal / Base', 'Importe Determinado MXN'];
-    const d17Rows: Array<Array<string | number>> = [
-      ['Régimen Fiscal', company.regimenFiscal, ''],
-      ['Ingresos Acumulables Periodo', 'Art. 16 / 17 LISR', fiscalData.isrProvisional.ingresosPeriodo],
-      ['Coeficiente de Utilidad Aplicado', 'Art. 14 LISR', (fiscalData.isrProvisional.coeficienteUtilidadAplicado * 100).toFixed(4) + '%'],
-      ['Utilidad Fiscal Estimada', 'Base Gravable', fiscalData.isrProvisional.utilidadFiscalEstimada],
-      ['ISR Causado Periodo', 'Tasa 30% Art. 9 LISR', fiscalData.isrProvisional.isrCausado],
-      ['(-) Pagos Provisionales Previos', 'Acreditamiento', fiscalData.isrProvisional.pagosProvisionalesPrevios],
-      ['(=) ISR Neto a Pagar Periodo', 'Línea de Captura Día 17', fiscalData.isrProvisional.isrNetoAPagar],
-      ['Actos Gravados IVA 16%', 'Art. 1 LIVA', fiscalData.ivaDefinitivo.actosGravadosCobrado16],
-      ['IVA Trasladado Cobrado 16%', 'Art. 1 LIVA', fiscalData.ivaDefinitivo.ivaTrasladadoCobrado],
-      ['(-) IVA Acreditable Pagado 16%', 'Art. 4 / 5 LIVA', fiscalData.ivaDefinitivo.ivaAcreditablePagado],
-      ['(=) IVA Neto a Pagar', 'Art. 5-D LIVA', fiscalData.ivaDefinitivo.ivaNetoAPagar],
-      ['TOTAL ESTIMADO DÍA 17 (ISR + IVA + Retenciones)', 'Línea de Captura SAT', fiscalData.resumenLineaCapturaSat.totalEstimadoDia17]
-    ];
+    const d17Rows = buildPapelFiscalCsvRows(company, fiscalData);
     files['Papel_Fiscal.csv'] = strToU8(buildCsvContent(d17Headers, d17Rows));
   }
 
@@ -157,4 +144,70 @@ export function exportAllDeliverablesCsv({
   const zipped = zipSync(files, { level: 6 });
   const zipBuffer = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
   downloadBlobFile(`Paquete_CSV_${safeRfc}_${year}_${periodCode}.zip`, zipBuffer, 'application/zip');
+}
+
+export function buildPapelFiscalCsvRows(
+  company: Company,
+  fiscalData: FiscalWorkpaperResponse
+): Array<Array<string | number>> {
+  const isr = fiscalData.isrProvisional;
+  const iva = fiscalData.ivaDefinitivo;
+  const cap = fiscalData.resumenLineaCapturaSat;
+  const isPersonaFisica = company.rfc.trim().length === 13;
+  const isResico = isr.esResico;
+  const isResicoPf = isResico && isPersonaFisica;
+  const isResicoPm = isResico && !isPersonaFisica;
+  const isPfGeneral = isPersonaFisica && !isResico;
+
+  const isrRows: Array<Array<string | number>> = [
+    ['Régimen Fiscal', company.regimenFiscal, ''],
+    [
+      'Ingresos Cobrados / Nominales Periodo',
+      isResico ? 'Flujo de Efectivo RESICO' : isPfGeneral ? 'Art. 106 LISR' : 'Art. 16 / 17 LISR',
+      isr.ingresosPeriodo
+    ],
+    ['Ingresos Acumulados del Ejercicio', 'Acumulado Anual', isr.ingresosAcumuladosEjercicio]
+  ];
+
+  if (isResicoPm || isPfGeneral) {
+    isrRows.push(
+      ['(-) Deducciones Autorizadas Periodo', 'Flujo de Efectivo', -isr.deduccionesAutorizadasPeriodo],
+      ['(=) Utilidad Fiscal (Ingresos - Deducciones)', 'Base Gravable', isr.utilidadFiscalEstimada]
+    );
+  } else if (!isResicoPf) {
+    isrRows.push(
+      ['Coeficiente de Utilidad Aplicado', 'Art. 14 LISR', (isr.coeficienteUtilidadAplicado * 100).toFixed(4) + '%'],
+      ['Utilidad Fiscal Estimada', 'Base Gravable', isr.utilidadFiscalEstimada]
+    );
+  }
+
+  if (!isResicoPf) {
+    isrRows.push(['(-) Pérdidas Fiscales Aplicadas', 'Art. 57 LISR', -isr.perdidasFiscalesAplicadas]);
+  }
+
+  isrRows.push([
+    'ISR Causado Periodo',
+    isResico ? `RESICO Tasa ${isr.tasaIsrPct}%` : isPfGeneral ? 'Tarifa Art. 106 LISR' : `Tasa ${isr.tasaIsrPct}% Art. 9 LISR`,
+    isr.isrCausado
+  ]);
+
+  if (!isResicoPf) {
+    isrRows.push(['(-) Pagos Provisionales Previos', 'Acreditamiento', -isr.pagosProvisionalesPrevios]);
+  }
+
+  isrRows.push(
+    ['(-) ISR Retenido por Terceros', 'Acreditamiento', -isr.isrRetenidoPeriodo],
+    ['(=) ISR Neto a Pagar Periodo', 'Línea de Captura Día 17', isr.isrNetoAPagar],
+    ['Actos Gravados Cobrados', 'Art. 1 LIVA', iva.actosGravadosCobrado16],
+    ['IVA Trasladado Cobrado', 'Art. 1-B LIVA', iva.ivaTrasladadoCobrado],
+    ['(-) IVA Acreditable Pagado', 'Art. 4 / 5 LIVA', -iva.ivaAcreditablePagado],
+    ['(-) IVA Retenido Acreditable (por Clientes)', 'Art. 1-A LIVA', -(iva.ivaRetenidoAcreditable ?? 0)],
+    ['(-) Saldo a Favor IVA Anterior Acreditado', 'Art. 6 LIVA', -iva.saldoFavorIvaAcreditable],
+    ['(=) IVA Neto a Pagar', 'Art. 5-D LIVA', iva.ivaNetoAPagar],
+    ['Retenciones de ISR por Enterar', 'Art. 96 / 106 / 113-J LISR', cap.retencionesIsrPorEnterar],
+    ['Retenciones de IVA por Enterar', 'Art. 1-A LIVA', cap.retencionesIvaPorEnterar],
+    ['TOTAL ESTIMADO DÍA 17 (ISR + IVA + Retenciones)', 'Línea de Captura SAT', cap.totalEstimadoDia17]
+  );
+
+  return isrRows;
 }

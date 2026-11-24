@@ -17,7 +17,7 @@ function getExecutiveRoleMeta(role: PlatformRole): {
   if (role === 'SUPERADMIN') {
     return {
       shortTitle: 'Consola del Propietario',
-      badgeLabel: 'SUPERADMIN',
+      badgeLabel: 'PROPIETARIO',
       badgeClass: 'bg-amber-100 text-amber-800 border-amber-300'
     };
   }
@@ -69,13 +69,13 @@ export function ExecutiveTopHeader({ user, onSignOut }: ExecutiveTopHeaderProps)
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
             <CheckCircle2 className="w-3 h-3 text-blue-600" aria-hidden="true" />
-            Hosting Web
+            Servicio en Línea
           </span>
           <span
             title={`Soporte WhatsApp: +${DEFAULT_WHATSAPP_PHONE}`}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg"
           >
-            WA: +{DEFAULT_WHATSAPP_PHONE.slice(0, 4)}...
+            WhatsApp: +{DEFAULT_WHATSAPP_PHONE}
           </span>
         </div>
 

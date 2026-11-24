@@ -21,6 +21,8 @@ interface DeliverableConfigTabProps {
   setIncludeBalance: (val: boolean) => void;
   includeDia17: boolean;
   setIncludeDia17: (val: boolean) => void;
+  hideZeroAccounts?: boolean;
+  setHideZeroAccounts?: (val: boolean) => void;
   onPreviewDossier: () => void;
 }
 
@@ -47,6 +49,8 @@ export function DeliverableConfigTab({
   setIncludeBalance,
   includeDia17,
   setIncludeDia17,
+  hideZeroAccounts = false,
+  setHideZeroAccounts,
   onPreviewDossier
 }: DeliverableConfigTabProps) {
   return (
@@ -205,6 +209,18 @@ export function DeliverableConfigTab({
             <span>4. Cédula Impuestos Federales Día 17</span>
           </label>
         </div>
+        {setHideZeroAccounts && (
+          <label htmlFor="deliv-hide-zero-accounts" className="mt-3 flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer text-xs">
+            <input
+              id="deliv-hide-zero-accounts"
+              type="checkbox"
+              checked={hideZeroAccounts}
+              onChange={(e) => setHideZeroAccounts(e.target.checked)}
+              className="rounded text-blue-700"
+            />
+            <span>Ocultar cuentas sin movimiento ni saldo ($0.00) al imprimir / PDF</span>
+          </label>
+        )}
       </fieldset>
 
       <div className="flex justify-end pt-2">

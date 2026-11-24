@@ -44,6 +44,7 @@ export function BankPdfImportModal({
   const [isExtracting, setIsExtracting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const activeKey = `${companyId}::${accountId}`;
   const activeKeyRef = useRef(activeKey);
@@ -56,11 +57,21 @@ export function BankPdfImportModal({
     setExtractError(null);
     setIsExtracting(false);
     setIsImporting(false);
+    setConfirmDiscard(false);
     if (dialogRef.current?.open) dialogRef.current.close();
   }, [dialogRef]);
 
+  const handleSafeClose = useCallback(() => {
+    if (isImporting) return;
+    if (rows.length > 0 && !confirmDiscard) {
+      setConfirmDiscard(true);
+      return;
+    }
+    resetAndClose();
+  }, [isImporting, rows.length, confirmDiscard, resetAndClose]);
+
   useEffect(() => { resetAndClose(); }, [companyId, accountId, resetAndClose]);
-  useDialogLightDismiss(dialogRef, resetAndClose);
+  useDialogLightDismiss(dialogRef, handleSafeClose, { deferClose: true });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -136,7 +147,16 @@ export function BankPdfImportModal({
   return (
     <dialog
       ref={dialogRef}
-      closedby="any"
+      closedby="closerequest"
+      onCancel={(e) => {
+        e.preventDefault();
+        handleSafeClose();
+      }}
+      onClick={(e) => {
+        if (e.target === dialogRef.current) {
+          handleSafeClose();
+        }
+      }}
       onClose={resetAndClose}
       aria-labelledby="modal-bank-pdf-title"
       className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-4xl open:flex open:flex-col max-h-[92dvh] overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
@@ -147,11 +167,11 @@ export function BankPdfImportModal({
             <Sparkles className="w-5 h-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h1 id="modal-bank-pdf-title" className="text-base font-bold text-slate-900">Importar Estado de Cuenta PDF</h1>
+            <h2 id="modal-bank-pdf-title" className="text-base font-bold text-slate-900">Importar Estado de Cuenta PDF</h2>
             <p className="text-xs text-slate-600 mt-0.5">Extrae movimientos con el lector inteligente de PDF, revisa o edita antes de guardar</p>
           </div>
         </div>
-        <button type="button" onClick={resetAndClose} aria-label="Cerrar modal" className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100 cursor-pointer shrink-0">
+        <button type="button" onClick={handleSafeClose} disabled={isImporting} aria-label="Cerrar modal" className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-50 cursor-pointer shrink-0">
           <X className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
@@ -207,8 +227,20 @@ export function BankPdfImportModal({
               )}
             </div>
 
+            {warningCount > 0 && (
+              <div role="alert" className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+                <span>
+                  Hay <strong>{warningCount}</strong> {warningCount === 1 ? 'movimiento con fecha faltante o importes en $0.00/duplicados' : 'movimientos con fecha faltante o importes en $0.00/duplicados'}. Revísalos antes de confirmar la importación.
+                </span>
+              </div>
+            )}
+
             <div className="overflow-x-auto max-h-[340px] overflow-y-auto border border-slate-200 rounded-xl scrollable-panel">
               <table className="w-full text-left border-collapse text-xs">
+                <caption className="visually-hidden">
+                  Movimientos extraídos del estado de cuenta bancario PDF
+                </caption>
                 <thead className="sticky top-0 bg-slate-100 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-600 z-10">
                   <tr>
                     <th scope="col" className="py-2 px-2.5 min-w-[130px]">Fecha</th>
@@ -254,10 +286,31 @@ export function BankPdfImportModal({
             </div>
           </>
         )}
+        {confirmDiscard && (
+          <div role="alert" className="p-3 rounded-xl bg-amber-50 border border-amber-300 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-950">
+            <span>Tienes {rows.length} movimientos extraídos sin importar. ¿Descartarlos y cerrar?</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfirmDiscard(false)}
+                className="px-3 py-1 rounded-lg bg-white border border-slate-300 font-semibold cursor-pointer"
+              >
+                Seguir revisando
+              </button>
+              <button
+                type="button"
+                onClick={resetAndClose}
+                className="px-3 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-semibold cursor-pointer"
+              >
+                Descartar y cerrar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-4 sm:px-5 py-3.5 border-t border-slate-200 flex flex-wrap items-center justify-end gap-2 shrink-0 bg-slate-50/70">
-        <button type="button" onClick={resetAndClose} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancelar</button>
+        <button type="button" onClick={handleSafeClose} disabled={isImporting} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 cursor-pointer">Cancelar</button>
         <button
           type="button"
           disabled={isImporting || isLocked || rows.length === 0}

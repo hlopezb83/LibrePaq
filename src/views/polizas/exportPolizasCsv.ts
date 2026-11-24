@@ -27,7 +27,7 @@ export function exportPolizasCsv(
         `${pol.tipo} #${pol.folio}`,
         pol.fecha,
         pol.concepto,
-        pol.cfdiUuid || '',
+        mov.cfdiUuid || pol.cfdiUuid || '',
         mov.accountCode,
         mov.accountName,
         mov.referencia,

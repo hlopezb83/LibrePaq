@@ -69,6 +69,24 @@ export function ActivosFijosForm({
       }}
       className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs"
     >
+      {isEditing && (
+        <div role="status" className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs text-blue-950">
+          <span className="inline-flex items-center gap-2 font-semibold">
+            <span className="px-2 py-0.5 rounded-full bg-blue-700 text-white text-[11px] font-bold">
+              Editando activo
+            </span>
+            <span className="font-mono font-bold">{assetCode}</span>
+            {assetName && <span className="text-slate-700 truncate">— {assetName}</span>}
+          </span>
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            className="text-[11px] font-semibold text-blue-800 hover:underline cursor-pointer"
+          >
+            Cancelar edición
+          </button>
+        </div>
+      )}
       <div>
         <label htmlFor="asset-code" className="block text-[10px] font-bold text-slate-700 mb-1">
           Código *

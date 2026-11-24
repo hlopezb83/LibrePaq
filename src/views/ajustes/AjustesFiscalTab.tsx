@@ -1,20 +1,21 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Coins, RotateCcw, Save } from 'lucide-react';
+import { ArrowRight, Coins, Loader2, RotateCcw, Save } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
+import { sanitizeFiscalDecimalInput } from './useAjustesFiscalParams';
 
 export interface AjustesFiscalTabProps {
   currentYear: number;
   currentPeriod: number;
-  coefUtilidad: number;
-  setCoefUtilidad: (v: number) => void;
-  tcDof: number;
-  setTcDof: (v: number) => void;
-  perdidasAnt: number;
-  setPerdidasAnt: (v: number) => void;
-  pagosAnt: number;
-  setPagosAnt: (v: number) => void;
-  saldoIvaAnt: number;
-  setSaldoIvaAnt: (v: number) => void;
+  coefUtilidad: string;
+  setCoefUtilidad: (v: string) => void;
+  tcDof: string;
+  setTcDof: (v: string) => void;
+  perdidasAnt: string;
+  setPerdidasAnt: (v: string) => void;
+  pagosAnt: string;
+  setPagosAnt: (v: string) => void;
+  saldoIvaAnt: string;
+  setSaldoIvaAnt: (v: string) => void;
   isFiscalDirty: boolean;
   onResetFiscal: () => void;
   saveFiscalParamsMutation: {
@@ -32,6 +33,12 @@ export interface AjustesFiscalTabProps {
     };
   } | null;
   isReadOnly?: boolean;
+}
+
+function normalizeDecimalDraft(raw: string, max?: number): string {
+  const num = Number(raw.replaceAll(',', '.').trim());
+  if (!Number.isFinite(num) || num < 0) return '0';
+  return String(max !== undefined ? Math.min(max, num) : num);
 }
 
 export function AjustesFiscalTab({
@@ -92,23 +99,25 @@ export function AjustesFiscalTab({
               <div className="relative">
                 <input
                   id="p-cu"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.0001"
-                  min="0"
-                  max="1"
                   required
                   disabled={isReadOnly}
+                  aria-describedby="p-cu-hint"
                   value={coefUtilidad}
-                  onChange={(e) => setCoefUtilidad(Number(e.target.value))}
+                  onChange={(e) => setCoefUtilidad(sanitizeFiscalDecimalInput(e.target.value))}
+                  onBlur={() => setCoefUtilidad(normalizeDecimalDraft(coefUtilidad, 1))}
                   className="w-full px-3 py-2 pr-12 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
                 <span className="absolute right-3 top-2 text-[11px] text-slate-600 font-bold font-mono">
                   C.U.
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600">
-                Margen fiscal equivalente: <strong className="font-mono text-slate-800">{(coefUtilidad * 100).toFixed(2)}%</strong>
+              <p id="p-cu-hint" className="text-[11px] text-slate-600">
+                Margen fiscal equivalente:{' '}
+                <strong className="font-mono text-slate-800">
+                  {((Number(coefUtilidad) || 0) * 100).toFixed(2)}%
+                </strong>
               </p>
             </div>
 
@@ -119,21 +128,23 @@ export function AjustesFiscalTab({
               <div className="relative">
                 <input
                   id="p-tc"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.0001"
-                  min="0"
                   required
                   disabled={isReadOnly}
+                  aria-describedby="p-tc-hint"
                   value={tcDof}
-                  onChange={(e) => setTcDof(Number(e.target.value))}
+                  onChange={(e) => setTcDof(sanitizeFiscalDecimalInput(e.target.value))}
+                  onBlur={() => setTcDof(normalizeDecimalDraft(tcDof))}
                   className="w-full px-3 py-2 pr-20 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
-                <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-bold font-mono">
+                <span className="absolute right-3 top-2 text-[11px] text-slate-600 font-bold font-mono">
                   MXN/USD
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600">Para valuación de fluctuación cambiaria oficial (0 para empresas solo MXN).</p>
+              <p id="p-tc-hint" className="text-[11px] text-slate-600">
+                Para valuación de fluctuación cambiaria oficial (0 para empresas solo MXN).
+              </p>
             </div>
 
             <div className="space-y-1">
@@ -144,18 +155,20 @@ export function AjustesFiscalTab({
                 <span className="absolute left-3 top-2 text-xs text-slate-600 font-bold font-mono">$</span>
                 <input
                   id="p-perdidas"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
-                  min="0"
                   disabled={isReadOnly}
+                  aria-describedby="p-perdidas-hint"
                   value={perdidasAnt}
-                  onChange={(e) => setPerdidasAnt(Number(e.target.value))}
+                  onChange={(e) => setPerdidasAnt(sanitizeFiscalDecimalInput(e.target.value))}
+                  onBlur={() => setPerdidasAnt(normalizeDecimalDraft(perdidasAnt))}
                   className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
-                <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-mono">MXN</span>
+                <span className="absolute right-3 top-2 text-[11px] text-slate-600 font-mono">MXN</span>
               </div>
-              <p className="text-[11px] text-slate-600">Amortizables contra la utilidad fiscal estimada.</p>
+              <p id="p-perdidas-hint" className="text-[11px] text-slate-600">
+                Amortizables contra la utilidad fiscal estimada.
+              </p>
             </div>
 
             <div className="space-y-1">
@@ -166,18 +179,20 @@ export function AjustesFiscalTab({
                 <span className="absolute left-3 top-2 text-xs text-slate-600 font-bold font-mono">$</span>
                 <input
                   id="p-pagos-ant"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
-                  min="0"
                   disabled={isReadOnly}
+                  aria-describedby="p-pagos-ant-hint"
                   value={pagosAnt}
-                  onChange={(e) => setPagosAnt(Number(e.target.value))}
+                  onChange={(e) => setPagosAnt(sanitizeFiscalDecimalInput(e.target.value))}
+                  onBlur={() => setPagosAnt(normalizeDecimalDraft(pagosAnt))}
                   className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
-                <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-mono">MXN</span>
+                <span className="absolute right-3 top-2 text-[11px] text-slate-600 font-mono">MXN</span>
               </div>
-              <p className="text-[11px] text-slate-600">Suma de pagos de ISR realizados de enero al mes previo.</p>
+              <p id="p-pagos-ant-hint" className="text-[11px] text-slate-600">
+                Suma de pagos de ISR realizados de enero al mes previo.
+              </p>
             </div>
 
             <div className="sm:col-span-2 space-y-1">
@@ -188,25 +203,27 @@ export function AjustesFiscalTab({
                 <span className="absolute left-3 top-2 text-xs text-slate-600 font-bold font-mono">$</span>
                 <input
                   id="p-iva-ant"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
-                  min="0"
                   disabled={isReadOnly}
+                  aria-describedby="p-iva-ant-hint"
                   value={saldoIvaAnt}
-                  onChange={(e) => setSaldoIvaAnt(Number(e.target.value))}
+                  onChange={(e) => setSaldoIvaAnt(sanitizeFiscalDecimalInput(e.target.value))}
+                  onBlur={() => setSaldoIvaAnt(normalizeDecimalDraft(saldoIvaAnt))}
                   className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
-                <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-mono">MXN</span>
+                <span className="absolute right-3 top-2 text-[11px] text-slate-600 font-mono">MXN</span>
               </div>
-              <p className="text-[11px] text-slate-600">Acreditamiento directo contra el IVA a cargo del periodo.</p>
+              <p id="p-iva-ant-hint" className="text-[11px] text-slate-600">
+                Acreditamiento directo contra el IVA a cargo del periodo.
+              </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-200">
             <div className="flex items-center gap-2">
               {isFiscalDirty && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                   Cambios sin guardar
                 </span>
               )}
@@ -216,6 +233,7 @@ export function AjustesFiscalTab({
                 <button
                   type="button"
                   onClick={onResetFiscal}
+                  title="Descartar cambios y restaurar valores guardados"
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
@@ -225,10 +243,20 @@ export function AjustesFiscalTab({
               <button
                 type="submit"
                 disabled={isReadOnly || saveFiscalParamsMutation.isPending || !isFiscalDirty}
-                title={isReadOnly ? 'Solo un Contador o Socio puede modificar parámetros fiscales' : undefined}
+                title={
+                  isReadOnly
+                    ? 'Solo un Contador o Socio puede modificar parámetros fiscales'
+                    : !isFiscalDirty
+                      ? 'No hay cambios pendientes por guardar'
+                      : 'Guardar parámetros fiscales del periodo'
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save className="w-4 h-4" aria-hidden="true" />
+                {saveFiscalParamsMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                )}
                 <span>{saveFiscalParamsMutation.isPending ? 'Guardando...' : 'Guardar Parámetros Fiscales'}</span>
               </button>
             </div>

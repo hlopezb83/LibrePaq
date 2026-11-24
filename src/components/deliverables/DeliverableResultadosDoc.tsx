@@ -8,7 +8,9 @@ interface DeliverableResultadosDocProps {
   period: number;
   mesNombre: string;
   firmName: string;
+  issuanceCity?: string;
   issuanceDate: string;
+  hideZeroAccounts?: boolean;
   incomeStatement: {
     ingresos: AccountWithBalance[];
     costos: AccountWithBalance[];
@@ -33,7 +35,9 @@ export function DeliverableResultadosDoc({
   period,
   mesNombre,
   firmName,
+  issuanceCity,
   issuanceDate,
+  hideZeroAccounts = false,
   incomeStatement,
   auditorName,
   auditorCedula,
@@ -42,12 +46,43 @@ export function DeliverableResultadosDoc({
 }: DeliverableResultadosDocProps) {
   const lastDay = new Date(year, Math.min(12, Math.max(1, period)), 0).getDate();
   const isLoss = incomeStatement.utilidadNeta < 0;
+  const isGrossLoss = incomeStatement.utilidadBruta < 0;
   const signedResultBal = (acc: AccountWithBalance, expectedNature: 'ACREEDORA' | 'DEUDORA') =>
     acc.nature === expectedNature ? acc.finalBalance : -acc.finalBalance;
   const formatVerticalPct = (amount: number, base: number) => {
     if (!base || Math.abs(base) < 0.01) return '0.0%';
     return `${((amount / base) * 100).toFixed(1)}%`;
   };
+
+  const renderRows = (items: AccountWithBalance[], expected: 'ACREEDORA' | 'DEUDORA') =>
+    items
+      .filter((a) => !hideZeroAccounts || Math.abs(a.finalBalance) >= 0.01)
+      .map((a) => {
+        const signedAmt = signedResultBal(a, expected);
+        return (
+          <div
+            key={a.id}
+            className={`flex items-center justify-between gap-3 py-0.5 ${
+              a.level === 2
+                ? 'font-bold text-slate-900 bg-slate-50/70 rounded px-2 mt-0.5'
+                : 'pl-6 pr-2 text-slate-700'
+            }`}
+          >
+            <span className={`min-w-0 ${a.level === 2 ? 'font-semibold' : 'text-slate-600'}`}>
+              <span className="font-mono whitespace-nowrap mr-1.5">{a.code}</span>
+              <span>— {a.name}</span>
+            </span>
+            <div className="flex items-center gap-3 font-mono tabular-nums whitespace-nowrap shrink-0">
+              <span className={`w-28 text-right ${signedAmt < 0 ? 'text-red-700 font-semibold' : a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
+                {formatCurrency(signedAmt)}
+              </span>
+              <span className="w-14 text-right text-[11px] text-slate-600">
+                {formatVerticalPct(signedAmt, incomeStatement.totalIngresos)}
+              </span>
+            </div>
+          </div>
+        );
+      });
 
   return (
     <article className="max-w-5xl mx-auto bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 space-y-5 print-page-break mb-8">
@@ -69,114 +104,73 @@ export function DeliverableResultadosDoc({
             Del 01 de Enero al {String(lastDay).padStart(2, '0')} de {mesNombre} de {year} • Cifras en Pesos Mexicanos (MXN)
           </div>
         </div>
-        <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
+        <div className="text-right text-[11px] text-slate-600 font-mono shrink-0">
           <div>Folio: DOC-RES-{year}-{String(period).padStart(2, '0')}</div>
-          <div>Emisión: {issuanceDate}</div>
+          <div>{issuanceCity ? `${issuanceCity}, ` : ''}{issuanceDate}</div>
         </div>
       </div>
 
       <div className="space-y-4 text-xs">
-        {/* Ingresos */}
         <div className="border border-slate-200 rounded-lg overflow-hidden">
-          <div className="bg-slate-100 px-3 py-1.5 font-bold uppercase text-[11px] text-slate-800 flex justify-between">
+          <div className="bg-slate-100 px-3 py-1.5 font-bold uppercase text-[11px] text-slate-800 flex items-center justify-between gap-3">
             <span>(+) Ingresos Operativos</span>
-            <span>Importe | % Vertical</span>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="w-28 text-right">Importe</span>
+              <span className="w-14 text-right">% Vert.</span>
+            </div>
           </div>
           <div className="p-2 space-y-1">
-            {incomeStatement.ingresos.map((a) => {
-              const signedAmt = signedResultBal(a, 'ACREEDORA');
-              return (
-              <div
-                key={a.id}
-                className={`flex justify-between py-0.5 ${
-                  a.level === 2
-                    ? 'font-bold text-slate-900 bg-slate-50/70 rounded px-2 mt-0.5'
-                    : 'pl-6 pr-2 text-slate-700'
-                }`}
-              >
-                <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
-                  {a.code} — {a.name}
+            {renderRows(incomeStatement.ingresos, 'ACREEDORA')}
+            <div className="flex items-center justify-between gap-3 px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
+              <span>Total de Ingresos Netos</span>
+              <div className="flex items-center gap-3 font-mono tabular-nums whitespace-nowrap shrink-0">
+                <span className={`w-28 text-right ${incomeStatement.totalIngresos < 0 ? 'text-red-700' : ''}`}>
+                  {formatCurrency(incomeStatement.totalIngresos)}
                 </span>
-                <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
+                <span className="w-14 text-right text-[11px] text-slate-600">
+                  {formatVerticalPct(incomeStatement.totalIngresos, incomeStatement.totalIngresos)}
                 </span>
               </div>
-              );
-            })}
-            <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
-              <span>Total de Ingresos Netos</span>
-              <span className="font-mono">{formatCurrency(incomeStatement.totalIngresos)} (100.0%)</span>
             </div>
           </div>
         </div>
 
-        {/* Costos y Utilidad Bruta */}
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="bg-slate-100 px-3 py-1.5 font-bold uppercase text-[11px] text-slate-800">
             (-) Costo de Ventas y Servicios
           </div>
           <div className="p-2 space-y-1">
-            {incomeStatement.costos.map((a) => {
-              const signedAmt = signedResultBal(a, 'DEUDORA');
-              return (
-              <div
-                key={a.id}
-                className={`flex justify-between py-0.5 ${
-                  a.level === 2
-                    ? 'font-bold text-slate-900 bg-slate-50/70 rounded px-2 mt-0.5'
-                    : 'pl-6 pr-2 text-slate-700'
-                }`}
-              >
-                <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
-                  {a.code} — {a.name}
+            {renderRows(incomeStatement.costos, 'DEUDORA')}
+            <div className="flex items-center justify-between gap-3 px-2 pt-1 border-t border-slate-300 font-bold text-slate-900 bg-slate-50 py-1 rounded">
+              <span>{isGrossLoss ? '(=) Pérdida Bruta Operativa' : '(=) Utilidad Bruta Operativa'}</span>
+              <div className="flex items-center gap-3 font-mono tabular-nums whitespace-nowrap shrink-0">
+                <span className={`w-28 text-right font-extrabold ${isGrossLoss ? 'text-red-700' : 'text-emerald-900'}`}>
+                  {formatCurrency(incomeStatement.utilidadBruta)}
                 </span>
-                <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
+                <span className="w-14 text-right text-[11px] text-slate-600">
+                  {formatVerticalPct(incomeStatement.utilidadBruta, incomeStatement.totalIngresos)}
                 </span>
               </div>
-              );
-            })}
-            <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900 bg-slate-50 py-1 rounded">
-              <span>(=) Utilidad Bruta Operativa</span>
-              <span className="font-mono text-emerald-900 font-extrabold">
-                {formatCurrency(incomeStatement.utilidadBruta)} (
-                {formatVerticalPct(incomeStatement.utilidadBruta, incomeStatement.totalIngresos)})
-              </span>
             </div>
           </div>
         </div>
 
-        {/* Gastos de Operación y Utilidad Neta */}
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="bg-slate-100 px-3 py-1.5 font-bold uppercase text-[11px] text-slate-800">
             (-) Gastos Generales de Operación y Administración
           </div>
           <div className="p-2 space-y-1">
-            {incomeStatement.gastos.map((a) => {
-              const signedAmt = signedResultBal(a, 'DEUDORA');
-              return (
-              <div
-                key={a.id}
-                className={`flex justify-between py-0.5 ${
-                  a.level === 2
-                    ? 'font-bold text-slate-900 bg-slate-50/70 rounded px-2 mt-0.5'
-                    : 'pl-6 pr-2 text-slate-700'
-                }`}
-              >
-                <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
-                  {a.code} — {a.name}
+            {renderRows(incomeStatement.gastos, 'DEUDORA')}
+            <div className="flex items-center justify-between gap-3 px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
+              <span>Total de Gastos de Operación</span>
+              <div className="flex items-center gap-3 font-mono tabular-nums whitespace-nowrap shrink-0">
+                <span className={`w-28 text-right ${incomeStatement.totalGastos < 0 ? 'text-red-700' : ''}`}>
+                  {formatCurrency(incomeStatement.totalGastos)}
                 </span>
-                <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
+                <span className="w-14 text-right text-[11px] text-slate-600">
+                  {formatVerticalPct(incomeStatement.totalGastos, incomeStatement.totalIngresos)}
                 </span>
               </div>
-              );
-            })}
-            <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
-              <span>Total de Gastos de Operación</span>
-              <span className="font-mono">
-                {formatCurrency(incomeStatement.totalGastos)} ({formatVerticalPct(incomeStatement.totalGastos, incomeStatement.totalIngresos)})
-              </span>
             </div>
           </div>
         </div>
@@ -187,49 +181,33 @@ export function DeliverableResultadosDoc({
               (-) Provisión de Impuesto a la Utilidad (ISR Ejercicio - NIF B-3)
             </div>
             <div className="p-2 space-y-1">
-              {incomeStatement.isrEjercicio.map((a) => {
-                const signedAmt = signedResultBal(a, 'DEUDORA');
-                return (
-                <div
-                  key={a.id}
-                  className={`flex justify-between py-0.5 ${
-                    a.level === 2
-                      ? 'font-bold text-slate-900 bg-slate-50/70 rounded px-2 mt-0.5'
-                      : 'pl-6 pr-2 text-slate-700'
-                  }`}
-                >
-                  <span className={a.level === 2 ? 'font-semibold' : 'text-slate-600'}>
-                    {a.code} — {a.name}
+              {renderRows(incomeStatement.isrEjercicio, 'DEUDORA')}
+              <div className="flex items-center justify-between gap-3 px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
+                <span>Total ISR del Ejercicio</span>
+                <div className="flex items-center gap-3 font-mono tabular-nums whitespace-nowrap shrink-0">
+                  <span className={`w-28 text-right ${(incomeStatement.totalIsr ?? 0) < 0 ? 'text-red-700' : ''}`}>
+                    {formatCurrency(incomeStatement.totalIsr ?? 0)}
                   </span>
-                  <span className="font-mono text-slate-700">
-                    {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
+                  <span className="w-14 text-right text-[11px] text-slate-600">
+                    {formatVerticalPct(incomeStatement.totalIsr ?? 0, incomeStatement.totalIngresos)}
                   </span>
                 </div>
-                );
-              })}
-              <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
-                <span>Total ISR del Ejercicio</span>
-                <span className="font-mono">
-                  {formatCurrency(incomeStatement.totalIsr ?? 0)} ({formatVerticalPct(incomeStatement.totalIsr ?? 0, incomeStatement.totalIngresos)})
-                </span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Cierre: Utilidad Neta del Periodo */}
         <div className="p-4 rounded-xl bg-slate-900 text-white flex justify-between items-center text-sm font-bold font-mono">
           <span className="uppercase tracking-wide">
             {isLoss ? '(=) PÉRDIDA NETA DEL PERIODO:' : '(=) UTILIDAD NETA DEL PERIODO:'}
           </span>
-          <span className={`${isLoss ? 'text-red-400' : 'text-emerald-300'} text-base`}>
-            {formatCurrency(incomeStatement.utilidadNeta)} (
-            {formatVerticalPct(incomeStatement.utilidadNeta, incomeStatement.totalIngresos)})
-          </span>
+          <div className={`flex items-center gap-3 tabular-nums whitespace-nowrap ${isLoss ? 'text-red-400' : 'text-emerald-300'}`}>
+            <span className="text-base">{formatCurrency(incomeStatement.utilidadNeta)}</span>
+            <span className="text-xs">({formatVerticalPct(incomeStatement.utilidadNeta, incomeStatement.totalIngresos)})</span>
+          </div>
         </div>
       </div>
 
-      {/* Bloque de Firmas */}
       <DeliverableSignaturesBlock
         auditorName={auditorName}
         auditorCedula={auditorCedula}

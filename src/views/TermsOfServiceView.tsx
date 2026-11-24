@@ -7,25 +7,30 @@ export function TermsOfServiceView() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Barra Superior */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 py-2 flex flex-wrap items-center justify-between gap-2">
-          <Link to="/" aria-label="Ir al inicio de LibrePaq Pro" className="flex items-center gap-2">
-            <LibrePaqLogo variant="horizontal" size="sm" theme="light" badge="PRO" />
+        <div className="max-w-5xl mx-auto px-3 sm:px-6 min-h-14 py-2 flex flex-wrap items-center justify-between gap-2">
+          <Link to="/" aria-label="Ir al inicio de LibrePaq Pro" className="flex items-center gap-2 shrink-0">
+            <span className="sm:hidden">
+              <LibrePaqLogo variant="horizontal" size="xs" theme="light" showSubtitle={false} />
+            </span>
+            <span className="hidden sm:inline-flex">
+              <LibrePaqLogo variant="horizontal" size="sm" theme="light" badge="PRO" />
+            </span>
           </Link>
-          <div className="flex items-center gap-4">
+          <nav aria-label="Navegación legal" className="flex items-center gap-2.5 sm:gap-4">
             <Link
               to="/privacy"
-              className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition whitespace-nowrap"
             >
-              Aviso de Privacidad
+              Privacidad
             </Link>
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900 transition"
+              className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900 transition whitespace-nowrap"
             >
-              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-              <span>Volver al Inicio</span>
+              <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Inicio</span>
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
@@ -49,7 +54,7 @@ export function TermsOfServiceView() {
           {/* Sección 1: Aceptación */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 1
               </span>
               Aceptación de los Términos
@@ -62,7 +67,7 @@ export function TermsOfServiceView() {
           {/* Sección 2: Uso del Software y Soberanía Contable */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 2
               </span>
               Uso del Software y Soberanía de Datos
@@ -75,7 +80,7 @@ export function TermsOfServiceView() {
           {/* Sección 3: Seguridad de la e.firma y Certificados SAT */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 3
               </span>
               Seguridad de la Firma Electrónica Avanzada (e.firma)
@@ -88,7 +93,7 @@ export function TermsOfServiceView() {
           {/* Sección 4: Cumplimiento Fiscal y Normativa SAT */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 4
               </span>
               Cumplimiento Fiscal y Normativa SAT
@@ -101,20 +106,20 @@ export function TermsOfServiceView() {
           {/* Sección 5: Disponibilidad y Cancelación */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 5
               </span>
               Disponibilidad, Respaldos y Terminación
             </h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              LibrePaq Pro ofrece mecanismos continuos para la exportación de respaldos completos en formato universal JSON y hojas de cálculo CSV. El usuario puede cancelar su cuenta o descargar su información contable íntegra en cualquier momento desde el módulo de Ajustes sin costo adicional.
+              LibrePaq Pro ofrece mecanismos continuos para la exportación de respaldos completos de tu contabilidad y hojas de cálculo Excel. El usuario puede cancelar su cuenta o descargar su información contable íntegra en cualquier momento desde el módulo de Ajustes sin costo adicional.
             </p>
           </section>
 
           {/* Sección 6: Legislación y Jurisdicción */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs flex items-center justify-center font-black shrink-0">
                 6
               </span>
               Legislación Aplicable y Jurisdicción

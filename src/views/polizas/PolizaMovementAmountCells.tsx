@@ -63,13 +63,10 @@ export function PolizaMovementAmountCells({
               e.preventDefault();
               return;
             }
-            if ((e.key === '=' || e.key === ' ') && difference < 0 && (!mov.cargo || mov.cargo === 0)) {
+            if (e.key === '=' || e.key === ' ') {
               e.preventDefault();
-              applyBalanceToRow(idx, 'cargo');
-              if (mov.abono > 0) {
-                setMovements((prev) =>
-                  prev.map((item, i) => (i === idx ? { ...item, abono: 0 } : item))
-                );
+              if (difference !== 0) {
+                applyBalanceToRow(idx, 'cargo');
               }
               return;
             }
@@ -102,6 +99,7 @@ export function PolizaMovementAmountCells({
         {difference < 0 && !mov.cargo && !mov.abono && (
           <button
             type="button"
+            tabIndex={-1}
             onClick={() => applyBalanceToRow(idx, 'cargo')}
             title="Pulsa = o clic para cuadrar este cargo"
             className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"
@@ -136,13 +134,10 @@ export function PolizaMovementAmountCells({
               e.preventDefault();
               return;
             }
-            if ((e.key === '=' || e.key === ' ') && difference > 0 && (!mov.abono || mov.abono === 0)) {
+            if (e.key === '=' || e.key === ' ') {
               e.preventDefault();
-              applyBalanceToRow(idx, 'abono');
-              if (mov.cargo > 0) {
-                setMovements((prev) =>
-                  prev.map((item, i) => (i === idx ? { ...item, cargo: 0 } : item))
-                );
+              if (difference !== 0) {
+                applyBalanceToRow(idx, 'abono');
               }
               return;
             }
@@ -170,6 +165,7 @@ export function PolizaMovementAmountCells({
         {difference > 0 && !mov.cargo && !mov.abono && (
           <button
             type="button"
+            tabIndex={-1}
             onClick={() => applyBalanceToRow(idx, 'abono')}
             title="Pulsa = o clic para cuadrar este abono"
             className="mt-1 w-full text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1 py-0.5 rounded cursor-pointer flex items-center justify-center gap-1 transition shadow-2xs"

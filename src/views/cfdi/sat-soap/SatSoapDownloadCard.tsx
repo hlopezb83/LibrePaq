@@ -6,6 +6,7 @@ import { SatDatePresetBar } from './SatDatePresetBar';
 import { SatCelebrationSuccessCard } from './SatCelebrationSuccessCard';
 import { SatRequestsHistoryCard } from './SatRequestsHistoryCard';
 import { SatPendingStatusBanner } from './SatPendingStatusBanner';
+import { getSatDownloadDisabledReason, translateSatErrorCode } from './satErrorTranslator';
 import { SAT_TIPO_SOLICITUD_OPTS } from './satSoapHelpers';
 
 interface SatSoapDownloadCardProps {
@@ -88,6 +89,16 @@ export function SatSoapDownloadCard({
       r.fechaFinal === fechaFinal &&
       !periodHasCompleted
   );
+  const translatedError = relevantError
+    ? translateSatErrorCode(relevantError.codigoEstadoSat, relevantError.mensajeSat)
+    : null;
+  const downloadDisabledReason = getSatDownloadDisabledReason({
+    isReadOnlyClient,
+    hasCredentials,
+    activePendingId: activePendingInPeriod?.idSolicitudSat,
+    isDateRangeInvalid,
+    isPending: soapDownloadMutation.isPending
+  });
 
   return (
     <div className="w-full p-4 sm:p-5 rounded-2xl bg-white border border-slate-300/80 space-y-5 shadow-2xs">
@@ -107,17 +118,17 @@ export function SatSoapDownloadCard({
               type="button"
               aria-pressed={modoEjecucion === 'SAT_LIVE'}
               onClick={() => setModoEjecucion('SAT_LIVE')}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${modoEjecucion === 'SAT_LIVE' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${modoEjecucion === 'SAT_LIVE' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
             >
-              🟢 SAT Live
+              <span aria-hidden="true">🟢 </span>SAT Live
             </button>
             <button
               type="button"
               aria-pressed={modoEjecucion === 'SANDBOX_CRYPTO'}
               onClick={() => setModoEjecucion('SANDBOX_CRYPTO')}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${modoEjecucion === 'SANDBOX_CRYPTO' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${modoEjecucion === 'SANDBOX_CRYPTO' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
             >
-              🟡 Sandbox Demo
+              <span aria-hidden="true">🟡 </span>Sandbox Demo
             </button>
           </div>
         )}
@@ -125,10 +136,14 @@ export function SatSoapDownloadCard({
 
       {/* Selector Contable de Tipo de Comprobantes */}
       <div className="space-y-1.5">
-        <label className="block text-xs font-bold text-slate-800">
+        <p id="sat-tipo-solicitud-label" className="block text-xs font-bold text-slate-800">
           1. ¿Qué tipo de comprobantes deseas descargar?
-        </label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5" role="group" aria-label="Tipo de comprobantes a descargar">
+        </p>
+        <div
+          className="grid grid-cols-1 sm:grid-cols-3 gap-2.5"
+          role="group"
+          aria-labelledby="sat-tipo-solicitud-label"
+        >
           {SAT_TIPO_SOLICITUD_OPTS.map((opt) => {
             const Icon = opt.icon;
             const isSelected = tipoSolicitud === opt.id;
@@ -159,11 +174,11 @@ export function SatSoapDownloadCard({
       </div>
 
       {/* Selector de Rango de Fechas con Atajos Rápidos */}
-      <div className="space-y-3">
+      <div className="space-y-3" role="group" aria-labelledby="sat-rango-fechas-label">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <label className="block text-xs font-bold text-slate-800">
+          <p id="sat-rango-fechas-label" className="block text-xs font-bold text-slate-800">
             2. Rango de Fechas a Consultar en el SAT
-          </label>
+          </p>
         </div>
 
         <SatDatePresetBar
@@ -191,7 +206,6 @@ export function SatSoapDownloadCard({
               className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono"
             />
           </div>
-
           <div>
             <label htmlFor="soap-fin" className="block text-[11px] font-semibold text-slate-700 mb-1">
               Fecha Final (Hasta)
@@ -224,7 +238,7 @@ export function SatSoapDownloadCard({
             isDateRangeInvalid ||
             isReadOnlyClient
           }
-          title={isReadOnlyClient ? 'Modo solo lectura: descarga SAT deshabilitada' : undefined}
+          title={downloadDisabledReason}
           onClick={() => soapDownloadMutation.mutate()}
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-xs transition"
         >
@@ -234,17 +248,19 @@ export function SatSoapDownloadCard({
             : !hasCredentials
             ? 'Conecta la e.firma de tu empresa primero'
             : activePendingInPeriod
-            ? `⏳ Solicitud ya en proceso ante el SAT (${activePendingInPeriod.idSolicitudSat.slice(0, 8)}...)`
+            ? <><span aria-hidden="true">⏳ </span>Solicitud ya en proceso ante el SAT ({activePendingInPeriod.idSolicitudSat.slice(0, 8)}...)</>
             : tipoSolicitud === 'AMBOS'
-            ? `⚡ Descargar Gastos e Ingresos del SAT (${fechaInicial} al ${fechaFinal})`
+            ? `Descargar Gastos e Ingresos del SAT (${fechaInicial} al ${fechaFinal})`
             : tipoSolicitud === 'EMITIDOS'
-            ? `📤 Descargar Facturas Emitidas (Ingresos) (${fechaInicial} al ${fechaFinal})`
-            : `📥 Descargar Facturas Recibidas (Gastos) (${fechaInicial} al ${fechaFinal})`}
+            ? <><span aria-hidden="true">📤 </span>Descargar Facturas Emitidas (Ingresos) ({fechaInicial} al ${fechaFinal})</>
+            : <><span aria-hidden="true">📥 </span>Descargar Facturas Recibidas (Gastos) ({fechaInicial} al ${fechaFinal})</>}
         </button>
 
         {existingCompletedInPeriod && !activePendingInPeriod && (
           <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[11px]">
-            <span className="font-bold text-slate-700">💡 Nota de periodo:</span>
+            <span className="font-bold text-slate-700">
+              <span aria-hidden="true">💡 </span>Nota de periodo:
+            </span>
             <span>Este periodo ya cuenta con descarga previa ({periodDownloadedCount || existingCompletedInPeriod.cfdisDescargados || 0} comprobantes). Puedes volver a solicitar si requieres actualizar facturas emitidas hoy.</span>
           </div>
         )}
@@ -270,16 +286,19 @@ export function SatSoapDownloadCard({
           />
         )}
 
-        {!isDemoCompany && pendingRequests.length === 0 && relevantError && (
-          <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-xs text-amber-950 space-y-2.5 shadow-2xs">
+        {!isDemoCompany && pendingRequests.length === 0 && relevantError && translatedError && (
+          <div
+            role="alert"
+            className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-xs text-amber-950 space-y-2.5 shadow-2xs"
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="font-bold flex items-center gap-2 text-amber-900 text-xs sm:text-sm">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Respuesta del SAT: Solicitud rechazada o ya atendida</span>
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
+                <span>{translatedError.title}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono">
-                  {relevantError.codigoEstadoSat || 'SAT Código 5'}
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono">
+                  SAT {translatedError.code}
                 </span>
                 <button
                   type="button"
@@ -294,17 +313,17 @@ export function SatSoapDownloadCard({
             </div>
 
             <p className="text-[11px] text-amber-900 leading-relaxed">
-              {relevantError.mensajeSat ||
-                'El SAT reportó código 5 (Solicitud rechazada). Esto ocurre habitualmente cuando ya existe una solicitud reciente para este mismo rango de fechas o tus comprobantes ya fueron descargados.'}
+              {relevantError.mensajeSat || translatedError.explanation}
             </p>
 
             <div className="bg-white/80 p-2 rounded-lg border border-amber-200 font-mono text-[11px] text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <span>Folio SAT: <strong className="select-all underline text-slate-900">{relevantError.idSolicitudSat}</strong></span>
-              <span className="text-slate-500 text-[10px]">({relevantError.fechaInicial} al {relevantError.fechaFinal})</span>
+              <span className="text-slate-600 text-[11px]">({relevantError.fechaInicial} al {relevantError.fechaFinal})</span>
             </div>
 
-            <p className="text-[11px] text-slate-600">
-              💡 <em>¿Qué puedes hacer?</em> Si tus comprobantes de este periodo ya están en la Bóveda ADD, no es necesario volver a solicitar. Si buscas comprobantes nuevos, puedes cambiar el rango de fechas o arrastrar tus archivos XML directamente a la zona superior.
+            <p className="text-[11px] text-slate-700">
+              <span aria-hidden="true">💡 </span>
+              <em>¿Qué puedes hacer?</em> {translatedError.hint}
             </p>
           </div>
         )}

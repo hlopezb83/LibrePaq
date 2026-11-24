@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
+import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
 import type { CxcCxpAgingBucket, CxcCxpDocumentRow } from '../../shared/types';
 
 export interface BucketMeta {
@@ -26,6 +27,9 @@ export function CxcCxpTable({
   onToggleExpanded
 }: CxcCxpTableProps) {
   const { copiedKey, copy } = useCopyToClipboard<string>(2000);
+  const totalOriginal = fromCents(sumCents(items.map((r) => r.totalOriginalMxn)));
+  const totalPagado = fromCents(sumCents(items.map((r) => r.totalPagadoMxn)));
+  const totalInsoluto = fromCents(sumCents(items.map((r) => r.saldoInsolutoMxn)));
 
   return (
     <div
@@ -88,7 +92,7 @@ export function CxcCxpTable({
                         onClick={() => void copy(row.uuid, row.cfdiId)}
                         aria-label={isUuidCopied ? `UUID ${row.uuid} copiado` : `Copiar UUID completo de ${row.serieFolio || row.uuid.slice(0, 8)}`}
                         title={isUuidCopied ? 'UUID copiado' : 'Copiar UUID completo'}
-                        className="p-1 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer transition"
+                        className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer transition"
                       >
                         {isUuidCopied
                           ? <Check className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
@@ -162,6 +166,24 @@ export function CxcCxpTable({
             );
           })}
         </tbody>
+        {items.length > 0 && (
+          <tfoot className="bg-slate-100 border-t-2 border-slate-300 text-xs font-bold text-slate-900">
+            <tr>
+              <td colSpan={4} className="py-2.5 px-3 text-right uppercase tracking-wider text-slate-700">
+                Subtotales filtrados ({items.length} {items.length === 1 ? 'documento' : 'documentos'}):
+              </td>
+              <td className="py-2.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">
+                {formatCurrency(totalOriginal)}
+              </td>
+              <td className="py-2.5 px-3 font-mono tabular-nums whitespace-nowrap">
+                <div className="flex justify-between gap-3 text-[11px]">
+                  <span className="text-emerald-800">Pagado: {formatCurrency(totalPagado)}</span>
+                  <span className="text-slate-900">Insoluto: {formatCurrency(totalInsoluto)}</span>
+                </div>
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

@@ -26,7 +26,7 @@ const AJUSTES_TABS: Array<{
   icon: ComponentType<{ className?: string }>;
 }> = [
   { id: 'directorio', label: '1. Directorio', icon: Users },
-  { id: 'empresa', label: '2. Empresa', icon: Building2 },
+  { id: 'empresa', label: '2. Empresa y Reglas', icon: Building2 },
   { id: 'efirma', label: '3. e.Firma / SAT', icon: KeyRound },
   { id: 'fiscal', label: '4. Cédula Día 17', icon: Coins },
   { id: 'respaldos', label: '5. Respaldos', icon: HardDrive },
@@ -127,7 +127,7 @@ export function AjustesView() {
             onScroll={updateTabScrollState}
             role="tablist"
             aria-label="Secciones de configuración del despacho"
-            className="flex flex-nowrap items-center gap-1 erp-tab-scroller max-w-full min-w-0 flex-1 py-0.5"
+            className="flex flex-nowrap md:flex-wrap items-center gap-1 erp-tab-scroller max-w-full min-w-0 flex-1 py-0.5"
           >
             {AJUSTES_TABS.map((tab, index) => {
               const Icon = tab.icon;
@@ -142,7 +142,7 @@ export function AjustesView() {
                   type="button"
                   role="tab"
                   aria-selected={isSelected}
-                  aria-controls={`ajustes-panel-${tab.id}`}
+                  aria-controls={isSelected ? `ajustes-panel-${tab.id}` : undefined}
                   tabIndex={isSelected ? 0 : -1}
                   onClick={() => selectAndFocusTab(tab.id)}
                   onKeyDown={(e) => handleTabKeyDown(e, index)}
@@ -219,7 +219,7 @@ export function AjustesView() {
             setConfirmDeleteCompany={s.setConfirmDeleteCompany}
             onConfigureFicha={() => setActiveTab('empresa')}
             canDeleteCompany={s.canDeleteOrRestore}
-            canCreateCompany={!s.isReadOnlySupportMode}
+            canCreateCompany={!s.isReadOnlySupportMode && !s.isReadOnlyClient && s.effectiveCompanyRole !== 'CLIENTE_LECTURA'}
             toast={s.toast}
           />
         )}
@@ -245,6 +245,7 @@ export function AjustesView() {
             periodLock={s.periodLock}
             togglePeriodLockMutation={s.togglePeriodLockMutation}
             isReadOnly={!s.canEditFiscalConfig}
+            canEditRules={!s.isReadOnlySupportMode && !s.isReadOnlyClient}
           />
         )}
 
@@ -296,6 +297,9 @@ export function AjustesView() {
             accountsList={s.accountsList}
             polizasData={s.polizasData}
             cfdisList={s.cfdisList}
+            isLoadingMetrics={s.isLoadingMetrics}
+            isErrorMetrics={s.isErrorMetrics}
+            refetchMetrics={s.refetchMetrics}
             isExportingBackup={s.isExportingBackup}
             isRestoringBackup={s.isRestoringBackup}
             pendingRestore={s.pendingRestore}

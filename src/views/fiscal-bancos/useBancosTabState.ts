@@ -37,6 +37,7 @@ export function useBancosTabState(params: {
   const defaultPeriodDate = getDefaultDateForPeriod(currentYear, currentPeriod);
 
   const [selectedBankId, setSelectedBankId] = useState<string>('');
+  const [isCsvUploading, setIsCsvUploading] = useState(false);
   const [bFecha, setBFecha] = useState(() => defaultPeriodDate);
   const [bRef, setBRef] = useState('');
   const [bDesc, setBDesc] = useState('');
@@ -183,6 +184,7 @@ export function useBancosTabState(params: {
       e.target.value = '';
       return;
     }
+    setIsCsvUploading(true);
     try {
       const text = await file.text();
       const parsedLines = parseBankStatementCsv(text, defaultPeriodDate);
@@ -199,6 +201,7 @@ export function useBancosTabState(params: {
     } catch (err: unknown) {
       toast.error(`Error al importar CSV bancario: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
+      setIsCsvUploading(false);
       e.target.value = '';
     }
   };
@@ -285,6 +288,7 @@ export function useBancosTabState(params: {
     unmatchBankLineMutation,
     addBankLineMutation,
     activeBankLineId,
+    isCsvUploading,
     handleCsvUpload,
     reconFormula,
     handleAddBankLineSubmit

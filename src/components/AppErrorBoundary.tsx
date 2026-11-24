@@ -45,12 +45,17 @@ export class AppErrorBoundary extends Component<Props, State> {
           <h3 className="text-base font-bold text-slate-900 mb-1">
             Interrupción en el Módulo Contable
           </h3>
-          <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+          <p className="text-xs text-slate-600 mb-3 leading-relaxed">
             Ocurrió un error inesperado al procesar la vista. Tu empresa activa, menú de navegación y sesión permanecen intactos.
           </p>
-          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono text-red-700 max-w-md mx-auto overflow-x-auto mb-4 text-left">
-            {msg}
-          </div>
+          <details className="max-w-md mx-auto mb-4 text-left bg-slate-50 rounded-xl border border-slate-200 p-2.5">
+            <summary className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+              Ver detalle técnico del error
+            </summary>
+            <div className="mt-2 pt-2 border-t border-slate-200 text-xs font-mono text-red-700 overflow-x-auto">
+              {msg}
+            </div>
+          </details>
           <div className="flex items-center justify-center gap-2">
             <button
               type="button"

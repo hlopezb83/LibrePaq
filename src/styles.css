@@ -75,6 +75,13 @@
     outline-offset: 2px;
   }
 
+  /* Foco visible de alto contraste sobre superficies oscuras (#0A1120 / #111C35) */
+  .dark-focus-ring:focus-visible,
+  .dark-surface :where(a:any-link, button, input, select, textarea, [tabindex="0"]):focus-visible {
+    outline: 2.5px solid #67e8f9;
+    outline-offset: 2px;
+  }
+
   /* Modales nativos <dialog> con contención de scroll y protección contra clases utilitarias */
   dialog:not([open]) {
     display: none !important;
@@ -144,7 +151,7 @@
 }
 
 /* Calibración Única de Densidad Contable Profesional (Equilibrio de Alta Legibilidad y Capacidad) */
-table th {
+table thead th {
   padding-top: 0.45rem !important;
   padding-bottom: 0.45rem !important;
   font-size: 0.75rem !important;
@@ -257,9 +264,10 @@ table td {
   animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%;
 }
 
-/* Evita recorte lateral de pestañas en /fiscal-bancos a 1280×800 */
+/* Evita recorte lateral de pestañas en >= 768px manteniendo .erp-tab-scroller en móvil */
 @media (min-width: 768px) {
-  .fb-tabbar-shell [role="tablist"] {
+  .fb-tabbar-shell [role="tablist"],
+  .erp-tabbar-wrap [role="tablist"] {
     flex-wrap: wrap;
     overflow-x: visible;
     row-gap: 0.375rem;
@@ -267,9 +275,33 @@ table td {
     animation: none;
   }
 
-  .fb-tabbar-shell [role="tablist"] [role="tab"] {
+  .fb-tabbar-shell [role="tablist"] [role="tab"],
+  .erp-tabbar-wrap [role="tablist"] [role="tab"] {
     padding-inline: 0.625rem;
   }
+}
+
+/* Sliders táctiles accesibles >= 24px (WCAG 2.5.8) */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: var(--slider-thumb-color, var(--brand-cobalt));
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.3);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: var(--slider-thumb-color, var(--brand-cobalt));
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.3);
+  cursor: pointer;
 }
 
 .erp-tab-scroller::-webkit-scrollbar {

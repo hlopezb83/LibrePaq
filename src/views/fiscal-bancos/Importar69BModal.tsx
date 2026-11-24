@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Download,
+  ExternalLink,
   FileSpreadsheet,
   Loader2,
   ShieldAlert,
@@ -24,6 +25,7 @@ import {
   save69BDatabase,
   type Sat69BParseResult
 } from '../../shared/sat-69b';
+import { Importar69BStatusPanels } from './Importar69BStatusPanels';
 
 export interface Importar69BModalProps {
   isOpen: boolean;
@@ -43,9 +45,17 @@ export function Importar69BModal({
   const [parseResult, setParseResult] = useState<Sat69BParseResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  useDialogLightDismiss(dialogRef, onClose, { isOpen });
+  const isSyncing = Boolean(syncProgress);
+  useDialogLightDismiss(
+    dialogRef,
+    () => {
+      if (!isSyncing) onClose();
+    },
+    { isOpen: isOpen && !isSyncing, deferClose: isSyncing }
+  );
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -55,6 +65,7 @@ export function Importar69BModal({
       setParseError(null);
       setFileName(null);
       setSyncProgress(null);
+      setIsDragging(false);
       if (!dialog.open) dialog.showModal();
     } else if (dialog.open) {
       dialog.close();
@@ -66,10 +77,7 @@ export function Importar69BModal({
   const meta = getLoaded69BMeta();
   const currentDbSize = Math.max(getLoaded69BDatabase().size, meta?.totalCount ?? 0);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processCsvFile = (file: File, resetInput?: () => void) => {
     setFileName(file.name);
     setParseError(null);
     setParseResult(null);
@@ -90,15 +98,48 @@ export function Importar69BModal({
         );
       } finally {
         setIsProcessing(false);
-        e.target.value = '';
+        resetInput?.();
       }
     };
     reader.onerror = () => {
       setParseError('No se pudo abrir el archivo CSV seleccionado.');
       setIsProcessing(false);
-      e.target.value = '';
+      resetInput?.();
     };
     reader.readAsText(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processCsvFile(file, () => {
+      e.target.value = '';
+    });
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (!isSyncing && !isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (isSyncing) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.csv') && !file.type.includes('csv') && !file.type.includes('text')) {
+      setParseError('Por favor arrastra un archivo en formato CSV (.csv) oficial del SAT.');
+      return;
+    }
+    processCsvFile(file);
   };
 
   const handleApply = async () => {
@@ -143,15 +184,24 @@ export function Importar69BModal({
     onClose();
   };
 
+  const syncPct = syncProgress && syncProgress.total > 0
+    ? Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))
+    : 0;
+
   return (
     <dialog
       ref={dialogRef}
-      closedby="any"
-      onClose={onClose}
+      closedby={isSyncing ? 'none' : 'any'}
+      onCancel={(e) => {
+        if (isSyncing) e.preventDefault();
+      }}
+      onClose={() => {
+        if (!isSyncing) onClose();
+      }}
       aria-labelledby="modal-69b-title"
       className="bg-white rounded-2xl shadow-xl border border-slate-300 w-full max-w-xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
-      <div className="flex items-center justify-between p-4 border-b border-slate-200">
+      <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-700">
             <ShieldAlert className="w-5 h-5" aria-hidden="true" />
@@ -167,20 +217,21 @@ export function Importar69BModal({
         </div>
         <button
           type="button"
-          onClick={onClose}
-          disabled={Boolean(syncProgress)}
+          onClick={() => { if (!isSyncing) onClose(); }}
+          disabled={isSyncing}
+          title={isSyncing ? 'Espera a que finalice la sincronización en la nube' : 'Cerrar modal'}
           aria-label="Cerrar modal de Lista Negra 69-B"
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
 
-      <div className="p-5 space-y-4 text-xs overflow-y-auto">
+      <div className="p-5 space-y-4 text-xs overflow-y-auto flex-1 min-h-0 overscroll-contain">
         <div className="bg-blue-50/70 border border-blue-200 p-3.5 rounded-xl space-y-2">
           <div className="flex items-center justify-between">
             <span className="font-bold text-blue-900">Base Activa en LibrePaq:</span>
-            <span className="font-mono font-bold text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200">
+            <span className="font-mono tabular-nums font-bold text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200">
               {currentDbSize.toLocaleString()} RFCs en lista negra
             </span>
           </div>
@@ -194,22 +245,33 @@ export function Importar69BModal({
             className="inline-flex items-center gap-1 font-semibold text-blue-800 hover:text-blue-950 underline text-[11px]"
           >
             <Download className="w-3.5 h-3.5" aria-hidden="true" />
-            Descargar archivo oficial más reciente del portal del SAT
+            <span>Descargar archivo oficial más reciente del portal del SAT (abre en nueva pestaña)</span>
+            <ExternalLink className="w-3 h-3" aria-hidden="true" />
           </a>
         </div>
 
-        <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 text-center bg-slate-50 hover:bg-slate-100/70 transition-colors">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors ${
+            isDragging ? 'border-blue-600 bg-blue-50/70' : 'border-slate-300 bg-slate-50 hover:bg-slate-100/70'
+          }`}
+        >
           <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-500 mb-2" aria-hidden="true" />
           <label
             htmlFor="csv-69b-upload"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 focus-within:outline-2 focus-within:outline-blue-600 focus-within:outline-offset-2 text-white cursor-pointer mb-1"
+            title={isSyncing ? 'Sincronización en progreso' : 'Seleccionar o arrastrar Listado_Completo_69-B.csv'}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 focus-within:outline-2 focus-within:outline-blue-600 focus-within:outline-offset-2 text-white mb-1 ${
+              isSyncing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            }`}
           >
             <input
               id="csv-69b-upload"
               ref={fileInputRef}
               type="file"
               accept=".csv,text/csv"
-              disabled={Boolean(syncProgress)}
+              disabled={isSyncing}
               onChange={handleFileChange}
               className="visually-hidden"
             />
@@ -217,87 +279,44 @@ export function Importar69BModal({
             <span>Seleccionar archivo Listado_Completo_69-B.csv</span>
           </label>
           <p className="text-[11px] text-slate-600">
-            {fileName ? `Archivo: ${fileName}` : 'Formato oficial de texto separado por comas o punto y coma'}
+            {fileName ? `Archivo: ${fileName}` : 'Arrastra aquí el archivo CSV del SAT o selecciónalo manualmente'}
           </p>
         </div>
 
-        {parseError && (
-          <div
-            role="alert"
-            className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 font-medium"
-          >
-            {parseError}
-          </div>
-        )}
-
-        {isProcessing && (
-          <div role="status" aria-live="polite" aria-busy="true" className="text-center py-2 text-slate-600 font-semibold">
-            Procesando y clasificando registros oficiales del SAT...
-          </div>
-        )}
-
-        {syncProgress && (
-          <div role="status" aria-live="polite" className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 font-semibold flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
-            <span>
-              Sincronizando padrón completo en la nube ({syncProgress.done.toLocaleString()} / {syncProgress.total.toLocaleString()} RFCs)...
-            </span>
-          </div>
-        )}
-
-        {parseResult && !isProcessing && (
-          <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2.5">
-            <div className="font-bold text-slate-800 flex items-center justify-between">
-              <span>Resumen del Archivo Importado:</span>
-              <span className="font-mono text-slate-900 font-bold">
-                {parseResult.total.toLocaleString()} contribuyentes
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-              <div className="bg-red-100/70 border border-red-200 rounded-lg p-2 text-red-900">
-                <div className="font-bold">Definitivos</div>
-                <div className="font-mono text-base font-extrabold">{parseResult.definitivos}</div>
-              </div>
-              <div className="bg-amber-100/70 border border-amber-200 rounded-lg p-2 text-amber-900">
-                <div className="font-bold">Presuntos</div>
-                <div className="font-mono text-base font-extrabold">{parseResult.presuntos}</div>
-              </div>
-              <div className="bg-blue-100/70 border border-blue-200 rounded-lg p-2 text-blue-900">
-                <div className="font-bold">Desvirtuados</div>
-                <div className="font-mono text-base font-extrabold">{parseResult.desvirtuados}</div>
-              </div>
-              <div className="bg-emerald-100/70 border border-emerald-200 rounded-lg p-2 text-emerald-900">
-                <div className="font-bold">Sentencia Fav.</div>
-                <div className="font-mono text-base font-extrabold">{parseResult.favorables}</div>
-              </div>
-            </div>
-          </div>
-        )}
+        <Importar69BStatusPanels
+          parseError={parseError}
+          isProcessing={isProcessing}
+          syncProgress={syncProgress}
+          syncPct={syncPct}
+          parseResult={parseResult}
+        />
       </div>
 
-      <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+      <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
         <button
           type="button"
-          onClick={onClose}
-          disabled={Boolean(syncProgress)}
-          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+          onClick={() => { if (!isSyncing) onClose(); }}
+          disabled={isSyncing}
+          title={isSyncing ? 'Sincronización en curso' : 'Cancelar importación'}
+          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Cancelar
         </button>
         <button
           type="button"
-          disabled={!parseResult || parseResult.total === 0 || Boolean(syncProgress)}
+          disabled={!parseResult || parseResult.total === 0 || isSyncing}
+          title={
+            isSyncing
+              ? 'Sincronizando padrón 69-B...'
+              : !parseResult || parseResult.total === 0
+                ? 'Selecciona un archivo CSV válido del SAT primero'
+                : 'Guardar padrón 69-B y sincronizar con la nube'
+          }
           onClick={() => void handleApply()}
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer"
         >
-          {syncProgress ? (
-            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-          )}
-          {syncProgress
-            ? 'Sincronizando con nube...'
-            : `Aplicar y Sincronizar (${parseResult ? parseResult.total.toLocaleString() : 0} RFCs)`}
+          {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="w-4 h-4" aria-hidden="true" />}
+          {isSyncing ? 'Sincronizando con nube...' : `Aplicar y Sincronizar (${parseResult ? parseResult.total.toLocaleString() : 0} RFCs)`}
         </button>
       </div>
     </dialog>

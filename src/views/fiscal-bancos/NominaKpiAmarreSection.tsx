@@ -1,13 +1,19 @@
-import { AlertCircle, CheckCircle2, Users } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { AlertCircle, BookOpen, CheckCircle2, FileUp, Users } from 'lucide-react';
+import { useUIModal } from '../../context/UIModalContext';
 import { formatCurrency } from '../../lib/formatters';
 import type { PayrollPeriodSummary } from '../../shared/types/payroll-summary.types';
 
 export interface NominaKpiAmarreSectionProps {
   summary: PayrollPeriodSummary;
   periodLabel: string;
+  isrAccountId?: string;
 }
 
-export function NominaKpiAmarreSection({ summary, periodLabel }: NominaKpiAmarreSectionProps) {
+export function NominaKpiAmarreSection({ summary, periodLabel, isrAccountId }: NominaKpiAmarreSectionProps) {
+  const navigate = useNavigate();
+  const { openLedger } = useUIModal();
+
   const kpiCards = [
     {
       label: 'Recibos Timbrados (Tipo N)',
@@ -98,15 +104,37 @@ export function NominaKpiAmarreSection({ summary, periodLabel }: NominaKpiAmarre
         </div>
 
         {summary.amarreStatus === 'DIFERENCIA' && (
-          <p role="status" className="text-xs text-red-900 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-            Existe una discrepancia entre el ISR retenido en los recibos Tipo N y los abonos contabilizados en la cuenta{' '}
-            <strong className="font-mono">{summary.cuentaIsrCode}</strong>. Revisa las pólizas de nómina del periodo o verifica que no falten XMLs Tipo N por importar o cancelar.
-          </p>
+          <div role="status" className="text-xs text-red-900 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span>
+              Existe una discrepancia entre el ISR retenido en los recibos Tipo N y los abonos contabilizados en la cuenta{' '}
+              <strong className="font-mono">{summary.cuentaIsrCode}</strong>. Revisa las pólizas de nómina del periodo o verifica XMLs Tipo N.
+            </span>
+            {isrAccountId && (
+              <button
+                type="button"
+                onClick={() => openLedger(isrAccountId)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-red-100 text-red-900 border border-red-300 font-semibold shrink-0 cursor-pointer"
+              >
+                <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                Ver Libro Mayor ({summary.cuentaIsrCode})
+              </button>
+            )}
+          </div>
         )}
         {summary.amarreStatus === 'SIN_NOMINA' && (
-          <p role="status" className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-            No se encontraron recibos de nómina (CFDI Tipo N) vigentes en el periodo {periodLabel}. Si pagaste sueldos, importa los XMLs correspondientes en la <strong>Bóveda Digital (ADD)</strong>.
-          </p>
+          <div role="status" className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span>
+              No se encontraron recibos de nómina (CFDI Tipo N) vigentes en el periodo {periodLabel}. Si pagaste sueldos, importa los XMLs correspondientes en la <strong>Bóveda Digital (ADD)</strong>.
+            </span>
+            <button
+              type="button"
+              onClick={() => void navigate({ to: '/add' })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold shrink-0 cursor-pointer"
+            >
+              <FileUp className="w-3.5 h-3.5" aria-hidden="true" />
+              Ir a Bóveda Digital (ADD)
+            </button>
+          </div>
         )}
       </section>
     </>

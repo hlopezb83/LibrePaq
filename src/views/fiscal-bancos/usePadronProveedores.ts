@@ -12,6 +12,20 @@ interface UsePadronProveedoresParams {
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
+export function extractThirdPartyDraft(tp: ThirdPartyRecord) {
+  return {
+    rfc: tp.rfc,
+    nombre: tp.nombre,
+    rol: tp.rol || ('PROVEEDOR' as const),
+    tipoTerceroDiot: (tp.tipoTerceroDiot as '04' | '05') || '04',
+    cuentaContrapartidaCode: tp.cuentaContrapartidaCode || '201-01-001',
+    cuentaOperacionCode: tp.cuentaOperacionCode || '601-01-002',
+    tasaIvaDefault: (tp.tasaIvaDefault as 16 | 8 | 0) ?? 16,
+    tipoOperacionDiot: (tp.tipoOperacionDiot as '03' | '06' | '85') || '03',
+    estatus69B: tp.estatus69B || ('LIMPIO' as const)
+  };
+}
+
 export function usePadronProveedores({
   companyId,
   accounts,
@@ -34,12 +48,21 @@ export function usePadronProveedores({
 
   const [tpRfc, setTpRfc] = useState('');
   const [tpNombre, setTpNombre] = useState('');
+  const [tpRol, setTpRol] = useState<'PROVEEDOR' | 'CLIENTE' | 'AMBOS'>('PROVEEDOR');
+  const [tpTipoTercero, setTpTipoTercero] = useState<'04' | '05'>('04');
+  const [tpContrapartidaAcc, setTpContrapartidaAcc] = useState('201-01-001');
   const [tpOperacion, setTpOperacion] = useState<'03' | '06' | '85'>('03');
   const [tpExpenseAcc, setTpExpenseAcc] = useState('601-01-002');
   const [tpIvaRate, setTpIvaRate] = useState<16 | 8 | 0>(16);
   const [tpEfos, setTpEfos] = useState<Efos69BStatus>('LIMPIO');
+  const [editingRfc, setEditingRfc] = useState<string | null>(null);
   const [is69BModalOpen, setIs69BModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const isEditing = useMemo(
+    () => Boolean(editingRfc) || (tpRfc.trim().length >= 12 && thirdParties.some((tp) => tp.rfc === tpRfc.trim())),
+    [editingRfc, thirdParties, tpRfc]
+  );
 
   const filteredThirdParties = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -52,19 +75,28 @@ export function usePadronProveedores({
     );
   }, [thirdParties, searchQuery]);
 
-  const selectThirdPartyForEdit = (tp: ThirdPartyRecord) => {
-    setTpRfc(tp.rfc);
-    setTpNombre(tp.nombre);
-    setTpExpenseAcc(tp.cuentaOperacionCode || '601-01-002');
-    setTpIvaRate((tp.tasaIvaDefault as 16 | 8 | 0) ?? 16);
-    setTpOperacion((tp.tipoOperacionDiot as '03' | '06' | '85') || '03');
-    setTpEfos(tp.estatus69B || 'LIMPIO');
+  const selectThirdPartyForEdit = useCallback((tp: ThirdPartyRecord) => {
+    const draft = extractThirdPartyDraft(tp);
+    setEditingRfc(draft.rfc);
+    setTpRfc(draft.rfc);
+    setTpNombre(draft.nombre);
+    setTpRol(draft.rol);
+    setTpTipoTercero(draft.tipoTerceroDiot);
+    setTpContrapartidaAcc(draft.cuentaContrapartidaCode);
+    setTpExpenseAcc(draft.cuentaOperacionCode);
+    setTpIvaRate(draft.tasaIvaDefault);
+    setTpOperacion(draft.tipoOperacionDiot);
+    setTpEfos(draft.estatus69B);
     document.getElementById('tp-nombre')?.focus();
-  };
+  }, []);
 
   const resetForm = useCallback(() => {
+    setEditingRfc(null);
     setTpRfc('');
     setTpNombre('');
+    setTpRol('PROVEEDOR');
+    setTpTipoTercero('04');
+    setTpContrapartidaAcc('201-01-001');
     setTpExpenseAcc('601-01-002');
     setTpIvaRate(16);
     setTpOperacion('03');
@@ -85,6 +117,9 @@ export function usePadronProveedores({
   const handleRfcChange = (val: string) => {
     const clean = val.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
     setTpRfc(clean);
+    if (editingRfc && clean !== editingRfc) {
+      setEditingRfc(null);
+    }
     if (clean.length >= 12) {
       const check = checkRfc69BStatus(clean);
       setTpEfos(check.status);
@@ -102,10 +137,10 @@ export function usePadronProveedores({
         companyId,
         rfc: tpRfc,
         nombre: tpNombre,
-        rol: 'PROVEEDOR',
+        rol: tpRol,
         cuentaOperacionCode: tpExpenseAcc,
-        cuentaContrapartidaCode: '201-01-001',
-        tipoTerceroDiot: '04',
+        cuentaContrapartidaCode: tpContrapartidaAcc,
+        tipoTerceroDiot: tpTipoTercero,
         tipoOperacionDiot: tpOperacion,
         tasaIvaDefault: tpIvaRate,
         estatus69B: tpEfos
@@ -113,9 +148,7 @@ export function usePadronProveedores({
     },
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: ['third-parties', saved.companyId || companyId] });
-      setTpRfc('');
-      setTpNombre('');
-      setTpEfos('LIMPIO');
+      resetForm();
       onFeedback(
         `RFC ${saved.rfc} guardado en el Padrón Fiscal con cuenta contable predeterminada ${saved.cuentaOperacionCode}.`
       );
@@ -139,12 +172,20 @@ export function usePadronProveedores({
     setSearchQuery,
     selectThirdPartyForEdit,
     resetForm,
+    isEditing,
     loadingTp,
     isErrorTp,
     refetchTp,
     tpRfc,
+    setTpRfc: handleRfcChange,
     tpNombre,
     setTpNombre,
+    tpRol,
+    setTpRol,
+    tpTipoTercero,
+    setTpTipoTercero,
+    tpContrapartidaAcc,
+    setTpContrapartidaAcc,
     tpOperacion,
     setTpOperacion,
     tpExpenseAcc,

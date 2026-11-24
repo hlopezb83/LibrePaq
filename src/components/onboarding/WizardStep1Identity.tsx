@@ -1,14 +1,14 @@
 import {
   AlertCircle,
-  Building2,
   CheckCircle2,
-  CreditCard,
   Sparkles
 } from 'lucide-react';
 import { REGIMENES_FISCALES_SAT, MESES_SAT } from '../../shared/sat-constants';
 import type { RfcModulo11Result } from '../../shared/accounting-engine';
 import type { CfdiCompanyCandidate } from '../../shared/cfdi-company-extractor';
 import { WizardXmlAutofillBox } from './WizardXmlAutofillBox';
+import { WizardModulo11Breakdown } from './WizardModulo11Breakdown';
+import { WizardPersonTypeSelector } from './WizardPersonTypeSelector';
 
 const MORAL_REGIMEN_CODES = new Set(['601', '603', '610', '620', '622', '623', '624', '626']);
 const FISICA_REGIMEN_CODES = new Set([
@@ -82,6 +82,28 @@ export function WizardStep1Identity({
       ? [regimenFiscal, ...regimenesDisponibles]
       : regimenesDisponibles;
 
+  const showNameError = name.trim().length > 0 && name.trim().length < 3;
+  const showRfcError = rfc.length > 0 && !isRfcValid;
+  const showCpError = codigoPostal.length > 0 && !/^(?!00000)\d{5}$/.test(codigoPostal);
+
+  const handleRfcChange = (rawVal: string) => {
+    const nextRfc = rawVal.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '').slice(0, 13);
+    if (nextRfc.length === 13 && /^[A-Z&Ñ]{4}\d{6}/.test(nextRfc) && personType !== 'FISICA') {
+      setPersonType('FISICA');
+      if (MORAL_REGIMEN_CODES.has(regimenFiscal.slice(0, 3)) && regimenFiscal.slice(0, 3) !== '626') {
+        setRegimenFiscal('612 - Personas Físicas con Actividades Empresariales y Profesionales');
+      }
+    } else if (nextRfc.length === 12 && /^[A-Z&Ñ]{3}\d{6}/.test(nextRfc) && personType !== 'MORAL') {
+      setPersonType('MORAL');
+      if (!MORAL_REGIMEN_CODES.has(regimenFiscal.slice(0, 3))) {
+        setRegimenFiscal(REGIMENES_FISCALES_SAT[0] ?? '601 - General de Ley Personas Morales');
+      }
+    }
+    setRfc(nextRfc);
+    setBypassRfcCheckDigit(false);
+    onClearModulo11Error();
+  };
+
   return (
     <div className="space-y-4">
       <WizardXmlAutofillBox
@@ -92,52 +114,13 @@ export function WizardStep1Identity({
         onSelectCandidate={onSelectXmlCandidate}
       />
 
-      <div>
-        <span id="wizard-person-type-label" className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-          Tipo de Contribuyente SAT
-        </span>
-        <div role="group" aria-labelledby="wizard-person-type-label" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            aria-pressed={personType === 'MORAL'}
-            onClick={() => {
-              setPersonType('MORAL');
-              setRegimenFiscal(REGIMENES_FISCALES_SAT[0] ?? '601 - General de Ley Personas Morales');
-            }}
-            className={`p-3 rounded-xl border text-left transition cursor-pointer flex items-center gap-2.5 ${
-              personType === 'MORAL'
-                ? 'border-blue-600 bg-blue-50/70 text-blue-900 shadow-2xs'
-                : 'border-slate-300 hover:border-slate-400 text-slate-700'
-            }`}
-          >
-            <Building2 className={`w-5 h-5 shrink-0 ${personType === 'MORAL' ? 'text-blue-700' : 'text-slate-500'}`} aria-hidden="true" />
-            <div>
-              <div className="text-xs font-bold">Persona Moral</div>
-              <div className="text-[11px] text-slate-500">Empresas S.A., S.A.P.I., S. de R.L. (RFC 12)</div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            aria-pressed={personType === 'FISICA'}
-            onClick={() => {
-              setPersonType('FISICA');
-              setRegimenFiscal('612 - Personas Físicas con Actividades Empresariales y Profesionales');
-            }}
-            className={`p-3 rounded-xl border text-left transition cursor-pointer flex items-center gap-2.5 ${
-              personType === 'FISICA'
-                ? 'border-blue-600 bg-blue-50/70 text-blue-900 shadow-2xs'
-                : 'border-slate-300 hover:border-slate-400 text-slate-700'
-            }`}
-          >
-            <CreditCard className={`w-5 h-5 shrink-0 ${personType === 'FISICA' ? 'text-blue-700' : 'text-slate-500'}`} aria-hidden="true" />
-            <div>
-              <div className="text-xs font-bold">Persona Física</div>
-              <div className="text-[11px] text-slate-500">Honorarios, RESICO, Actividad Emp. (RFC 13)</div>
-            </div>
-          </button>
-        </div>
-      </div>
+      <WizardPersonTypeSelector
+        personType={personType}
+        onSelectPersonType={(nextType, defaultRegimen) => {
+          setPersonType(nextType);
+          setRegimenFiscal(defaultRegimen);
+        }}
+      />
 
       <div>
         <label htmlFor="wizard-comp-name" className="block text-xs font-bold text-slate-700 mb-1">
@@ -147,6 +130,8 @@ export function WizardStep1Identity({
           id="wizard-comp-name"
           type="text"
           required
+          aria-invalid={showNameError}
+          aria-describedby={showNameError ? 'wizard-name-error' : undefined}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={
@@ -156,6 +141,11 @@ export function WizardStep1Identity({
           }
           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:border-blue-700 focus:ring-1 focus:ring-blue-700"
         />
+        {showNameError && (
+          <p id="wizard-name-error" className="mt-1 text-[11px] font-medium text-red-700">
+            Captura al menos 3 caracteres para la razón social o nombre.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -171,7 +161,7 @@ export function WizardStep1Identity({
                     className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1"
                     title={rfcModulo11.message}
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" /> SAT Módulo 11 OK
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" /> Dígito SAT válido
                   </span>
                 ) : (
                   <>
@@ -180,7 +170,7 @@ export function WizardStep1Identity({
                       title={rfcModulo11.message}
                     >
                       <AlertCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                      M11: {rfcModulo11.expectedCheckDigit}
+                      Dígito esperado: {rfcModulo11.expectedCheckDigit}
                     </span>
                     {rfcModulo11.expectedRfc && (
                       <button
@@ -205,7 +195,7 @@ export function WizardStep1Identity({
                     onClick={() => setShowModulo11Breakdown(!showModulo11Breakdown)}
                     className="text-[11px] font-medium text-slate-600 hover:text-slate-800 underline ml-0.5 cursor-pointer"
                   >
-                    {showModulo11Breakdown ? 'Ocultar M11' : 'Ver M11'}
+                    {showModulo11Breakdown ? 'Ocultar detalle' : 'Ver detalle'}
                   </button>
                 )}
               </div>
@@ -216,14 +206,11 @@ export function WizardStep1Identity({
             type="text"
             required
             spellCheck={false}
-            maxLength={personType === 'MORAL' ? 12 : 13}
+            maxLength={13}
+            aria-invalid={showRfcError}
+            aria-describedby={showRfcError ? 'wizard-rfc-error' : undefined}
             value={rfc}
-            onChange={(e) => {
-              const nextRfc = e.target.value.toUpperCase().replace(/[^A-Z0-9&Ñ]/g, '');
-              setRfc(nextRfc);
-              setBypassRfcCheckDigit(false);
-              onClearModulo11Error();
-            }}
+            onChange={(e) => handleRfcChange(e.target.value)}
             placeholder={personType === 'MORAL' ? 'BBA830831LJ2' : 'GODE561231GR8'}
             className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono uppercase focus:ring-1 ${
               isRfcValid
@@ -233,6 +220,13 @@ export function WizardStep1Identity({
                 : 'border-slate-300 focus:border-blue-700 focus:ring-blue-700'
             }`}
           />
+          {showRfcError && (
+            <p id="wizard-rfc-error" className="mt-1 text-[11px] font-medium text-red-700">
+              {personType === 'MORAL'
+                ? 'Formato esperado: 3 letras + 6 dígitos + 3 caracteres (puedes pegar RFC de 13 para Persona Física).'
+                : 'Formato esperado para Persona Física: 4 letras + 6 dígitos + 3 caracteres.'}
+            </p>
+          )}
         </div>
 
         <div className="sm:col-span-1">
@@ -246,33 +240,23 @@ export function WizardStep1Identity({
             autoComplete="postal-code"
             maxLength={5}
             required
+            aria-invalid={showCpError}
+            aria-describedby={showCpError ? 'wizard-cp-error' : undefined}
             value={codigoPostal}
             onChange={(e) => setCodigoPostal(e.target.value.replace(/\D/g, ''))}
             placeholder="Ej. 06600"
             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono focus:border-blue-700 focus:ring-1 focus:ring-blue-700"
           />
+          {showCpError && (
+            <p id="wizard-cp-error" className="mt-1 text-[11px] font-medium text-red-700">
+              Ingresa un Código Postal válido de 5 dígitos (no 00000).
+            </p>
+          )}
         </div>
       </div>
 
       {showModulo11Breakdown && rfcModulo11 && rfcModulo11.steps.length > 0 && (
-        <div className="p-3 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono border border-slate-700 shadow-inner">
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-700 text-[11px] text-slate-300 font-sans font-bold">
-            <span>Desglose Matemático SAT Anexo 3 (Módulo 11)</span>
-            <span className="text-amber-400">
-              {personType === 'MORAL' ? 'Base Persona Moral (+481)' : 'Base Persona Física (0)'}
-            </span>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between text-[11px] text-slate-300 gap-2">
-            <span>
-              Suma Ponderada: <strong className="text-white">{rfcModulo11.sum}</strong> | Residuo:{' '}
-              <strong>{rfcModulo11.remainder}</strong>
-            </span>
-            <span>
-              Dígito SAT Oficial:{' '}
-              <strong className="text-amber-400 font-bold">{rfcModulo11.expectedCheckDigit}</strong>
-            </span>
-          </div>
-        </div>
+        <WizardModulo11Breakdown personType={personType} rfcModulo11={rfcModulo11} />
       )}
 
       <div>

@@ -77,12 +77,12 @@ export function DashboardRecentPolizasTable({
                 const isBalanced = Math.abs(pol.totalCargos - pol.totalAbonos) < 0.01;
                 return (
               <tr key={pol.id} className="hover:bg-blue-50/40 transition">
-                <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                <td className="py-3 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
                   <Link
                     to="/polizas"
                     search={{ search: `${pol.tipo} #${pol.folio}` } as unknown as Record<string, string>}
                     title={`Consultar póliza ${pol.tipo} #${pol.folio} en Pólizas Contables`}
-                    className={`inline-block px-2.5 py-0.5 rounded text-[11px] border hover:shadow-xs transition ${
+                    className={`inline-block px-2.5 py-0.5 rounded text-[11px] border hover:shadow-xs transition whitespace-nowrap ${
                       pol.tipo === 'INGRESO'
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                         : pol.tipo === 'EGRESO'
@@ -93,15 +93,18 @@ export function DashboardRecentPolizasTable({
                     {pol.tipo} #{pol.folio}
                   </Link>
                 </td>
-                <td className="py-3 px-4 font-mono text-slate-600">
+                <td className="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">
                   {formatShortDate(pol.fecha)}
                 </td>
-                <td className="py-3 px-4 font-medium text-slate-800 max-w-md truncate">
+                <td
+                  title={pol.concepto}
+                  className="py-3 px-4 font-medium text-slate-800 max-w-md truncate"
+                >
                   {pol.concepto}
                 </td>
-                <td className="py-3 px-4">
+                <td className="py-3 px-4 whitespace-nowrap">
                   {pol.origin === 'ADD_AUTO' ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
                       <Sparkles className="w-3 h-3" aria-hidden="true" />
                       Auto ADD
                     </span>
@@ -109,31 +112,31 @@ export function DashboardRecentPolizasTable({
                     <span className="text-slate-600">Captura Manual</span>
                   )}
                 </td>
-                <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900">
+                <td className="py-3 px-4 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                   {formatCurrency(pol.totalCargos)}
                 </td>
-                <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900">
+                <td className="py-3 px-4 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                   {formatCurrency(pol.totalAbonos)}
                 </td>
-                <td className="py-3 px-4 text-center">
+                <td className="py-3 px-4 text-center whitespace-nowrap">
                   {isBalanced ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
                       <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
                       Cuadrada
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-800 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-800 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap">
                       <AlertCircle className="w-3 h-3" aria-hidden="true" />
                       Descuadrada
                     </span>
                   )}
                 </td>
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-right whitespace-nowrap">
                   <Link
                     to="/polizas"
                     search={{ search: `${pol.tipo} #${pol.folio}` } as unknown as Record<string, string>}
                     aria-label={`Ver asiento de póliza ${pol.tipo} folio ${pol.folio}`}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition whitespace-nowrap"
                     title="Abrir asiento contable completo"
                   >
                     <span>Ver Asiento</span>

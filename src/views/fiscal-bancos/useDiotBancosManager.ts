@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { apiClient } from '../../lib/api-client';
 import { useToast } from '../../context/ToastContext';
@@ -39,11 +39,19 @@ export function useDiotBancosManager() {
   const currentPeriod = activeCompany?.currentPeriod;
   const toast = useToast();
 
+  const navigate = useNavigate();
+  const [classifySupplierRequest, setClassifySupplierRequest] = useState<{
+    rfc: string;
+    nombre?: string;
+    tipoTercero?: '04' | '05';
+    tipoOperacion?: '03' | '06' | '85';
+  } | null>(null);
+
   const urlTab = useRouterState({
     select: (s) => (s.location.search as Record<string, unknown>)?.tab
   });
 
-  const [activeTab, setActiveTab] = useState<FiscalBancosTabId>(() => {
+  const [activeTab, setActiveTabState] = useState<FiscalBancosTabId>(() => {
     const fromRouter = resolveFiscalBancosTab(urlTab);
     if (fromRouter) return fromRouter;
     if (typeof window !== 'undefined' && window.location.search) {
@@ -55,8 +63,20 @@ export function useDiotBancosManager() {
 
   useEffect(() => {
     const next = resolveFiscalBancosTab(urlTab);
-    if (next) setActiveTab(next);
+    if (next) setActiveTabState(next);
   }, [urlTab]);
+
+  const setActiveTab = useCallback(
+    (nextTab: FiscalBancosTabId) => {
+      setActiveTabState(nextTab);
+      void navigate({
+        to: '/fiscal-bancos',
+        search: ((prev: Record<string, unknown>) => ({ ...prev, tab: nextTab })) as unknown as Record<string, string>,
+        replace: true
+      });
+    },
+    [navigate]
+  );
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', activeCompanyId, currentYear, currentPeriod],
@@ -96,6 +116,8 @@ export function useDiotBancosManager() {
     toast,
     activeTab,
     setActiveTab,
+    classifySupplierRequest,
+    setClassifySupplierRequest,
     accounts,
     isPeriodLocked,
     isReadOnlyClient: isReadOnly,

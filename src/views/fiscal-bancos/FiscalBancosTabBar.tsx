@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Landmark } from 'lucide-react';
 import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
 
@@ -16,20 +17,29 @@ export interface FiscalBancosTabBarProps {
   setActiveTab: (tab: FiscalBancosTabId) => void;
 }
 
+const TABS: ReadonlyArray<{ id: FiscalBancosTabId; label: string }> = [
+  { id: 'CONCILIACION', label: 'Conciliación Bancos' },
+  { id: 'DIOT', label: 'DIOT (.txt)' },
+  { id: 'PADRON_RFC', label: 'Padrón 69-B' },
+  { id: 'ACTIVOS_FIJOS', label: 'Activos Fijos (INPC)' },
+  { id: 'PAPEL_DIA_17', label: 'Cédula Día 17' },
+  { id: 'CXC_CXP', label: 'CxC / CxP (PPD)' },
+  { id: 'NOMINA_IMSS', label: 'Nómina / IMSS / ISN' },
+  { id: 'INVENTARIO_COSTO', label: 'Inventario / Costo' }
+];
+
 export function FiscalBancosTabBar({
   activeTab,
   setActiveTab
 }: FiscalBancosTabBarProps) {
-  const tabs = [
-    { id: 'CONCILIACION' as const, label: 'Conciliación Bancos' },
-    { id: 'DIOT' as const, label: 'DIOT (.txt)' },
-    { id: 'PADRON_RFC' as const, label: 'Padrón 69-B' },
-    { id: 'ACTIVOS_FIJOS' as const, label: 'Activos Fijos (INPC)' },
-    { id: 'PAPEL_DIA_17' as const, label: 'Cédula Día 17' },
-    { id: 'CXC_CXP' as const, label: 'CxC / CxP (PPD)' },
-    { id: 'NOMINA_IMSS' as const, label: 'Nómina / IMSS / ISN' },
-    { id: 'INVENTARIO_COSTO' as const, label: 'Inventario / Costo' }
-  ];
+  const tabRefs = useRef<Partial<Record<FiscalBancosTabId, HTMLButtonElement | null>>>({});
+
+  useEffect(() => {
+    const el = tabRefs.current[activeTab];
+    if (el && typeof el.scrollIntoView === 'function' && typeof window !== 'undefined' && window.innerWidth < 768) {
+      el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    }
+  }, [activeTab]);
 
   return (
     <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs">
@@ -42,7 +52,7 @@ export function FiscalBancosTabBar({
             Tesorería, Bancos y Cierre Fiscal
           </h1>
           <p className="text-xs text-slate-600 mt-0.5">
-            Conciliación bancaria, DIOT (.txt), Padrón 69-B, Activos Fijos, Cédula Día 17, CxC/CxP, Nómina IMSS/ISN e Inventarios/Costo de Ventas
+            Conciliación bancaria, declaraciones SAT, control patrimonial, nómina y cierre mensual
           </p>
         </div>
       </div>
@@ -50,13 +60,16 @@ export function FiscalBancosTabBar({
       <div
         role="tablist"
         aria-label="Pestañas de Tesorería y Cierre Fiscal"
-        className="erp-tab-scroller no-print flex flex-nowrap items-center gap-1.5 min-w-0 max-w-full pb-0.5"
+        className="erp-tab-scroller no-print flex flex-nowrap md:grid md:grid-cols-4 items-center gap-1.5 min-w-0 max-w-full pb-0.5 md:pb-0"
       >
-        {tabs.map((tab) => {
+        {TABS.map((tab) => {
           const isSelected = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              ref={(node) => {
+                tabRefs.current[tab.id] = node;
+              }}
               id={`fb-tab-${tab.id}`}
               type="button"
               role="tab"
@@ -64,11 +77,11 @@ export function FiscalBancosTabBar({
               aria-controls={`fb-panel-${tab.id}`}
               tabIndex={isSelected ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
-              onKeyDown={(e) => handleTablistKeyDown(e, tabs, activeTab, setActiveTab, 'fb-tab-')}
-              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+              onKeyDown={(e) => handleTablistKeyDown(e, TABS, activeTab, setActiveTab, 'fb-tab-')}
+              className={`shrink-0 min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap text-center transition cursor-pointer ${
                 isSelected
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-blue-600 text-white border border-blue-700 shadow-xs'
+                  : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
               }`}
             >
               {tab.label}

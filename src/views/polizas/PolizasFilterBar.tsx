@@ -6,10 +6,12 @@ import {
   X
 } from 'lucide-react';
 import type { Poliza, PolizaType } from '../../shared/types';
+import { hasPolizaCfdi } from './filterPolizas';
 import { PolizasHeaderActions } from './PolizasHeaderActions';
 import { PolizasTotalsBar } from './PolizasTotalsBar';
 
 export interface PolizasFilterBarProps {
+  currentYear?: number;
   polizas: Poliza[];
   filteredPolizas: Poliza[];
   filterTipo: 'ALL' | PolizaType;
@@ -34,6 +36,7 @@ export interface PolizasFilterBarProps {
 }
 
 export function PolizasFilterBar({
+  currentYear,
   polizas,
   filteredPolizas,
   filterTipo,
@@ -75,6 +78,7 @@ export function PolizasFilterBar({
         </div>
 
         <PolizasHeaderActions
+          currentYear={currentYear}
           isPeriodLocked={isPeriodLocked}
           isPeriod13Locked={isPeriod13Locked}
           isReadOnlyClient={isReadOnlyClient}
@@ -137,11 +141,11 @@ export function PolizasFilterBar({
                 { id: 'ALL' as const, label: 'Todas' },
                 {
                   id: 'WITH_CFDI' as const,
-                  label: `Con CFDI (${polizas.filter((p) => Boolean(p.cfdiUuid)).length})`
+                  label: `Con CFDI (${polizas.filter(hasPolizaCfdi).length})`
                 },
                 {
                   id: 'MANUAL' as const,
-                  label: `Manuales (${polizas.filter((p) => !p.cfdiUuid).length})`
+                  label: `Manuales (${polizas.filter((p) => !hasPolizaCfdi(p)).length})`
                 }
               ].map((o) => (
                 <button
@@ -173,6 +177,20 @@ export function PolizasFilterBar({
               <ListCollapse className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{compactMode ? 'Pólizas Contraídas' : 'Contraer Partidas'}</span>
             </button>
+
+            {(filterTipo !== 'ALL' || originFilter !== 'ALL' || searchQuery.trim() !== '') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterTipo('ALL');
+                  setOriginFilter('ALL');
+                  setSearchQuery('');
+                }}
+                className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer transition"
+              >
+                Limpiar filtros
+              </button>
+            )}
           </div>
 
           <search className="relative w-full md:w-80">

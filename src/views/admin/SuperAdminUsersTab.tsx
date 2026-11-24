@@ -151,9 +151,9 @@ export function SuperAdminUsersTab({
       <div tabIndex={0} role="region" aria-label="Tabla de usuarios registrados" className="overflow-x-auto max-h-[68vh] border border-slate-200 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
         <table className="w-full text-left text-xs border-separate border-spacing-0">
           <caption className="visually-hidden">Directorio paginado de usuarios registrados y niveles de acceso</caption>
-          <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+          <thead className="sticky top-0 z-20 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
             <tr>
-              <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Usuario / Correo</th>
+              <th scope="col" className="sticky left-0 z-30 py-2.5 px-2.5 border-b border-r border-slate-200 bg-slate-50">Usuario / Correo</th>
               <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Despacho / Nivel de acceso</th>
               <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Canal / Acceso</th>
               <th scope="col" className="py-2.5 px-2.5 border-b border-slate-200 bg-slate-50">Empresas</th>
@@ -185,8 +185,8 @@ export function SuperAdminUsersTab({
                 const workspaceLabel = u.workspaceName || `Despacho — ${u.fullName}`;
 
                 return (
-                  <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                    <th scope="row" className="py-2.5 px-2.5 max-w-[215px] text-left font-normal">
+                  <tr key={u.id} className="group hover:bg-slate-50/80 transition">
+                    <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 py-2.5 px-2.5 max-w-[215px] text-left font-normal">
                       <div className="flex items-center gap-2 min-w-0">
                         <div aria-hidden="true" className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
                           {u.fullName.slice(0, 2).toUpperCase() || 'CP'}
@@ -219,13 +219,14 @@ export function SuperAdminUsersTab({
                           {u.workspaceId && <p className="text-[10px] font-mono text-slate-600 mt-0.5 truncate" title={u.workspaceId}>{u.workspaceId}</p>}
                         </div>
                       )}
-                      {canManageQuotas && u.workspaceId && (
+                      {u.workspaceId && (
                         <button
                           type="button"
                           onClick={(e) => openQuotaModal({ userId: u.id, fullName: u.fullName, email: u.email, workspaceId: u.workspaceId!, workspaceName: u.workspaceName }, e.currentTarget)}
+                          title={canManageQuotas ? 'Editar plan y cuota del despacho' : 'Consultar plan y cuota del despacho (solo lectura)'}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 text-[11px] font-bold transition cursor-pointer"
                         >
-                          <Gauge className="w-3 h-3" aria-hidden="true" /> Plan / Cuota<span className="visually-hidden"> de {u.fullName}</span>
+                          <Gauge className="w-3 h-3" aria-hidden="true" /> {canManageQuotas ? 'Plan / Cuota' : 'Ver Cuota'}<span className="visually-hidden"> de {u.fullName}</span>
                         </button>
                       )}
                       {onChangeUserRole && (
@@ -285,7 +286,7 @@ export function SuperAdminUsersTab({
       <span className="visually-hidden" aria-live="polite">
         {copiedEmail ? 'Correo electrónico copiado al portapapeles' : ''}
       </span>
-      <AdminUserQuotaModal target={quotaTarget} onClose={closeQuotaModal} />
+      <AdminUserQuotaModal target={quotaTarget} canEdit={canManageQuotas} onClose={closeQuotaModal} />
     </div>
   );
 }

@@ -18,23 +18,46 @@ export function useAjustesBackups(
   const currentPeriod = activeCompany?.currentPeriod ?? 10;
   const isEnabled = Boolean(activeCompanyId && options?.isTabActive !== false);
 
-  const { data: accountsList = [] } = useQuery({
+  const {
+    data: accountsList = [],
+    isLoading: isLoadingAccounts,
+    isError: isErrorAccounts,
+    refetch: refetchAccounts
+  } = useQuery({
     queryKey: ['accounts', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getAccounts(activeCompanyId, currentYear, currentPeriod),
     enabled: isEnabled
   });
 
-  const { data: polizasData = [] } = useQuery({
+  const {
+    data: polizasData = [],
+    isLoading: isLoadingPolizas,
+    isError: isErrorPolizas,
+    refetch: refetchPolizas
+  } = useQuery({
     queryKey: ['polizas', activeCompanyId, currentYear, currentPeriod],
     queryFn: () => apiClient.getPolizas(activeCompanyId, currentYear, currentPeriod),
     enabled: isEnabled
   });
 
-  const { data: cfdisList = [] } = useQuery({
+  const {
+    data: cfdisList = [],
+    isLoading: isLoadingCfdis,
+    isError: isErrorCfdis,
+    refetch: refetchCfdis
+  } = useQuery({
     queryKey: ['cfdis', activeCompanyId],
     queryFn: () => apiClient.getCfdis(activeCompanyId),
     enabled: isEnabled
   });
+
+  const isLoadingMetrics = isLoadingAccounts || isLoadingPolizas || isLoadingCfdis;
+  const isErrorMetrics = isErrorAccounts || isErrorPolizas || isErrorCfdis;
+  const refetchMetrics = () => {
+    void refetchAccounts();
+    void refetchPolizas();
+    void refetchCfdis();
+  };
 
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
@@ -71,7 +94,12 @@ export function useAjustesBackups(
     if (!file) return;
     try {
       const text = await file.text();
-      const bundle = JSON.parse(text) as CompanyBackupBundle;
+      let bundle: CompanyBackupBundle;
+      try {
+        bundle = JSON.parse(text) as CompanyBackupBundle;
+      } catch {
+        throw new Error('El archivo seleccionado no es un JSON de respaldo válido.');
+      }
       if (!bundle || !bundle.company || !bundle.company.rfc) {
         throw new Error('El archivo no contiene una estructura de respaldo válida de LibrePaq.');
       }
@@ -126,6 +154,9 @@ export function useAjustesBackups(
     accountsList,
     polizasData,
     cfdisList,
+    isLoadingMetrics,
+    isErrorMetrics,
+    refetchMetrics,
     isExportingBackup,
     isRestoringBackup,
     pendingRestore,

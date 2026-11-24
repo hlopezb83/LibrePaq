@@ -10,17 +10,30 @@ function formatTaxLabel(impuesto: string): string {
   return impuesto;
 }
 
+function formatTrasladoFactor(tipoFactor: string, tasaOCuota?: string): string {
+  if (tipoFactor === 'Exento') return 'Exento';
+  const rawRate = Number.parseFloat(tasaOCuota ?? '');
+  if (Number.isFinite(rawRate)) {
+    const pct = Number((rawRate * 100).toFixed(2));
+    return `${tipoFactor || 'Tasa'} ${pct}%`;
+  }
+  return tipoFactor || 'Tasa';
+}
+
 interface CfdiFacturaStampFooterProps {
   cfdi: CfdiDocument;
   preview: CfdiPreviewData;
 }
 
 export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooterProps) {
+  const unavailable = 'No disponible sin XML original';
   const selloDisplay =
     preview.timbre.selloCfd ||
     preview.comprobante.sello ||
-    'No disponible (adjunta el XML original para ver el sello)';
-  const cadenaOriginal = `||${preview.timbre.version}|${preview.timbre.uuid}|${preview.timbre.fechaTimbrado}|${preview.timbre.rfcProvCertif}||`;
+    unavailable;
+  const cadenaOriginal = preview.hasXmlRaw && preview.timbre.fechaTimbrado
+    ? `||${preview.timbre.version}|${preview.timbre.uuid}|${preview.timbre.fechaTimbrado}|${preview.timbre.rfcProvCertif || 'N/D'}||`
+    : unavailable;
 
   return (
     <>
@@ -37,11 +50,11 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
           </p>
           <div className="pt-2 flex items-center gap-2 flex-wrap text-[11px] font-mono">
             <span className="text-slate-600">
-              Régimen Fiscal Emisor: {preview.emisor.regimenFiscal}
+              Régimen Fiscal Emisor: {preview.emisor.regimenFiscal || unavailable}
             </span>
             <span className="text-slate-300" aria-hidden="true">•</span>
             <span className="text-slate-600">
-              Lugar de Expedición: CP {preview.comprobante.lugarExpedicion}
+              Lugar de Expedición: {preview.comprobante.lugarExpedicion ? `CP ${preview.comprobante.lugarExpedicion}` : unavailable}
             </span>
             {preview.comprobante.noCertificado && (
               <>
@@ -56,7 +69,7 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
 
         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs font-mono">
           <div className="flex justify-between text-slate-700">
-            <span className="font-sans">Subtotal Gravado:</span>
+            <span className="font-sans">Subtotal:</span>
             <span className="font-semibold text-slate-900 tabular-nums">
               {formatCurrency(preview.comprobante.subtotal)}
             </span>
@@ -68,20 +81,17 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
             </div>
           )}
           {preview.impuestos.traslados.length > 0 ? (
-            preview.impuestos.traslados.map((t, idx) => {
-              const rawRate = Number.parseFloat(t.tasaOCuota ?? '');
-              const pct = Number.isFinite(rawRate) ? ` (${Number((rawRate * 100).toFixed(2))}%)` : '';
-              return (
-                <div key={`tras-${t.impuesto}-${idx}`} className="flex justify-between text-slate-700">
-                  <span className="font-sans">
-                    (+) {formatTaxLabel(t.impuesto)} Trasladado{pct}:
-                  </span>
-                  <span className="font-semibold text-slate-900 tabular-nums">
-                    {formatCurrency(t.importe)}
-                  </span>
-                </div>
-              );
-            })
+            preview.impuestos.traslados.map((t, idx) => (
+              <div key={`tras-${t.impuesto}-${idx}`} className="flex justify-between gap-2 text-slate-700">
+                <span className="font-sans">
+                  (+) {formatTaxLabel(t.impuesto)} Trasladado ({formatTrasladoFactor(t.tipoFactor, t.tasaOCuota)}
+                  {t.base > 0 ? ` • Base ${formatCurrency(t.base)}` : ''}):
+                </span>
+                <span className="font-semibold text-slate-900 tabular-nums shrink-0">
+                  {formatCurrency(t.importe)}
+                </span>
+              </div>
+            ))
           ) : (
             <div className="flex justify-between text-slate-700">
               <span className="font-sans">(+) Impuestos Trasladados:</span>
@@ -117,9 +127,9 @@ export function CfdiFacturaStampFooter({ cfdi, preview }: CfdiFacturaStampFooter
             <strong>Cadena Original del Timbre SAT:</strong> {cadenaOriginal}
           </div>
           <div className="text-slate-600 break-words">
-            Certificado SAT: {preview.timbre.noCertificadoSat}{' '}
+            Certificado SAT: {preview.timbre.noCertificadoSat || unavailable}{' '}
             <span aria-hidden="true">•</span> RFC Proveedor Autorizado (PAC):{' '}
-            {preview.timbre.rfcProvCertif}
+            {preview.timbre.rfcProvCertif || unavailable}
           </div>
         </div>
       </div>

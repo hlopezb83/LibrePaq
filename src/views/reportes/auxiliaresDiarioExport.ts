@@ -1,4 +1,5 @@
 import writeXlsx, { type SheetData } from 'write-excel-file/browser';
+import { formatCurrency } from '../../lib/formatters';
 import { sanitizeSpreadsheetText } from '../../shared/date-utils';
 import { fromCents, toCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company, Poliza } from '../../shared/types';
@@ -261,8 +262,9 @@ export function printReportHtmlDocument(title: string, subtitle: string, bodyHtm
     th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; }
     thead th { background: #f1f5f9; font-size: 9px; text-transform: uppercase; }
     tfoot td { background: #f8fafc; font-weight: 700; border-top: 2px solid #0f172a; }
-    .right { text-align: right; font-family: monospace; }
+    .right { text-align: right; font-family: monospace; font-variant-numeric: tabular-nums; }
     .mono { font-family: monospace; }
+    .tabular { font-variant-numeric: tabular-nums; }
     .subrow { background: #f8fafc; font-weight: 700; }
   </style></head><body>
   <h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p>${bodyHtml}</body></html>`);
@@ -270,4 +272,54 @@ export function printReportHtmlDocument(title: string, subtitle: string, bodyHtm
   win.focus();
   setTimeout(() => win.print(), 200);
   return true;
+}
+
+export function printDiarioOrAuxiliarReport(params: {
+  mode: 'DIARIO' | 'AUXILIAR';
+  company: Company;
+  ejercicio: number;
+  effectiveFrom: number;
+  effectiveTo: number;
+  codeFrom: string;
+  codeTo: string;
+  polizas: readonly Poliza[];
+  diarioTotals: { cargos: number; abonos: number };
+  auxiliarBlocks: readonly AuxiliarAccountBlock[];
+}): boolean {
+  const { mode, company, ejercicio, effectiveFrom, effectiveTo, codeFrom, codeTo, polizas, diarioTotals, auxiliarBlocks } = params;
+  const pLabel = `P${String(effectiveFrom).padStart(2, '0')} a P${String(effectiveTo).padStart(2, '0')} · Ejercicio ${ejercicio}`;
+
+  if (mode === 'DIARIO') {
+    const rowsHtml = polizas
+      .flatMap((p) =>
+        p.movements.map(
+          (m) =>
+            `<tr><td class="mono">${escapeHtml(p.fecha)}</td><td class="mono">${escapeHtml(p.tipo)} #${escapeHtml(p.folio)}</td><td class="mono">${escapeHtml(m.accountCode)}</td><td>${escapeHtml(m.accountName)}</td><td>${escapeHtml(m.concepto || p.concepto)}</td><td class="right tabular">${m.cargo > 0 ? escapeHtml(formatCurrency(m.cargo)) : '—'}</td><td class="right tabular">${m.abono > 0 ? escapeHtml(formatCurrency(m.abono)) : '—'}</td></tr>`
+        )
+      )
+      .join('');
+    return printReportHtmlDocument(
+      `Diario General — ${company.name} (${company.rfc})`,
+      pLabel,
+      `<table><thead><tr><th>Fecha</th><th>Póliza</th><th>Cuenta</th><th>Nombre</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono</th></tr></thead><tbody>${rowsHtml}</tbody><tfoot><tr><td colspan="5" class="right">SUMAS IGUALES:</td><td class="right tabular">${escapeHtml(formatCurrency(diarioTotals.cargos))}</td><td class="right tabular">${escapeHtml(formatCurrency(diarioTotals.abonos))}</td></tr></tfoot></table>`
+    );
+  }
+
+  const bodyHtml = auxiliarBlocks
+    .map(
+      (b) =>
+        `<table><thead><tr><th colspan="7">${escapeHtml(b.account.code)} — ${escapeHtml(b.account.name)} (Saldo Inicial: ${escapeHtml(formatCurrency(b.initialBalance))})</th></tr><tr><th>Fecha</th><th>Póliza</th><th>Referencia</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono</th><th class="right">Saldo Progresivo</th></tr></thead><tbody>${b.entries
+          .map(
+            (e) =>
+              `<tr><td class="mono">${escapeHtml(e.fecha)}</td><td class="mono">${escapeHtml(e.tipoPoliza)} #${escapeHtml(e.folioPoliza)}</td><td class="mono">${escapeHtml(e.referencia)}</td><td>${escapeHtml(e.concepto)}</td><td class="right tabular">${e.cargo > 0 ? escapeHtml(formatCurrency(e.cargo)) : '—'}</td><td class="right tabular">${e.abono > 0 ? escapeHtml(formatCurrency(e.abono)) : '—'}</td><td class="right tabular">${escapeHtml(formatCurrency(e.runningBalance))}</td></tr>`
+          )
+          .join('')}</tbody><tfoot><tr><td colspan="4" class="right">Totales ${escapeHtml(b.account.code)}:</td><td class="right tabular">${escapeHtml(formatCurrency(b.totalCharges))}</td><td class="right tabular">${escapeHtml(formatCurrency(b.totalCredits))}</td><td class="right tabular">${escapeHtml(formatCurrency(b.finalBalance))}</td></tr></tfoot></table>`
+    )
+    .join('');
+
+  return printReportHtmlDocument(
+    `Auxiliar de Movimientos — ${company.name} (${company.rfc})`,
+    `${pLabel} · Cuentas ${codeFrom} a ${codeTo}`,
+    bodyHtml
+  );
 }

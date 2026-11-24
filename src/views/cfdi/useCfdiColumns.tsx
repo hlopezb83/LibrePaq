@@ -1,14 +1,17 @@
 import { useMemo, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { createColumnHelper, tableFeatures } from '@tanstack/react-table';
-import { CheckCircle2, Copy, ExternalLink, FileText, ShieldAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ExternalLink, FileText } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
-import { checkRfc69BStatus } from '../../shared/sat-69b';
 import type { CfdiDocument } from '../../shared/types';
 import { CfdiActionsCell } from './CfdiActionsCell';
+import { CfdiTerceroCell, CfdiTipoCell } from './CfdiTableCells';
 
 export const cfdiTableFeatures = tableFeatures({});
 const columnHelper = createColumnHelper<typeof cfdiTableFeatures, CfdiDocument>();
+
+export type CfdiSortField = 'fecha' | 'total';
+export type CfdiSortDir = 'asc' | 'desc';
 
 export interface UseCfdiColumnsProps {
   filteredCfdis: CfdiDocument[];
@@ -29,6 +32,9 @@ export interface UseCfdiColumnsProps {
   isDeletePending: boolean;
   isPeriodLocked: boolean;
   isReadOnlyClient?: boolean;
+  sortField?: CfdiSortField | null;
+  sortDir?: CfdiSortDir;
+  onToggleSort?: (field: CfdiSortField) => void;
 }
 
 export function useCfdiColumns({
@@ -49,10 +55,20 @@ export function useCfdiColumns({
   onConfirmDelete,
   isDeletePending,
   isPeriodLocked,
-  isReadOnlyClient = false
+  isReadOnlyClient = false,
+  sortField = null,
+  sortDir = 'desc',
+  onToggleSort
 }: UseCfdiColumnsProps) {
   const navigate = useNavigate();
   const shiftKeyRef = useRef(false);
+
+  const renderSortIcon = (field: CfdiSortField) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-400" aria-hidden="true" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="w-3 h-3 text-blue-700" aria-hidden="true" />
+      : <ArrowDown className="w-3 h-3 text-blue-700" aria-hidden="true" />;
+  };
 
   return useMemo(
     () =>
@@ -112,16 +128,29 @@ export function useCfdiColumns({
         }
       }),
       columnHelper.accessor('fecha', {
-        header: 'Fecha / Folio',
+        header: () => (
+          <button
+            type="button"
+            onClick={() => onToggleSort?.('fecha')}
+            className="inline-flex items-center gap-1 font-bold uppercase tracking-wider text-slate-700 hover:text-blue-800 cursor-pointer whitespace-nowrap"
+            title="Ordenar por fecha"
+          >
+            <span>Fecha / Folio</span>
+            {renderSortIcon('fecha')}
+          </button>
+        ),
         cell: (info) => {
           const row = info.row.original;
+          const isCancelled = row.statusSat === 'CANCELADO';
           return (
             <div>
               <button
                 type="button"
                 onClick={() => onPreviewInvoice(row)}
                 title="Ver Representación Impresa (PDF / Factura Oficial)"
-                className="font-mono font-bold text-blue-900 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer text-left"
+                className={`font-mono font-bold hover:underline flex items-center gap-1 cursor-pointer text-left ${
+                  isCancelled ? 'line-through text-slate-500' : 'text-blue-900 hover:text-blue-700'
+                }`}
               >
                 <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" aria-hidden="true" />
                 <span>
@@ -137,97 +166,31 @@ export function useCfdiColumns({
       }),
       columnHelper.accessor('direction', {
         header: 'Tipo CFDI',
-        cell: (info) => {
-          const row = info.row.original;
-          const tipoLabel =
-            row.tipoComprobante === 'P'
-              ? 'REP 2.0 (Pago)'
-              : row.tipoComprobante === 'N'
-              ? 'Nómina 1.2'
-              : row.tipoComprobante === 'E'
-              ? 'Egreso (Nota Créd.)'
-              : row.tipoComprobante === 'T'
-              ? 'Traslado (T)'
-              : `Ingreso (${row.metodoPago})`;
-          return (
-            <div className="space-y-1">
-              <span
-                className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded uppercase border ${
-                  row.tipoComprobante === 'P'
-                    ? 'bg-slate-100 text-slate-800 border-slate-300'
-                    : row.direction === 'EMITIDO'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    : 'bg-blue-50 text-blue-800 border-blue-200'
-                }`}
-              >
-                {row.direction}
-              </span>
-              <div className="text-[11px] font-mono text-slate-700 font-semibold">
-                {tipoLabel}
-              </div>
-            </div>
-          );
-        }
+        cell: (info) => <CfdiTipoCell row={info.row.original} />
       }),
       columnHelper.display({
         id: 'tercero',
         header: 'Tercero (Emisor / Receptor) y Concepto',
-        cell: (info) => {
-          const row = info.row.original;
-          const terceroNombre =
-            row.direction === 'EMITIDO' ? row.receptorNombre : row.emisorNombre;
-          const terceroRfc = row.direction === 'EMITIDO' ? row.receptorRfc : row.emisorRfc;
-          const efosCheck = checkRfc69BStatus(terceroRfc);
-
-          return (
-            <div className="max-w-md">
-              <div className="font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
-                <span className="truncate">{terceroNombre}</span>
-                <span className="font-mono text-[11px] text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
-                  {terceroRfc}
-                </span>
-                {efosCheck.isEfos && (
-                  <span
-                    className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-900 border border-red-300 shrink-0"
-                    title="Contribuyente listado en Artículo 69-B del CFF (EFOS SAT). Comprobante presuntamente no deducible."
-                  >
-                    <ShieldAlert className="w-3 h-3 text-red-700" aria-hidden="true" />
-                    69-B: {efosCheck.record?.situacion || 'EFOS'}
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-slate-600 truncate mt-0.5">{row.conceptoPrincipal}</div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] font-mono text-slate-600 whitespace-nowrap" title={row.uuid}>
-                  UUID: {row.uuid.slice(0, 8)}…{row.uuid.slice(-4)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyUuid(row.uuid)}
-                  aria-label={`Copiar UUID completo ${row.uuid}`}
-                  title="Copiar UUID completo al portapapeles"
-                  className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-blue-700 hover:text-blue-900 cursor-pointer whitespace-nowrap"
-                >
-                  <Copy className="w-2.5 h-2.5" aria-hidden="true" />
-                  {copiedUuid === row.uuid ? 'Copiado' : 'Copiar'}
-                </button>
-              </div>
-            </div>
-          );
-        }
+        cell: (info) => (
+          <CfdiTerceroCell
+            row={info.row.original}
+            copiedUuid={copiedUuid}
+            handleCopyUuid={handleCopyUuid}
+          />
+        )
       }),
       columnHelper.accessor('subtotal', {
         header: () => <div className="text-right whitespace-nowrap">Base / Subtotal</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-slate-800 whitespace-nowrap tabular-nums">
+          <div className={`text-right font-mono whitespace-nowrap tabular-nums ${info.row.original.statusSat === 'CANCELADO' ? 'line-through text-slate-500' : 'text-slate-800'}`}>
             {formatCurrency(info.getValue())}
           </div>
         )
       }),
       columnHelper.accessor('ivaTrasladado', {
-        header: () => <div className="text-right whitespace-nowrap">IVA 16%</div>,
+        header: () => <div className="text-right whitespace-nowrap">IVA Trasladado</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-slate-800 whitespace-nowrap tabular-nums">
+          <div className={`text-right font-mono whitespace-nowrap tabular-nums ${info.row.original.statusSat === 'CANCELADO' ? 'line-through text-slate-500' : 'text-slate-800'}`}>
             {formatCurrency(info.getValue())}
           </div>
         )
@@ -252,9 +215,21 @@ export function useCfdiColumns({
         }
       }),
       columnHelper.accessor('total', {
-        header: () => <div className="text-right whitespace-nowrap">Total Neto</div>,
+        header: () => (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => onToggleSort?.('total')}
+              className="inline-flex items-center gap-1 font-bold uppercase tracking-wider text-slate-700 hover:text-blue-800 cursor-pointer whitespace-nowrap"
+              title="Ordenar por Total Neto"
+            >
+              <span>Total Neto</span>
+              {renderSortIcon('total')}
+            </button>
+          </div>
+        ),
         cell: (info) => (
-          <div className="text-right font-mono font-bold text-slate-900 whitespace-nowrap tabular-nums">
+          <div className={`text-right font-mono font-bold whitespace-nowrap tabular-nums ${info.row.original.statusSat === 'CANCELADO' ? 'line-through text-slate-500' : 'text-slate-900'}`}>
             {formatCurrency(info.getValue())}
           </div>
         )
@@ -322,7 +297,7 @@ export function useCfdiColumns({
       verifyingCfdiId, navigate, selectedCfdiIds, filteredCfdis, isPeriodLocked,
       isReadOnlyClient, handleCopyUuid, onConfirmDelete, onOpenContabilizarModal,
       onOpenXmlViewer, onPreviewInvoice, onVerifySat, setConfirmDeleteCfdiId,
-      toggleSelectAll, toggleSelectOne
+      toggleSelectAll, toggleSelectOne, sortField, sortDir, onToggleSort
     ]
   );
 }

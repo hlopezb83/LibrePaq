@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
-  AlertTriangle,
   ArrowRight,
   Building2,
   CheckCircle2,
@@ -13,13 +12,14 @@ import {
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import { useUIModal } from '../../context/UIModalContext';
 import type { Company } from '../../shared/types';
+import { ConfirmDeleteCompanyModal } from './ConfirmDeleteCompanyModal';
 
 export interface AjustesDirectorioTabProps {
   companies: Company[];
   activeCompany: Company | null;
   setActiveCompanyId: (id: string) => void;
   deleteCompanyMutation: {
-    mutate: (id: string) => void;
+    mutate: (id: string, options?: { onSuccess?: () => void }) => void;
     isPending: boolean;
   };
   confirmDeleteCompany: boolean;
@@ -48,13 +48,9 @@ export function AjustesDirectorioTab({
   const { openCompanyWizard } = useUIModal();
   const [companySearch, setCompanySearch] = useState('');
   const [companyPendingDelete, setCompanyPendingDelete] = useState<Company | null>(null);
-  const deleteDialogRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (companyPendingDelete || confirmDeleteCompany) {
-      deleteDialogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [companyPendingDelete, confirmDeleteCompany]);
+  const targetDeleteCompany =
+    companyPendingDelete ??
+    (confirmDeleteCompany && companies.length > 1 && activeCompany ? activeCompany : null);
 
   const filteredCompanies = companies.filter((c) => {
     if (!companySearch.trim()) return true;
@@ -126,6 +122,11 @@ export function AjustesDirectorioTab({
             <button
               type="button"
               disabled={!canCreateCompany}
+              title={
+                !canCreateCompany
+                  ? 'Solo un usuario con permisos de edición puede dar de alta empresas'
+                  : 'Registrar una nueva empresa en el despacho'
+              }
               onClick={openCompanyWizard}
               className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
             >
@@ -143,7 +144,29 @@ export function AjustesDirectorioTab({
       </div>
 
       {/* Grid de Empresas o Estado Vacío Accionable */}
-      {filteredCompanies.length === 0 ? (
+      {companies.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-300/90 p-8 text-center space-y-3 shadow-2xs">
+          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center mx-auto">
+            <Building2 className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <div className="space-y-1 max-w-md mx-auto">
+            <p className="text-sm font-bold text-slate-900">Aún no hay empresas registradas</p>
+            <p className="text-xs text-slate-600">
+              Da de alta tu primera empresa o cliente del despacho para comenzar a importar CFDIs, generar pólizas y emitir reportes NIF.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!canCreateCompany}
+            title={!canCreateCompany ? 'Modo solo lectura: no tienes permisos para crear empresas' : undefined}
+            onClick={openCompanyWizard}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>Dar de Alta Primera Empresa</span>
+          </button>
+        </div>
+      ) : filteredCompanies.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-300/90 p-8 text-center space-y-3 shadow-2xs">
           <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-500 border border-slate-200 flex items-center justify-center mx-auto">
             <Search className="w-5 h-5" aria-hidden="true" />
@@ -152,7 +175,7 @@ export function AjustesDirectorioTab({
             <p className="text-sm font-bold text-slate-900">
               No se encontraron empresas para &ldquo;{companySearch.trim()}&rdquo;
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Verifica el RFC (12 o 13 caracteres) o la razón social, o limpia el filtro para ver todo tu directorio.
             </p>
           </div>
@@ -208,13 +231,23 @@ export function AjustesDirectorioTab({
                     <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-800 font-bold flex items-center gap-1">
                       RFC: {c.rfc}
                       {m11.isValidCheckDigit ? (
-                        <span className="text-emerald-700 text-[10px] ml-0.5">✓ M11</span>
+                        <span
+                          title="Dígito verificador SAT Módulo 11 válido"
+                          className="text-emerald-700 text-[10px] ml-0.5 cursor-help"
+                        >
+                          ✓ M11
+                        </span>
                       ) : m11.expectedCheckDigit ? (
-                        <span className="text-amber-700 text-[10px] ml-0.5">⚠ M11:{m11.expectedCheckDigit}</span>
+                        <span
+                          title={`Dígito verificador SAT Módulo 11 esperado: ${m11.expectedCheckDigit}`}
+                          className="text-amber-700 text-[10px] ml-0.5 cursor-help"
+                        >
+                          ⚠ M11:{m11.expectedCheckDigit}
+                        </span>
                       ) : null}
                     </span>
                     <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
-                      CP: {c.codigoPostal || '64000'}
+                      CP: {c.codigoPostal || 'Sin C.P.'}
                     </span>
                     <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
                       Ejercicio: {c.currentYear}
@@ -287,60 +320,22 @@ export function AjustesDirectorioTab({
         </div>
       )}
 
-      {/* Confirmación protegida de baja de una empresa */}
-      {(companyPendingDelete || (confirmDeleteCompany && companies.length > 1 && activeCompany)) && (
-        <div
-          ref={deleteDialogRef}
-          role="alertdialog"
-          aria-modal="false"
-          aria-labelledby="confirm-delete-company-title"
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault();
+      <ConfirmDeleteCompanyModal
+        targetCompany={targetDeleteCompany}
+        isDeleting={deleteCompanyMutation.isPending}
+        onClose={() => {
+          setConfirmDeleteCompany(false);
+          setCompanyPendingDelete(null);
+        }}
+        onConfirmDelete={(companyId) => {
+          deleteCompanyMutation.mutate(companyId, {
+            onSuccess: () => {
               setConfirmDeleteCompany(false);
               setCompanyPendingDelete(null);
             }
-          }}
-          className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs space-y-2"
-        >
-          <div id="confirm-delete-company-title" className="flex items-center gap-2 text-red-900 font-bold">
-            <AlertTriangle className="w-4 h-4 text-red-700" aria-hidden="true" />
-            <span>
-              Confirmar baja definitiva de &ldquo;
-              {companyPendingDelete ? companyPendingDelete.name : activeCompany?.name}
-              &rdquo; ({companyPendingDelete ? companyPendingDelete.rfc : activeCompany?.rfc})
-            </span>
-          </div>
-          <p className="text-[11px] text-red-800">
-            Esta acción eliminará de forma irreversible todas las pólizas, catálogos y CFDIs vinculados a esta empresa.
-          </p>
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              autoFocus
-              onClick={() => {
-                setConfirmDeleteCompany(false);
-                setCompanyPendingDelete(null);
-              }}
-              className="px-3 py-1.5 rounded-lg font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={deleteCompanyMutation.isPending}
-              onClick={() => {
-                const targetId = companyPendingDelete ? companyPendingDelete.id : activeCompany?.id;
-                if (targetId) deleteCompanyMutation.mutate(targetId);
-                setCompanyPendingDelete(null);
-              }}
-              className="px-3.5 py-1.5 rounded-lg font-bold bg-red-700 hover:bg-red-800 text-white cursor-pointer"
-            >
-              {deleteCompanyMutation.isPending ? 'Eliminando...' : 'Sí, eliminar permanentemente'}
-            </button>
-          </div>
-        </div>
-      )}
+          });
+        }}
+      />
     </section>
   );
 }

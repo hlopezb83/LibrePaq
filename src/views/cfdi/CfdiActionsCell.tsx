@@ -61,6 +61,7 @@ function CfdiActionsCellBase({
         <button
           type="button"
           disabled={isDeletePending}
+          title="Confirmar eliminación definitiva del CFDI"
           onClick={() => onConfirmDelete(row.id)}
           className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-700 hover:bg-red-800 text-white cursor-pointer"
         >
@@ -69,6 +70,7 @@ function CfdiActionsCellBase({
         <button
           type="button"
           autoFocus
+          title="Cancelar eliminación (Esc)"
           onClick={() => setConfirmDeleteCfdiId(null)}
           className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
         >
@@ -79,7 +81,7 @@ function CfdiActionsCellBase({
   }
 
   return (
-    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+    <div className="flex items-center justify-end gap-1 whitespace-nowrap">
       {!row.polizaId && (
         <button
           type="button"
@@ -97,16 +99,16 @@ function CfdiActionsCellBase({
               ? 'CFDI de Traslado (T) — sin efectos contables de ingreso/gasto'
               : 'Contabilizar CFDI y generar póliza cuadrada'
           }
-          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-2xs transition ${
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-white shadow-2xs transition ${
             isContabilizarDisabled
               ? 'opacity-50 cursor-not-allowed bg-slate-500'
               : 'bg-blue-700 hover:bg-blue-800 cursor-pointer'
           }`}
         >
           {isWriteBlocked ? (
-            <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+            <Lock className="w-3 h-3" aria-hidden="true" />
           ) : (
-            <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+            <Sparkles className="w-3 h-3" aria-hidden="true" />
           )}
           Contabilizar
         </button>
@@ -122,9 +124,9 @@ function CfdiActionsCellBase({
             : 'Consultar vigencia fiscal y Lista 69-B directamente en el SAT'
         }
         aria-label={`Verificar estatus SAT de ${row.serie}-${row.folio}`}
-        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
-        <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+        <ShieldCheck className="w-3 h-3" aria-hidden="true" />
         {isVerifyingThisRow ? 'Consultando...' : 'SAT'}
       </button>
       <button
@@ -132,18 +134,19 @@ function CfdiActionsCellBase({
         onClick={() => onPreviewInvoice(row)}
         title="Ver Representación Impresa CFDI 4.0"
         aria-label={`Ver factura impresa ${row.serie}-${row.folio}`}
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
       >
-        <FileText className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
+        <FileText className="w-3 h-3 text-blue-700" aria-hidden="true" />
         Factura
       </button>
       <button
         type="button"
         onClick={() => onOpenXmlViewer(row)}
+        title="Ver estructura XML del CFDI"
         aria-label={`Ver XML de ${row.serie}-${row.folio}`}
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
       >
-        <Code2 className="w-3.5 h-3.5" aria-hidden="true" />
+        <Code2 className="w-3 h-3" aria-hidden="true" />
         XML
       </button>
       {!row.polizaId && (

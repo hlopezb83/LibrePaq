@@ -1,15 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Building2, Calculator, RefreshCw, Save, Sparkles } from 'lucide-react';
+import { AlertCircle, Building2, Calculator, CheckCircle2, Loader2, RefreshCw, Save, Sparkles } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency, formatShortDate, getLastDateForPeriod } from '../../lib/formatters';
-import {
-  computePayrollPeriodSummary,
-  computeSuaAndIsnProvision,
-  MEXICO_ISN_RATES
-} from '../../shared/engine/payroll-summary.engine';
+import { computePayrollPeriodSummary, computeSuaAndIsnProvision, MEXICO_ISN_RATES } from '../../shared/engine/payroll-summary.engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import type { SuaAndIsnProvisionResult } from '../../shared/types/payroll-summary.types';
 import { NominaKpiAmarreSection } from './NominaKpiAmarreSection';
@@ -33,14 +29,9 @@ function parseNonNeg(val: string): number {
 }
 
 export function NominaImssTab({
-  activeCompanyId,
-  company,
-  currentYear,
-  currentPeriod,
-  isPeriodLocked = false,
-  isReadOnlyClient: isReadOnlyClientProp = false,
-  accounts: accountsProp,
-  onFeedback
+  activeCompanyId, company, currentYear, currentPeriod,
+  isPeriodLocked = false, isReadOnlyClient: isReadOnlyClientProp = false,
+  accounts: accountsProp, onFeedback
 }: NominaImssTabProps) {
   const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
   const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
@@ -74,8 +65,24 @@ export function NominaImssTab({
     enabled: Boolean(activeCompanyId)
   });
 
+  const { data: periodPolizas = [] } = useQuery({
+    queryKey: ['polizas', activeCompanyId, effectiveYear, effectivePeriod],
+    queryFn: () => apiClient.getPolizas(activeCompanyId, effectiveYear, effectivePeriod),
+    enabled: Boolean(activeCompanyId)
+  });
+
+  const existingSuaPoliza = useMemo(
+    () =>
+      periodPolizas.find((p) => {
+        const c = p.concepto.toUpperCase();
+        return c.includes('SUA') && c.includes('ISN');
+      }) ?? null,
+    [periodPolizas]
+  );
+
   const trialBalance = reports?.trialBalance ?? [];
   const accounts = accountsProp && accountsProp.length > 0 ? accountsProp : trialBalance;
+  const isrAccountId = accounts.find((a) => a.code === '216-01-001')?.id;
 
   const summary = useMemo(
     () => computePayrollPeriodSummary({ cfdis, trialBalance, ejercicio: effectiveYear, periodo: effectivePeriod }),
@@ -96,6 +103,8 @@ export function NominaImssTab({
     setRcvInput,
     infonavitInput,
     setInfonavitInput,
+    isDirty,
+    saveSettingsSilently,
     saveSettingsMutation
   } = useNominaPayrollSettings({
     companyId: activeCompanyId,
@@ -140,10 +149,8 @@ export function NominaImssTab({
 
   const createPolizaMutation = useMutation({
     mutationFn: async ({ prov, targetCompanyId }: { prov: SuaAndIsnProvisionResult; targetCompanyId: string }) => {
-      if (isLocked) {
-        throw new Error('Periodo bloqueado o modo solo lectura: no es posible generar pólizas.');
-      }
-      await saveSettingsMutation.mutateAsync();
+      if (isLocked) throw new Error('Periodo bloqueado o modo solo lectura: no es posible generar pólizas.');
+      await saveSettingsSilently();
       return apiClient.createPoliza({
         companyId: targetCompanyId,
         tipo: prov.polizaTipo,
@@ -159,11 +166,7 @@ export function NominaImssTab({
     },
     onSuccess: (poliza, variables) => {
       setConfirmPoliza(false);
-      invalidateAccountingQueries(
-        queryClient,
-        ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'],
-        variables.targetCompanyId
-      );
+      invalidateAccountingQueries(queryClient, ['polizas', 'accounts', 'account-ledger', 'reports', 'dashboard'], variables.targetCompanyId);
       notify(`Póliza de Provisión SUA + ISN (#${poliza.folio}) registrada y cuadrada.`);
     },
     onError: (err: Error) => notify(`Error al registrar póliza SUA + ISN: ${err.message}`, 'error')
@@ -196,14 +199,26 @@ export function NominaImssTab({
 
   return (
     <div className="space-y-5">
-      <NominaKpiAmarreSection summary={summary} periodLabel={periodLabel} />
+      <NominaKpiAmarreSection summary={summary} periodLabel={periodLabel} isrAccountId={isrAccountId} />
 
       <section aria-labelledby="nomina-sua-isn-heading" className="bg-white p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <Calculator className="w-5 h-5 text-blue-700 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
-              <h2 id="nomina-sua-isn-heading" className="text-sm font-bold text-slate-900">Provisión Mensual SUA (IMSS / RCV / INFONAVIT) e ISN Estatal</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="nomina-sua-isn-heading" className="text-sm font-bold text-slate-900">Provisión Mensual SUA (IMSS / RCV / INFONAVIT) e ISN Estatal</h2>
+                {existingSuaPoliza && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> Póliza SUA/ISN (#{existingSuaPoliza.folio})
+                  </span>
+                )}
+                {isDirty && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300">
+                    Cambios sin guardar
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-600">Calcula el Impuesto Sobre Nómina estatal (tasa editable y persistente por periodo) y genera la póliza cuadrada</p>
             </div>
           </div>
@@ -215,7 +230,7 @@ export function NominaImssTab({
               title={lockReason ?? 'Guardar estado, tasa ISN y cuotas SUA para este periodo'}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              <Save className="w-3.5 h-3.5" aria-hidden="true" />
+              {saveSettingsMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Save className="w-3.5 h-3.5" aria-hidden="true" />}
               {saveSettingsMutation.isPending ? 'Guardando...' : 'Guardar Parámetros'}
             </button>
             <button
@@ -225,16 +240,24 @@ export function NominaImssTab({
               title={polizaButtonTitle}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              <Sparkles className="w-4 h-4" aria-hidden="true" />
+              {createPolizaMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Sparkles className="w-4 h-4" aria-hidden="true" />}
               {createPolizaMutation.isPending ? 'Registrando Póliza...' : 'Registrar Póliza de Provisión SUA + ISN'}
             </button>
           </div>
         </div>
 
         {confirmPoliza && provision && (
-          <div role="region" aria-label="Confirmación de póliza SUA e ISN" className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div
+            role="alertdialog"
+            aria-label="Confirmación de póliza SUA e ISN"
+            onKeyDown={(e) => { if (e.key === 'Escape') setConfirmPoliza(false); }}
+            className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+          >
             <p className="text-amber-950 font-medium">
-              Se generará una póliza de <strong>DIARIO</strong> por <strong className="font-mono tabular-nums">{formatCurrency(provision.totalProvision)}</strong> con fecha <strong className="font-mono">{formatShortDate(polizaDate)}</strong>. Verifica no haberla registrado previamente para evitar duplicados.
+              {existingSuaPoliza
+                ? `Ya existe una póliza SUA/ISN (#${existingSuaPoliza.folio}) en este periodo. ¿Deseas generar otra póliza de DIARIO por `
+                : 'Se generará una póliza de DIARIO por '}
+              <strong className="font-mono tabular-nums">{formatCurrency(provision.totalProvision)}</strong> con fecha <strong className="font-mono">{formatShortDate(polizaDate)}</strong>.
             </p>
             <div className="flex items-center gap-2 shrink-0">
               <button type="button" autoFocus onClick={() => setConfirmPoliza(false)} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer">
@@ -245,8 +268,9 @@ export function NominaImssTab({
                 disabled={isLocked || createPolizaMutation.isPending}
                 onClick={() => createPolizaMutation.mutate({ prov: provision, targetCompanyId: activeCompanyId })}
                 title={lockReason ?? 'Confirmar y registrar póliza de diario'}
-                className="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
+                {createPolizaMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
                 {createPolizaMutation.isPending ? 'Registrando...' : 'Confirmar'}
               </button>
             </div>
@@ -267,18 +291,7 @@ export function NominaImssTab({
           </div>
           <div>
             <label htmlFor="isn-rate-input" className="block font-semibold text-slate-700 mb-1">Tasa ISN (%)</label>
-            <input
-              id="isn-rate-input"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              max="10"
-              step="0.01"
-              disabled={isLocked}
-              value={isnRateInput}
-              onChange={(e) => { setIsnRateInput(e.target.value); setConfirmPoliza(false); }}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono tabular-nums text-slate-900 disabled:bg-slate-100"
-            />
+            <input id="isn-rate-input" type="number" inputMode="decimal" min="0" max="10" step="0.01" disabled={isLocked} value={isnRateInput} onChange={(e) => { setIsnRateInput(e.target.value); setConfirmPoliza(false); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono tabular-nums text-slate-900 disabled:bg-slate-100" />
           </div>
           <div>
             <div className="flex items-center justify-between gap-2 flex-wrap mb-1">

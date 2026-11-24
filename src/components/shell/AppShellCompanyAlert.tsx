@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Company } from '../../shared/types';
+import { getCompanyInitials } from '../company-switcher/companyThemes';
 
 interface AppShellCompanyAlertProps {
   company: Company;
@@ -12,35 +14,47 @@ export function AppShellCompanyAlert({
   currentTheme,
   onDismiss
 }: AppShellCompanyAlertProps) {
+  const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    if (isPaused) return;
+    const timer = window.setTimeout(onDismiss, 8000);
+    return () => window.clearTimeout(timer);
+  }, [company.id, isPaused, onDismiss]);
+
   return (
     <div
       role="status"
-      className="mb-4 p-3.5 rounded-2xl bg-[#0A1120] border-2 border-blue-500 text-white shadow-lg flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top duration-300 no-print"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={() => setIsPaused(false)}
+      className="dark-surface mb-3 px-3 py-2 rounded-xl bg-[#0A1120] border border-blue-500 text-white shadow-md flex items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top duration-300 no-print"
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <div
-          className={`w-9 h-9 rounded-xl ${currentTheme.bg} ${currentTheme.text} font-mono font-bold text-xs flex items-center justify-center shrink-0 border ${currentTheme.border} shadow-xs`}
+          aria-hidden="true"
+          className={`w-7 h-7 rounded-lg ${currentTheme.bg} ${currentTheme.text} font-mono font-bold text-[10px] flex items-center justify-center shrink-0 border ${currentTheme.border}`}
         >
-          {company.name.slice(0, 2).toUpperCase()}
+          {getCompanyInitials(company.name)}
         </div>
-        <div>
-          <div className="text-xs font-bold flex items-center gap-2 flex-wrap">
-            <span>Espacio de Trabajo Activo: {company.name}</span>
-            <span className="font-mono bg-blue-950 px-2 py-0.5 rounded text-[11px] font-bold text-blue-300 border border-blue-500/50">
-              RFC: {company.rfc}
-            </span>
-            <span className="text-emerald-400 text-[11px] font-semibold">● Contexto Verificado</span>
-          </div>
-          <p className="text-[11px] text-slate-300 mt-0.5">
-            Has cambiado de entidad fiscal. Todos los comprobantes CFDI 4.0, pólizas y conciliaciones que proceses se imputarán a esta empresa.
-          </p>
+        <div className="text-xs flex items-center gap-2 min-w-0 flex-1">
+          <span className="font-bold truncate">
+            Empresa activa: {company.name}
+          </span>
+          <span className="font-mono bg-blue-950 px-1.5 py-0.5 rounded text-[11px] font-bold text-blue-200 border border-blue-500/50 shrink-0">
+            {company.rfc}
+          </span>
+          <span className="hidden md:inline text-emerald-300 text-[11px] font-semibold shrink-0">
+            Contexto verificado
+          </span>
         </div>
       </div>
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Descartar aviso de cambio de empresa"
-        className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer shrink-0"
+        className="dark-focus-ring p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer shrink-0"
       >
         <X className="w-4 h-4" aria-hidden="true" />
       </button>

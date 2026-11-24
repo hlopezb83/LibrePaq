@@ -2,6 +2,7 @@ import { AlertCircle, Eye, Lock, RefreshCw } from 'lucide-react';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useUIModal } from '../context/UIModalContext';
 import { AccountEditorModal } from './catalogo/AccountEditorModal';
+import { CatalogoCsvImportPreviewModal } from './catalogo/CatalogoCsvImportPreviewModal';
 import { CatalogoFilterBar } from './catalogo/CatalogoFilterBar';
 import { CatalogoHeaderBar } from './catalogo/CatalogoHeaderBar';
 import { CatalogoKeyboardShortcutsBar } from './catalogo/CatalogoKeyboardShortcutsBar';
@@ -17,6 +18,7 @@ export function CatalogoCuentasView() {
     activeCompany,
     currentYear,
     isPeriodLocked,
+    isJanLocked,
     isReadOnlyClient,
     isWriteBlocked,
     dialogRef,
@@ -49,7 +51,9 @@ export function CatalogoCuentasView() {
     formError,
     confirmDeleteId,
     setConfirmDeleteId,
+    deletingAccountId,
     editingAccountId,
+    editingIsAffectable,
     code,
     setCode,
     name,
@@ -63,16 +67,21 @@ export function CatalogoCuentasView() {
     nature,
     setNature,
     setLevel,
-    initialBalance,
-    setInitialBalance,
+    initialBalanceRaw,
+    setInitialBalanceRaw,
     suggestNextCodeForParent,
     openCreateModal,
     openEditModal,
     openCreateSubaccountModal,
+    closeEditorModal,
     saveAccountMutation,
     deleteAccountMutation,
     handleExportCsv,
-    handleImportAccountsCsv
+    handleImportAccountsCsv,
+    csvPreview,
+    setCsvPreview,
+    isImportingCsv,
+    handleConfirmImportCsv
   } = manager;
 
   useCatalogoKeyboardNavigation({
@@ -193,6 +202,7 @@ export function CatalogoCuentasView() {
             isLoading={isLoading}
             isPeriodLocked={isPeriodLocked}
             isReadOnlyClient={isReadOnlyClient}
+            deletingAccountId={deletingAccountId}
             copiedCode={copiedCode}
             selectedAccountId={selectedAccountId}
             onSelectAccount={(id) => setSelectedAccountId(id)}
@@ -216,6 +226,8 @@ export function CatalogoCuentasView() {
       <AccountEditorModal
         dialogRef={dialogRef}
         editingAccountId={editingAccountId}
+        editingIsAffectable={editingIsAffectable}
+        isJanLocked={isJanLocked}
         activeCompany={activeCompany}
         currentYear={currentYear}
         formError={formError}
@@ -234,13 +246,20 @@ export function CatalogoCuentasView() {
         nature={nature}
         setNature={setNature}
         setLevel={setLevel}
-        initialBalance={initialBalance}
-        setInitialBalance={setInitialBalance}
+        initialBalanceRaw={initialBalanceRaw}
+        setInitialBalanceRaw={setInitialBalanceRaw}
         suggestNextCodeForParent={suggestNextCodeForParent}
-        onClose={() => dialogRef.current?.close()}
+        onClose={closeEditorModal}
         onSave={() => saveAccountMutation.mutate()}
         isSaving={saveAccountMutation.isPending}
         isWriteBlocked={isWriteBlocked}
+      />
+
+      <CatalogoCsvImportPreviewModal
+        preview={csvPreview}
+        isImporting={isImportingCsv}
+        onClose={() => setCsvPreview(null)}
+        onConfirm={() => void handleConfirmImportCsv()}
       />
     </div>
   );

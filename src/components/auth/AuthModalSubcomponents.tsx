@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import type { User } from '@supabase/supabase-js';
 import { ArrowRight, Loader2, LogOut, ShieldCheck } from 'lucide-react';
 
@@ -25,14 +26,14 @@ export function AuthActiveSessionPanel({
             <div className="text-xs font-bold text-white truncate">
               {user.user_metadata?.full_name || 'Contador Titular'}
             </div>
-            <div className="text-[11px] text-slate-400 truncate">{user.email}</div>
+            <div className="text-[11px] text-slate-300 truncate">{user.email}</div>
           </div>
         </div>
 
         <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-          <span className="text-slate-400">Estado de Conexión:</span>
+          <span className="text-slate-300">Estado de Conexión:</span>
           <span className="font-mono text-cyan-300 font-semibold flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
             Nube Activa (Cifrado SAT)
           </span>
         </div>
@@ -127,7 +128,7 @@ export function AuthModeTabs({ mode, onSelectMode }: AuthModeTabsProps) {
         className={`py-1.5 rounded-lg transition cursor-pointer text-center ${
           mode === 'signup'
             ? 'bg-blue-600 text-white shadow-xs font-bold'
-            : 'text-slate-400 hover:text-white'
+            : 'text-slate-300 hover:text-white'
         }`}
       >
         Crear Cuenta Gratis
@@ -139,7 +140,7 @@ export function AuthModeTabs({ mode, onSelectMode }: AuthModeTabsProps) {
         className={`py-1.5 rounded-lg transition cursor-pointer text-center ${
           mode === 'signin'
             ? 'bg-blue-600 text-white shadow-xs font-bold'
-            : 'text-slate-400 hover:text-white'
+            : 'text-slate-300 hover:text-white'
         }`}
       >
         Iniciar Sesión
@@ -165,25 +166,54 @@ export function AuthForgotHeader({ onBackToSignIn }: AuthForgotHeaderProps) {
       <h3 className="text-sm sm:text-base font-extrabold text-white">
         Recuperar Contraseña de tu Despacho
       </h3>
-      <p className="text-xs text-slate-400 leading-relaxed">
+      <p className="text-xs text-slate-300 leading-relaxed">
         Ingresa tu correo registrado y te enviaremos de inmediato un enlace seguro para restablecer tu contraseña.
       </p>
     </div>
   );
 }
 
-export function AuthFooterTrust({ mode }: { mode: 'signin' | 'signup' | 'forgot' }) {
+export function AuthFooterTrust({
+  mode,
+  onNavigateLegal
+}: {
+  mode: 'signin' | 'signup' | 'forgot';
+  onNavigateLegal?: () => void;
+}) {
   const text =
     mode === 'signup'
-      ? '⚡ Sin tarjeta de crédito • Acceso inmediato • Datos respaldados'
+      ? 'Sin tarjeta de crédito • Acceso inmediato • Datos respaldados'
       : mode === 'signin'
-      ? '🔒 Conexión segura y cifrada • Cumplimiento fiscal Anexo 24 SAT'
-      : '🔒 Enlace temporal de un solo uso • Cifrado extremo a extremo';
+      ? 'Conexión segura y cifrada • Cumplimiento fiscal Anexo 24 SAT'
+      : 'Enlace temporal de un solo uso • Cifrado extremo a extremo';
 
   return (
-    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-center gap-2 text-[10px] text-slate-400">
-      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
-      <span className="truncate">{text}</span>
+    <div className="pt-3 border-t border-slate-800/80 space-y-2 text-[11px] text-slate-300">
+      {mode === 'signup' && (
+        <p className="text-center leading-relaxed text-slate-300">
+          Al crear tu cuenta aceptas el{' '}
+          <Link
+            to="/privacy"
+            onClick={onNavigateLegal}
+            className="text-cyan-300 hover:text-cyan-200 underline font-semibold"
+          >
+            Aviso de Privacidad
+          </Link>{' '}
+          y los{' '}
+          <Link
+            to="/terms"
+            onClick={onNavigateLegal}
+            className="text-cyan-300 hover:text-cyan-200 underline font-semibold"
+          >
+            Términos de Servicio
+          </Link>
+          .
+        </p>
+      )}
+      <div className="flex items-center justify-center gap-2 text-center leading-relaxed">
+        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+        <span>{text}</span>
+      </div>
     </div>
   );
 }

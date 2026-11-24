@@ -18,9 +18,9 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
   const savingsPercent = 100;
 
   return (
-    <section id="calculadora" className="py-24 bg-white relative border-t border-slate-200">
+    <section id="calculadora" className="py-14 sm:py-20 lg:py-24 bg-white relative border-t border-slate-200">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-14">
+        <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
           <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold tracking-wider">
             CALCULADORA DE RETORNO DE INVERSIÓN
           </span>
@@ -84,19 +84,21 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                   {numRfcs} RFCs
                 </span>
               </div>
-              <input
-                id="rfcs-slider"
-                type="range"
-                min="1"
-                max="60"
-                value={numRfcs}
-                aria-valuemin={1}
-                aria-valuemax={60}
-                aria-valuenow={numRfcs}
-                aria-valuetext={`${numRfcs} empresas o RFCs administrados`}
-                onChange={(e) => setNumRfcs(Number(e.target.value))}
-                className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2"
-              />
+              <div className="min-h-[44px] flex items-center">
+                <input
+                  id="rfcs-slider"
+                  type="range"
+                  min="1"
+                  max="60"
+                  value={numRfcs}
+                  aria-valuemin={1}
+                  aria-valuemax={60}
+                  aria-valuenow={numRfcs}
+                  aria-valuetext={`${numRfcs} empresas o RFCs administrados`}
+                  onChange={(e) => setNumRfcs(Number(e.target.value))}
+                  className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 [--slider-thumb-color:#2563eb] focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-4"
+                />
+              </div>
               <div className="flex justify-between text-[11px] text-slate-600 mt-1 font-mono">
                 <span>1 Empresa</span>
                 <span>30 Empresas</span>
@@ -115,19 +117,21 @@ export function LandingRoiCalculator({ onOpenAuth }: LandingRoiCalculatorProps) 
                   {numUsers} {numUsers === 1 ? 'Usuario' : 'Usuarios'}
                 </span>
               </div>
-              <input
-                id="users-slider"
-                type="range"
-                min="1"
-                max="12"
-                value={numUsers}
-                aria-valuemin={1}
-                aria-valuemax={12}
-                aria-valuenow={numUsers}
-                aria-valuetext={`${numUsers} ${numUsers === 1 ? 'contador o máquina concurrente' : 'contadores o máquinas concurrentes'}`}
-                onChange={(e) => setNumUsers(Number(e.target.value))}
-                className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 focus-visible:outline-2 focus-visible:outline-emerald-600 focus-visible:outline-offset-2"
-              />
+              <div className="min-h-[44px] flex items-center">
+                <input
+                  id="users-slider"
+                  type="range"
+                  min="1"
+                  max="12"
+                  value={numUsers}
+                  aria-valuemin={1}
+                  aria-valuemax={12}
+                  aria-valuenow={numUsers}
+                  aria-valuetext={`${numUsers} ${numUsers === 1 ? 'contador o máquina concurrente' : 'contadores o máquinas concurrentes'}`}
+                  onChange={(e) => setNumUsers(Number(e.target.value))}
+                  className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 [--slider-thumb-color:#059669] focus-visible:outline-2 focus-visible:outline-emerald-600 focus-visible:outline-offset-4"
+                />
+              </div>
               <div className="flex justify-between text-[11px] text-slate-600 mt-1 font-mono">
                 <span>1 Contador</span>
                 <span>6 Contadores</span>

@@ -45,6 +45,16 @@ export function CfdiBatchActionBar({
     <div
       role="region"
       aria-label="Acciones en lote para comprobantes seleccionados"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          if (confirmDelete) {
+            setConfirmDelete(false);
+          } else {
+            onClearSelection();
+          }
+        }
+      }}
       className="p-3.5 rounded-2xl bg-[#0A1120] text-white flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in fade-in slide-in-from-top-2"
     >
       <div className="flex items-center gap-2.5" aria-live="polite">
@@ -165,12 +175,7 @@ export function CfdiBatchActionBar({
           <button
             type="button"
             autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                setConfirmDelete(false);
-              }
-            }}
+            title="Cancelar eliminación en bloque (Esc)"
             onClick={() => setConfirmDelete(false)}
             className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-100 cursor-pointer"
           >
@@ -180,6 +185,7 @@ export function CfdiBatchActionBar({
 
         <button
           type="button"
+          title="Limpiar selección actual (Esc)"
           onClick={() => {
             setConfirmDelete(false);
             onClearSelection();

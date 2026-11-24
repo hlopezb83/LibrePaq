@@ -18,8 +18,12 @@ export function SandboxDemoBanner({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <div className="mb-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 border border-amber-300/90 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs no-print">
-      <div className="flex items-start sm:items-center gap-3 min-w-0">
+    <aside
+      role="status"
+      aria-label="Aviso de Empresa Ejemplo"
+      className="mb-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 border border-amber-300/90 px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-2xs no-print"
+    >
+      <div className="flex items-start lg:items-center gap-3 min-w-0">
         <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-400/40 text-amber-800 flex items-center justify-center shrink-0">
           <FlaskConical className="w-4 h-4" aria-hidden="true" />
         </div>
@@ -28,7 +32,7 @@ export function SandboxDemoBanner({
             <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-mono font-extrabold text-[10px] uppercase tracking-wider">
               Empresa Ejemplo (Demo)
             </span>
-            <span className="font-bold truncate">
+            <span className="font-bold">
               Estás explorando una Empresa Ejemplo con pólizas y CFDIs de prueba.
             </span>
           </div>
@@ -82,6 +86,6 @@ export function SandboxDemoBanner({
           </button>
         )}
       </div>
-    </div>
+    </aside>
   );
 }

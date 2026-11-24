@@ -9,7 +9,9 @@ interface DeliverableBalanzaDocProps {
   period: number;
   mesNombre: string;
   firmName: string;
+  issuanceCity?: string;
   issuanceDate: string;
+  hideZeroAccounts?: boolean;
   trialBalance: AccountWithBalance[];
   totals: {
     initialDeudor: number;
@@ -31,7 +33,9 @@ export function DeliverableBalanzaDoc({
   period,
   mesNombre,
   firmName,
+  issuanceCity,
   issuanceDate,
+  hideZeroAccounts = false,
   trialBalance,
   totals,
   auditorName,
@@ -47,6 +51,16 @@ export function DeliverableBalanzaDoc({
   const finalAcreedor =
     totals.finalAcreedor ??
     affectableAcreedor.reduce((s, r) => s + r.finalBalance, 0);
+  const visibleRows = trialBalance.filter((r) => {
+    if (!(r.isAffectable || r.level <= 2)) return false;
+    if (!hideZeroAccounts) return true;
+    return (
+      Math.abs(r.initialBalanceComputed) >= 0.01 ||
+      Math.abs(r.periodCharges) >= 0.01 ||
+      Math.abs(r.periodCredits) >= 0.01 ||
+      Math.abs(r.finalBalance) >= 0.01
+    );
+  });
 
   return (
     <article className="max-w-5xl mx-auto bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 space-y-5 print-page-break mb-8">
@@ -69,9 +83,9 @@ export function DeliverableBalanzaDoc({
             Periodo Contable: <strong>{mesNombre} {year}</strong> • Cifras en Pesos Mexicanos (MXN)
           </div>
         </div>
-        <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
+        <div className="text-right text-[11px] text-slate-600 font-mono shrink-0">
           <div>Folio: DOC-BAL-{year}-{String(period).padStart(2, '0')}</div>
-          <div>Emisión: {issuanceDate}</div>
+          <div>{issuanceCity ? `${issuanceCity}, ` : ''}{issuanceDate}</div>
           {isBalanced ? (
             <div className="inline-flex items-center gap-1 text-emerald-800 font-bold mt-1">
               <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -107,9 +121,7 @@ export function DeliverableBalanzaDoc({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {trialBalance
-              .filter((r) => r.isAffectable || r.level <= 2)
-              .map((row) => (
+            {visibleRows.map((row) => (
                 <tr
                   key={row.id}
                   className={
@@ -120,26 +132,26 @@ export function DeliverableBalanzaDoc({
                       : 'text-slate-700'
                   }
                 >
-                  <td className="py-1 px-2.5 font-mono text-[11px]">{row.code}</td>
+                  <td className="py-1 px-2.5 font-mono text-[11px] whitespace-nowrap tabular-nums">{row.code}</td>
                   <td className={`py-1 px-2.5 ${row.level === 3 ? 'pl-6' : ''}`}>
                     {row.name}
                   </td>
-                  <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-600">
+                  <td className="py-1 px-2 text-center font-mono text-[10px] text-slate-600 whitespace-nowrap tabular-nums">
                     {row.satGroupCode}
                   </td>
-                  <td className="py-1 px-1.5 text-center font-mono text-[10px] font-bold text-slate-700">
+                  <td className="py-1 px-1.5 text-center font-mono text-[10px] font-bold text-slate-700 whitespace-nowrap">
                     {row.nature === 'DEUDORA' ? 'D' : 'A'}
                   </td>
-                  <td className="py-1 px-2.5 text-right font-mono">
+                  <td className="py-1 px-2.5 text-right font-mono whitespace-nowrap tabular-nums">
                     {formatCurrency(row.initialBalanceComputed)}
                   </td>
-                  <td className="py-1 px-2.5 text-right font-mono">
+                  <td className="py-1 px-2.5 text-right font-mono whitespace-nowrap tabular-nums">
                     {row.periodCharges > 0 ? formatCurrency(row.periodCharges) : '—'}
                   </td>
-                  <td className="py-1 px-2.5 text-right font-mono">
+                  <td className="py-1 px-2.5 text-right font-mono whitespace-nowrap tabular-nums">
                     {row.periodCredits > 0 ? formatCurrency(row.periodCredits) : '—'}
                   </td>
-                  <td className="py-1 px-2.5 text-right font-mono font-semibold">
+                  <td className="py-1 px-2.5 text-right font-mono font-semibold whitespace-nowrap tabular-nums">
                     {formatCurrency(row.finalBalance)}
                   </td>
                 </tr>
@@ -150,17 +162,17 @@ export function DeliverableBalanzaDoc({
               <td colSpan={4} className="py-2 px-2.5 text-right uppercase">
                 Sumas Iguales (Afectables):
               </td>
-              <td className="py-2 px-2.5 text-right text-[11px]">
+              <td className="py-2 px-2.5 text-right text-[11px] whitespace-nowrap tabular-nums">
                 <div>D: {formatCurrency(totals.initialDeudor)}</div>
                 <div className="text-slate-600">A: {formatCurrency(initialAcreedor)}</div>
               </td>
-              <td className="py-2 px-2.5 text-right text-blue-900">
+              <td className="py-2 px-2.5 text-right text-blue-900 whitespace-nowrap tabular-nums">
                 {formatCurrency(totals.totalCargos)}
               </td>
-              <td className="py-2 px-2.5 text-right text-blue-900">
+              <td className="py-2 px-2.5 text-right text-blue-900 whitespace-nowrap tabular-nums">
                 {formatCurrency(totals.totalAbonos)}
               </td>
-              <td className="py-2 px-2.5 text-right text-[11px]">
+              <td className="py-2 px-2.5 text-right text-[11px] whitespace-nowrap tabular-nums">
                 <div>D: {formatCurrency(totals.finalDeudor)}</div>
                 <div className="text-slate-600">A: {formatCurrency(finalAcreedor)}</div>
               </td>

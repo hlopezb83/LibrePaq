@@ -39,7 +39,10 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
             aria-label="Ejemplo de póliza contable cuadrada"
             className="overflow-x-auto rounded-xl border border-slate-200 shadow-xs"
           >
-            <table className="w-full text-xs text-left">
+            <table className="w-full min-w-[560px] text-xs text-left">
+              <caption className="sr-only">
+                Ejemplo de póliza contable cuadrada con cuentas SAT, cargos y abonos
+              </caption>
               <thead className="bg-slate-50 text-slate-600 font-mono uppercase text-[10px] border-b border-slate-200">
                 <tr>
                   <th scope="col" className="py-2.5 px-3">Cuenta SAT</th>
@@ -54,29 +57,29 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                   <td className="py-2 px-3 font-semibold text-blue-600">102.01.001</td>
                   <td className="py-2 px-3 font-medium text-slate-900">BBVA Bancomer Cta. 4819</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Transferencia SPEI recibida</td>
-                  <td className="py-2 px-3 text-right font-bold text-slate-900">$116,000.00</td>
-                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
+                  <td className="py-2 px-3 text-right font-bold text-slate-900 tabular-nums">$116,000.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500 tabular-nums">$0.00</td>
                 </tr>
                 <tr className="hover:bg-slate-50/80">
                   <td className="py-2 px-3 font-semibold text-blue-600">105.01.005</td>
                   <td className="py-2 px-3 font-medium text-slate-900">Clientes Nacionales — Alfa S.A.</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Cancelación saldo exigible</td>
-                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
-                  <td className="py-2 px-3 text-right font-bold text-slate-900">$116,000.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500 tabular-nums">$0.00</td>
+                  <td className="py-2 px-3 text-right font-bold text-slate-900 tabular-nums">$116,000.00</td>
                 </tr>
                 <tr className="hover:bg-slate-50/80">
                   <td className="py-2 px-3 font-semibold text-blue-600">208.01.001</td>
                   <td className="py-2 px-3 font-medium text-slate-900">IVA Trasladado Pendiente</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Reclasificación fiscal flujo</td>
-                  <td className="py-2 px-3 text-right font-bold text-emerald-700">$16,000.00</td>
-                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
+                  <td className="py-2 px-3 text-right font-bold text-emerald-700 tabular-nums">$16,000.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500 tabular-nums">$0.00</td>
                 </tr>
                 <tr className="hover:bg-slate-50/80">
                   <td className="py-2 px-3 font-semibold text-blue-600">209.01.001</td>
                   <td className="py-2 px-3 font-medium text-slate-900">IVA Trasladado Cobrado (Efectivamente Pagado)</td>
                   <td className="py-2 px-3 text-slate-600 font-sans">Causación de IVA Art. 1-B LIVA</td>
-                  <td className="py-2 px-3 text-right text-slate-500">$0.00</td>
-                  <td className="py-2 px-3 text-right font-bold text-emerald-700">$16,000.00</td>
+                  <td className="py-2 px-3 text-right text-slate-500 tabular-nums">$0.00</td>
+                  <td className="py-2 px-3 text-right font-bold text-emerald-700 tabular-nums">$16,000.00</td>
                 </tr>
               </tbody>
               <tfoot className="bg-slate-100 font-mono font-bold text-xs border-t-2 border-slate-300">
@@ -84,8 +87,8 @@ export function LandingInteractivePreview({ activePreviewTab }: LandingInteracti
                   <td colSpan={3} className="py-2.5 px-3 text-right uppercase text-slate-600">
                     Sumas Iguales:
                   </td>
-                  <td className="py-2.5 px-3 text-right text-slate-900 text-sm">$132,000.00</td>
-                  <td className="py-2.5 px-3 text-right text-slate-900 text-sm">$132,000.00</td>
+                  <td className="py-2.5 px-3 text-right text-slate-900 text-sm tabular-nums">$132,000.00</td>
+                  <td className="py-2.5 px-3 text-right text-slate-900 text-sm tabular-nums">$132,000.00</td>
                 </tr>
               </tfoot>
             </table>

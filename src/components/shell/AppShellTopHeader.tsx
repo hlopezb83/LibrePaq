@@ -15,6 +15,7 @@ import type { DespachoRole } from '../../shared/types/despacho-rbac.types';
 import type { User } from '@supabase/supabase-js';
 import { PeriodLockConfirmDialog } from './PeriodLockConfirmDialog';
 import { AppShellTopHeaderPeriod } from './AppShellTopHeaderPeriod';
+import { getCompanyInitials } from '../company-switcher/companyThemes';
 
 interface AppShellTopHeaderProps {
   workspaceName?: string;
@@ -58,15 +59,11 @@ export function AppShellTopHeader({
       effectiveCompanyRole === 'SOCIO' ||
       effectiveCompanyRole === 'CONTADOR');
 
-  const companyInitials = activeCompany
-    ? (activeCompany.name.replace(/^\[[^\]]*\]\s*/, '').trim() || activeCompany.name)
-        .slice(0, 2)
-        .toUpperCase()
-    : '';
+  const companyInitials = activeCompany ? getCompanyInitials(activeCompany.name) : '';
 
   return (
     <header className="@container bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2 sm:px-3.5 py-1.5 shadow-2xs no-print">
-      <div className="max-w-[1800px] mx-auto flex flex-wrap @[820px]:flex-nowrap items-center justify-between gap-1.5">
+      <div className="max-w-[1800px] mx-auto flex flex-wrap @[640px]:flex-nowrap items-center justify-between gap-1.5">
         {/* Despacho y Conmutador de Empresa Activa */}
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {activeCompany ? (
@@ -86,7 +83,7 @@ export function AppShellTopHeader({
               <div className="min-w-0 flex-1">
                 {/* Fila 1: Despacho Contable (Contexto del Despacho) */}
                 <div className="flex items-center gap-1 min-w-0">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600 truncate">
                     {workspaceName || 'Despacho Contable'}
                   </span>
                 </div>
@@ -99,13 +96,13 @@ export function AppShellTopHeader({
                     className="font-mono text-[9px] font-bold text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-300/90 shadow-2xs shrink-0 inline-flex items-center gap-0.5"
                     title={`RFC de la empresa cliente: ${activeCompany.rfc}`}
                   >
-                    <span className="text-[8px] font-semibold text-slate-600 uppercase">RFC</span>
+                    <span className="hidden @[840px]:inline text-[8px] font-semibold text-slate-600 uppercase">RFC</span>
                     <span>{activeCompany.rfc}</span>
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200 text-slate-400 group-hover:text-blue-700 shrink-0">
-                <span className="hidden @[760px]:inline text-[10px] font-bold text-slate-600 group-hover:text-blue-700">
+              <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200 text-slate-500 group-hover:text-blue-700 shrink-0">
+                <span className="hidden @[840px]:inline text-[10px] font-bold text-slate-600 group-hover:text-blue-700">
                   Cambiar
                 </span>
                 <kbd className="hidden @[1280px]:inline text-[9px] font-mono bg-white text-slate-600 px-1 py-0.5 rounded border border-slate-300">
@@ -148,7 +145,7 @@ export function AppShellTopHeader({
         <div
           className={`flex flex-wrap items-center gap-1 sm:gap-1.5 min-w-0 shrink-0 ${
             activeCompany
-              ? 'w-full @[820px]:w-auto justify-between @[820px]:justify-end'
+              ? 'w-full @[640px]:w-auto justify-between @[640px]:justify-end'
               : 'ml-auto'
           }`}
         >
@@ -158,15 +155,15 @@ export function AppShellTopHeader({
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 text-[11px] font-bold shrink-0"
             >
               <Eye className="w-3.5 h-3.5 text-sky-700 shrink-0" aria-hidden="true" />
-              <span className="hidden @[700px]:inline">Solo lectura</span>
+              <span className="hidden @[840px]:inline">Solo lectura</span>
             </span>
           )}
 
           {activeCompany?.currentPeriod === 13 && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold shrink-0">
               <Lock className="w-3 h-3 text-amber-800" aria-hidden="true" />
-              <span className="hidden @[900px]:inline">MODO CIERRE ANUAL (P13)</span>
-              <span className="@[900px]:hidden">P13</span>
+              <span className="hidden @[960px]:inline">MODO CIERRE ANUAL (P13)</span>
+              <span className="@[960px]:hidden">P13</span>
             </span>
           )}
 
@@ -216,12 +213,12 @@ export function AppShellTopHeader({
                 ) : isPeriodLocked ? (
                   <>
                     <Lock className="w-3.5 h-3.5 text-amber-800" aria-hidden="true" />
-                    <span className="hidden @[820px]:inline">Cerrado</span>
+                    <span className="hidden @[840px]:inline">Cerrado</span>
                   </>
                 ) : (
                   <>
                     <LockOpen className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
-                    <span className="hidden @[820px]:inline">Abierto</span>
+                    <span className="hidden @[840px]:inline">Abierto</span>
                   </>
                 )}
               </button>
@@ -261,7 +258,7 @@ export function AppShellTopHeader({
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border bg-white hover:bg-slate-50 text-slate-700 border-slate-300 shadow-2xs"
               >
                 <Cloud className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-                <span className="hidden @[700px]:inline">Iniciar Sesión</span>
+                <span className="hidden @[840px]:inline">Iniciar Sesión</span>
               </button>
             )}
           </div>

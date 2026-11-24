@@ -10,12 +10,11 @@ import {
 } from 'lucide-react';
 import type { Company } from '../../shared/types';
 import { MESES_SAT } from '../../shared/sat-constants';
-import { getCompanyTheme, type CompanyTheme } from './companyThemes';
+import { getCompanyInitials, getCompanyTheme, type CompanyTheme } from './companyThemes';
 import { CompanySwitchConfirmView } from './CompanySwitchConfirmView';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
-import { useUIModal } from '../../context/UIModalContext';
 
-export { getCompanyTheme, type CompanyTheme };
+export { getCompanyInitials, getCompanyTheme, type CompanyTheme };
 
 interface CompanySwitcherModalProps {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
@@ -32,7 +31,6 @@ export function CompanySwitcherModal({
   onSelectCompany,
   onOpenNewCompanyWizard
 }: CompanySwitcherModalProps) {
-  const { openCompanyWizard } = useUIModal();
   const [search, setSearch] = useState('');
   const [pendingTargetCompany, setPendingTargetCompany] = useState<Company | null>(null);
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
@@ -172,7 +170,7 @@ export function CompanySwitcherModal({
             <div className="space-y-2.5">
               <div
                 aria-live="polite"
-                className="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-1"
+                className="text-[11px] font-bold uppercase tracking-wider text-slate-600 px-1"
               >
                 Empresas Registradas en tu Despacho ({filteredCompanies.length})
               </div>
@@ -185,7 +183,7 @@ export function CompanySwitcherModal({
                       : 'No se encontraron empresas con ese criterio de búsqueda.'}
                   </p>
                   {companies.length === 0 ? (
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-slate-600">
                       Usa el botón «+ Nueva Empresa» abajo para registrar tu primera razón social o RFC.
                     </p>
                   ) : (
@@ -218,9 +216,10 @@ export function CompanySwitcherModal({
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <div
+                        aria-hidden="true"
                         className={`w-9 h-9 rounded-xl ${theme.bg} ${theme.text} font-mono font-bold text-xs flex items-center justify-center shrink-0 border ${theme.border} shadow-2xs mt-0.5`}
                       >
-                        {comp.name.slice(0, 2).toUpperCase()}
+                        {getCompanyInitials(comp.name)}
                       </div>
 
                       <div className="min-w-0 space-y-1">
@@ -233,13 +232,13 @@ export function CompanySwitcherModal({
                           </span>
                           {isActive && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" aria-hidden="true" />
                               SESIÓN EN CURSO
                             </span>
                           )}
                         </div>
 
-                        <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="truncate max-w-xs">{comp.regimenFiscal}</span>
                           <span className="text-slate-300">•</span>
                           <span className="font-mono font-semibold text-blue-900 bg-blue-50/80 px-1.5 py-0.2 rounded border border-blue-200/60">
@@ -296,7 +295,6 @@ export function CompanySwitcherModal({
                 onClick={() => {
                   handleClose();
                   onOpenNewCompanyWizard();
-                  openCompanyWizard();
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-blue-800 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-300 transition cursor-pointer shadow-2xs"
               >

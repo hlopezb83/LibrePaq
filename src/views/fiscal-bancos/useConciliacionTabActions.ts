@@ -37,7 +37,7 @@ export function useConciliacionTabActions(params: {
   const [n1Proposals, setN1Proposals] = useState<BankN1MatchProposal[]>([]);
   const [isSearchingN1, setIsSearchingN1] = useState(false);
   const [isApplyingN1, setIsApplyingN1] = useState(false);
-  const [bankStatementBalance, setBankStatementBalance] = useState<number>(0);
+  const [bankBalanceDraft, setBankBalanceDraft] = useState<string>('');
 
   const balanceStorageKey = `lp_bank_final_bal_${companyId}_${effectiveBankId}_${year ?? 0}_${period ?? 0}`;
   const contextKey = `${companyId}::${effectiveBankId}::${year ?? ''}::${period ?? ''}`;
@@ -58,23 +58,29 @@ export function useConciliacionTabActions(params: {
   }, [companyId, effectiveBankId, year, period]);
 
   useEffect(() => {
-    if (!reconData) return;
     try {
       const saved = typeof window !== 'undefined' ? window.localStorage.getItem(balanceStorageKey) : null;
-      if (saved !== null && Number.isFinite(Number(saved))) {
-        setBankStatementBalance(Number(saved));
+      if (saved !== null && saved.trim() !== '' && Number.isFinite(Number(saved))) {
+        setBankBalanceDraft(saved);
         return;
       }
     } catch {
       // ignore storage errors
     }
-    setBankStatementBalance(reconData.summary.saldoFinalLibros);
-  }, [reconData?.summary.saldoFinalLibros, balanceStorageKey]);
+    setBankBalanceDraft('');
+  }, [balanceStorageKey]);
 
-  const handleBankBalanceChange = (val: number) => {
-    setBankStatementBalance(val);
+  const parsedBankBalance = Number.parseFloat(bankBalanceDraft);
+  const hasCapturedBankBalance = bankBalanceDraft.trim() !== '' && Number.isFinite(parsedBankBalance);
+  const bankStatementBalance = hasCapturedBankBalance ? parsedBankBalance : 0;
+
+  const handleBankBalanceChange = (raw: string) => {
+    setBankBalanceDraft(raw);
     try {
-      if (typeof window !== 'undefined') window.localStorage.setItem(balanceStorageKey, String(val));
+      if (typeof window !== 'undefined') {
+        if (raw.trim() === '') window.localStorage.removeItem(balanceStorageKey);
+        else if (Number.isFinite(Number.parseFloat(raw))) window.localStorage.setItem(balanceStorageKey, raw);
+      }
     } catch {
       // ignore storage errors
     }
@@ -85,7 +91,7 @@ export function useConciliacionTabActions(params: {
       if (isWriteLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
       const fn = (apiClient as unknown as ExtendedBankApiClient).manualMatchBankLine;
       if (!isSupabaseConfigured || typeof fn !== 'function') {
-        throw new Error('El emparejamiento manual requiere conexión Supabase Cloud.');
+        throw new Error('El emparejamiento manual requiere conexión activa en la nube.');
       }
       return fn(lineId, movementId);
     },
@@ -103,7 +109,7 @@ export function useConciliacionTabActions(params: {
       if (isWriteLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
       const fn = (apiClient as unknown as ExtendedBankApiClient).deleteBankStatementLine;
       if (!isSupabaseConfigured || typeof fn !== 'function') {
-        throw new Error('Eliminar líneas bancarias requiere conexión Supabase Cloud.');
+        throw new Error('Eliminar líneas bancarias requiere conexión activa en la nube.');
       }
       return fn(lineId);
     },
@@ -187,7 +193,7 @@ export function useConciliacionTabActions(params: {
   return {
     selectedLineId, setSelectedLineId, selectedBookMovId, setSelectedBookMovId,
     polizaModalLine, setPolizaModalLine, n1Proposals, setN1Proposals,
-    isSearchingN1, isApplyingN1, bankStatementBalance, handleBankBalanceChange,
+    isSearchingN1, isApplyingN1, bankStatementBalance, bankBalanceDraft, hasCapturedBankBalance, handleBankBalanceChange,
     manualMatchMutation, deleteBankLineMutation, customCreatePolizaMutation,
     handleProposeN1, handleApplyN1, handleExportExcel, handlePrintPdf
   };

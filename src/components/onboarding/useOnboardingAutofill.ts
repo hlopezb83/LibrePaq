@@ -60,7 +60,7 @@ export function useOnboardingAutofill({
       );
     } catch {
       toast.warning(
-        'El análisis con IA no estuvo disponible. Puedes capturar los datos manualmente.'
+        'No fue posible leer automáticamente el documento. Puedes capturar los datos manualmente.'
       );
     }
   };
@@ -111,34 +111,47 @@ export function useOnboardingAutofill({
     reader.readAsDataURL(file);
   };
 
+  const processCerFile = (f: File) => {
+    setFielCerName(f.name);
+    readFileAsBase64(f, setFielCerBase64, () => {
+      setFielCerName(null);
+      setFielCerBase64(null);
+      toast.error(`No se pudo leer el certificado .cer (${f.name}). Verifica el archivo e inténtalo de nuevo.`);
+    });
+  };
+
+  const processKeyFile = (f: File) => {
+    setFielKeyName(f.name);
+    readFileAsBase64(f, setFielKeyBase64, () => {
+      setFielKeyName(null);
+      setFielKeyBase64(null);
+      toast.error(`No se pudo leer la llave privada .key (${f.name}). Verifica el archivo e inténtalo de nuevo.`);
+    });
+  };
+
   const handleCerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) {
-      setFielCerName(f.name);
-      readFileAsBase64(f, setFielCerBase64, () => {
-        setFielCerName(null);
-        setFielCerBase64(null);
-        toast.error(`No se pudo leer el certificado .cer (${f.name}). Verifica el archivo e inténtalo de nuevo.`);
-      });
-    }
+    if (f) processCerFile(f);
   };
 
   const handleKeyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) {
-      setFielKeyName(f.name);
-      readFileAsBase64(f, setFielKeyBase64, () => {
-        setFielKeyName(null);
-        setFielKeyBase64(null);
-        toast.error(`No se pudo leer la llave privada .key (${f.name}). Verifica el archivo e inténtalo de nuevo.`);
-      });
-    }
+    if (f) processKeyFile(f);
+  };
+
+  const handleFielDrop = (files: FileList) => {
+    Array.from(files).forEach((f) => {
+      const lower = f.name.toLowerCase();
+      if (lower.endsWith('.cer')) processCerFile(f);
+      else if (lower.endsWith('.key')) processKeyFile(f);
+    });
   };
 
   return {
     handleFileAutofill,
     handleXmlAutofill,
     handleCerFileChange,
-    handleKeyFileChange
+    handleKeyFileChange,
+    handleFielDrop
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
@@ -13,8 +13,27 @@ interface UsePapelDia17Params {
   onFeedback: (msg: string, type?: 'success' | 'error') => void;
 }
 
-function sanitizeFiniteNonNeg(val: number): number {
-  return Number.isFinite(val) && val >= 0 ? val : 0;
+export interface Dia17DraftParams {
+  coefUtilidad: string;
+  perdidasAmortizar: string;
+  pagosPrevios: string;
+  ivaSaldoFavor: string;
+  tcCierreUsd: string;
+}
+
+export function sanitizeDecimalInput(raw: string): string {
+  const cleaned = raw.replace(/[^0-9.]/g, '');
+  const dotIdx = cleaned.indexOf('.');
+  if (dotIdx === -1) return cleaned;
+  return cleaned.slice(0, dotIdx + 1) + cleaned.slice(dotIdx + 1).replace(/\./g, '');
+}
+
+export function parseDraftNumber(raw: string, max?: number): number {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '.') return 0;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return max !== undefined ? Math.min(n, max) : n;
 }
 
 export function usePapelDia17({
@@ -43,44 +62,61 @@ export function usePapelDia17({
     enabled: Boolean(companyId)
   });
 
-  const [coefUtilidad, setCoefUtilidad] = useState(0);
-  const [perdidasAmortizar, setPerdidasAmortizar] = useState(0);
-  const [pagosPreviosInput, setPagosPreviosInput] = useState(0);
-  const [ivaSaldoFavor, setIvaSaldoFavor] = useState(0);
-  const [tcCierreUsd, setTcCierreUsd] = useState(0);
+  const [draftParams, setDraftParams] = useState<Dia17DraftParams>({
+    coefUtilidad: '0',
+    perdidasAmortizar: '0',
+    pagosPrevios: '0',
+    ivaSaldoFavor: '0',
+    tcCierreUsd: '0'
+  });
+
   const { copiedKey, copy: copySatDyp } = useCopyToClipboard<'sat-dyp'>(2500);
   const copiedSatDyp = copiedKey === 'sat-dyp';
 
-  useEffect(() => {
-    if (workpaper?.parameters) {
-      setCoefUtilidad(workpaper.parameters.coeficienteUtilidad);
-      setPerdidasAmortizar(workpaper.parameters.perdidasFiscalesPendientes);
-      setPagosPreviosInput(workpaper.parameters.pagosProvisionalesAnteriores ?? 0);
-      setIvaSaldoFavor(workpaper.parameters.saldoFavorIvaAnterior);
-      setTcCierreUsd(workpaper.parameters.tipoCambioDofCierre);
-    }
+  const syncFromWorkpaper = useCallback(() => {
+    if (!workpaper?.parameters) return;
+    const p = workpaper.parameters;
+    setDraftParams({
+      coefUtilidad: String(p.coeficienteUtilidad),
+      perdidasAmortizar: String(p.perdidasFiscalesPendientes),
+      pagosPrevios: String(p.pagosProvisionalesAnteriores ?? 0),
+      ivaSaldoFavor: String(p.saldoFavorIvaAnterior),
+      tcCierreUsd: String(p.tipoCambioDofCierre)
+    });
   }, [workpaper?.parameters]);
 
-  const resetTaxParams = () => {
-    if (!workpaper?.parameters) return;
-    setCoefUtilidad(workpaper.parameters.coeficienteUtilidad);
-    setPerdidasAmortizar(workpaper.parameters.perdidasFiscalesPendientes);
-    setPagosPreviosInput(workpaper.parameters.pagosProvisionalesAnteriores ?? 0);
-    setIvaSaldoFavor(workpaper.parameters.saldoFavorIvaAnterior);
-    setTcCierreUsd(workpaper.parameters.tipoCambioDofCierre);
+  useEffect(() => {
+    syncFromWorkpaper();
+  }, [syncFromWorkpaper]);
+
+  const updateDraftField = (field: keyof Dia17DraftParams, raw: string) => {
+    setDraftParams((prev) => ({ ...prev, [field]: sanitizeDecimalInput(raw) }));
   };
+
+  const normalizeDraftField = (field: keyof Dia17DraftParams, max?: number) => {
+    setDraftParams((prev) => ({
+      ...prev,
+      [field]: String(parseDraftNumber(prev[field], max))
+    }));
+  };
+
+  const parsedCoef = parseDraftNumber(draftParams.coefUtilidad, 1);
+  const parsedPerdidas = parseDraftNumber(draftParams.perdidasAmortizar);
+  const parsedPagosPrevios = parseDraftNumber(draftParams.pagosPrevios);
+  const parsedIvaFavor = parseDraftNumber(draftParams.ivaSaldoFavor);
+  const parsedTcUsd = parseDraftNumber(draftParams.tcCierreUsd);
 
   const hasUnsavedParams = Boolean(
     workpaper?.parameters &&
-      (coefUtilidad !== workpaper.parameters.coeficienteUtilidad ||
-        perdidasAmortizar !== workpaper.parameters.perdidasFiscalesPendientes ||
-        pagosPreviosInput !== (workpaper.parameters.pagosProvisionalesAnteriores ?? 0) ||
-        ivaSaldoFavor !== workpaper.parameters.saldoFavorIvaAnterior ||
-        tcCierreUsd !== workpaper.parameters.tipoCambioDofCierre)
+      (parsedCoef !== workpaper.parameters.coeficienteUtilidad ||
+        parsedPerdidas !== workpaper.parameters.perdidasFiscalesPendientes ||
+        parsedPagosPrevios !== (workpaper.parameters.pagosProvisionalesAnteriores ?? 0) ||
+        parsedIvaFavor !== workpaper.parameters.saldoFavorIvaAnterior ||
+        parsedTcUsd !== workpaper.parameters.tipoCambioDofCierre)
   );
 
   const handleCopySatDyp = () => {
-    if (!workpaper) return;
+    if (!workpaper || hasUnsavedParams) return;
     void copySatDyp(formatSatDypWorkpaperText(workpaper, year, period), 'sat-dyp').then((ok) => {
       if (ok) {
         onFeedback(
@@ -93,15 +129,23 @@ export function usePapelDia17({
   const saveTaxParamsMutation = useMutation({
     mutationFn: () => {
       if (isWriteLocked) throw new Error(lockMsg);
+      const normalized = {
+        coefUtilidad: String(parsedCoef),
+        perdidasAmortizar: String(parsedPerdidas),
+        pagosPrevios: String(parsedPagosPrevios),
+        ivaSaldoFavor: String(parsedIvaFavor),
+        tcCierreUsd: String(parsedTcUsd)
+      };
+      setDraftParams(normalized);
       return apiClient.saveTaxParameters({
         companyId,
         ejercicio: year,
         periodo: period,
-        coeficienteUtilidad: Math.min(1, sanitizeFiniteNonNeg(coefUtilidad)),
-        perdidasFiscalesPendientes: sanitizeFiniteNonNeg(perdidasAmortizar),
-        pagosProvisionalesAnteriores: sanitizeFiniteNonNeg(pagosPreviosInput),
-        saldoFavorIvaAnterior: sanitizeFiniteNonNeg(ivaSaldoFavor),
-        tipoCambioDofCierre: sanitizeFiniteNonNeg(tcCierreUsd)
+        coeficienteUtilidad: parsedCoef,
+        perdidasFiscalesPendientes: parsedPerdidas,
+        pagosProvisionalesAnteriores: parsedPagosPrevios,
+        saldoFavorIvaAnterior: parsedIvaFavor,
+        tipoCambioDofCierre: parsedTcUsd
       });
     },
     onSuccess: () => {
@@ -157,18 +201,11 @@ export function usePapelDia17({
     isErrorWp,
     errorWp,
     refetchWp,
-    coefUtilidad,
-    setCoefUtilidad,
-    perdidasAmortizar,
-    setPerdidasAmortizar,
-    pagosPreviosInput,
-    setPagosPreviosInput,
-    ivaSaldoFavor,
-    setIvaSaldoFavor,
-    tcCierreUsd,
-    setTcCierreUsd,
+    draftParams,
+    updateDraftField,
+    normalizeDraftField,
     hasUnsavedParams,
-    resetTaxParams,
+    resetTaxParams: syncFromWorkpaper,
     copiedSatDyp,
     handleCopySatDyp,
     saveTaxParamsMutation,

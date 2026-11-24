@@ -6,17 +6,15 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  CopyPlus,
   FileCode2,
-  Pencil,
-  Printer,
-  Sparkles,
-  Trash2
+  Sparkles
 } from 'lucide-react';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { Poliza } from '../../shared/types';
+import { PolizaCardActions } from './PolizaCardActions';
 import { PolizaCardMovementsTable } from './PolizaCardMovementsTable';
+import { collectPolizaUniqueUuids } from './filterPolizas';
 
 export interface PolizaCardItemProps {
   pol: Poliza;
@@ -25,6 +23,7 @@ export interface PolizaCardItemProps {
   isExactMatch: boolean;
   isPeriodLocked: boolean;
   isReadOnlyClient?: boolean;
+  isDeleting?: boolean;
   copiedPolizaId: string | null;
   confirmDeleteId: string | null;
   onToggleExpand: (id: string) => void;
@@ -45,6 +44,7 @@ function PolizaCardItemBase({
   isExactMatch,
   isPeriodLocked,
   isReadOnlyClient = false,
+  isDeleting = false,
   copiedPolizaId,
   confirmDeleteId,
   onToggleExpand,
@@ -57,25 +57,10 @@ function PolizaCardItemBase({
   onRequestDelete,
   onOpenLedger
 }: PolizaCardItemProps) {
-  const { copiedKey, copy } = useCopyToClipboard<string>(2000);
-  const copiedUuid = copiedKey;
+  const { copiedKey: copiedUuid, copy } = useCopyToClipboard<string>(2000);
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
-
-  function handleCopyUuid(uuid: string) {
-    void copy(uuid, uuid);
-  }
-
-  const allUuids = Array.from(
-    new Set(
-      [
-        ...(pol.cfdiUuids || []),
-        ...(pol.cfdiUuid ? [pol.cfdiUuid] : []),
-        ...pol.movements.map((mv) => mv.cfdiUuid || '')
-      ]
-        .map((u) => u.trim().toUpperCase())
-        .filter(Boolean)
-    )
-  );
+  const allUuids = collectPolizaUniqueUuids(pol);
+  const discrepancyAmount = Math.abs(pol.totalCargos - pol.totalAbonos);
 
   return (
     <article
@@ -84,14 +69,14 @@ function PolizaCardItemBase({
       }`}
     >
       <div className="p-4 bg-slate-50/90 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 min-w-0">
           {compactMode && (
             <button
               type="button"
               onClick={() => onToggleExpand(pol.id)}
               aria-expanded={isExpanded}
-              aria-label="Mostrar u ocultar partidas de la póliza"
-              className="p-1 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 cursor-pointer"
+              aria-label={`Mostrar u ocultar partidas de póliza ${pol.tipo} #${pol.folio}`}
+              className="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center p-1 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               {isExpanded ? (
                 <ChevronUp className="w-4 h-4" aria-hidden="true" />
@@ -101,7 +86,7 @@ function PolizaCardItemBase({
             </button>
           )}
           <span
-            className={`px-2.5 py-1 rounded-lg font-mono text-xs font-bold border ${
+            className={`px-2.5 py-1 rounded-lg font-mono text-xs font-bold border shrink-0 ${
               pol.tipo === 'INGRESO'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                 : pol.tipo === 'EGRESO'
@@ -111,15 +96,20 @@ function PolizaCardItemBase({
           >
             {pol.tipo} #{pol.folio}
           </span>
-          <span className="font-mono text-xs text-slate-600">
+          <span className="font-mono text-xs text-slate-600 shrink-0">
             {formatShortDate(pol.fecha)}
           </span>
           <h2
             title={pol.concepto}
-            className="text-sm font-bold text-slate-900 max-w-xs sm:max-w-sm lg:max-w-md 2xl:max-w-2xl truncate"
+            className="text-sm font-bold text-slate-900 min-w-0 max-w-full line-clamp-2 sm:truncate sm:max-w-sm lg:max-w-md 2xl:max-w-2xl"
           >
             {pol.concepto}
           </h2>
+          {compactMode && (
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+              {pol.movements.length} partida{pol.movements.length === 1 ? '' : 's'}
+            </span>
+          )}
           {pol.origin === 'ADD_AUTO' && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
               <Sparkles className="w-3 h-3" aria-hidden="true" />
@@ -137,7 +127,7 @@ function PolizaCardItemBase({
                 <button
                   key={uuid}
                   type="button"
-                  onClick={() => handleCopyUuid(uuid)}
+                  onClick={() => void copy(uuid, uuid)}
                   title={`Copiar UUID fiscal completo: ${uuid}`}
                   aria-label={`Copiar UUID fiscal ${uuid}`}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-300 transition cursor-pointer group"
@@ -159,11 +149,14 @@ function PolizaCardItemBase({
               {allUuids.length > 3 && (
                 <span className="text-[10px] font-mono text-slate-500">+{allUuids.length - 3}</span>
               )}
+              <span className="visually-hidden" aria-live="polite">
+                {copiedUuid ? `UUID ${copiedUuid} copiado al portapapeles` : ''}
+              </span>
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2.5">
+        <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2.5 shrink-0">
           <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
             <div>
               <span className="text-slate-500 mr-1">Cargos:</span>
@@ -181,147 +174,31 @@ function PolizaCardItemBase({
               Cuadrada
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-800 border border-red-200">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-800 border border-red-200 font-mono">
               <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
-              Descuadrada
+              Descuadrada ({formatCurrency(discrepancyAmount)})
             </span>
           )}
 
-          <div className="flex flex-wrap items-center gap-1.5 no-print">
-            {onPrintPoliza && (
-              <button
-                type="button"
-                onClick={() => onPrintPoliza(pol)}
-                title="Imprimir / Exportar póliza en PDF formal"
-                aria-label={`Imprimir PDF de póliza ${pol.tipo} ${pol.folio}`}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
-                <span className="hidden sm:inline">PDF</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => onCopyPoliza(pol)}
-              title="Copiar asiento contable al portapapeles (texto formal con sumas iguales)"
-              aria-label={`Copiar asiento de póliza ${pol.tipo} ${pol.folio}`}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition cursor-pointer"
-            >
-              {copiedPolizaId === pol.id ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
-                  <span className="text-emerald-700 font-semibold">Copiado</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
-                  <span className="hidden sm:inline">Copiar Asiento</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              disabled={isWriteBlocked}
-              onClick={() => onDuplicate(pol)}
-              title={
-                isReadOnlyClient
-                  ? 'Tu rol Cliente (Solo lectura) no permite duplicar pólizas'
-                  : isPeriodLocked
-                  ? 'Periodo bloqueado ante el SAT'
-                  : 'Duplicar esta póliza como plantilla para un nuevo registro'
-              }
-              aria-label={`Duplicar póliza ${pol.tipo} ${pol.folio}`}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                isWriteBlocked
-                  ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
-                  : 'text-blue-800 bg-blue-50 border border-blue-200 hover:bg-blue-100 cursor-pointer'
-              }`}
-            >
-              <CopyPlus className="w-3.5 h-3.5" aria-hidden="true" />
-              <span className="hidden sm:inline">Duplicar</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={isWriteBlocked}
-              onClick={() => onEdit(pol)}
-              title={
-                isReadOnlyClient
-                  ? 'Tu rol Cliente (Solo lectura) no permite editar pólizas'
-                  : isPeriodLocked
-                  ? 'Periodo bloqueado ante el SAT'
-                  : 'Editar póliza'
-              }
-              aria-label={`Editar póliza ${pol.tipo} ${pol.folio}`}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                isWriteBlocked
-                  ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
-                  : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 cursor-pointer'
-              }`}
-            >
-              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-              Editar
-            </button>
-
-            {confirmDeleteId === pol.id ? (
-              <div
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.stopPropagation();
-                    onCancelDelete();
-                  }
-                }}
-                className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1"
-              >
-                <button
-                  type="button"
-                  disabled={isWriteBlocked}
-                  onClick={() => onConfirmDelete(pol.id)}
-                  className="px-2 py-0.5 rounded text-[11px] font-bold text-red-800 hover:bg-red-100 cursor-pointer disabled:opacity-50"
-                >
-                  Confirmar
-                </button>
-                <span className="text-red-300" aria-hidden="true">|</span>
-                <button
-                  type="button"
-                  autoFocus
-                  onClick={onCancelDelete}
-                  className="px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 hover:bg-white cursor-pointer"
-                >
-                  No
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={isWriteBlocked}
-                onClick={() => {
-                  if (!isWriteBlocked) onRequestDelete(pol.id);
-                }}
-                title={
-                  isReadOnlyClient
-                    ? 'Tu rol Cliente (Solo lectura) no permite eliminar pólizas'
-                    : isPeriodLocked
-                    ? 'Periodo bloqueado ante el SAT'
-                    : 'Eliminar póliza'
-                }
-                aria-label={`Eliminar póliza ${pol.tipo} ${pol.folio}`}
-                className={`p-1.5 rounded-lg transition ${
-                  isWriteBlocked
-                    ? 'opacity-40 cursor-not-allowed text-slate-400'
-                    : 'text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer'
-                }`}
-              >
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          <PolizaCardActions
+            pol={pol}
+            isWriteBlocked={isWriteBlocked}
+            isReadOnlyClient={isReadOnlyClient}
+            isPeriodLocked={isPeriodLocked}
+            isDeleting={isDeleting}
+            copiedPolizaId={copiedPolizaId}
+            confirmDeleteId={confirmDeleteId}
+            onCopyPoliza={onCopyPoliza}
+            onPrintPoliza={onPrintPoliza}
+            onDuplicate={onDuplicate}
+            onEdit={onEdit}
+            onConfirmDelete={onConfirmDelete}
+            onCancelDelete={onCancelDelete}
+            onRequestDelete={onRequestDelete}
+          />
         </div>
       </div>
 
-      {/* Tabla de movimientos de la póliza */}
       {isExpanded && <PolizaCardMovementsTable pol={pol} onOpenLedger={onOpenLedger} />}
     </article>
   );

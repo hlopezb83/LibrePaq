@@ -14,7 +14,7 @@ import { generateDeliverableSummaryText } from './deliverableSummaryText';
 
 export type DeliverableTabId = 'DOSSIER' | 'BALANZA' | 'RESULTADOS' | 'BALANCE' | 'DIA17' | 'CONFIG';
 
-const DEFAULT_DELIVERABLE_CONFIG = {
+export const DEFAULT_DELIVERABLE_CONFIG = {
   firmName: 'Despacho Contable y Fiscal Integral S.C.',
   auditorName: 'C.P.C. María Elena Gómez Garza',
   auditorCedula: 'Céd. Prof. 4829103',
@@ -22,6 +22,20 @@ const DEFAULT_DELIVERABLE_CONFIG = {
   legalRepTitle: 'Representante Legal',
   issuanceCity: 'Monterrey, Nuevo León'
 } as const;
+
+export function hasAnyDefaultSignature(cfg: {
+  firmName: string;
+  auditorName: string;
+  auditorCedula: string;
+  legalRepName: string;
+}): boolean {
+  return (
+    cfg.firmName === DEFAULT_DELIVERABLE_CONFIG.firmName ||
+    cfg.auditorName.includes('María Elena Gómez Garza') ||
+    cfg.auditorCedula.includes('4829103') ||
+    cfg.legalRepName.includes('Alejandro Garza Martínez')
+  );
+}
 
 function readSavedConfigForKey(key: string): Record<string, string> {
   try {
@@ -127,6 +141,8 @@ export function useExecutiveDeliverables({
   const [includeResultados, setIncludeResultados] = useState(true);
   const [includeBalance, setIncludeBalance] = useState(true);
   const [includeDia17, setIncludeDia17] = useState(true);
+  const [hideZeroAccounts, setHideZeroAccounts] = useState(false);
+  const selectedDocsCount = [includeBalanza, includeResultados, includeBalance, includeDia17].filter(Boolean).length;
   const { copiedKey, copy: copySummaryToClipboard } = useCopyToClipboard<'summary'>(3000);
   const copiedSummary = copiedKey === 'summary';
 
@@ -203,8 +219,12 @@ export function useExecutiveDeliverables({
     [year, period]
   );
 
-  const isUsingDefaultSignatures =
-    auditorName.includes('María Elena Gómez Garza') || auditorCedula.includes('4829103');
+  const isUsingDefaultSignatures = hasAnyDefaultSignature({
+    firmName,
+    auditorName,
+    auditorCedula,
+    legalRepName
+  });
 
   const handlePrint = () => {
     window.print();
@@ -298,6 +318,9 @@ export function useExecutiveDeliverables({
     setIncludeBalance,
     includeDia17,
     setIncludeDia17,
+    hideZeroAccounts,
+    setHideZeroAccounts,
+    selectedDocsCount,
     copiedSummary,
     reportsData,
     fiscalData,

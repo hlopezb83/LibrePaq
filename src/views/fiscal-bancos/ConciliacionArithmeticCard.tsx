@@ -1,4 +1,4 @@
-import { Calculator, CheckCircle2, Clock } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckCircle2, Clock, Info } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { BankReconciliationResponse, ReconciliationFormulaData } from '../../shared/types';
 import { computeBankReconciliationProof } from './BankReconciliationExport';
@@ -7,7 +7,9 @@ interface ConciliacionArithmeticCardProps {
   reconData: BankReconciliationResponse;
   reconFormula: ReconciliationFormulaData | null;
   bankStatementFinalBalance: number;
-  onBankStatementFinalBalanceChange?: (value: number) => void;
+  bankBalanceDraft: string;
+  hasCapturedBankBalance: boolean;
+  onBankBalanceDraftChange?: (value: string) => void;
   isLocked?: boolean;
 }
 
@@ -15,7 +17,9 @@ export function ConciliacionArithmeticCard({
   reconData,
   reconFormula,
   bankStatementFinalBalance,
-  onBankStatementFinalBalanceChange,
+  bankBalanceDraft,
+  hasCapturedBankBalance,
+  onBankBalanceDraftChange,
   isLocked = false
 }: ConciliacionArithmeticCardProps) {
   const pendingTotal =
@@ -100,27 +104,32 @@ export function ConciliacionArithmeticCard({
       </div>
 
       {proof && (
-        <div className="pt-2.5 border-t border-slate-800/90 grid grid-cols-1 lg:grid-cols-12 gap-3 items-center text-xs">
-          <div className="lg:col-span-4 flex items-center gap-2">
+        <div className="pt-2.5 border-t border-slate-800/90 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="bank-statement-final-balance" className="font-sans text-[11px] font-semibold text-slate-300 whitespace-nowrap">
               Saldo Final Edo. Cuenta ($):
             </label>
             <input
               id="bank-statement-final-balance"
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.01"
-              disabled={isLocked || !onBankStatementFinalBalanceChange}
-              value={bankStatementFinalBalance}
+              placeholder="Captura saldo banco"
+              disabled={isLocked || !onBankBalanceDraftChange}
+              value={bankBalanceDraft}
               onChange={(e) => {
-                const v = Number.parseFloat(e.target.value);
-                onBankStatementFinalBalanceChange?.(Number.isFinite(v) ? v : 0);
+                const cleaned = e.target.value.replace(/[^0-9.-]/g, '');
+                onBankBalanceDraftChange?.(cleaned);
               }}
-              className="w-full max-w-[170px] px-2.5 py-1 rounded-lg bg-[#111C35] border border-slate-600 text-white font-mono tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+              className="w-full max-w-[180px] px-2.5 py-1.5 rounded-lg bg-[#111C35] border border-slate-600 text-white placeholder:text-slate-400 font-mono tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
             />
+            {!hasCapturedBankBalance && (
+              <span className="text-[11px] text-slate-300 font-sans">
+                Captura el saldo real de tu estado de cuenta bancario
+              </span>
+            )}
           </div>
 
-          <div className="lg:col-span-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-slate-300">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-slate-300">
             <span>
               (+) Dep. Tránsito: <strong className="text-emerald-300">+{formatCurrency(proof.cargosContablesEnTransito)}</strong>
             </span>
@@ -128,20 +137,41 @@ export function ConciliacionArithmeticCard({
               (-) Pagos Tránsito: <strong className="text-amber-300">-{formatCurrency(proof.abonosContablesEnTransito)}</strong>
             </span>
             <span>
-              (=) Conciliado Banco: <strong className="text-blue-200">{formatCurrency(proof.saldoConciliadoBanco)}</strong>
+              (=) Conciliado Banco:{' '}
+              <strong className="text-blue-200">
+                {hasCapturedBankBalance ? formatCurrency(proof.saldoConciliadoBanco) : 'Pendiente'}
+              </strong>
             </span>
           </div>
 
-          <div className="lg:col-span-3 flex lg:justify-end">
+          <div className="flex flex-wrap lg:justify-end">
             <span
               role="status"
+              aria-live="polite"
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-mono text-xs font-bold border ${
-                proof.isCuadrada
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                  : 'bg-amber-500/20 text-amber-200 border-amber-500/40'
+                !hasCapturedBankBalance
+                  ? 'bg-slate-800 text-slate-200 border-slate-600'
+                  : proof.isCuadrada
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-200 border-amber-500/40'
               }`}
             >
-              Diferencia: {formatCurrency(proof.diferenciaCuadre)}
+              {!hasCapturedBankBalance ? (
+                <>
+                  <Info className="w-3.5 h-3.5 text-blue-300 shrink-0" aria-hidden="true" />
+                  <span>Diferencia: Por capturar</span>
+                </>
+              ) : proof.isCuadrada ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                  <span>Diferencia: {formatCurrency(proof.diferenciaCuadre)}</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-300 shrink-0" aria-hidden="true" />
+                  <span>Diferencia: {formatCurrency(proof.diferenciaCuadre)}</span>
+                </>
+              )}
             </span>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getPayrollPeriodSettings,
@@ -22,11 +22,17 @@ export function useNominaPayrollSettings(params: {
   const queryClient = useQueryClient();
 
   const [stateCode, setStateCode] = useState<string>('CMX');
-  const [isnRateInput, setIsnRateInput] = useState<string>('4');
-  const [baseInput, setBaseInput] = useState<string | null>(null);
-  const [imssInput, setImssInput] = useState<string>('0');
-  const [rcvInput, setRcvInput] = useState<string>('0');
-  const [infonavitInput, setInfonavitInput] = useState<string>('0');
+  const [isnRateInput, setIsnRateInputState] = useState<string>('4');
+  const [baseInput, setBaseInputState] = useState<string | null>(null);
+  const [imssInput, setImssInputState] = useState<string>('0');
+  const [rcvInput, setRcvInputState] = useState<string>('0');
+  const [infonavitInput, setInfonavitInputState] = useState<string>('0');
+  const [isDirty, setIsDirty] = useState(false);
+
+  const contextKey = `${companyId}::${year}::${period}`;
+  const hydratedKeyRef = useRef<string>('');
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
 
   const { data: savedSettings } = useQuery({
     queryKey: ['payroll-settings', companyId, year, period],
@@ -35,47 +41,65 @@ export function useNominaPayrollSettings(params: {
   });
 
   useEffect(() => {
-    setBaseInput(null);
-  }, [companyId, year, period]);
+    setBaseInputState(null);
+    setIsDirty(false);
+  }, [contextKey]);
 
   useEffect(() => {
+    const keyChanged = hydratedKeyRef.current !== contextKey;
+    if (!keyChanged && isDirtyRef.current) return;
+    hydratedKeyRef.current = contextKey;
     if (savedSettings) {
       setStateCode(savedSettings.stateCode);
-      setIsnRateInput(String(savedSettings.isnRate));
-      setImssInput(String(savedSettings.imssPatronal));
-      setRcvInput(String(savedSettings.rcv));
-      setInfonavitInput(String(savedSettings.infonavit));
-    } else {
+      setIsnRateInputState(String(savedSettings.isnRate));
+      setImssInputState(String(savedSettings.imssPatronal));
+      setRcvInputState(String(savedSettings.rcv));
+      setInfonavitInputState(String(savedSettings.infonavit));
+    } else if (keyChanged) {
       setStateCode('CMX');
-      setIsnRateInput('4');
-      setImssInput('0');
-      setRcvInput('0');
-      setInfonavitInput('0');
+      setIsnRateInputState('4');
+      setImssInputState('0');
+      setRcvInputState('0');
+      setInfonavitInputState('0');
     }
-  }, [companyId, year, period, savedSettings]);
+    setIsDirty(false);
+  }, [contextKey, savedSettings]);
 
   const handleStateChange = (nextCode: string) => {
     setStateCode(nextCode);
     const matched = MEXICO_ISN_RATES.find((s) => s.code === nextCode);
-    if (matched) setIsnRateInput(String(matched.ratePct));
+    if (matched) setIsnRateInputState(String(matched.ratePct));
+    setIsDirty(true);
+  };
+
+  const setIsnRateInput = (v: string) => { setIsnRateInputState(v); setIsDirty(true); };
+  const setBaseInput = (v: string | null) => { setBaseInputState(v); setIsDirty(true); };
+  const setImssInput = (v: string) => { setImssInputState(v); setIsDirty(true); };
+  const setRcvInput = (v: string) => { setRcvInputState(v); setIsDirty(true); };
+  const setInfonavitInput = (v: string) => { setInfonavitInputState(v); setIsDirty(true); };
+
+  const buildPayload = () => ({
+    companyId,
+    ejercicio: year,
+    periodo: period,
+    stateCode,
+    isnRate: parseNonNeg(isnRateInput),
+    imssPatronal: parseNonNeg(imssInput),
+    rcv: parseNonNeg(rcvInput),
+    infonavit: parseNonNeg(infonavitInput)
+  });
+
+  const saveSettingsSilently = async () => {
+    if (isLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
+    const saved = await savePayrollPeriodSettings(buildPayload());
+    queryClient.setQueryData(['payroll-settings', companyId, year, period], saved);
+    setIsDirty(false);
+    return saved;
   };
 
   const saveSettingsMutation = useMutation({
-    mutationFn: () => {
-      if (isLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
-      return savePayrollPeriodSettings({
-        companyId,
-        ejercicio: year,
-        periodo: period,
-        stateCode,
-        isnRate: parseNonNeg(isnRateInput),
-        imssPatronal: parseNonNeg(imssInput),
-        rcv: parseNonNeg(rcvInput),
-        infonavit: parseNonNeg(infonavitInput)
-      });
-    },
-    onSuccess: (saved) => {
-      queryClient.setQueryData(['payroll-settings', companyId, year, period], saved);
+    mutationFn: saveSettingsSilently,
+    onSuccess: () => {
       onNotify('Parámetros de ISN y cuotas SUA guardados para el periodo.');
     },
     onError: (err: Error) => onNotify(`Error al guardar parámetros de nómina: ${err.message}`, 'error')
@@ -94,6 +118,8 @@ export function useNominaPayrollSettings(params: {
     setRcvInput,
     infonavitInput,
     setInfonavitInput,
+    isDirty,
+    saveSettingsSilently,
     saveSettingsMutation
   };
 }

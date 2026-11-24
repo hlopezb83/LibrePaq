@@ -48,6 +48,8 @@ export function DashboardOnboardingBanner({
   const step4Done = false;
   const completedSteps = [step1Done, step2Done, step3Done, step4Done].filter(Boolean).length;
   const progressPercent = Math.round((completedSteps / 4) * 100);
+  const darkFocusRing =
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
 
   return (
     <section
@@ -85,7 +87,7 @@ export function DashboardOnboardingBanner({
 
           <h2
             id="onboarding-guide-heading"
-            className="text-lg sm:text-xl font-bold text-white tracking-tight truncate"
+            className="text-lg sm:text-xl font-bold text-white tracking-tight break-words"
           >
             Guía de Inicio Rápido — {companyName}
           </h2>
@@ -102,7 +104,7 @@ export function DashboardOnboardingBanner({
           <Link
             to="/add"
             search={{ sat: 'open' }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-blue-900/40 transition cursor-pointer"
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-xs font-bold text-white shadow-md shadow-blue-900/40 transition cursor-pointer ${darkFocusRing}`}
           >
             <CloudDownload className="w-4 h-4 text-cyan-200" aria-hidden="true" />
             <span>Descargar del SAT (e.firma)</span>
@@ -112,8 +114,9 @@ export function DashboardOnboardingBanner({
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
             aria-expanded={!isCollapsed}
+            aria-controls="onboarding-guide-steps"
             aria-label={isCollapsed ? 'Expandir guía de inicio rápido' : 'Minimizar guía de inicio rápido'}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer"
+            className={`p-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white transition cursor-pointer ${darkFocusRing}`}
             title={isCollapsed ? 'Expandir guía' : 'Minimizar guía'}
           >
             {isCollapsed ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronUp className="w-4 h-4" aria-hidden="true" />}
@@ -138,12 +141,12 @@ export function DashboardOnboardingBanner({
 
       {/* Contenido expandible con las 4 tarjetas de pasos */}
       {!isCollapsed && (
-        <div className="space-y-4 mt-4 animate-in fade-in duration-200">
+        <div id="onboarding-guide-steps" className="space-y-4 mt-4 animate-in fade-in duration-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {/* Paso 1: Catálogo y Saldos */}
             <Link
               to="/cuentas"
-              className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-emerald-500/30 hover:border-emerald-400/50 transition group text-left block relative"
+              className={`p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-emerald-500/30 hover:border-emerald-400/50 transition group text-left block relative ${darkFocusRing}`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center justify-center font-bold text-xs">
@@ -166,45 +169,81 @@ export function DashboardOnboardingBanner({
               </span>
             </Link>
 
-            {/* Paso 2: Bóveda Digital ADD & Descarga SAT (Paso Activo Recomendado) */}
+            {/* Paso 2: Bóveda Digital ADD & Descarga SAT */}
             <Link
               to="/add"
               search={{ sat: 'open' }}
-              className="p-4 rounded-2xl bg-gradient-to-b from-blue-950/70 to-indigo-950/70 hover:from-blue-900/60 hover:to-indigo-900/60 border-2 border-cyan-400/60 hover:border-cyan-300 transition group text-left block relative shadow-lg shadow-blue-950/50"
+              className={`p-4 rounded-2xl transition group text-left block relative ${darkFocusRing} ${
+                step2Done
+                  ? 'bg-white/5 hover:bg-white/10 border border-emerald-500/30 hover:border-emerald-400/50'
+                  : 'bg-gradient-to-b from-blue-950/70 to-indigo-950/70 hover:from-blue-900/60 hover:to-indigo-900/60 border-2 border-cyan-400/60 hover:border-cyan-300 shadow-lg shadow-blue-950/50'
+              }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="w-7 h-7 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                <span
+                  className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
+                    step2Done
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                      : 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-xs'
+                  }`}
+                >
                   2
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-200 bg-cyan-950/90 px-2 py-0.5 rounded-full border border-cyan-400/50 animate-pulse">
-                  <Sparkles className="w-3 h-3 text-cyan-300" aria-hidden="true" />
-                  Recomendado
-                </span>
+                {step2Done ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
+                    Listo
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-200 bg-cyan-950/90 px-2 py-0.5 rounded-full border border-cyan-400/50">
+                    <Sparkles className="w-3 h-3 text-cyan-300" aria-hidden="true" />
+                    Recomendado
+                  </span>
+                )}
               </div>
               <div className="text-xs sm:text-sm font-bold text-white group-hover:text-cyan-200 transition flex items-center gap-1.5">
                 <CloudDownload className="w-4 h-4 text-cyan-400 shrink-0" aria-hidden="true" />
                 <span>Descargar del SAT con e.firma</span>
               </div>
               <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
-                Descarga oficial con tu FIEL o arrastra tus XMLs. Clasificación automática en Bóveda ADD y validación 69-B.
+                {step2Done
+                  ? `Tienes ${pendingCfdisCount} comprobante(s) XML listos en Bóveda ADD para contabilizar.`
+                  : 'Descarga oficial con tu FIEL o arrastra tus XMLs. Clasificación automática en Bóveda ADD y validación 69-B.'}
               </p>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 mt-2.5 group-hover:underline">
-                Conectar e.firma y Descargar <ArrowRight className="w-3 h-3" aria-hidden="true" />
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-2.5 group-hover:underline ${step2Done ? 'text-emerald-300' : 'text-cyan-300'}`}>
+                {step2Done ? 'Revisar Bóveda ADD' : 'Conectar e.firma y Descargar'} <ArrowRight className="w-3 h-3" aria-hidden="true" />
               </span>
             </Link>
 
             {/* Paso 3: Pólizas Contables */}
             <Link
               to="/polizas"
-              className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40 transition group text-left block relative"
+              className={`p-4 rounded-2xl transition group text-left block relative ${darkFocusRing} ${
+                step2Done
+                  ? 'bg-gradient-to-b from-blue-950/70 to-indigo-950/70 hover:from-blue-900/60 hover:to-indigo-900/60 border-2 border-cyan-400/60 hover:border-cyan-300 shadow-lg shadow-blue-950/50'
+                  : 'bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40'
+              }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="w-7 h-7 rounded-xl bg-amber-500/25 text-amber-300 border border-amber-400/30 flex items-center justify-center font-bold text-xs">
+                <span
+                  className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
+                    step2Done
+                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-xs'
+                      : 'bg-amber-500/25 text-amber-300 border border-amber-400/30'
+                  }`}
+                >
                   3
                 </span>
-                <span className="text-[10px] font-semibold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700">
-                  En espera de XMLs
-                </span>
+                {step2Done ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-200 bg-cyan-950/90 px-2 py-0.5 rounded-full border border-cyan-400/50">
+                    <Sparkles className="w-3 h-3 text-cyan-300" aria-hidden="true" />
+                    Recomendado
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700">
+                    En espera de XMLs
+                  </span>
+                )}
               </div>
               <div className="text-xs sm:text-sm font-bold text-white group-hover:text-amber-200 transition flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4 text-amber-400" aria-hidden="true" />
@@ -213,7 +252,7 @@ export function DashboardOnboardingBanner({
               <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
                 Genera asientos contables con partida doble cuadrada (Cargos = Abonos) asociando el UUID de cada factura.
               </p>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300 mt-2.5 group-hover:underline">
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-2.5 group-hover:underline ${step2Done ? 'text-cyan-300' : 'text-amber-300'}`}>
                 Explorar Pólizas <ArrowRight className="w-3 h-3" aria-hidden="true" />
               </span>
             </Link>
@@ -221,7 +260,7 @@ export function DashboardOnboardingBanner({
             {/* Paso 4: Balanza y Reportes SAT */}
             <Link
               to="/reportes"
-              className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-400/40 transition group text-left block relative"
+              className={`p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-400/40 transition group text-left block relative ${darkFocusRing}`}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="w-7 h-7 rounded-xl bg-purple-500/25 text-purple-300 border border-purple-400/30 flex items-center justify-center font-bold text-xs">

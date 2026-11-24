@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { CfdiInvoicePreviewModal } from './cfdi/preview/CfdiInvoicePreviewModal';
+import { CfdiAlertsBanners } from './cfdi/CfdiAlertsBanners';
 import { CfdiBatchActionBar } from './cfdi/CfdiBatchActionBar';
 import { CfdiContabilizarModal } from './cfdi/CfdiContabilizarModal';
 import { CfdiDropzoneBar } from './cfdi/CfdiDropzoneBar';
@@ -33,6 +34,7 @@ export function AddCfdiView() {
     uploadXmlMutation, autoPolizaMutation, deleteCfdiMutation,
     batchContabilizarMutation, batchDeleteMutation, verifySatMutation,
     verifySatBatchMutation, satBatchAlert, dismissSatBatchAlert,
+    batchPartialAlert, dismissBatchPartialAlert,
     handleFileUpload, handleDrop, openContabilizarModal, openXmlViewer,
     handleCopyUuid, handleDownloadSelectedXml, previewMovements,
     filteredCfdis, filteredTotals, toggleSelectAll, toggleSelectOne,
@@ -80,39 +82,30 @@ export function AddCfdiView() {
 
   return (
     <div className="space-y-4">
-      {isReadOnlyClient && !isPeriodLocked && (
-        <div
-          role="status"
-          className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 flex items-start gap-3 text-blue-950 text-xs shadow-2xs"
-        >
-          <Lock className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-sm block text-blue-950">
-              Modo Solo Lectura Activo
-            </span>
-            <p className="text-blue-900 leading-relaxed">
-              Estás consultando la Bóveda Digital ADD en modo solo lectura. La carga de XML, contabilización y eliminación de comprobantes se encuentran deshabilitadas.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {isPeriodLocked && (
-        <div
-          role="status"
-          className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs shadow-2xs"
-        >
-          <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-sm block text-amber-950">
-              Periodo Fiscal P{String(currentPeriod).padStart(2, '0')}/{currentYear} Bloqueado ante el SAT
-            </span>
-            <p className="text-amber-800 leading-relaxed">
-              La contabilización y eliminación de comprobantes CFDI en este mes se encuentran deshabilitadas para proteger la declaración presentada ante el SAT.
-            </p>
-          </div>
-        </div>
-      )}
+      <CfdiAlertsBanners
+        isReadOnlyClient={isReadOnlyClient}
+        isPeriodLocked={isPeriodLocked}
+        currentPeriod={currentPeriod}
+        currentYear={currentYear}
+        satBatchAlert={satBatchAlert}
+        onLocateCancelled={(alert) => {
+          const firstCancelled = alert.alerts[0];
+          if (!firstCancelled) return;
+          setTab('ALL');
+          setPeriodScope('ALL');
+          setTipoFilter('ALL');
+          setMetodoFilter('ALL');
+          setFormaPagoFilter('ALL');
+          setStatusSatFilter('CANCELADO_CON_POLIZA');
+          setSearchQuery(alert.cancelledWithPolizaCount === 1 ? firstCancelled.uuid : '');
+          requestAnimationFrame(() => {
+            document.getElementById('cfdi-table-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }}
+        onDismissSatBatchAlert={dismissSatBatchAlert}
+        batchPartialAlert={batchPartialAlert}
+        onDismissBatchPartialAlert={dismissBatchPartialAlert}
+      />
 
       <CfdiDropzoneBar
         isDragging={isDragging}
@@ -131,6 +124,9 @@ export function AddCfdiView() {
         showSoapFielPanel={showSoapFielPanel}
         setShowSoapFielPanel={setShowSoapFielPanel}
         onExportCsv={handleExportCsv}
+        onExportZip={() => void handleExportZipSelected()}
+        isExportingZip={isExportingZip}
+        hasVisibleCfdis={filteredCfdis.length > 0}
         onOpenSimulator={() => {
           if (simModalRef.current && !simModalRef.current.open) {
             simModalRef.current.showModal();
@@ -159,58 +155,6 @@ export function AddCfdiView() {
         isReadOnlyClient={isReadOnlyClient}
       />
 
-      {satBatchAlert && satBatchAlert.cancelledWithPolizaCount > 0 && (
-        <div
-          role="alert"
-          className="bg-red-50 border border-red-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-red-950 text-xs shadow-2xs"
-        >
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <div className="space-y-0.5">
-              <span className="font-bold text-sm block text-red-950">
-                Alerta SAT: {satBatchAlert.cancelledWithPolizaCount}{' '}
-                {satBatchAlert.cancelledWithPolizaCount === 1
-                  ? 'factura cancelada aún tiene póliza contable registrada'
-                  : 'facturas canceladas aún tienen póliza contable registrada'}
-              </span>
-              <p className="text-red-800 leading-relaxed">
-                De {satBatchAlert.checkedCount} comprobantes validados ante el SAT,{' '}
-                <strong>{satBatchAlert.cancelledWithPolizaCount}</strong> están cancelados y mantienen póliza contable activa. Revísalos y revierte las pólizas afectadas.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
-            {satBatchAlert.alerts[0] && (
-              <button
-                type="button"
-                onClick={() => {
-                  const firstCancelled = satBatchAlert.alerts[0];
-                  if (!firstCancelled) return;
-                  setTab('ALL');
-                  setPeriodScope('ALL');
-                  setTipoFilter('ALL');
-                  setMetodoFilter('ALL');
-                  setFormaPagoFilter('ALL');
-                  setStatusSatFilter('CANCELADO_CON_POLIZA');
-                  setSearchQuery(satBatchAlert.cancelledWithPolizaCount === 1 ? firstCancelled.uuid : '');
-                }}
-                className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold cursor-pointer shrink-0 transition"
-              >
-                Localizar cancelado
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={dismissSatBatchAlert}
-              aria-label="Ocultar alerta de facturas canceladas con póliza"
-              className="px-2.5 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-900 font-semibold cursor-pointer shrink-0 transition"
-            >
-              Ocultar
-            </button>
-          </div>
-        </div>
-      )}
-
       <CfdiFilterBar
         periodScope={periodScope}
         setPeriodScope={setPeriodScope}
@@ -235,6 +179,7 @@ export function AddCfdiView() {
         formaPagoFilter={formaPagoFilter}
         setFormaPagoFilter={setFormaPagoFilter}
         filteredCount={filteredCfdis.length}
+        onResetFilters={resetFilters}
       />
 
       <div id="cfdi-table-wrapper" className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
@@ -280,8 +225,11 @@ export function AddCfdiView() {
             onResetFilters={resetFilters}
             onOpenSatDownload={() => {
               setShowSoapFielPanel(true);
-              const el = document.getElementById('sat-soap-fiel-section');
-              if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  document.getElementById('sat-soap-fiel-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+              });
             }}
             onUploadXmlClick={() => fileInputRef.current?.click()}
           />

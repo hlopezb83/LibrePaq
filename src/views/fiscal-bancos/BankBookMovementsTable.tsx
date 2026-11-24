@@ -39,7 +39,12 @@ export function BankBookMovementsTable({
         </span>
       </div>
 
-      <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Tabla de movimientos contables en libros"
+        className="overflow-x-auto max-h-[380px] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-600"
+      >
         <table className="w-full text-left border-collapse erp-sticky-table">
           <caption className="visually-hidden">
             Movimientos contables en libros de la cuenta bancaria
@@ -84,11 +89,11 @@ export function BankBookMovementsTable({
                   <tr
                     key={bm.movementId}
                     tabIndex={!bm.isMatched && onSelectBookMovement ? 0 : undefined}
-                    aria-selected={!bm.isMatched ? isSelected : undefined}
                     onClick={() => {
                       if (!bm.isMatched && onSelectBookMovement) onSelectBookMovement(bm.movementId);
                     }}
                     onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
                       if (!bm.isMatched && onSelectBookMovement && (e.key === 'Enter' || e.key === ' ')) {
                         e.preventDefault();
                         onSelectBookMovement(bm.movementId);

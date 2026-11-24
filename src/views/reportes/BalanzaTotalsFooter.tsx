@@ -1,8 +1,10 @@
 import { formatCurrency } from '../../lib/formatters';
+import type { BalanzaLevelScope } from './BalanzaToolbar';
 
 interface BalanzaTotalsFooterProps {
   balanzaSearch: string;
-  onlyAffectable: boolean;
+  levelScope?: BalanzaLevelScope;
+  onlyAffectable?: boolean;
   hideZeroBalances: boolean;
   affectableFilteredCount: number;
   filteredBalanzaTotals: {
@@ -15,8 +17,16 @@ interface BalanzaTotalsFooterProps {
   };
 }
 
+const SCOPE_UNIT: Record<BalanzaLevelScope, string> = {
+  ALL: 'cuentas raíz',
+  MAYOR: 'cuentas de mayor (N1)',
+  SUBCUENTAS: 'cuentas (N1–N2)',
+  AFECTABLES: 'afectables'
+};
+
 export function BalanzaTotalsFooter({
   balanzaSearch,
+  levelScope = 'ALL',
   onlyAffectable,
   hideZeroBalances,
   affectableFilteredCount,
@@ -24,7 +34,8 @@ export function BalanzaTotalsFooter({
 }: BalanzaTotalsFooterProps) {
   const isCargosAbonosBalanced =
     Math.abs(filteredBalanzaTotals.cargos - filteredBalanzaTotals.abonos) < 0.01;
-  const isFiltered = Boolean(balanzaSearch.trim() || onlyAffectable || hideZeroBalances);
+  const isFiltered = Boolean(balanzaSearch.trim() || onlyAffectable || levelScope !== 'ALL' || hideZeroBalances);
+  const unitLabel = SCOPE_UNIT[levelScope] ?? 'cuentas';
 
   return (
     <tfoot className="sticky bottom-0 z-10 shadow-2xl">
@@ -42,7 +53,7 @@ export function BalanzaTotalsFooter({
             ) : null}
             <span>
               {isFiltered
-                ? `Totales Filtrados (${affectableFilteredCount} afectables):`
+                ? `Totales Filtrados (${affectableFilteredCount} ${unitLabel}):`
                 : 'Sumas Totales Cuentas Afectables:'}
             </span>
           </div>

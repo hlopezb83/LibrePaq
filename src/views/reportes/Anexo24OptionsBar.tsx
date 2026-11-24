@@ -60,10 +60,20 @@ export function Anexo24OptionsBar({
             <input
               id="anexo24-fecha-mod-bal"
               type="date"
+              required
+              aria-invalid={!options.fechaModBal.trim() || undefined}
+              aria-describedby={!options.fechaModBal.trim() ? 'anexo24-fecha-mod-bal-error' : undefined}
               value={options.fechaModBal}
               onChange={(e) => onChange({ ...options, fechaModBal: e.target.value })}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono text-slate-800"
+              className={`rounded-lg border bg-white px-3 py-1.5 text-xs font-mono text-slate-800 ${
+                !options.fechaModBal.trim() ? 'border-red-500' : 'border-slate-300'
+              }`}
             />
+            {!options.fechaModBal.trim() && (
+              <p id="anexo24-fecha-mod-bal-error" className="text-[11px] text-red-700 font-semibold">
+                FechaModBal requerida para envío Complementario (C).
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -113,6 +123,8 @@ export function Anexo24OptionsBar({
               maxLength={13}
               value={options.numOrden}
               placeholder="Ej. ABC1234567/01"
+              aria-invalid={ordenMissing || ordenInvalid || undefined}
+              aria-describedby={ordenMissing || ordenInvalid ? 'anexo24-num-orden-error' : undefined}
               onChange={(e) =>
                 onChange({ ...options, numOrden: e.target.value.toUpperCase() })
               }
@@ -125,12 +137,12 @@ export function Anexo24OptionsBar({
               }`}
             />
             {ordenMissing && (
-              <p className="text-[11px] text-amber-800 font-semibold">
+              <p id="anexo24-num-orden-error" className="text-[11px] text-amber-800 font-semibold">
                 Requerido para {options.tipoSolicitud}: captura el NumOrden oficial del SAT.
               </p>
             )}
             {ordenInvalid && (
-              <p className="text-[11px] text-red-700 font-semibold">
+              <p id="anexo24-num-orden-error" className="text-[11px] text-red-700 font-semibold">
                 Debe cumplir patrón SAT: 3 letras + 7 dígitos + / + 2 dígitos.
               </p>
             )}
@@ -146,6 +158,8 @@ export function Anexo24OptionsBar({
               maxLength={14}
               value={options.numTramite}
               placeholder="Ej. DE202600000001"
+              aria-invalid={tramiteMissing || tramiteInvalid || undefined}
+              aria-describedby={tramiteMissing || tramiteInvalid ? 'anexo24-num-tramite-error' : undefined}
               onChange={(e) =>
                 onChange({ ...options, numTramite: e.target.value.toUpperCase() })
               }
@@ -158,12 +172,12 @@ export function Anexo24OptionsBar({
               }`}
             />
             {tramiteMissing && (
-              <p className="text-[11px] text-amber-800 font-semibold">
+              <p id="anexo24-num-tramite-error" className="text-[11px] text-amber-800 font-semibold">
                 Requerido para {options.tipoSolicitud}: captura el NumTramite oficial del SAT.
               </p>
             )}
             {tramiteInvalid && (
-              <p className="text-[11px] text-red-700 font-semibold">
+              <p id="anexo24-num-tramite-error" className="text-[11px] text-red-700 font-semibold">
                 Debe contener entre 10 y 14 caracteres alfanuméricos sin espacios.
               </p>
             )}

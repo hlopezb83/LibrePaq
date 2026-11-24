@@ -162,9 +162,23 @@ export function SuperAdminCompanyDrawer({
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-slate-600">Vigencia:</span>
-                    <span className="font-semibold text-slate-900">{formatAdminDate(detail.fielValidTo)}</span>
+                    {detail.hasFiel && detail.fielValidTo ? (
+                      <span
+                        className={`font-semibold ${
+                          new Date(detail.fielValidTo).getTime() < Date.now()
+                            ? 'text-red-700'
+                            : 'text-slate-900'
+                        }`}
+                      >
+                        {new Date(detail.fielValidTo).getTime() < Date.now()
+                          ? `Vencida (${formatAdminDate(detail.fielValidTo)})`
+                          : formatAdminDate(detail.fielValidTo)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">Sin certificado vigente</span>
+                    )}
                   </div>
                 </div>
 

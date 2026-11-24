@@ -6,6 +6,7 @@ import type { FixedAssetWithCalculation } from '../../shared/types';
 export interface ActivosFijosTableProps {
   assets: FixedAssetWithCalculation[];
   isPeriodLocked?: boolean;
+  isReadOnlyClient?: boolean;
   onEditAsset?: (asset: FixedAssetWithCalculation) => void;
   onRetireAsset?: (id: string) => void;
   onDeleteAsset: (id: string) => void;
@@ -21,6 +22,7 @@ const STATUS_BADGES: Record<FixedAssetWithCalculation['estatus'], { label: strin
 export function ActivosFijosTable({
   assets,
   isPeriodLocked = false,
+  isReadOnlyClient = false,
   onEditAsset,
   onRetireAsset,
   onDeleteAsset,
@@ -28,13 +30,25 @@ export function ActivosFijosTable({
 }: ActivosFijosTableProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmRetireId, setConfirmRetireId] = useState<string | null>(null);
+  const isWriteLocked = isPeriodLocked || isReadOnlyClient;
+  const lockReason = isPeriodLocked
+    ? 'Periodo fiscal bloqueado ante el SAT'
+    : isReadOnlyClient
+      ? 'Modo solo lectura'
+      : undefined;
+
   const totalMoi = assets.reduce((s, a) => s + a.montoOriginalInversion, 0);
   const totalDepContable = assets.reduce((s, a) => s + a.depreciacionMensualContable, 0);
   const totalDepFiscal = assets.reduce((s, a) => s + a.depreciacionMensualFiscalActualizada, 0);
   const totalValorLibros = assets.reduce((s, a) => s + a.valorNetoEnLibros, 0);
 
   return (
-    <div className="overflow-x-auto">
+    <div
+      tabIndex={0}
+      role="region"
+      aria-label="Tabla de activos fijos y depreciación mensual"
+      className="overflow-x-auto focus:outline-none focus:ring-2 focus:ring-blue-600 rounded-xl"
+    >
       <table className="w-full text-left border-collapse">
         <caption className="visually-hidden">
           Cédula de activos fijos y depreciación mensual contable y fiscal INPC
@@ -42,21 +56,21 @@ export function ActivosFijosTable({
         <thead>
           <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
             <th scope="col" className="py-2.5 px-3">Código / Bien</th>
-            <th scope="col" className="py-2.5 px-3">Adquisición</th>
-            <th scope="col" className="py-2.5 px-3 text-right">MOI</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Tasa / Meses</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Dep. Mensual Contable</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Factor INPC</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Dep. Fiscal Actualizada</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Valor Neto Libros</th>
-            <th scope="col" className="py-2.5 px-3 text-center">Estatus</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Acciones</th>
+            <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Adquisición</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">MOI</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Tasa / Meses</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Dep. Mensual Contable</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Factor INPC</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Dep. Fiscal Actualizada</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Valor Neto Libros</th>
+            <th scope="col" className="py-2.5 px-3 text-center whitespace-nowrap">Estatus</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 text-xs">
           {assets.length === 0 ? (
             <tr>
-              <td colSpan={10} className="py-8 text-center text-slate-500">
+              <td colSpan={10} className="py-8 text-center text-slate-600">
                 No hay activos fijos registrados para esta empresa.
               </td>
             </tr>
@@ -66,32 +80,32 @@ export function ActivosFijosTable({
               return (
                 <tr key={asset.id} className="hover:bg-blue-50/30">
                   <td className="py-2.5 px-3">
-                    <span className="font-mono font-bold text-blue-800 mr-1.5">{asset.codigo}</span>
+                    <span className="font-mono font-bold text-blue-800 mr-1.5 whitespace-nowrap">{asset.codigo}</span>
                     <span className="font-medium text-slate-900">{asset.nombre}</span>
                   </td>
-                  <td className="py-2.5 px-3 font-mono text-slate-600">
+                  <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap tabular-nums">
                     {formatShortDate(asset.fechaAdquisicion)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-900">
+                  <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-900 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.montoOriginalInversion)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap tabular-nums">
                     {asset.tasaAnualPct}% · {asset.mesesDepreciadosPrevios}m
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-800">
+                  <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-800 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.depreciacionMensualContable)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-700 whitespace-nowrap tabular-nums">
                     {asset.factorActualizacionInpc.toFixed(4)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800">
+                  <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.depreciacionMensualFiscalActualizada)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-900">
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-900 whitespace-nowrap tabular-nums">
                     {formatCurrency(asset.valorNetoEnLibros)}
                   </td>
-                  <td className="py-2.5 px-3 text-center">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.cls}`}>
+                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${badge.cls}`}>
                       {badge.label}
                     </span>
                   </td>
@@ -110,12 +124,12 @@ export function ActivosFijosTable({
                       >
                         <button
                           type="button"
-                          disabled={isDeleting || isPeriodLocked}
+                          disabled={isDeleting || isWriteLocked}
                           onClick={() => {
                             onDeleteAsset(asset.id);
                             setConfirmDeleteId(null);
                           }}
-                          className="px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-bold hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                          className="px-2 py-0.5 rounded bg-red-600 text-white text-[11px] font-bold hover:bg-red-700 cursor-pointer disabled:opacity-50"
                         >
                           Confirmar
                         </button>
@@ -123,7 +137,7 @@ export function ActivosFijosTable({
                           type="button"
                           autoFocus
                           onClick={() => setConfirmDeleteId(null)}
-                          className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] hover:bg-slate-300 cursor-pointer"
+                          className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[11px] hover:bg-slate-300 cursor-pointer"
                         >
                           Cancelar
                         </button>
@@ -133,9 +147,9 @@ export function ActivosFijosTable({
                         {onEditAsset && (
                           <button
                             type="button"
-                            disabled={isDeleting || isPeriodLocked}
+                            disabled={isDeleting || isWriteLocked}
                             onClick={() => onEditAsset(asset)}
-                            title={isPeriodLocked ? 'Periodo fiscal bloqueado' : 'Editar activo fijo'}
+                            title={lockReason ?? 'Editar activo fijo'}
                             aria-label={`Editar activo fijo ${asset.codigo}`}
                             className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
@@ -144,35 +158,46 @@ export function ActivosFijosTable({
                         )}
                         {onRetireAsset && asset.estatus === 'ACTIVO' && (
                           confirmRetireId === asset.id ? (
-                            <span className="inline-flex items-center gap-1">
+                            <div
+                              role="alertdialog"
+                              aria-label={`Confirmar baja de activo ${asset.codigo}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setConfirmRetireId(null);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1"
+                            >
                               <button
                                 type="button"
-                                disabled={isDeleting || isPeriodLocked}
+                                disabled={isDeleting || isWriteLocked}
                                 onClick={() => {
                                   setConfirmRetireId(null);
                                   onRetireAsset(asset.id);
                                 }}
-                                className="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 cursor-pointer disabled:opacity-50"
+                                className="px-2 py-0.5 rounded bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 cursor-pointer disabled:opacity-50"
                               >
                                 Confirmar Baja
                               </button>
                               <button
                                 type="button"
+                                autoFocus
                                 onClick={() => setConfirmRetireId(null)}
-                                className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] hover:bg-slate-300 cursor-pointer"
+                                className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[11px] hover:bg-slate-300 cursor-pointer"
                               >
                                 Cancelar
                               </button>
-                            </span>
+                            </div>
                           ) : (
                             <button
                               type="button"
-                              disabled={isDeleting || isPeriodLocked}
+                              disabled={isDeleting || isWriteLocked}
                               onClick={() => {
                                 setConfirmDeleteId(null);
                                 setConfirmRetireId(asset.id);
                               }}
-                              title={isPeriodLocked ? 'Periodo fiscal bloqueado' : 'Dar de baja activo (BAJA)'}
+                              title={lockReason ?? 'Dar de baja activo (BAJA)'}
                               aria-label={`Dar de baja activo fijo ${asset.codigo}`}
                               className="p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             >
@@ -182,9 +207,12 @@ export function ActivosFijosTable({
                         )}
                         <button
                           type="button"
-                          disabled={isDeleting || isPeriodLocked}
-                          onClick={() => setConfirmDeleteId(asset.id)}
-                          title={isPeriodLocked ? 'Periodo fiscal bloqueado ante el SAT' : 'Eliminar activo fijo'}
+                          disabled={isDeleting || isWriteLocked}
+                          onClick={() => {
+                            setConfirmRetireId(null);
+                            setConfirmDeleteId(asset.id);
+                          }}
+                          title={lockReason ?? 'Eliminar activo fijo'}
                           aria-label={`Eliminar activo fijo ${asset.codigo} — ${asset.nombre}`}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >

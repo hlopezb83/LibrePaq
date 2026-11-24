@@ -60,6 +60,8 @@ export function CatalogoFilterBar({
     selectedType !== 'ALL' ||
     quickFilter !== 'ALL' ||
     levelFilter !== 'ALL';
+  const hasFlatFilterActive =
+    Boolean(globalFilter.trim()) || quickFilter !== 'ALL' || levelFilter !== 'ALL';
   const quickFilterPills = [
     { id: 'ALL' as QuickFilterType, label: 'Todas', count: quickFilterCounts.ALL },
     { id: 'AFFECTABLE' as QuickFilterType, label: 'Solo Afectables', count: quickFilterCounts.AFFECTABLE },
@@ -79,9 +81,9 @@ export function CatalogoFilterBar({
   return (
     <div className="bg-white p-3.5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-2.5 no-print">
       {/* Fila 1: Búsqueda, Filtro de Rubro Contable SAT (100 a 600) y Modos de Árbol */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
-        <div className="flex flex-1 items-center gap-2 max-w-2xl">
-          <search className="relative flex-1">
+      <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-2.5">
+        <div className="flex flex-1 min-w-0 items-center gap-2 max-w-2xl">
+          <search className="relative flex-1 min-w-0">
             <label htmlFor="search-accounts" className="visually-hidden">
               Buscar cuenta por código, nombre o código agrupador SAT
             </label>
@@ -116,22 +118,36 @@ export function CatalogoFilterBar({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Botones rápidos de Expansión / Contracción del Árbol */}
-          <div className="inline-flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
+          <div
+            role="group"
+            aria-label="Expandir o contraer árbol de cuentas"
+            className="inline-flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs"
+          >
             <button
               type="button"
+              disabled={hasFlatFilterActive}
               onClick={expandAllNodes}
-              title="Desplegar todas las subcuentas del catálogo contable (niveles 1 a 4)"
+              title={
+                hasFlatFilterActive
+                  ? 'Disponible en vista de árbol sin filtros planos activos'
+                  : 'Desplegar todas las subcuentas del catálogo contable (niveles 1 a 4)'
+              }
               aria-label="Desplegar todas las subcuentas del catálogo contable"
-              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:bg-white transition cursor-pointer"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:bg-white transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
             >
               Expandir Todo
             </button>
             <button
               type="button"
+              disabled={hasFlatFilterActive}
               onClick={collapseToMayor}
-              title="Contraer árbol contable a cuentas de Mayor (niveles 1 y 2)"
+              title={
+                hasFlatFilterActive
+                  ? 'Disponible en vista de árbol sin filtros planos activos'
+                  : 'Contraer árbol contable a cuentas de Mayor (niveles 1 y 2)'
+              }
               aria-label="Contraer árbol a cuentas de Mayor"
-              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:bg-white transition cursor-pointer"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:bg-white transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
             >
               Contraer a Mayor
             </button>
@@ -251,7 +267,7 @@ export function CatalogoFilterBar({
             </button>
           )}
         </div>
-        <div className="flex items-center gap-4 font-mono text-[11px]">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px]">
           <span className="text-slate-600">
             Cargos del Periodo: <strong className="text-slate-900">{formatCurrency(filteredSummaryTotals.cargos)}</strong>
           </span>

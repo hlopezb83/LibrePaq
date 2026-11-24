@@ -13,6 +13,26 @@ export interface CfdiPreviewTaxItem {
   base: number; impuesto: string; tipoFactor: string; tasaOCuota: string; importe: number;
 }
 
+export interface CfdiPreviewDoctoRelacionado {
+  idDocumento: string; serie: string; folio: string; monedaDr: string;
+  equivalenciaDr: string; numParcialidad: string;
+  impSaldoAnt: number; impPagado: number; impSaldoInsoluto: number;
+}
+
+export interface CfdiPreviewPagoItem {
+  fechaPago: string; formaDePagoP: string; monedaP: string; tipoCambioP: string;
+  monto: number; numOperacion: string;
+  doctosRelacionados: CfdiPreviewDoctoRelacionado[];
+}
+
+export interface CfdiPreviewNomina {
+  version: string; tipoNomina: string; fechaPago: string;
+  fechaInicialPago: string; fechaFinalPago: string; numDiasPagados: number;
+  totalPercepciones: number; totalDeducciones: number; totalOtrosPagos: number;
+  numEmpleado: string; curp: string; numSeguridadSocial: string;
+  puesto: string; departamento: string; salarioDiarioIntegrado: number;
+}
+
 export interface CfdiPreviewData {
   hasXmlRaw: boolean;
   comprobante: {
@@ -35,6 +55,8 @@ export interface CfdiPreviewData {
     version: string; uuid: string; fechaTimbrado: string; rfcProvCertif: string;
     selloCfd: string; selloSat: string; noCertificadoSat: string;
   };
+  pagos?: CfdiPreviewPagoItem[];
+  nomina?: CfdiPreviewNomina;
 }
 
 let cachedPreviewParser: XMLParser | null = null;
@@ -80,16 +102,16 @@ function buildFallbackPreview(cfdi: CfdiDocument): CfdiPreviewData {
   return {
     hasXmlRaw: false,
     comprobante: {
-      version: '4.0', serie: cfdi.serie, folio: cfdi.folio, fecha: `${cfdi.fecha}T12:00:00`,
+      version: '4.0', serie: cfdi.serie, folio: cfdi.folio, fecha: cfdi.fecha,
       formaPago: cfdi.formaPago, metodoPago: cfdi.metodoPago, moneda: cfdi.moneda,
       tipoCambio: String(cfdi.tipoCambio), subtotal: cfdi.subtotal, descuento: cfdi.descuento || 0,
       total: cfdi.total, tipoDeComprobante: cfdi.tipoComprobante, exportacion: '01',
-      lugarExpedicion: '64000', noCertificado: '', sello: ''
+      lugarExpedicion: '', noCertificado: '', sello: ''
     },
-    emisor: { rfc: cfdi.emisorRfc, nombre: cfdi.emisorNombre, regimenFiscal: '601' },
+    emisor: { rfc: cfdi.emisorRfc, nombre: cfdi.emisorNombre, regimenFiscal: '' },
     receptor: {
-      rfc: cfdi.receptorRfc, nombre: cfdi.receptorNombre, domicilioFiscalReceptor: '64000',
-      regimenFiscalReceptor: '601', usoCfdi: cfdi.usoCfdi
+      rfc: cfdi.receptorRfc, nombre: cfdi.receptorNombre, domicilioFiscalReceptor: '',
+      regimenFiscalReceptor: '', usoCfdi: cfdi.usoCfdi
     },
     conceptos: [{
       claveProdServ: cfdi.claveProdServ, noIdentificacion: '', cantidad: 1, claveUnidad: 'E48',
@@ -103,9 +125,59 @@ function buildFallbackPreview(cfdi: CfdiDocument): CfdiPreviewData {
       retenciones
     },
     timbre: {
-      version: '1.1', uuid: cfdi.uuid, fechaTimbrado: `${cfdi.fecha}T12:00:00`,
-      rfcProvCertif: 'SAT970701NN3', selloCfd: '', selloSat: '', noCertificadoSat: '00001000000504465028'
+      version: '1.1', uuid: cfdi.uuid, fechaTimbrado: '',
+      rfcProvCertif: '', selloCfd: '', selloSat: '', noCertificadoSat: ''
     }
+  };
+}
+
+function extractPagosComplemento(comprobante: XmlNode): CfdiPreviewPagoItem[] | undefined {
+  const pagoNodes = findNodes(comprobante, 'Pago');
+  if (pagoNodes.length === 0) return undefined;
+  return pagoNodes.map((p) => {
+    const doctos = findNodes(p, 'DoctoRelacionado').map((d) => ({
+      idDocumento: getAttr(d, 'IdDocumento').toUpperCase(),
+      serie: getAttr(d, 'Serie'),
+      folio: getAttr(d, 'Folio'),
+      monedaDr: getAttr(d, 'MonedaDR') || 'MXN',
+      equivalenciaDr: getAttr(d, 'EquivalenciaDR') || '1',
+      numParcialidad: getAttr(d, 'NumParcialidad') || '1',
+      impSaldoAnt: round2(parseNum(getAttr(d, 'ImpSaldoAnt'), 0)),
+      impPagado: round2(parseNum(getAttr(d, 'ImpPagado'), 0)),
+      impSaldoInsoluto: round2(parseNum(getAttr(d, 'ImpSaldoInsoluto'), 0))
+    }));
+    return {
+      fechaPago: getAttr(p, 'FechaPago'),
+      formaDePagoP: getAttr(p, 'FormaDePagoP'),
+      monedaP: getAttr(p, 'MonedaP') || 'MXN',
+      tipoCambioP: getAttr(p, 'TipoCambioP') || '1',
+      monto: round2(parseNum(getAttr(p, 'Monto'), 0)),
+      numOperacion: getAttr(p, 'NumOperacion'),
+      doctosRelacionados: doctos
+    };
+  });
+}
+
+function extractNominaComplemento(comprobante: XmlNode): CfdiPreviewNomina | undefined {
+  const nomina = findNode(comprobante, 'Nomina');
+  if (!nomina) return undefined;
+  const nomReceptor = findNode(nomina, 'Receptor');
+  return {
+    version: getAttr(nomina, 'Version') || '1.2',
+    tipoNomina: getAttr(nomina, 'TipoNomina') || 'O',
+    fechaPago: getAttr(nomina, 'FechaPago'),
+    fechaInicialPago: getAttr(nomina, 'FechaInicialPago'),
+    fechaFinalPago: getAttr(nomina, 'FechaFinalPago'),
+    numDiasPagados: parseNum(getAttr(nomina, 'NumDiasPagados'), 0),
+    totalPercepciones: round2(parseNum(getAttr(nomina, 'TotalPercepciones'), 0)),
+    totalDeducciones: round2(parseNum(getAttr(nomina, 'TotalDeducciones'), 0)),
+    totalOtrosPagos: round2(parseNum(getAttr(nomina, 'TotalOtrosPagos'), 0)),
+    numEmpleado: getAttr(nomReceptor, 'NumEmpleado'),
+    curp: getAttr(nomReceptor, 'Curp'),
+    numSeguridadSocial: getAttr(nomReceptor, 'NumSeguridadSocial'),
+    puesto: getAttr(nomReceptor, 'Puesto'),
+    departamento: getAttr(nomReceptor, 'Departamento'),
+    salarioDiarioIntegrado: round2(parseNum(getAttr(nomReceptor, 'SalarioDiarioIntegrado'), 0))
   };
 }
 
@@ -175,20 +247,20 @@ export function parseCfdiPreview(cfdi: CfdiDocument): CfdiPreviewData {
       total: parseNum(getAttr(comprobante, 'Total'), fb.comprobante.total),
       tipoDeComprobante: attr(comprobante, 'TipoDeComprobante', fb.comprobante.tipoDeComprobante),
       exportacion: attr(comprobante, 'Exportacion', '01'),
-      lugarExpedicion: attr(comprobante, 'LugarExpedicion', '64000'),
+      lugarExpedicion: attr(comprobante, 'LugarExpedicion', ''),
       noCertificado: getAttr(comprobante, 'NoCertificado'),
       sello: selloComp
     },
     emisor: {
       rfc: attr(emisor, 'Rfc', fb.emisor.rfc),
       nombre: attr(emisor, 'Nombre', fb.emisor.nombre),
-      regimenFiscal: attr(emisor, 'RegimenFiscal', '601')
+      regimenFiscal: attr(emisor, 'RegimenFiscal', '')
     },
     receptor: {
       rfc: attr(receptor, 'Rfc', fb.receptor.rfc),
       nombre: attr(receptor, 'Nombre', fb.receptor.nombre),
-      domicilioFiscalReceptor: attr(receptor, 'DomicilioFiscalReceptor', '64000'),
-      regimenFiscalReceptor: attr(receptor, 'RegimenFiscalReceptor', '601'),
+      domicilioFiscalReceptor: attr(receptor, 'DomicilioFiscalReceptor', ''),
+      regimenFiscalReceptor: attr(receptor, 'RegimenFiscalReceptor', ''),
       usoCfdi: attr(receptor, 'UsoCFDI', fb.receptor.usoCfdi)
     },
     conceptos: conceptos.length > 0 ? conceptos : fb.conceptos,
@@ -196,11 +268,13 @@ export function parseCfdiPreview(cfdi: CfdiDocument): CfdiPreviewData {
     timbre: {
       version: attr(timbre, 'Version', '1.1'),
       uuid: attr(timbre, 'UUID', fb.timbre.uuid).toUpperCase(),
-      fechaTimbrado: attr(timbre, 'FechaTimbrado', fb.timbre.fechaTimbrado),
-      rfcProvCertif: attr(timbre, 'RfcProvCertif', fb.timbre.rfcProvCertif),
+      fechaTimbrado: attr(timbre, 'FechaTimbrado', ''),
+      rfcProvCertif: attr(timbre, 'RfcProvCertif', ''),
       selloCfd: attr(timbre, 'SelloCFD', selloComp),
       selloSat: getAttr(timbre, 'SelloSAT'),
-      noCertificadoSat: attr(timbre, 'NoCertificadoSAT', fb.timbre.noCertificadoSat)
-    }
+      noCertificadoSat: attr(timbre, 'NoCertificadoSAT', '')
+    },
+    pagos: extractPagosComplemento(comprobante),
+    nomina: extractNominaComplemento(comprobante)
   };
 }

@@ -17,6 +17,7 @@ export interface UseCatalogoColumnsProps {
   collapsedCodes: Record<string, boolean>;
   isPeriodLocked?: boolean;
   isReadOnlyClient?: boolean;
+  deletingAccountId?: string | null;
   copiedCode?: string | null;
   onToggleNodeCollapse: (code: string) => void;
   onSelectAccount: (id: string) => void;
@@ -33,6 +34,7 @@ export function useCatalogoColumns({
   collapsedCodes,
   isPeriodLocked = false,
   isReadOnlyClient = false,
+  deletingAccountId = null,
   copiedCode = null,
   onToggleNodeCollapse,
   onSelectAccount,
@@ -61,8 +63,8 @@ export function useCatalogoColumns({
                   className="shrink-0 flex items-center justify-end select-none pr-0.5"
                   aria-hidden="true"
                 >
-                  <span className="font-mono text-slate-400 font-bold text-xs">
-                    {row.level === 2 ? '├─' : '└─'}
+                  <span className="font-mono text-slate-500 font-bold text-xs whitespace-nowrap">
+                    {row.level === 2 ? '├─' : row.level === 3 ? '│ ├─' : '│ └─'}
                   </span>
                 </div>
               )}
@@ -108,8 +110,10 @@ export function useCatalogoColumns({
               ) : (
                 <span
                   title="Cuenta Afectable (registra pólizas)"
-                  className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 ml-1 mr-0.5"
-                />
+                  className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 ml-1 mr-0.5 inline-block"
+                >
+                  <span className="sr-only">Afectable</span>
+                </span>
               )}
 
               <button
@@ -120,7 +124,7 @@ export function useCatalogoColumns({
                   onOpenLedger(row.id);
                 }}
                 title="Ver Tarjeta Auxiliar / Libro Mayor"
-                className="font-mono text-xs text-blue-800 hover:text-blue-950 underline decoration-dotted underline-offset-2 cursor-pointer font-semibold"
+                className="font-mono text-xs text-blue-800 hover:text-blue-950 underline decoration-dotted underline-offset-2 cursor-pointer font-semibold whitespace-nowrap tabular-nums"
               >
                 {info.getValue()}
               </button>
@@ -152,12 +156,14 @@ export function useCatalogoColumns({
           return (
             <button
               type="button"
+              title={row.name}
+              aria-label={`Ver Libro Mayor de ${row.code} ${row.name}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onSelectAccount(row.id);
                 onOpenLedger(row.id);
               }}
-              className={`text-left hover:text-blue-800 cursor-pointer block truncate max-w-md ${
+              className={`text-left hover:text-blue-800 cursor-pointer block truncate max-w-[240px] xl:max-w-sm ${
                 row.level === 1
                   ? 'font-bold text-slate-900 uppercase tracking-tight text-xs'
                   : row.level === 2
@@ -172,28 +178,41 @@ export function useCatalogoColumns({
       }),
       columnHelper.accessor('satGroupCode', {
         header: 'Agrupador SAT',
-        cell: (info) => (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-            SAT {info.getValue()}
-          </span>
-        )
+        cell: (info) => {
+          const val = info.getValue()?.trim();
+          if (!val) {
+            return (
+              <span
+                title="Cuenta sin código agrupador SAT Anexo 24 asignado"
+                className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap"
+              >
+                Sin SAT
+              </span>
+            );
+          }
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+              SAT {val}
+            </span>
+          );
+        }
       }),
       columnHelper.accessor('type', {
-        header: 'Rubro / Naturaleza',
+        header: 'Rubro / Nat.',
         cell: (info) => {
           const row = info.row.original;
           return (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 whitespace-nowrap">
               <span className="text-[11px] font-semibold text-slate-700">{row.type}</span>
-              <span className="text-slate-300">•</span>
               <span
+                title={row.nature === 'DEUDORA' ? 'Naturaleza Deudora (D)' : 'Naturaleza Acreedora (A)'}
                 className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                   row.nature === 'DEUDORA'
                     ? 'bg-blue-50 text-blue-800 border-blue-200'
                     : 'bg-slate-100 text-slate-800 border-slate-300'
                 }`}
               >
-                {row.nature === 'DEUDORA' ? 'Deudora (D)' : 'Acreedora (A)'}
+                {row.nature === 'DEUDORA' ? 'D' : 'A'}
               </span>
             </div>
           );
@@ -245,6 +264,7 @@ export function useCatalogoColumns({
             row={info.row.original}
             isPeriodLocked={isPeriodLocked}
             isReadOnlyClient={isReadOnlyClient}
+            isDeleting={deletingAccountId === info.row.original.id}
             confirmDeleteId={confirmDeleteId}
             setConfirmDeleteId={setConfirmDeleteId}
             onOpenCreateSubaccount={onOpenCreateSubaccount}
@@ -259,6 +279,7 @@ export function useCatalogoColumns({
       collapsedCodes,
       isPeriodLocked,
       isReadOnlyClient,
+      deletingAccountId,
       copiedCode,
       onToggleNodeCollapse,
       onSelectAccount,

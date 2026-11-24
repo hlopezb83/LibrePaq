@@ -19,9 +19,11 @@ export function DashboardView() {
     handleOpenLedgerByCode,
     accountsCount,
     bankRec,
+    isBankRecLoading,
+    isBankRecError,
     isLoading,
     isError,
-    error,
+    isFetching,
     refetch,
     isPeriodLocked,
     isReadOnly,
@@ -41,18 +43,19 @@ export function DashboardView() {
           <AlertCircle className="w-6 h-6" aria-hidden="true" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-900 text-base">Error al cargar el Tablero Financiero</h3>
+          <h1 className="font-bold text-slate-900 text-base">Error al cargar el Tablero Financiero</h1>
           <p className="text-xs text-slate-600 mt-1">
-            {error instanceof Error ? error.message : 'Error de conexión o permisos'}
+            No pudimos consultar la información contable del periodo. Verifica tu conexión e intenta nuevamente.
           </p>
         </div>
         <button
           type="button"
+          disabled={isFetching}
           onClick={() => void refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
         >
-          <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Reintentar consulta</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <span>{isFetching ? 'Consultando...' : 'Reintentar consulta'}</span>
         </button>
       </div>
     );
@@ -64,15 +67,18 @@ export function DashboardView() {
         role="status"
         aria-live="polite"
         aria-busy="true"
-        className="space-y-6 animate-pulse"
+        className="space-y-4 animate-pulse"
       >
         <span className="visually-hidden">Cargando tablero financiero del periodo...</span>
         <div className="h-24 bg-slate-200/70 rounded-2xl" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-32 bg-slate-200/70 rounded-2xl" />
           ))}
         </div>
+        <div className="h-20 bg-slate-200/60 rounded-2xl" />
+        <div className="h-44 bg-slate-200/60 rounded-2xl" />
+        <div className="h-36 bg-slate-200/60 rounded-2xl" />
       </div>
     );
   }
@@ -91,7 +97,8 @@ export function DashboardView() {
     isBankReconciled,
     isTrialBalanced,
     closingChecks,
-    completedChecks
+    completedChecks,
+    efosSummary
   } = derived;
 
   return (
@@ -101,11 +108,27 @@ export function DashboardView() {
         company={company}
         mesActualNombre={mesActualNombre}
         cfdisPendientesCount={kpis.cfdisPendientesContabilizar}
+        efosAlertCount={efosSummary.efosCount}
         isPeriodLocked={isPeriodLocked}
+        isReadOnly={isReadOnly}
         onOpenDeliverables={() => openDeliverables()}
       />
 
-      {/* Ruta de Arranque Guiada: LO PRIMERO que se ve al dar de alta una nueva empresa */}
+      {/* Tarjetas de KPIs Principales y Posición Financiera (visible arriba del pliegue a 1280×800) */}
+      <DashboardKpisGrid
+        kpis={kpis}
+        mesActualNombre={mesActualNombre}
+        activeCompanyId={activeCompanyId}
+        proporcionGastoIngreso={proporcionGastoIngreso}
+        margenOperativo={margenOperativo}
+        razonCoberturaBancos={razonCoberturaBancos}
+        onOpenLedger={handleOpenLedgerByCode}
+        onNavigateReportes={() =>
+          navigate({ to: '/reportes', search: { tab: 'RESULTADOS' } as unknown as Record<string, string> })
+        }
+      />
+
+      {/* Ruta de Arranque Guiada para nuevas empresas sin operaciones */}
       <DashboardOnboardingBanner
         companyName={company.name}
         companyRfc={company.rfc}
@@ -125,27 +148,16 @@ export function DashboardView() {
         kpis={kpis}
         isBankReconciled={isBankReconciled}
         bankRec={bankRec}
+        isBankRecLoading={isBankRecLoading}
+        isBankRecError={isBankRecError}
         isTrialBalanced={isTrialBalanced}
         trialBalanceSummary={trialBalanceSummary}
         pendingCfdis={pendingCfdis}
+        efosSummary={efosSummary}
         isBatchAutoPolizaPending={batchAutoPolizaMutation.isPending}
         onBatchAutoPoliza={(ids) => batchAutoPolizaMutation.mutate(ids)}
         isPeriodLocked={isPeriodLocked}
         isReadOnly={isReadOnly}
-      />
-
-      {/* Tarjetas de KPIs Principales y Posición Financiera */}
-      <DashboardKpisGrid
-        kpis={kpis}
-        mesActualNombre={mesActualNombre}
-        activeCompanyId={activeCompanyId}
-        proporcionGastoIngreso={proporcionGastoIngreso}
-        margenOperativo={margenOperativo}
-        razonCoberturaBancos={razonCoberturaBancos}
-        onOpenLedger={handleOpenLedgerByCode}
-        onNavigateReportes={() =>
-          navigate({ to: '/reportes', search: { tab: 'RESULTADOS' } as unknown as Record<string, string> })
-        }
       />
 
       {/* Ciclo Contable Mensual del Despacho (5 Etapas de Negocio) */}
@@ -161,6 +173,7 @@ export function DashboardView() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <DashboardAddAutomationSection
           pendingCfdis={pendingCfdis}
+          cfdisPendientesContabilizar={kpis.cfdisPendientesContabilizar}
           cfdisTotalesPeriodo={kpis.cfdisTotalesPeriodo}
           isBatchPending={batchAutoPolizaMutation.isPending}
           onBatchAutoPoliza={(ids) => batchAutoPolizaMutation.mutate(ids)}
@@ -177,10 +190,6 @@ export function DashboardView() {
           monthlyTrend={monthlyTrend}
           maxBar={maxBar}
           onUpdatePeriod={updatePeriod}
-          cuentasPorCobrar={kpis.cuentasPorCobrar}
-          cuentasPorPagar={kpis.cuentasPorPagar}
-          onOpenLedger={handleOpenLedgerByCode}
-          activeCompanyId={activeCompanyId}
         />
       </div>
 

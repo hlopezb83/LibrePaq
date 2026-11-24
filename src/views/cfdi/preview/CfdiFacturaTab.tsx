@@ -11,6 +11,7 @@ import type { RfcModulo11Result } from '../../../shared/accounting-engine';
 import { parseCfdiPreview } from '../../../shared/cfdi-preview-parser';
 import { checkRfc69BStatus } from '../../../shared/sat-69b';
 import type { CfdiDocument } from '../../../shared/types';
+import { CfdiComplementoNominaPanel, CfdiComplementoPagosPanel } from './CfdiComplementoPanels';
 import { CfdiFacturaStampFooter } from './CfdiFacturaStampFooter';
 
 function formatObjetoImpLabel(objetoImp: string): string {
@@ -49,13 +50,15 @@ interface CfdiFacturaTabProps {
   tipoLabel: string;
   emisorRfcCheck: RfcModulo11Result | null;
   receptorRfcCheck: RfcModulo11Result | null;
+  isLoadingXml?: boolean;
 }
 
 export function CfdiFacturaTab({
   cfdi,
   tipoLabel,
   emisorRfcCheck,
-  receptorRfcCheck
+  receptorRfcCheck,
+  isLoadingXml = false
 }: CfdiFacturaTabProps) {
   const counterpartyRfc = cfdi.direction === 'EMITIDO' ? cfdi.receptorRfc : cfdi.emisorRfc;
   const efosCheck = checkRfc69BStatus(counterpartyRfc);
@@ -64,6 +67,20 @@ export function CfdiFacturaTab({
 
   return (
     <div className="border border-slate-300 rounded-2xl p-3.5 sm:p-6 lg:p-8 bg-white shadow-2xs space-y-6 text-slate-900 print:border-none print:p-0">
+      {!preview.hasXmlRaw && (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 flex items-center gap-2 text-xs text-amber-950"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+          <span>
+            {isLoadingXml
+              ? 'Cargando XML original desde Bóveda Digital ADD...'
+              : 'Vista reconstruida con metadatos de bóveda (No disponible sin XML original para campos exclusivos del timbre o domicilio).'}
+          </span>
+        </div>
+      )}
+
       {(cfdi.statusSat === 'CANCELADO' || efosCheck.isEfos) && (
         <div
           role="alert"
@@ -231,6 +248,12 @@ export function CfdiFacturaTab({
           </tbody>
         </table>
       </div>
+
+      {preview.pagos && preview.pagos.length > 0 && (
+        <CfdiComplementoPagosPanel pagos={preview.pagos} />
+      )}
+
+      {preview.nomina && <CfdiComplementoNominaPanel nomina={preview.nomina} />}
 
       <CfdiFacturaStampFooter cfdi={cfdi} preview={preview} />
     </div>

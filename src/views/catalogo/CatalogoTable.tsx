@@ -12,6 +12,7 @@ export interface CatalogoTableProps {
   isLoading: boolean;
   isPeriodLocked?: boolean;
   isReadOnlyClient?: boolean;
+  deletingAccountId?: string | null;
   copiedCode?: string | null;
   selectedAccountId: string | null;
   onSelectAccount: (id: string) => void;
@@ -32,6 +33,7 @@ export function CatalogoTable({
   isLoading,
   isPeriodLocked = false,
   isReadOnlyClient = false,
+  deletingAccountId = null,
   copiedCode = null,
   selectedAccountId,
   onSelectAccount,
@@ -52,6 +54,7 @@ export function CatalogoTable({
     collapsedCodes,
     isPeriodLocked,
     isReadOnlyClient,
+    deletingAccountId,
     copiedCode,
     onToggleNodeCollapse,
     onSelectAccount,
@@ -118,7 +121,15 @@ export function CatalogoTable({
               className="border-b border-slate-200 text-[11px] font-bold text-slate-600 bg-slate-50/90"
             >
               {headerGroup.headers.map((header) => (
-                <th key={header.id} scope="col" className="py-2.5 px-3">
+                <th
+                  key={header.id}
+                  scope="col"
+                  className={`py-2.5 px-3 ${
+                    header.column.id === 'actions'
+                      ? 'sticky right-0 bg-slate-50 z-20 shadow-[-1px_0_0_#e2e8f0]'
+                      : ''
+                  }`}
+                >
                   {header.isPlaceholder
                     ? null
                     : flexRender(header.column.columnDef.header, header.getContext())}
@@ -179,8 +190,7 @@ export function CatalogoTable({
                       }
                     }}
                     tabIndex={isRovingTarget ? 0 : -1}
-                    aria-level={acc.level}
-                    aria-selected={isSelected}
+                    data-selected={isSelected ? 'true' : undefined}
                     className={`transition group cursor-pointer ${
                       isSelected
                         ? 'bg-blue-50/90 ring-1 ring-blue-500/50 shadow-2xs'
@@ -192,7 +202,14 @@ export function CatalogoTable({
                     }`}
                   >
                     {row.getAllCells().map((cell) => (
-                      <td key={cell.id} className="py-2 px-3">
+                      <td
+                        key={cell.id}
+                        className={`py-2 px-3 ${
+                          cell.column.id === 'actions'
+                            ? 'sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-1px_0_0_#e2e8f0]'
+                            : ''
+                        }`}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}

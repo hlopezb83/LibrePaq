@@ -93,7 +93,7 @@ export function AccountPickerDropdown({
                   }}
                   className={`px-3 py-1.5 flex items-center justify-between text-xs cursor-pointer transition ${
                     isHighlighted
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-700 text-white'
                       : isSelected
                         ? 'bg-blue-50/70 text-slate-900 font-semibold'
                         : 'text-slate-700 hover:bg-slate-50'
@@ -102,7 +102,7 @@ export function AccountPickerDropdown({
                   <div className="flex items-center gap-2 truncate pr-2">
                     <span
                       className={`font-mono font-bold shrink-0 ${
-                        isHighlighted ? 'text-blue-100' : 'text-blue-900'
+                        isHighlighted ? 'text-white' : 'text-blue-900'
                       }`}
                     >
                       {account.code}
@@ -115,8 +115,8 @@ export function AccountPickerDropdown({
                       <span
                         className={`px-1.5 py-0.2 rounded text-[10px] border ${
                           isHighlighted
-                            ? 'bg-blue-700 text-blue-100 border-blue-500'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                            ? 'bg-blue-800 text-white border-blue-400'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
                         }`}
                       >
                         SAT {account.satGroupCode}
@@ -136,7 +136,7 @@ export function AccountPickerDropdown({
                     {balance !== undefined && (
                       <span
                         className={`font-mono ${
-                          isHighlighted ? 'text-blue-100' : 'text-slate-700'
+                          isHighlighted ? 'text-white' : 'text-slate-700'
                         }`}
                       >
                         {formatCurrency(balance)}

@@ -1,5 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import type { Account, CfdiDocument, Company, PolizaType } from '../../shared/types';
+import type { PolizaEditorSnapshot } from './polizaDirtyCheck';
 
 export interface DraftMovement {
   _rowId?: string;
@@ -47,6 +48,9 @@ export interface PolizaEditorModalProps {
   difference: number;
   isBalanced: boolean;
   isDateDifferentPeriod: boolean;
+  onUseActivePeriodDate?: () => void;
+  editorSessionId?: number;
+  initialSnapshot?: PolizaEditorSnapshot | null;
   isPendingSave: boolean;
   onSave: () => void;
 }

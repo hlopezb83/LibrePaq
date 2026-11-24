@@ -40,7 +40,7 @@ export function AppShellTopHeaderPeriod({
           name="currentPeriod"
           value={currentPeriod}
           onChange={(e) => updatePeriod(currentYear, Number(e.target.value))}
-          className="text-[11px] sm:text-xs font-bold text-slate-800 bg-transparent cursor-pointer w-[94px] @[420px]:w-[112px] @[760px]:w-[126px] truncate"
+          className="text-[11px] sm:text-xs font-bold text-slate-800 bg-transparent cursor-pointer min-w-[108px] w-[108px] @[420px]:w-[120px] @[760px]:w-[132px] truncate"
         >
           {MESES_SAT.map((m) => (
             <option key={m.periodo} value={m.periodo}>

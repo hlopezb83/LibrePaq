@@ -10,13 +10,16 @@ interface UseAppShellKeyboardProps {
   openShortcutsModal: () => void;
   openCommandPaletteModal: () => void;
   openCompanySwitcherModal: () => void;
+  closeAllModals?: () => void;
   setSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   navItems: CommandPaletteNavItem[];
   navigate: (opts: { to: string; search?: Record<string, string> }) => void;
   stepPeriod: (delta: number) => void;
   activeCompany: Company | null;
   isOwner?: boolean;
+  isPublicPage?: boolean;
   disableCommandPalette?: boolean;
+  onEmptyModuleShortcut?: (label: string) => void;
 }
 
 export function useAppShellKeyboard({
@@ -26,15 +29,20 @@ export function useAppShellKeyboard({
   openShortcutsModal,
   openCommandPaletteModal,
   openCompanySwitcherModal,
+  closeAllModals,
   setSidebarCollapsed,
   navItems,
   navigate,
   stepPeriod,
   activeCompany,
   isOwner = false,
-  disableCommandPalette = false
+  isPublicPage = false,
+  disableCommandPalette = false,
+  onEmptyModuleShortcut
 }: UseAppShellKeyboardProps) {
   useEffect(() => {
+    if (isPublicPage) return;
+
     const isEditableTarget = () => {
       const active = document.activeElement as HTMLElement | null;
       if (!active) return false;
@@ -42,9 +50,15 @@ export function useAppShellKeyboard({
       return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
     };
 
+    const hasOtherOpenDialog = (selfDialog?: HTMLDialogElement | null) => {
+      const openDialogs = document.querySelectorAll('dialog[open]');
+      return Array.from(openDialogs).some((d) => d !== selfDialog);
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F1') {
         e.preventDefault();
+        if (hasOtherOpenDialog(shortcutsDialogRef.current)) return;
         if (!shortcutsDialogRef.current?.open) {
           openShortcutsModal();
         } else {
@@ -56,6 +70,7 @@ export function useAppShellKeyboard({
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (!isEditableTarget()) {
           e.preventDefault();
+          if (hasOtherOpenDialog(shortcutsDialogRef.current)) return;
           if (!shortcutsDialogRef.current?.open) {
             openShortcutsModal();
           } else {
@@ -68,6 +83,7 @@ export function useAppShellKeyboard({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         if (disableCommandPalette) return;
         e.preventDefault();
+        if (hasOtherOpenDialog(cmdDialogRef.current)) return;
         if (!cmdDialogRef.current?.open) {
           openCommandPaletteModal();
         } else {
@@ -79,6 +95,7 @@ export function useAppShellKeyboard({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
         if (!isEditableTarget()) {
           e.preventDefault();
+          if (hasOtherOpenDialog(switcherDialogRef.current)) return;
           if (!switcherDialogRef.current?.open) {
             openCompanySwitcherModal();
           } else {
@@ -90,45 +107,66 @@ export function useAppShellKeyboard({
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
         if (!isEditableTarget()) {
+          if (document.querySelector('dialog[open]')) return;
           e.preventDefault();
           setSidebarCollapsed((prev) => !prev);
           return;
         }
       }
 
-      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !isEditableTarget()) {
+        const idx = Number(e.key) - 1;
+        const targetItem = Number.isInteger(idx) && idx >= 0 ? navItems[idx] : undefined;
+        if (targetItem) {
+          e.preventDefault();
+          document.querySelectorAll('dialog[open]').forEach((d) => {
+            if (d instanceof HTMLDialogElement) d.close();
+          });
+          closeAllModals?.();
+          const parsed = parseNavTarget(targetItem.to);
+          if (!activeCompany && !isOwner && idx > 0 && !parsed.to.startsWith('/admin')) {
+            onEmptyModuleShortcut?.(targetItem.label);
+            navigate({ to: '/' });
+            return;
+          }
+          navigate(parsed);
+          return;
+        }
+
         if (typeof document !== 'undefined' && document.querySelector('dialog[open]')) {
           return;
         }
 
-        if (!isEditableTarget()) {
-          if (e.key === '[' || e.key === 'PageUp') {
-            e.preventDefault();
-            stepPeriod(-1);
-            return;
-          }
-          if (e.key === ']' || e.key === 'PageDown') {
-            e.preventDefault();
-            stepPeriod(1);
-            return;
-          }
-
-          const idx = Number(e.key) - 1;
-          const targetItem = navItems[idx];
-          if (targetItem) {
-            e.preventDefault();
-            const parsed = parseNavTarget(targetItem.to);
-            if (!activeCompany && !isOwner && idx > 0 && !parsed.to.startsWith('/admin')) {
-              navigate({ to: '/' });
-              return;
-            }
-            navigate(parsed);
-          }
+        if (e.key === '[' || e.key === 'PageUp') {
+          e.preventDefault();
+          stepPeriod(-1);
+          return;
+        }
+        if (e.key === ']' || e.key === 'PageDown') {
+          e.preventDefault();
+          stepPeriod(1);
         }
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navItems, navigate, activeCompany, isOwner, disableCommandPalette, shortcutsDialogRef, cmdDialogRef, switcherDialogRef, openShortcutsModal, openCommandPaletteModal, openCompanySwitcherModal, setSidebarCollapsed, stepPeriod]);
+  }, [
+    navItems,
+    navigate,
+    activeCompany,
+    isOwner,
+    isPublicPage,
+    disableCommandPalette,
+    shortcutsDialogRef,
+    cmdDialogRef,
+    switcherDialogRef,
+    openShortcutsModal,
+    openCommandPaletteModal,
+    openCompanySwitcherModal,
+    closeAllModals,
+    setSidebarCollapsed,
+    stepPeriod,
+    onEmptyModuleShortcut
+  ]);
 }

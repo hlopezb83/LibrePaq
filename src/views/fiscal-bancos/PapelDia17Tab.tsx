@@ -1,5 +1,6 @@
 import { AlertCircle, Calculator, Check, Copy, FileText, RefreshCw, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
+import { calculateDia17Deadline } from '../../shared/date-utils';
 import {
   PapelDia17IsrCard,
   PapelDia17IvaCard,
@@ -8,12 +9,6 @@ import {
 import { PapelDia17SummaryBar } from './PapelDia17SummaryBar';
 import { ResicoCashBasisBanner } from './ResicoCashBasisBanner';
 import { usePapelDia17 } from './usePapelDia17';
-
-function sanitizeNonNeg(raw: string, max?: number): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return max !== undefined ? Math.min(n, max) : n;
-}
 
 export interface PapelDia17TabProps {
   companyId: string;
@@ -38,22 +33,17 @@ export function PapelDia17Tab({
   const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
   const isWriteLocked = isPeriodLocked || isReadOnly;
   const lockTitle = isReadOnly ? 'Modo solo lectura' : 'Periodo fiscal bloqueado ante el SAT';
+  const unsavedTitle = 'Aplica los cambios con Recalcular antes de continuar';
+
   const {
     workpaper,
     loadingWp,
     isErrorWp,
     errorWp,
     refetchWp,
-    coefUtilidad,
-    setCoefUtilidad,
-    perdidasAmortizar,
-    setPerdidasAmortizar,
-    pagosPreviosInput,
-    setPagosPreviosInput,
-    ivaSaldoFavor,
-    setIvaSaldoFavor,
-    tcCierreUsd,
-    setTcCierreUsd,
+    draftParams,
+    updateDraftField,
+    normalizeDraftField,
     hasUnsavedParams,
     resetTaxParams,
     copiedSatDyp,
@@ -101,18 +91,25 @@ export function PapelDia17Tab({
   const isPersonaFisica = workpaper.company.rfc.trim().length === 13;
   const isResicoPf = isResico && isPersonaFisica;
   const isPfGeneral = isPersonaFisica && !isResico;
+  const deadline = calculateDia17Deadline(year, period);
+  const periodBadge = `P${String(period).padStart(2, '0')}/${year} · Límite SAT: ${deadline.formattedSpanish}`;
 
   return (
     <div className="space-y-5">
       <div className="bg-white p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-4">
         <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2.5 min-w-[260px]">
-            <Calculator className="w-5 h-5 text-blue-700 shrink-0" aria-hidden="true" />
+          <div className="flex items-start gap-2.5 min-w-0">
+            <Calculator className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
             <div className="min-w-0">
-              <h2 className="text-sm font-bold text-slate-900">
-                Papel de Trabajo Fiscal Día 17 — Parámetros de Cálculo ({workpaper.company.regimenFiscal})
-              </h2>
-              <p className="text-xs text-slate-600">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-900">
+                  Papel de Trabajo Fiscal Día 17 — Parámetros de Cálculo ({workpaper.company.regimenFiscal})
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-blue-50 text-blue-900 border border-blue-200">
+                  {periodBadge}
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
                 {isResicoPf
                   ? 'RESICO Persona Física (Art. 113-E LISR): tributa sobre ingresos brutos cobrados; ajusta saldo a favor de IVA o tipo de cambio DOF'
                   : isResico
@@ -130,9 +127,10 @@ export function PapelDia17Tab({
             </span>
             <button
               type="button"
+              disabled={hasUnsavedParams}
               onClick={handleCopySatDyp}
-              title="Copiar datos estructurados para llenar el formulario de Declaraciones y Pagos (DyP) en el portal del SAT"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs transition cursor-pointer"
+              title={hasUnsavedParams ? unsavedTitle : 'Copiar datos estructurados para llenar el formulario de Declaraciones y Pagos (DyP) en el portal del SAT'}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
             >
               {copiedSatDyp ? (
                 <>
@@ -150,8 +148,10 @@ export function PapelDia17Tab({
             {onOpenDeliverable && (
               <button
                 type="button"
+                disabled={hasUnsavedParams}
+                title={hasUnsavedParams ? unsavedTitle : 'Abrir Cédula y Firmas Día 17 para impresión PDF'}
                 onClick={() => onOpenDeliverable('DIA17')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-blue-900 border border-blue-300 shadow-2xs transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-blue-900 border border-blue-300 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
               >
                 <FileText className="w-4 h-4 text-blue-700" aria-hidden="true" />
                 Cédula y Firmas Día 17 (PDF)
@@ -160,13 +160,7 @@ export function PapelDia17Tab({
             <button
               type="button"
               disabled={genTaxProvisionMutation.isPending || isWriteLocked || hasUnsavedParams}
-              title={
-                isWriteLocked
-                  ? lockTitle
-                  : hasUnsavedParams
-                    ? 'Aplica los cambios con Recalcular antes de generar la póliza de provisión'
-                    : 'Contabilizar provisión mensual de ISR e IVA'
-              }
+              title={isWriteLocked ? lockTitle : hasUnsavedParams ? unsavedTitle : 'Contabilizar provisión mensual de ISR e IVA'}
               onClick={() => genTaxProvisionMutation.mutate()}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
@@ -179,7 +173,7 @@ export function PapelDia17Tab({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!isWriteLocked) saveTaxParamsMutation.mutate();
+            if (!isWriteLocked && hasUnsavedParams) saveTaxParamsMutation.mutate();
           }}
           className={`grid grid-cols-1 sm:grid-cols-2 ${isResicoPf ? 'lg:grid-cols-3' : isPfGeneral ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs`}
         >
@@ -190,11 +184,8 @@ export function PapelDia17Tab({
               </label>
               <input
                 id="dia17-coef-utilidad"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.0001"
-                min="0"
-                max="1"
                 disabled={isWriteLocked || isResico}
                 title={
                   isWriteLocked
@@ -203,8 +194,9 @@ export function PapelDia17Tab({
                       ? 'No aplica en RESICO (tributa sobre flujo de efectivo)'
                       : 'Coeficiente de Utilidad según última declaración anual (Art. 14 LISR)'
                 }
-                value={coefUtilidad}
-                onChange={(e) => setCoefUtilidad(sanitizeNonNeg(e.target.value, 1))}
+                value={draftParams.coefUtilidad}
+                onChange={(e) => updateDraftField('coefUtilidad', e.target.value)}
+                onBlur={() => normalizeDraftField('coefUtilidad', 1)}
                 className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
               />
               {isResico && <p className="mt-1 text-[11px] text-slate-600">No aplica en RESICO</p>}
@@ -218,14 +210,13 @@ export function PapelDia17Tab({
                 </label>
                 <input
                   id="dia17-perdidas-amortizar"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
-                  min="0"
                   disabled={isWriteLocked}
                   title={isWriteLocked ? lockTitle : 'Pérdidas fiscales pendientes de amortizar actualizadas (Art. 57 LISR)'}
-                  value={perdidasAmortizar}
-                  onChange={(e) => setPerdidasAmortizar(sanitizeNonNeg(e.target.value))}
+                  value={draftParams.perdidasAmortizar}
+                  onChange={(e) => updateDraftField('perdidasAmortizar', e.target.value)}
+                  onBlur={() => normalizeDraftField('perdidasAmortizar')}
                   className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 />
               </div>
@@ -235,14 +226,13 @@ export function PapelDia17Tab({
                 </label>
                 <input
                   id="dia17-pagos-previos"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
-                  min="0"
                   disabled={isWriteLocked}
                   title={isWriteLocked ? lockTitle : 'Pagos provisionales de ISR enterados previamente en el ejercicio (Art. 14 LISR)'}
-                  value={pagosPreviosInput}
-                  onChange={(e) => setPagosPreviosInput(sanitizeNonNeg(e.target.value))}
+                  value={draftParams.pagosPrevios}
+                  onChange={(e) => updateDraftField('pagosPrevios', e.target.value)}
+                  onBlur={() => normalizeDraftField('pagosPrevios')}
                   className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 />
               </div>
@@ -254,14 +244,13 @@ export function PapelDia17Tab({
             </label>
             <input
               id="dia17-iva-saldo-favor"
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.01"
-              min="0"
               disabled={isWriteLocked}
               title={isWriteLocked ? lockTitle : 'Saldo a favor de IVA de meses previos por acreditar (Art. 6 LIVA)'}
-              value={ivaSaldoFavor}
-              onChange={(e) => setIvaSaldoFavor(sanitizeNonNeg(e.target.value))}
+              value={draftParams.ivaSaldoFavor}
+              onChange={(e) => updateDraftField('ivaSaldoFavor', e.target.value)}
+              onBlur={() => normalizeDraftField('ivaSaldoFavor')}
               className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
@@ -271,22 +260,27 @@ export function PapelDia17Tab({
             </label>
             <input
               id="dia17-tc-cierre-usd"
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.0001"
-              min="0"
               disabled={isWriteLocked}
               title={isWriteLocked ? lockTitle : 'Tipo de cambio oficial publicado por el Diario Oficial de la Federación (DOF) al cierre de mes'}
-              value={tcCierreUsd}
-              onChange={(e) => setTcCierreUsd(sanitizeNonNeg(e.target.value))}
+              value={draftParams.tcCierreUsd}
+              onChange={(e) => updateDraftField('tcCierreUsd', e.target.value)}
+              onBlur={() => normalizeDraftField('tcCierreUsd')}
               className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
             />
           </div>
           <div className="flex items-end gap-1.5">
             <button
               type="submit"
-              disabled={saveTaxParamsMutation.isPending || isWriteLocked}
-              title={isWriteLocked ? lockTitle : 'Aplicar parámetros y recalcular cédula Día 17'}
+              disabled={saveTaxParamsMutation.isPending || isWriteLocked || !hasUnsavedParams}
+              title={
+                isWriteLocked
+                  ? lockTitle
+                  : !hasUnsavedParams
+                    ? 'Modifica al menos un parámetro para recalcular'
+                    : 'Aplicar parámetros y recalcular cédula Día 17'
+              }
               className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs"
             >
               <Save className="w-3.5 h-3.5" aria-hidden="true" />
@@ -314,12 +308,16 @@ export function PapelDia17Tab({
         )}
       </div>
 
-      <PapelDia17SummaryBar cap={cap} retencionesDesglose={workpaper.retencionesDesglose} />
+      <PapelDia17SummaryBar
+        cap={cap}
+        saldoFavorIvaRemanente={workpaper.ivaDefinitivo.saldoFavorIvaRemanente}
+        year={year}
+        period={period}
+        retencionesDesglose={workpaper.retencionesDesglose}
+      />
 
-      {/* Flujo RESICO, Semáforo de Topes y Prorrateo IVA */}
       <ResicoCashBasisBanner workpaper={workpaper} />
 
-      {/* 3 Cédulas Fiscales lado a lado: ISR Provisional, IVA Definitivo y Fluctuación USD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
         <PapelDia17IsrCard workpaper={workpaper} period={period} />
         <PapelDia17IvaCard workpaper={workpaper} />
@@ -327,6 +325,7 @@ export function PapelDia17Tab({
           workpaper={workpaper}
           isPeriodLocked={isPeriodLocked}
           isReadOnlyClient={isReadOnly}
+          hasUnsavedParams={hasUnsavedParams}
           genExchangePolizaMutation={genExchangePolizaMutation}
         />
       </div>

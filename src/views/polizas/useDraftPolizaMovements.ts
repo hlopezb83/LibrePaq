@@ -70,35 +70,41 @@ export function useDraftPolizaMovements(
     if (diffCents === 0 || rowIndex < 0 || rowIndex >= movements.length) return;
     const absDiff = fromCents(Math.abs(diffCents));
     const targetType = type || (diffCents < 0 ? 'cargo' : 'abono');
-    setMovements((prev) =>
-      prev.map((m, idx) => {
+    setMovements((prev) => {
+      const prevCargos = sumCents(prev.map((m) => m.cargo));
+      const prevAbonos = sumCents(prev.map((m) => m.abono));
+      return prev.map((m, idx) => {
         if (idx !== rowIndex) return m;
+        const otherCargos = prevCargos - toCents(m.cargo);
+        const otherAbonos = prevAbonos - toCents(m.abono);
         if (targetType === 'cargo') {
-          const netDiffWithoutOpposite = diffCents + toCents(m.abono);
-          const addCents = netDiffWithoutOpposite < 0 ? Math.abs(netDiffWithoutOpposite) : 0;
-          return {
-            ...m,
-            cargo: fromCents(toCents(m.cargo) + addCents),
-            abono: 0
-          };
+          const desiredCargo = otherAbonos - otherCargos;
+          if (desiredCargo >= 0) {
+            return { ...m, cargo: fromCents(desiredCargo), abono: 0 };
+          }
+          return { ...m, cargo: 0, abono: fromCents(Math.abs(desiredCargo)) };
         }
-        const netDiffWithoutOpposite = diffCents - toCents(m.cargo);
-        const addCents = netDiffWithoutOpposite > 0 ? netDiffWithoutOpposite : 0;
-        return {
-          ...m,
-          abono: fromCents(toCents(m.abono) + addCents),
-          cargo: 0
-        };
-      })
-    );
-    toast.success('Fila Cuadrada', `Se ajustó el saldo por ${formatCurrency(absDiff)}.`);
+        const desiredAbono = otherCargos - otherAbonos;
+        if (desiredAbono >= 0) {
+          return { ...m, abono: fromCents(desiredAbono), cargo: 0 };
+        }
+        return { ...m, abono: 0, cargo: fromCents(Math.abs(desiredAbono)) };
+      });
+    });
+    toast.success('Fila Cuadrada', `Se ajustó la diferencia de ${formatCurrency(absDiff)}.`);
   }, [diffCents, movements.length, toast]);
 
   const addIva16Line = useCallback((baseIndex: number) => {
     const baseRow = movements[baseIndex];
     if (!baseRow) return;
     const baseCents = baseRow.cargo > 0 ? toCents(baseRow.cargo) : toCents(baseRow.abono);
-    if (baseCents <= 0) return;
+    if (baseCents <= 0) {
+      toast.info(
+        'Ingresa un importe base primero',
+        'Captura un Cargo o Abono mayor a $0.00 en la partida para desglosar el IVA 16% (F4).'
+      );
+      return;
+    }
     const ivaCents = Math.round(baseCents * 0.16);
     const ivaAcc =
       baseRow.cargo > 0

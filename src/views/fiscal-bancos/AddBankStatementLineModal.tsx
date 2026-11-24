@@ -1,5 +1,5 @@
-import React from 'react';
-import { Landmark, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Landmark, Loader2, X } from 'lucide-react';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 
 interface AddBankStatementLineModalProps {
@@ -36,15 +36,20 @@ export function AddBankStatementLineModal({
   isWriteLocked = false
 }: AddBankStatementLineModalProps) {
   useDialogLightDismiss(addBankModalRef, () => addBankModalRef.current?.close());
+  const [montoDraft, setMontoDraft] = useState(bMonto > 0 ? String(bMonto) : '');
+
+  useEffect(() => {
+    if (bMonto === 0) setMontoDraft('');
+  }, [bMonto]);
 
   return (
     <dialog
       ref={addBankModalRef}
       closedby="any"
       aria-labelledby="modal-add-bank-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-md max-h-[92dvh] open:flex open:flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
     >
-      <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-3.5">
+      <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-3.5">
         <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
@@ -88,7 +93,7 @@ export function AddBankStatementLineModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label
                 htmlFor="bank-line-type"
@@ -117,18 +122,31 @@ export function AddBankStatementLineModal({
               </label>
               <input
                 id="bank-line-amount"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min="0.01"
-                step="0.01"
+                placeholder="0.00"
                 required
                 disabled={isWriteLocked}
-                value={bMonto}
+                value={montoDraft}
                 onChange={(e) => {
-                  const n = Number(e.target.value);
+                  const raw = e.target.value.replace(/[^0-9.]/g, '');
+                  const dotIdx = raw.indexOf('.');
+                  const cleaned = dotIdx === -1 ? raw : raw.slice(0, dotIdx + 1) + raw.slice(dotIdx + 1).replace(/\./g, '');
+                  setMontoDraft(cleaned);
+                  const n = Number(cleaned);
                   setBMonto(Number.isFinite(n) && n >= 0 ? n : 0);
                 }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono disabled:bg-slate-100"
+                onBlur={() => {
+                  const n = Number(montoDraft);
+                  if (!Number.isFinite(n) || n <= 0) {
+                    setMontoDraft('');
+                    setBMonto(0);
+                  } else {
+                    setMontoDraft(String(n));
+                    setBMonto(n);
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono tabular-nums disabled:bg-slate-100"
               />
             </div>
           </div>
@@ -179,9 +197,10 @@ export function AddBankStatementLineModal({
             </button>
             <button
               type="submit"
-              disabled={isAddBankLinePending || isWriteLocked}
+              disabled={isAddBankLinePending || isWriteLocked || bMonto <= 0}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
+              {isAddBankLinePending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
               {isAddBankLinePending ? 'Registrando...' : 'Guardar Partida'}
             </button>
           </div>

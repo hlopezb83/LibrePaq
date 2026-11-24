@@ -19,6 +19,7 @@ export function ReportesView() {
     activeTab,
     setActiveTab,
     isDossierRequested,
+    consumeDossierParam,
     satXmlType,
     setSatXmlType,
     anexo24Options,
@@ -50,7 +51,8 @@ export function ReportesView() {
     hasAutoOpenedDossierRef.current = true;
     setActiveTab('ENTREGABLES');
     openDeliverables('DOSSIER');
-  }, [isDossierRequested, setActiveTab, openDeliverables]);
+    consumeDossierParam();
+  }, [isDossierRequested, setActiveTab, openDeliverables, consumeDossierParam]);
 
   const deliverableTabForActive =
     activeTab === 'BALANZA' || activeTab === 'RESULTADOS' || activeTab === 'BALANCE'
@@ -219,6 +221,7 @@ export function ReportesView() {
           <DossierEntregablesTab
             mesNombre={mesNombre}
             ejercicio={data.ejercicio}
+            periodo={data.periodo}
             totals={data.totals}
             incomeStatement={data.incomeStatement}
             balanceSheet={data.balanceSheet}

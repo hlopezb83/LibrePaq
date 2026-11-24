@@ -53,6 +53,9 @@ export function ExecutiveDeliverablePackageModal({
     setIncludeBalance,
     includeDia17,
     setIncludeDia17,
+    hideZeroAccounts,
+    setHideZeroAccounts,
+    selectedDocsCount,
     copiedSummary,
     reportsData,
     fiscalData,
@@ -87,6 +90,7 @@ export function ExecutiveDeliverablePackageModal({
         year={year}
         copiedSummary={copiedSummary}
         isDataReady={Boolean(reportsData)}
+        selectedDocsCount={selectedDocsCount}
         onCopySummary={handleCopyExecutiveSummary}
         onExportXlsx={handleExportAllXlsx}
         isExporting={isExporting}
@@ -159,13 +163,33 @@ export function ExecutiveDeliverablePackageModal({
           </div>
         )}
 
+        {activeTab === 'DOSSIER' && !isErrorData && !isLoadingData && (
+          <div className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs shadow-2xs no-print">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-bold text-slate-800">Documentos ({selectedDocsCount}/4):</span>
+              {[
+                { id: 'quick-balanza', label: 'Balanza', checked: includeBalanza, set: setIncludeBalanza },
+                { id: 'quick-resultados', label: 'Resultados', checked: includeResultados, set: setIncludeResultados },
+                { id: 'quick-balance', label: 'Balance', checked: includeBalance, set: setIncludeBalance },
+                { id: 'quick-dia17', label: 'Día 17', checked: includeDia17, set: setIncludeDia17 }
+              ].map((doc) => (
+                <label key={doc.id} htmlFor={doc.id} className="inline-flex items-center gap-1.5 cursor-pointer select-none text-slate-700">
+                  <input id={doc.id} type="checkbox" checked={doc.checked} onChange={(e) => doc.set(e.target.checked)} className="rounded text-blue-700" />
+                  <span>{doc.label}</span>
+                </label>
+              ))}
+            </div>
+            <label htmlFor="quick-hide-zero" className="inline-flex items-center gap-1.5 cursor-pointer select-none text-slate-700 font-medium">
+              <input id="quick-hide-zero" type="checkbox" checked={hideZeroAccounts} onChange={(e) => setHideZeroAccounts(e.target.checked)} className="rounded text-blue-700" />
+              <span>Ocultar $0.00</span>
+            </label>
+          </div>
+        )}
+
         {activeTab === 'DOSSIER' &&
           !isErrorData &&
           !isLoadingData &&
-          !includeBalanza &&
-          !includeResultados &&
-          !includeBalance &&
-          !includeDia17 && (
+          selectedDocsCount === 0 && (
             <div className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-slate-200 text-center space-y-3 shadow-xs">
               <p className="text-xs text-slate-600">
                 No hay documentos seleccionados para el dossier de cierre.
@@ -203,6 +227,8 @@ export function ExecutiveDeliverablePackageModal({
               setIncludeBalance={setIncludeBalance}
               includeDia17={includeDia17}
               setIncludeDia17={setIncludeDia17}
+              hideZeroAccounts={hideZeroAccounts}
+              setHideZeroAccounts={setHideZeroAccounts}
               onPreviewDossier={() => setActiveTab('DOSSIER')}
             />
           )}
@@ -214,7 +240,9 @@ export function ExecutiveDeliverablePackageModal({
               period={period}
               mesNombre={mesNombre}
               firmName={firmName}
+              issuanceCity={issuanceCity}
               issuanceDate={issuanceDate}
+              hideZeroAccounts={hideZeroAccounts}
               trialBalance={reportsData.trialBalance}
               totals={reportsData.totals}
               auditorName={auditorName}
@@ -231,7 +259,9 @@ export function ExecutiveDeliverablePackageModal({
               period={period}
               mesNombre={mesNombre}
               firmName={firmName}
+              issuanceCity={issuanceCity}
               issuanceDate={issuanceDate}
+              hideZeroAccounts={hideZeroAccounts}
               incomeStatement={reportsData.incomeStatement}
               auditorName={auditorName}
               auditorCedula={auditorCedula}
@@ -247,7 +277,9 @@ export function ExecutiveDeliverablePackageModal({
               period={period}
               mesNombre={mesNombre}
               firmName={firmName}
+              issuanceCity={issuanceCity}
               issuanceDate={issuanceDate}
+              hideZeroAccounts={hideZeroAccounts}
               balanceSheet={reportsData.balanceSheet}
               auditorName={auditorName}
               auditorCedula={auditorCedula}
@@ -263,6 +295,7 @@ export function ExecutiveDeliverablePackageModal({
               period={period}
               mesNombre={mesNombre}
               firmName={firmName}
+              issuanceCity={issuanceCity}
               issuanceDate={issuanceDate}
               fechaVencimientoDia17={fechaVencimientoDia17}
               fiscalData={fiscalData}

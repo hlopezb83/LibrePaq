@@ -1,7 +1,8 @@
-import { useRef } from 'react';
+import type { RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ExternalLink, FileCode2 } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
+import { fromCents, sumCents } from '../../shared/accounting-engine';
 import type { AccountLedgerEntry, AccountLedgerResponse } from '../../shared/types';
 
 interface AccountLedgerTableProps {
@@ -9,7 +10,8 @@ interface AccountLedgerTableProps {
   mesNombre: string;
   filteredEntries: AccountLedgerEntry[];
   ledgerSearch: string;
-  onGoToPoliza: (folio: number) => void;
+  scrollParentRef: RefObject<HTMLDivElement | null>;
+  onGoToPoliza: (entry: Pick<AccountLedgerEntry, 'tipoPoliza' | 'folioPoliza' | 'periodo'>) => void;
 }
 
 function LedgerEntryRow({
@@ -19,7 +21,7 @@ function LedgerEntryRow({
   dataIndex
 }: {
   entry: AccountLedgerEntry;
-  onGoToPoliza: (folio: number) => void;
+  onGoToPoliza: (entry: Pick<AccountLedgerEntry, 'tipoPoliza' | 'folioPoliza' | 'periodo'>) => void;
   measureRef?: (el: HTMLTableRowElement | null) => void;
   dataIndex?: number;
 }) {
@@ -31,7 +33,7 @@ function LedgerEntryRow({
       <td className="py-2.5 px-3 whitespace-nowrap">
         <button
           type="button"
-          onClick={() => onGoToPoliza(entry.folioPoliza)}
+          onClick={() => onGoToPoliza(entry)}
           title={`Abrir póliza ${entry.tipoPoliza} #${entry.folioPoliza} en Pólizas Contables`}
           className="inline-flex items-center gap-1 font-mono font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer group"
         >
@@ -44,26 +46,27 @@ function LedgerEntryRow({
           />
         </button>
       </td>
-      <td className="py-2.5 px-3 font-mono text-blue-800 font-semibold whitespace-nowrap">
-        {entry.accountCode}
-      </td>
-      <td className="py-2.5 px-3 font-mono text-slate-600">{entry.referencia}</td>
+      <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">{entry.referencia}</td>
       <td className="py-2.5 px-3 text-slate-800">
         <div>{entry.concepto}</div>
         {entry.cfdiUuid && (
-          <div className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-500">
-            <FileCode2 className="w-3 h-3" aria-hidden="true" />
-            UUID: {entry.cfdiUuid.slice(0, 14)}...
+          <div className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-600">
+            <FileCode2 className="w-3 h-3 text-blue-700" aria-hidden="true" />
+            <span>Folio Fiscal (UUID): {entry.cfdiUuid.slice(0, 14)}...</span>
           </div>
         )}
       </td>
-      <td className="py-2.5 px-3 text-right font-mono text-slate-900 font-medium">
+      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-900 font-medium whitespace-nowrap">
         {entry.cargo > 0 ? formatCurrency(entry.cargo) : '—'}
       </td>
-      <td className="py-2.5 px-3 text-right font-mono text-slate-900 font-medium">
+      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-900 font-medium whitespace-nowrap">
         {entry.abono > 0 ? formatCurrency(entry.abono) : '—'}
       </td>
-      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 bg-slate-50/60">
+      <td
+        className={`py-2.5 px-3 text-right font-mono tabular-nums font-bold bg-slate-50/60 whitespace-nowrap ${
+          entry.runningBalance < 0 ? 'text-red-700' : 'text-slate-900'
+        }`}
+      >
         {formatCurrency(entry.runningBalance)}
       </td>
     </tr>
@@ -75,12 +78,12 @@ export function AccountLedgerTable({
   mesNombre,
   filteredEntries,
   ledgerSearch,
+  scrollParentRef,
   onGoToPoliza
 }: AccountLedgerTableProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: filteredEntries.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => scrollParentRef.current,
     estimateSize: () => 44,
     overscan: 10
   });
@@ -92,41 +95,43 @@ export function AccountLedgerTable({
       ? rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end ?? 0)
       : 0;
 
+  const isFiltered = Boolean(ledgerSearch.trim());
+  const filteredCharges = isFiltered ? fromCents(sumCents(filteredEntries.map((e) => e.cargo))) : 0;
+  const filteredCredits = isFiltered ? fromCents(sumCents(filteredEntries.map((e) => e.abono))) : 0;
+
   return (
     <div className="border border-slate-300 rounded-xl overflow-hidden">
-      <div ref={parentRef} className="max-h-96 scrollable-panel overflow-x-auto">
-        <table className="w-full text-left border-collapse erp-sticky-table">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
           <caption className="visually-hidden">
             Movimientos auxiliares de la cuenta {data.account.code} {data.account.name} en{' '}
             {mesNombre} {data.ejercicio}
           </caption>
           <thead>
             <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-              <th scope="col" className="py-2.5 px-3">Fecha</th>
-              <th scope="col" className="py-2.5 px-3">Póliza</th>
-              <th scope="col" className="py-2.5 px-3">Cuenta Afectada</th>
-              <th scope="col" className="py-2.5 px-3">Referencia</th>
-              <th scope="col" className="py-2.5 px-3">Concepto / CFDI</th>
-              <th scope="col" className="py-2.5 px-3 text-right">Cargo (Debe)</th>
-              <th scope="col" className="py-2.5 px-3 text-right">Abono (Haber)</th>
-              <th scope="col" className="py-2.5 px-3 text-right">Saldo Progresivo</th>
+              <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
+              <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Póliza</th>
+              <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Referencia</th>
+              <th scope="col" className="py-2.5 px-3 min-w-[200px]">Concepto / Folio Fiscal (UUID)</th>
+              <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Cargo (Debe)</th>
+              <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Abono (Haber)</th>
+              <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Saldo Progresivo</th>
             </tr>
           </thead>
 
-          {/* Cuerpo virtualizado para pantalla */}
           <tbody className="divide-y divide-slate-200 text-xs print:hidden">
             <tr className="bg-slate-100/80 font-semibold text-slate-800">
-              <td colSpan={7} className="py-2.5 px-3">
+              <td colSpan={6} className="py-2.5 px-3">
                 Saldo Inicial Acumulado al inicio de {mesNombre} {data.ejercicio}
               </td>
-              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+              <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
                 {formatCurrency(data.initialBalance)}
               </td>
             </tr>
             {filteredEntries.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-500">
-                  {ledgerSearch.trim()
+                <td colSpan={7} className="py-8 text-center text-slate-500">
+                  {isFiltered
                     ? 'No se encontraron movimientos con el filtro especificado.'
                     : 'Sin movimientos registrados en este periodo contable para esta cuenta.'}
                 </td>
@@ -135,7 +140,7 @@ export function AccountLedgerTable({
               <>
                 {paddingTop > 0 && (
                   <tr>
-                    <td colSpan={8} style={{ height: `${paddingTop}px` }} />
+                    <td colSpan={7} style={{ height: `${paddingTop}px` }} />
                   </tr>
                 )}
                 {virtualItems.map((virtualRow) => {
@@ -153,17 +158,16 @@ export function AccountLedgerTable({
                 })}
                 {paddingBottom > 0 && (
                   <tr>
-                    <td colSpan={8} style={{ height: `${paddingBottom}px` }} />
+                    <td colSpan={7} style={{ height: `${paddingBottom}px` }} />
                   </tr>
                 )}
               </>
             )}
           </tbody>
 
-          {/* Cuerpo completo sin recorte virtualizado para impresión/PDF */}
           <tbody className="hidden print:table-row-group divide-y divide-slate-200 text-xs">
             <tr className="bg-slate-100/80 font-semibold text-slate-800">
-              <td colSpan={7} className="py-2.5 px-3">
+              <td colSpan={6} className="py-2.5 px-3">
                 Saldo Inicial Acumulado al inicio de {mesNombre} {data.ejercicio}
               </td>
               <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
@@ -180,17 +184,31 @@ export function AccountLedgerTable({
           </tbody>
 
           <tfoot>
+            {isFiltered && (
+              <tr className="bg-blue-50/90 border-t border-blue-200 text-blue-950 font-mono text-xs font-bold">
+                <td colSpan={4} className="py-2 px-3 text-right">
+                  Subtotal filtrado ({filteredEntries.length} movimiento{filteredEntries.length === 1 ? '' : 's'}):
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
+                  {formatCurrency(filteredCharges)}
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
+                  {formatCurrency(filteredCredits)}
+                </td>
+                <td className="py-2 px-3 text-right text-[11px] text-blue-800">—</td>
+              </tr>
+            )}
             <tr className="bg-[#0A1120] text-white font-mono text-xs font-bold">
-              <td colSpan={5} className="py-2.5 px-3 text-right uppercase tracking-wider">
+              <td colSpan={4} className="py-2.5 px-3 text-right uppercase tracking-wider">
                 Sumas del Periodo y Saldo Final:
               </td>
-              <td className="py-2.5 px-3 text-right text-slate-100">
+              <td className="py-2.5 px-3 text-right text-slate-100 tabular-nums whitespace-nowrap">
                 {formatCurrency(data.totalCharges)}
               </td>
-              <td className="py-2.5 px-3 text-right text-slate-100">
+              <td className="py-2.5 px-3 text-right text-slate-100 tabular-nums whitespace-nowrap">
                 {formatCurrency(data.totalCredits)}
               </td>
-              <td className="py-2.5 px-3 text-right text-blue-200">
+              <td className="py-2.5 px-3 text-right text-blue-200 tabular-nums whitespace-nowrap">
                 {formatCurrency(data.finalBalance)}
               </td>
             </tr>

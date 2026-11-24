@@ -19,7 +19,7 @@ export const SUPERADMIN_NAV_ITEMS: CommandPaletteNavItem[] = [
   {
     to: '/admin',
     label: 'Métricas & Negocio',
-    sublabel: 'KPIs SaaS y Salud del Sistema',
+    sublabel: 'Indicadores y Salud del Sistema',
     icon: LayoutDashboard,
     shortcut: 'Alt+1'
   },
@@ -33,7 +33,7 @@ export const SUPERADMIN_NAV_ITEMS: CommandPaletteNavItem[] = [
   {
     to: '/admin?tab=companies',
     label: 'Empresas Fiscales',
-    sublabel: 'Directorio Global Multi-Tenant',
+    sublabel: 'Directorio Global de Empresas',
     icon: Building2,
     shortcut: 'Alt+3'
   },
@@ -61,7 +61,7 @@ export const SUPERADMIN_NAV_ITEMS: CommandPaletteNavItem[] = [
   {
     to: '/admin?tab=audit',
     label: 'Bitácora de Auditoría',
-    sublabel: 'Eventos RBAC, Cuotas y Soporte',
+    sublabel: 'Permisos, Cuotas y Soporte',
     icon: ClipboardList,
     shortcut: 'Alt+7'
   }

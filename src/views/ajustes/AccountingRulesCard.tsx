@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, BookMarked, Eye, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, BookMarked, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { accountingRulesClient } from '../../lib/accounting-rules-client';
@@ -149,15 +149,8 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
         </span>
       </div>
 
-      {isReadOnly && (
-        <div role="status" className="mx-5 mt-4 px-3.5 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 text-xs flex items-center gap-2">
-          <Eye className="w-4 h-4 text-sky-700 shrink-0" aria-hidden="true" />
-          <span>Modo solo lectura: puedes consultar las reglas configuradas, pero no crear ni eliminar reglas.</span>
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="p-5 border-b border-slate-200 bg-slate-50/40 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           <div>
             <label htmlFor="rule-direction" className="block font-semibold text-slate-700 mb-1">Dirección</label>
             <select id="rule-direction" disabled={isReadOnly} value={direction} onChange={(e) => handleDirectionChange(e.target.value as AccountingRuleDirection)} className={`${inputCls} font-medium cursor-pointer`}>

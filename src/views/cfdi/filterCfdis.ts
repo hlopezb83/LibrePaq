@@ -7,6 +7,36 @@ export type CfdiMetodoFilter = 'ALL' | 'PUE' | 'PPD';
 export type CfdiStatusSatFilter = 'ALL' | 'VIGENTE' | 'CANCELADO' | 'CANCELADO_CON_POLIZA';
 export type CfdiFormaPagoFilter = 'ALL' | '01' | '03' | '04' | '99';
 
+export const CFDI_TIPO_FILTERS: ReadonlyArray<{ id: CfdiTipoFilter; label: string }> = [
+  { id: 'ALL', label: 'Todos los Tipos' },
+  { id: 'I', label: 'Tipo I (Ingreso/Gasto)' },
+  { id: 'E', label: 'Tipo E (Nota Créd.)' },
+  { id: 'P', label: 'Tipo P (REP 2.0)' },
+  { id: 'N', label: 'Tipo N (Nómina)' },
+  { id: 'RET', label: 'Con Retenciones' }
+];
+
+export const CFDI_METODO_FILTERS: ReadonlyArray<{ id: CfdiMetodoFilter; label: string }> = [
+  { id: 'ALL', label: 'Todos' },
+  { id: 'PUE', label: 'PUE (Contado)' },
+  { id: 'PPD', label: 'PPD (Crédito)' }
+];
+
+export const CFDI_STATUS_SAT_FILTERS: ReadonlyArray<{ id: CfdiStatusSatFilter; label: string }> = [
+  { id: 'ALL', label: 'Todos' },
+  { id: 'VIGENTE', label: 'Vigente' },
+  { id: 'CANCELADO', label: 'Cancelado' },
+  { id: 'CANCELADO_CON_POLIZA', label: 'Cancelado c/Póliza' }
+];
+
+export const CFDI_FORMA_PAGO_FILTERS: ReadonlyArray<{ id: CfdiFormaPagoFilter; label: string }> = [
+  { id: 'ALL', label: 'Todas' },
+  { id: '01', label: '01 Efectivo' },
+  { id: '03', label: '03 Transf.' },
+  { id: '04', label: '04 Tarjeta' },
+  { id: '99', label: '99 Por def.' }
+];
+
 export function isCfdiPendingForPoliza(doc: CfdiDocument): boolean {
   return (
     doc.polizaId === null &&

@@ -59,3 +59,11 @@ export function getCompanyTheme(rfcOrId: string = ''): CompanyTheme {
   }
   return themes[Math.abs(hash) % themes.length] ?? themes[0]!;
 }
+
+/**
+ * Extrae las iniciales legibles de una razón social ignorando prefijos entre corchetes como "[DEMO]".
+ */
+export function getCompanyInitials(name: string): string {
+  const cleaned = name.replace(/^(?:\[[^\]]*\]\s*)+/, '').trim() || name.trim();
+  return (cleaned.slice(0, 2) || 'EM').toUpperCase();
+}

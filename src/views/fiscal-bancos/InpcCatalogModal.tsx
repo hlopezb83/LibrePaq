@@ -4,6 +4,7 @@ import {
   OFFICIAL_DOF_EXCHANGE_RATES,
   OFFICIAL_INPC_TABLE
 } from '../../shared/sat-inpc-catalog';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
 
@@ -26,14 +27,12 @@ export function InpcCatalogModal({
   activeYear = 2026
 }: InpcCatalogModalProps) {
   const [tab, setTab] = useState<'INPC' | 'DOF'>('INPC');
-  const [copiedCell, setCopiedCell] = useState<string | null>(null);
+  const { copiedKey: copiedCell, copy: copyValue } = useCopyToClipboard<string>(1500);
   const dialogRef = useRef<HTMLDialogElement>(null);
   useDialogLightDismiss(dialogRef, onClose, { isOpen });
 
   const handleCopyValue = (raw: string) => {
-    navigator.clipboard?.writeText(raw);
-    setCopiedCell(raw);
-    setTimeout(() => setCopiedCell(null), 1500);
+    void copyValue(raw, raw);
   };
 
   useEffect(() => {
@@ -82,7 +81,7 @@ export function InpcCatalogModal({
             type="button"
             onClick={onClose}
             aria-label="Cerrar catálogo INPC y DOF"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -105,7 +104,7 @@ export function InpcCatalogModal({
             className={`flex items-center gap-1.5 px-3 py-2 border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
               tab === 'INPC'
                 ? 'border-blue-600 text-blue-700 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                : 'border-transparent text-slate-700 hover:text-slate-950'
             }`}
           >
             <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
@@ -123,7 +122,7 @@ export function InpcCatalogModal({
             className={`flex items-center gap-1.5 px-3 py-2 border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
               tab === 'DOF'
                 ? 'border-blue-600 text-blue-700 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                : 'border-transparent text-slate-700 hover:text-slate-950'
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" aria-hidden="true" />
@@ -149,7 +148,7 @@ export function InpcCatalogModal({
                   </span>
                 )}
               </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <div tabIndex={0} role="region" aria-label="Tabla histórica de INPC INEGI" className="overflow-x-auto border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600">
                 <table className="w-full text-center border-collapse">
                   <caption className="visually-hidden">Tabla histórica mensual de INPC INEGI</caption>
                   <thead>
@@ -213,7 +212,7 @@ export function InpcCatalogModal({
                   </span>
                 )}
               </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <div tabIndex={0} role="region" aria-label="Tabla histórica de Tipo de Cambio DOF" className="overflow-x-auto border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600">
                 <table className="w-full text-center border-collapse">
                   <caption className="visually-hidden">Tabla histórica de Tipo de Cambio DOF Banxico</caption>
                   <thead>

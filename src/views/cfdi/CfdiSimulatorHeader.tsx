@@ -19,8 +19,8 @@ export function CfdiSimulatorHeader({
 }: CfdiSimulatorHeaderProps) {
   return (
     <>
-      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
+        <div className="min-w-0">
           <h2 id="modal-sim-cfdi-title" className="text-base font-bold text-slate-900">
             Registro de Comprobante CFDI 4.0 / Retenciones / REP 2.0
           </h2>

@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
-import { apiClient } from '../../lib/api-client';
 import { getDefaultDateForPeriod } from '../../lib/formatters';
 import type { Poliza, PolizaType } from '../../shared/types';
-import { isCfdiPendingForPoliza } from '../cfdi/filterCfdis';
 import { exportPolizasCsv } from './exportPolizasCsv';
 import {
   buildPlanDraftsFromCfdi,
@@ -17,7 +14,10 @@ import {
   isPolizaDateInDifferentPeriod,
   parsePolizasUrlSearch
 } from './filterPolizas';
+import { createPolizaSnapshot, type PolizaEditorSnapshot } from './polizaDirtyCheck';
 import { useDraftPolizaMovements } from './useDraftPolizaMovements';
+import { usePolizasDataQueries } from './usePolizasDataQueries';
+import { usePolizasKeyboardShortcuts } from './usePolizasKeyboardShortcuts';
 import { usePolizasMutations } from './usePolizasMutations';
 
 export function usePolizasManager() {
@@ -26,7 +26,6 @@ export function usePolizasManager() {
   const routerState = useRouterState();
   const toast = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const hasAutoOpenedNewRef = useRef(false);
 
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
@@ -71,47 +70,20 @@ export function usePolizasManager() {
 
   // Form State
   const [editingPolizaId, setEditingPolizaId] = useState<string | null>(null);
+  const [editorSessionId, setEditorSessionId] = useState(0);
+  const [initialSnapshot, setInitialSnapshot] = useState<PolizaEditorSnapshot | null>(null);
   const [tipo, setTipo] = useState<PolizaType>('DIARIO');
   const [fecha, setFecha] = useState<string>(defaultPeriodDate);
   const [concepto, setConcepto] = useState('');
   const [cfdiUuids, setCfdiUuids] = useState<string[]>([]);
   const cfdiUuid = cfdiUuids[0] || '';
 
-  // Queries
-  const { data: polizas = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['polizas', activeCompanyId, currentYear, currentPeriod],
-    queryFn: () => apiClient.getPolizas(activeCompanyId, currentYear ?? 2026, currentPeriod ?? 10),
-    enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
-  });
-
-  const { data: accounts = [], isLoading: isLoadingAccounts } = useQuery({
-    queryKey: ['accounts', activeCompanyId, currentYear, currentPeriod],
-    queryFn: () => apiClient.getAccounts(activeCompanyId, currentYear ?? 2026, currentPeriod ?? 10),
-    enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
-  });
-
-  const { data: cfdis = [] } = useQuery({
-    queryKey: ['cfdis', activeCompanyId],
-    queryFn: () => apiClient.getCfdis(activeCompanyId),
-    enabled: Boolean(activeCompanyId)
-  });
-
-  const { data: periodLock, isLoading: isLoadingPeriodLock } = useQuery({
-    queryKey: ['period-lock', activeCompanyId, currentYear, currentPeriod],
-    queryFn: () => apiClient.getPeriodLock(activeCompanyId, currentYear ?? 2026, currentPeriod ?? 10),
-    enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
-  });
-  const { data: period13Lock } = useQuery({
-    queryKey: ['period-lock', activeCompanyId, currentYear, 13],
-    queryFn: () => apiClient.getPeriodLock(activeCompanyId, currentYear ?? 2026, 13),
-    enabled: Boolean(activeCompanyId && currentYear)
-  });
-  const isPeriodLocked = Boolean(periodLock?.isLocked);
-  const isPeriod13Locked = currentPeriod === 13 ? isPeriodLocked : Boolean(period13Lock?.isLocked);
+  const queries = usePolizasDataQueries(activeCompanyId, currentYear, currentPeriod);
+  const {
+    polizas, accounts, cfdis, isLoadingAccounts, isLoadingPeriodLock,
+    isPeriodLocked, isPeriod13Locked, affectableAccounts
+  } = queries;
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
-
-  const affectableAccounts = useMemo(() => accounts.filter((a) => a.isAffectable), [accounts]);
-  const pendingCfdis = useMemo(() => cfdis.filter(isCfdiPendingForPoliza), [cfdis]);
 
   const predictedNextFolio = useMemo(() => {
     const existingSameType = polizas.filter((p) => p.tipo === tipo);
@@ -177,10 +149,21 @@ export function usePolizasManager() {
     setFormError(null);
     const defaultAcc1 = affectableAccounts[0]?.id || '';
     const defaultAcc2 = affectableAccounts[1]?.id || defaultAcc1;
-    setMovements([
+    const initialMovements = [
       { _rowId: crypto.randomUUID(), accountId: defaultAcc1, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 },
       { _rowId: crypto.randomUUID(), accountId: defaultAcc2, referencia: 'REF-01', concepto: '', cargo: 0, abono: 0 }
-    ]);
+    ];
+    setMovements(initialMovements);
+    setInitialSnapshot(
+      createPolizaSnapshot({
+        tipo: 'DIARIO',
+        fecha: defaultPeriodDate,
+        concepto: '',
+        cfdiUuids: [],
+        movements: initialMovements
+      })
+    );
+    setEditorSessionId((prev) => prev + 1);
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
   }, [isWriteBlocked, defaultPeriodDate, affectableAccounts, setMovements]);
@@ -191,19 +174,29 @@ export function usePolizasManager() {
     setTipo(pol.tipo);
     setFecha(pol.fecha);
     setConcepto(pol.concepto);
-    setCfdiUuids(collectPolizaUniqueUuids(pol));
+    const uniqueUuids = collectPolizaUniqueUuids(pol);
+    setCfdiUuids(uniqueUuids);
     setFormError(null);
-    setMovements(
-      pol.movements.map((m) => ({
-        _rowId: m.id || crypto.randomUUID(),
-        accountId: m.accountId,
-        referencia: m.referencia,
-        concepto: m.concepto,
-        cargo: m.cargo,
-        abono: m.abono,
-        cfdiUuid: m.cfdiUuid ?? null
-      }))
+    const editMovements = pol.movements.map((m) => ({
+      _rowId: m.id || crypto.randomUUID(),
+      accountId: m.accountId,
+      referencia: m.referencia,
+      concepto: m.concepto,
+      cargo: m.cargo,
+      abono: m.abono,
+      cfdiUuid: m.cfdiUuid ?? null
+    }));
+    setMovements(editMovements);
+    setInitialSnapshot(
+      createPolizaSnapshot({
+        tipo: pol.tipo,
+        fecha: pol.fecha,
+        concepto: pol.concepto,
+        cfdiUuids: uniqueUuids,
+        movements: editMovements
+      })
     );
+    setEditorSessionId((prev) => prev + 1);
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
   }, [isWriteBlocked, setMovements]);
@@ -213,20 +206,31 @@ export function usePolizasManager() {
     setEditingPolizaId(null);
     setTipo(pol.tipo);
     setFecha(defaultPeriodDate);
-    setConcepto(`${pol.concepto} (Copia)`);
+    const copyConcepto = `${pol.concepto} (Copia)`;
+    setConcepto(copyConcepto);
     setCfdiUuids([]);
     setFormError(null);
-    setMovements(
-      pol.movements.map((m) => ({
-        _rowId: crypto.randomUUID(),
-        accountId: m.accountId,
-        referencia: m.referencia,
-        concepto: m.concepto,
-        cargo: m.cargo,
-        abono: m.abono
-      }))
+    const dupMovements = pol.movements.map((m) => ({
+      _rowId: crypto.randomUUID(),
+      accountId: m.accountId,
+      referencia: m.referencia,
+      concepto: m.concepto,
+      cargo: m.cargo,
+      abono: m.abono
+    }));
+    setMovements(dupMovements);
+    setInitialSnapshot(
+      createPolizaSnapshot({
+        tipo: pol.tipo,
+        fecha: defaultPeriodDate,
+        concepto: copyConcepto,
+        cfdiUuids: [],
+        movements: dupMovements
+      })
     );
+    setEditorSessionId((prev) => prev + 1);
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+    requestAnimationFrame(() => document.getElementById('pol-concepto')?.focus());
     toast.info('Póliza Duplicada', 'Revisa los importes y fecha antes de guardar.');
   };
 
@@ -299,42 +303,31 @@ export function usePolizasManager() {
     [fecha, currentYear, currentPeriod]
   );
 
-  useEffect(() => {
-    if (!isNewRequested) {
-      hasAutoOpenedNewRef.current = false;
-      return;
-    }
-    if (isLoadingAccounts || isLoadingPeriodLock) return;
-    if (hasAutoOpenedNewRef.current) return;
-    hasAutoOpenedNewRef.current = true;
-    if (!isWriteBlocked && accounts.length > 0) {
-      openNewPolizaModal();
-    }
-  }, [isNewRequested, isLoadingAccounts, isLoadingPeriodLock, isWriteBlocked, accounts.length, openNewPolizaModal]);
+  const handleUseActivePeriodDate = useCallback(() => {
+    setFecha(defaultPeriodDate);
+  }, [defaultPeriodDate]);
 
-  useEffect(() => {
-    function handleGlobalKeyDown(e: KeyboardEvent) {
-      if ((e.altKey && (e.key === 'n' || e.key === 'N')) || e.key === 'Insert') {
-        if (!isWriteBlocked && !dialogRef.current?.open) {
-          e.preventDefault();
-          openNewPolizaModal();
-        }
-      }
-    }
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isWriteBlocked, openNewPolizaModal]);
+  usePolizasKeyboardShortcuts({
+    dialogRef,
+    isNewRequested,
+    isLoadingAccounts,
+    isLoadingPeriodLock,
+    isWriteBlocked,
+    accountsCount: accounts.length,
+    openNewPolizaModal
+  });
 
   return {
     activeCompany, activeCompanyId, currentYear, currentPeriod,
-    isPeriodLocked, isPeriod13Locked, isReadOnlyClient, isWriteBlocked, dialogRef,
-    polizas, filteredPolizas, filteredPolizasTotals, isLoading, isError, error, refetch,
+    ...queries, isReadOnlyClient, isWriteBlocked, dialogRef,
+    filteredPolizas, filteredPolizasTotals,
     filterTipo, setFilterTipo, originFilter, setOriginFilter,
     searchQuery, setSearchQuery, compactMode, setCompactMode,
     expandedIds, setExpandedIds, confirmDeleteId, setConfirmDeleteId,
     ledgerAccountId, setLedgerAccountId, copiedPolizaId, editingPolizaId,
+    editorSessionId, initialSnapshot, handleUseActivePeriodDate,
     tipo, setTipo, fecha, setFecha, concepto, setConcepto,
-    cfdiUuid, cfdiUuids, cfdis, formError, setFormError, accounts, affectableAccounts, pendingCfdis,
+    cfdiUuid, cfdiUuids, formError, setFormError,
     predictedNextFolio, isDateDifferentPeriod, savePolizaMutation, deletePolizaMutation,
     closeYearMutation, createPedimentoMutation, isPedimentoModalOpen, setIsPedimentoModalOpen,
     openNewPolizaModal, openEditPolizaModal, openDuplicatePolizaModal,

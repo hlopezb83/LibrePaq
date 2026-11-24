@@ -80,6 +80,18 @@ export function Anexo24Tab({
       ? !isValidSatNumOrden(capturedFolio)
       : !isValidSatNumTramite(capturedFolio));
   const hasSolicitudWarning = missingSolicitudFolio || invalidSolicitudFolio;
+  const isMissingFechaModBal =
+    satXmlType === 'balanza' &&
+    anexo24Options.tipoEnvio === 'C' &&
+    !anexo24Options.fechaModBal.trim();
+  const isDownloadBlocked = !satXmlData || hasSolicitudWarning || isMissingFechaModBal;
+  const blockedDownloadTitle = !satXmlData
+    ? 'Esperando generación del archivo XML Anexo 24...'
+    : isMissingFechaModBal
+      ? 'Captura la FechaModBal requerida para envío Complementario (C)'
+      : missingSolicitudFolio
+        ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
+        : `Corrige el formato de ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} antes de descargar`;
 
   const handleCopy = () => {
     if (!satXmlData?.xml) return;
@@ -166,11 +178,11 @@ export function Anexo24Tab({
             <button
               type="button"
               onClick={handleDownloadZip}
-              disabled={!satXmlData}
+              disabled={isDownloadBlocked}
               title={
-                satXmlData
-                  ? `Empaquetar ${satXmlData.filename} en .ZIP oficial para Buzón Tributario`
-                  : 'Esperando generación del archivo XML Anexo 24...'
+                isDownloadBlocked
+                  ? blockedDownloadTitle
+                  : `Empaquetar ${satXmlData.filename} en .ZIP oficial para Buzón Tributario`
               }
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-700 text-white hover:bg-emerald-800 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
@@ -180,11 +192,11 @@ export function Anexo24Tab({
             <button
               type="button"
               onClick={onDownloadXml}
-              disabled={!satXmlData}
+              disabled={isDownloadBlocked}
               title={
-                satXmlData
-                  ? `Descargar ${satXmlData.filename} sin comprimir`
-                  : 'Esperando generación del archivo XML Anexo 24...'
+                isDownloadBlocked
+                  ? blockedDownloadTitle
+                  : `Descargar ${satXmlData.filename} sin comprimir`
               }
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
@@ -243,16 +255,18 @@ export function Anexo24Tab({
             <span>
               Archivo oficial: <strong className="text-blue-700 break-all">{satXmlData.filename}</strong> ({satXmlData.type})
             </span>
-            {hasSolicitudWarning ? (
+            {hasSolicitudWarning || isMissingFechaModBal ? (
               <span
                 role="status"
                 className="inline-flex items-center gap-1 text-amber-900 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300"
               >
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
                 <span>
-                  {missingSolicitudFolio
-                    ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
-                    : `${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} con formato inválido`}
+                  {isMissingFechaModBal
+                    ? 'Captura FechaModBal requerida para envío Complementario (C)'
+                    : missingSolicitudFolio
+                      ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
+                      : `${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} con formato inválido`}
                 </span>
               </span>
             ) : (

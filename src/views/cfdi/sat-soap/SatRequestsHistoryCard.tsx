@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { SatDownloadRequestRecord } from '../../../shared/types';
 import { useToast } from '../../../context/ToastContext';
+import { translateSatErrorCode } from './satErrorTranslator';
 
 export interface SatRequestsHistoryCardProps {
   satRequests: SatDownloadRequestRecord[];
@@ -26,6 +27,7 @@ export function SatRequestsHistoryCard({
   isReadOnlyClient = false
 }: SatRequestsHistoryCardProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const toast = useToast();
 
   if (satRequests.length === 0) return null;
@@ -33,6 +35,12 @@ export function SatRequestsHistoryCard({
   const hasPending = satRequests.some(
     (r) => r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO'
   );
+  const visibleRequests = showAll ? satRequests : satRequests.slice(0, 10);
+  const verifyDisabledReason = isReadOnlyClient
+    ? 'Modo solo lectura: consulta SAT deshabilitada'
+    : isVerifyingPending
+    ? 'Consultando estatus de solicitudes ante el SAT...'
+    : 'Consultar al SAT estatus de las solicitudes pendientes';
 
   const handleCopy = (folio: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -74,26 +82,32 @@ export function SatRequestsHistoryCard({
             type="button"
             disabled={isVerifyingPending || isReadOnlyClient}
             onClick={onVerifyPending}
-            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            title="Consultar al SAT estatus de las solicitudes pendientes"
+            aria-label={isVerifyingPending ? 'Consultando al SAT solicitudes pendientes' : 'Comprobar con el SAT solicitudes pendientes'}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            title={verifyDisabledReason}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingPending ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span className="hidden sm:inline">{isVerifyingPending ? 'Consultando...' : '↻ Comprobar con el SAT'}</span>
+            <span className="hidden sm:inline">
+              {isVerifyingPending ? 'Consultando...' : 'Comprobar con el SAT'}
+            </span>
           </button>
         )}
       </div>
 
       {isOpen && (
         <div className="p-3 sm:p-4 border-t border-slate-200 bg-white space-y-2.5">
-          <p className="text-[11px] text-slate-500 leading-relaxed">
+          <p className="text-[11px] text-slate-600 leading-relaxed">
             Registro oficial de peticiones comunicadas con los Servicios Oficiales del SAT para esta empresa.
           </p>
 
           <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden font-mono text-xs">
-            {satRequests.slice(0, 10).map((r) => {
+            {visibleRequests.map((r) => {
               const isDone = r.estadoSolicitud === 'TERMINADA';
               const isError = r.estadoSolicitud === 'ERROR';
               const isPending = r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO';
+              const translated = isError
+                ? translateSatErrorCode(r.codigoEstadoSat, r.mensajeSat)
+                : null;
 
               return (
                 <div
@@ -103,9 +117,10 @@ export function SatRequestsHistoryCard({
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-slate-800 font-sans text-xs">
+                        <span aria-hidden="true">{r.tipoSolicitud === 'EMITIDOS' ? '📤 ' : '📥 '}</span>
                         {r.tipoSolicitud === 'EMITIDOS'
-                          ? '📤 Emitidas (Ingresos)'
-                          : '📥 Recibidas (Gastos)'}
+                          ? 'Emitidas (Ingresos)'
+                          : 'Recibidas (Gastos)'}
                       </span>
                       <span className="text-slate-500" aria-hidden="true">•</span>
                       <span className="text-slate-600 text-[11px]">
@@ -130,7 +145,7 @@ export function SatRequestsHistoryCard({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 self-start md:self-center font-sans">
+                  <div className="flex items-center gap-2 shrink-0 self-start md:self-center font-sans flex-wrap">
                     {isDone && (r.cfdisDescargados || 0) > 0 && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
@@ -146,7 +161,7 @@ export function SatRequestsHistoryCard({
 
                     {isPending && (
                       <div className="flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 animate-pulse">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
                           <Clock className="w-3.5 h-3.5 text-blue-600" aria-hidden="true" />
                           En proceso SAT
                         </span>
@@ -155,29 +170,26 @@ export function SatRequestsHistoryCard({
                             type="button"
                             disabled={isVerifyingPending || isReadOnlyClient}
                             onClick={onVerifyPending}
-                            className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[10px] font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Comprobar estatus oficial en el SAT"
+                            className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[11px] font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={verifyDisabledReason}
                           >
-                            ↻ Comprobar
+                            Comprobar
                           </button>
                         )}
                       </div>
                     )}
 
-                    {isError && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900" title={r.mensajeSat || ''}>
+                    {isError && translated && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900"
+                        title={r.mensajeSat || translated.explanation}
+                      >
                         <XCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                        {r.codigoEstadoSat === '301'
-                          ? 'Fecha futura (301)'
-                          : r.codigoEstadoSat === '5004'
-                          ? 'Sin CFDIs (5004)'
-                          : r.codigoEstadoSat === '5' || r.codigoEstadoSat === '5002'
-                          ? 'Ya atendida (5)'
-                          : `Rechazada (${r.codigoEstadoSat || '5'})`}
+                        {translated.shortLabel}
                       </span>
                     )}
 
-                    <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+                    <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
                       {r.createdAt?.slice(5, 16).replace('T', ' ')}
                     </span>
                   </div>
@@ -185,6 +197,18 @@ export function SatRequestsHistoryCard({
               );
             })}
           </div>
+
+          {satRequests.length > 10 && (
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAll((v) => !v)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 cursor-pointer transition"
+              >
+                {showAll ? 'Mostrar últimas 10' : `Ver todas (${satRequests.length})`}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

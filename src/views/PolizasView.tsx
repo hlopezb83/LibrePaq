@@ -58,6 +58,7 @@ export function PolizasView() {
 
       {/* Barra de Filtros y Acciones */}
       <PolizasFilterBar
+        currentYear={m.currentYear}
         polizas={m.polizas}
         filteredPolizas={m.filteredPolizas}
         filterTipo={m.filterTipo}
@@ -67,7 +68,13 @@ export function PolizasView() {
         searchQuery={m.searchQuery}
         setSearchQuery={m.setSearchQuery}
         compactMode={m.compactMode}
-        setCompactMode={m.setCompactMode}
+        setCompactMode={(updater) => {
+          m.setCompactMode((prev) => {
+            const next = updater(prev);
+            if (next) m.setExpandedIds({});
+            return next;
+          });
+        }}
         filteredTotals={m.filteredPolizasTotals}
         isPeriodLocked={m.isPeriodLocked}
         isPeriod13Locked={m.isPeriod13Locked}
@@ -108,9 +115,32 @@ export function PolizasView() {
           role="status"
           aria-live="polite"
           aria-busy="true"
-          className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500"
+          className="space-y-4"
         >
-          Cargando pólizas del periodo...
+          <span className="visually-hidden">Cargando pólizas del periodo...</span>
+          {[0, 1, 2].map((idx) => (
+            <div
+              key={idx}
+              aria-hidden="true"
+              className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 animate-pulse shadow-2xs"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-6 w-24 rounded-lg bg-slate-200" />
+                  <div className="h-4 w-20 rounded bg-slate-200" />
+                  <div className="h-4 w-56 rounded bg-slate-200" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-28 rounded bg-slate-200" />
+                  <div className="h-6 w-20 rounded-full bg-slate-200" />
+                </div>
+              </div>
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="h-4 w-full rounded bg-slate-100" />
+                <div className="h-4 w-5/6 rounded bg-slate-100" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : m.filteredPolizas.length === 0 ? (
         <div className="p-12 bg-white rounded-2xl border border-slate-300 text-center space-y-4 shadow-2xs">
@@ -193,6 +223,7 @@ export function PolizasView() {
                 isExactMatch={isExactMatch}
                 isPeriodLocked={m.isPeriodLocked}
                 isReadOnlyClient={m.isReadOnlyClient}
+                isDeleting={m.deletePolizaMutation.isPending && m.deletePolizaMutation.variables === pol.id}
                 copiedPolizaId={m.copiedPolizaId}
                 confirmDeleteId={m.confirmDeleteId}
                 onToggleExpand={(id) =>
@@ -249,6 +280,9 @@ export function PolizasView() {
         difference={m.difference}
         isBalanced={m.isBalanced}
         isDateDifferentPeriod={m.isDateDifferentPeriod}
+        onUseActivePeriodDate={m.handleUseActivePeriodDate}
+        editorSessionId={m.editorSessionId}
+        initialSnapshot={m.initialSnapshot}
         isPendingSave={m.savePolizaMutation.isPending}
         onSave={() => m.savePolizaMutation.mutate()}
       />

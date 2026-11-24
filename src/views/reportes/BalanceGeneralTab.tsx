@@ -38,6 +38,9 @@ export function BalanceGeneralTab({
     0
   ).getDate();
   const isLoss = balanceSheet.utilidadEjercicio < 0;
+  const totalCapital =
+    balanceSheet.totalCapital ??
+    balanceSheet.totalPasivoMasCapital - balanceSheet.totalPasivo;
   const isBalanced =
     balanceSheet.isBalanced ??
     Math.abs(balanceSheet.totalActivo - balanceSheet.totalPasivoMasCapital) < 0.05;
@@ -176,9 +179,11 @@ export function BalanceGeneralTab({
 
           <div className="mt-6 pt-3 border-t-2 border-slate-900 flex justify-between items-center text-sm font-bold text-slate-900">
             <span>TOTAL ACTIVO</span>
-            <span className="flex items-center gap-3 font-mono text-base text-blue-800 shrink-0">
+            <span className="flex items-center gap-3 font-mono tabular-nums text-base text-blue-800 shrink-0">
               <span>{formatCurrency(balanceSheet.totalActivo)}</span>
-              <span className="text-xs text-slate-600">100.0%</span>
+              <span className="w-12 text-right text-xs text-slate-600">
+                {formatVerticalPct(balanceSheet.totalActivo, balanceSheet.totalActivo)}
+              </span>
             </span>
           </div>
         </div>
@@ -266,14 +271,25 @@ export function BalanceGeneralTab({
                   </div>
                 )}
               </div>
+              <div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-900 px-2">
+                <span>Total Capital Contable</span>
+                <span className="flex items-center gap-3 font-mono tabular-nums shrink-0">
+                  <span className={totalCapital < 0 ? 'text-red-700' : ''}>{formatCurrency(totalCapital)}</span>
+                  <span className="w-12 text-right text-[11px] text-slate-600">
+                    {formatVerticalPct(totalCapital, balanceSheet.totalActivo)}
+                  </span>
+                </span>
+              </div>
             </div>
           </div>
 
           <div className="pt-3 border-t-2 border-slate-900 flex justify-between items-center text-sm font-bold text-slate-900">
             <span>TOTAL PASIVO + CAPITAL</span>
-            <span className="flex items-center gap-3 font-mono text-base text-blue-800 shrink-0">
+            <span className="flex items-center gap-3 font-mono tabular-nums text-base text-blue-800 shrink-0">
               <span>{formatCurrency(balanceSheet.totalPasivoMasCapital)}</span>
-              <span className="text-xs text-slate-600">100.0%</span>
+              <span className="w-12 text-right text-xs text-slate-600">
+                {formatVerticalPct(balanceSheet.totalPasivoMasCapital, balanceSheet.totalActivo)}
+              </span>
             </span>
           </div>
         </div>

@@ -22,6 +22,8 @@ export function DiotBancosView() {
     toast,
     activeTab,
     setActiveTab,
+    classifySupplierRequest,
+    setClassifySupplierRequest,
     setSelectedBankId,
     copiedBatch,
     setCopiedBatch,
@@ -54,6 +56,7 @@ export function DiotBancosView() {
     unmatchBankLineMutation,
     addBankLineMutation,
     activeBankLineId,
+    isCsvUploading,
     handleCsvUpload,
     handleDownloadDiotTxt,
     handleExportDiotCsv,
@@ -112,6 +115,7 @@ export function DiotBancosView() {
             onOpenLedger={openLedger}
             csvInputRef={csvInputRef}
             onCsvUpload={handleCsvUpload}
+            isCsvUploading={isCsvUploading}
             isPeriodLocked={isPeriodLocked}
             isReadOnlyClient={isReadOnlyClient}
             addBankModalRef={addBankModalRef}
@@ -156,6 +160,15 @@ export function DiotBancosView() {
             onDownloadDiotTxt={handleDownloadDiotTxt}
             copiedBatch={copiedBatch}
             setCopiedBatch={setCopiedBatch}
+            onClassifySupplier={(row) => {
+              setClassifySupplierRequest({
+                rfc: row.rfc,
+                nombre: row.nombre,
+                tipoTercero: row.tipoTercero === '05' ? '05' : '04',
+                tipoOperacion: row.tipoOperacion === '06' || row.tipoOperacion === '85' ? row.tipoOperacion : '03'
+              });
+              setActiveTab('PADRON_RFC');
+            }}
           />
         </div>
       )}
@@ -168,6 +181,8 @@ export function DiotBancosView() {
             accounts={accounts}
             isReadOnlyClient={isReadOnlyClient}
             onFeedback={handleFeedback}
+            initialRfcToClassify={classifySupplierRequest}
+            onClearInitialClassify={() => setClassifySupplierRequest(null)}
           />
         </div>
       )}

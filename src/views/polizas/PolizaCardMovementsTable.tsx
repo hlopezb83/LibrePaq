@@ -1,4 +1,4 @@
-import { BookOpen } from 'lucide-react';
+import { BookOpen, FileCode2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { Poliza } from '../../shared/types';
 
@@ -61,7 +61,18 @@ export function PolizaCardMovementsTable({
               </td>
               <td className="py-2 px-4 font-medium text-slate-800">{mov.accountName}</td>
               <td className="py-2 px-4 font-mono text-slate-600 whitespace-nowrap">{mov.referencia}</td>
-              <td className="py-2 px-4 text-slate-600">{mov.concepto}</td>
+              <td className="py-2 px-4 text-slate-600">
+                <div>{mov.concepto}</div>
+                {mov.cfdiUuid && (
+                  <span
+                    title={`UUID CFDI vinculado: ${mov.cfdiUuid}`}
+                    className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono text-[10px]"
+                  >
+                    <FileCode2 className="w-2.5 h-2.5 text-blue-700" aria-hidden="true" />
+                    UUID: {mov.cfdiUuid.slice(0, 12)}...
+                  </span>
+                )}
+              </td>
               <td className="py-2 px-4 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                 {mov.cargo > 0 ? formatCurrency(mov.cargo) : '—'}
               </td>

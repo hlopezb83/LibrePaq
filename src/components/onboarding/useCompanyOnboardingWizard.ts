@@ -43,11 +43,16 @@ export function useCompanyOnboardingWizard({
     'SAT_STANDARD' | 'RESICO_SIMPLIFIED' | 'CUSTOM'
   >('SAT_STANDARD');
 
-  // Step 3: Tesorería y Bancos (Apagado por defecto para no crear saldos falsos no solicitados)
-  const [initialBankName, setInitialBankName] = useState('BBVA México');
+  // Step 3: Tesorería y Bancos (Omitido por defecto para no crear saldos falsos no solicitados)
+  const [initialBankName, setInitialBankName] = useState('');
   const [initialBankAccount, setInitialBankAccount] = useState('');
-  const [initialBankBalance, setInitialBankBalance] = useState<number>(0);
+  const [initialBankBalanceDraft, setInitialBankBalanceDraft] = useState('');
   const [createOpeningEntry, setCreateOpeningEntry] = useState(false);
+
+  const initialBankBalance = useMemo(() => {
+    const n = Number(initialBankBalanceDraft);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [initialBankBalanceDraft]);
 
   // Step 4: e.firma (Omitir por defecto para no frenar el alta inicial)
   const [skipFiel, setSkipFiel] = useState(true);
@@ -78,9 +83,9 @@ export function useCompanyOnboardingWizard({
     setCurrentYear(defaultYear);
     setCurrentPeriod(defaultPeriod);
     setCatalogPreset('SAT_STANDARD');
-    setInitialBankName('BBVA México');
+    setInitialBankName('');
     setInitialBankAccount('');
-    setInitialBankBalance(0);
+    setInitialBankBalanceDraft('');
     setCreateOpeningEntry(false);
     setSkipFiel(true);
     setFielCerBase64(null);
@@ -109,13 +114,27 @@ export function useCompanyOnboardingWizard({
       ? /^[A-Z&Ñ]{3}[0-9]{6}[A-Z0-9]{3}$/.test(rfc)
       : /^[A-Z&Ñ]{4}[0-9]{6}[A-Z0-9]{3}$/.test(rfc);
 
+  const isCodigoPostalValid = /^(?!00000)\d{5}$/.test(codigoPostal.trim());
+
   const rfcModulo11 = useMemo(() => (rfc ? validateRfcModulo11(rfc) : null), [rfc]);
 
   const canProceedStep1 =
     name.trim().length >= 3 &&
     isRfcValid &&
-    codigoPostal.trim().length === 5 &&
+    isCodigoPostalValid &&
     Boolean(regimenFiscal);
+
+  const isDirty = Boolean(
+    name.trim() ||
+    rfc.trim() ||
+    codigoPostal.trim() ||
+    initialBankName ||
+    initialBankAccount.trim() ||
+    initialBankBalanceDraft.trim() ||
+    !skipFiel ||
+    fielCerName ||
+    fielKeyName
+  );
 
   const handleRegimenChange = (nextRegimen: string) => {
     setRegimenFiscal(nextRegimen);
@@ -140,7 +159,13 @@ export function useCompanyOnboardingWizard({
     setErrorMessage(null);
   };
 
-  const { handleFileAutofill, handleXmlAutofill, handleCerFileChange, handleKeyFileChange } =
+  const {
+    handleFileAutofill,
+    handleXmlAutofill,
+    handleCerFileChange,
+    handleKeyFileChange,
+    handleFielDrop
+  } =
     useOnboardingAutofill({
       setXmlCandidates,
       applyXmlCandidate,
@@ -166,10 +191,10 @@ export function useCompanyOnboardingWizard({
         currentYear,
         currentPeriod,
         catalogPreset: preset,
-        initialBankName,
-        initialBankAccount,
-        initialBankBalance,
-        createOpeningEntry,
+        initialBankName: initialBankName || undefined,
+        initialBankAccount: initialBankName ? initialBankAccount : undefined,
+        initialBankBalance: initialBankName ? initialBankBalance : 0,
+        createOpeningEntry: Boolean(initialBankName && createOpeningEntry),
         fielCerBase64: skipFiel ? undefined : fielCerBase64 || undefined,
         fielKeyBase64: skipFiel ? undefined : fielKeyBase64 || undefined,
         fielPassword: skipFiel ? undefined : fielPassword || undefined
@@ -196,7 +221,11 @@ export function useCompanyOnboardingWizard({
 
   const validateStep1Modulo11 = (): boolean => {
     if (!canProceedStep1) {
-      setErrorMessage('Por favor completa Razón Social, RFC válido y Código Postal de 5 dígitos.');
+      setErrorMessage(
+        !isCodigoPostalValid
+          ? 'Ingresa un Código Postal fiscal válido de 5 dígitos (distinto de 00000).'
+          : 'Por favor completa Razón Social, RFC válido y Código Postal de 5 dígitos.'
+      );
       return false;
     }
     if (
@@ -208,7 +237,7 @@ export function useCompanyOnboardingWizard({
       !bypassRfcCheckDigit
     ) {
       setErrorMessage(
-        `Advertencia SAT Módulo 11: El dígito verificador ('${rfcModulo11.actualCheckDigit}') no coincide con el cálculo SAT ('${rfcModulo11.expectedCheckDigit}'). Pulsa "Corregir a ${rfcModulo11.expectedCheckDigit}" o vuelve a pulsar para conservar este RFC.`
+        `Advertencia dígito verificador SAT (Módulo 11): El último dígito ('${rfcModulo11.actualCheckDigit}') no coincide con el esperado ('${rfcModulo11.expectedCheckDigit}'). Pulsa "Corregir a ${rfcModulo11.expectedCheckDigit}" o vuelve a pulsar para conservar este RFC.`
       );
       setBypassRfcCheckDigit(true);
       return false;
@@ -226,12 +255,24 @@ export function useCompanyOnboardingWizard({
   const nextStep = () => {
     setErrorMessage(null);
     if (step === 1 && !validateStep1Modulo11()) return;
+    if (step === 4 && !skipFiel && (!fielCerBase64 || !fielKeyBase64 || !fielPassword.trim())) {
+      setErrorMessage(
+        'Para configurar la e.firma ahora, adjunta el certificado (.cer), la clave privada (.key) y escribe su contraseña, o selecciona "Configurar después".'
+      );
+      return;
+    }
     setStep((prev) => Math.min(5, prev + 1));
   };
 
   const prevStep = () => {
     setErrorMessage(null);
     setStep((prev) => Math.max(1, prev - 1));
+  };
+
+  const goToStep = (targetStep: number) => {
+    if (targetStep < 1 || targetStep > 5 || targetStep >= step) return;
+    setErrorMessage(null);
+    setStep(targetStep);
   };
 
   return {
@@ -256,8 +297,9 @@ export function useCompanyOnboardingWizard({
     setInitialBankName,
     initialBankAccount,
     setInitialBankAccount,
+    initialBankBalanceDraft,
+    setInitialBankBalanceDraft,
     initialBankBalance,
-    setInitialBankBalance,
     createOpeningEntry,
     setCreateOpeningEntry,
     skipFiel,
@@ -277,13 +319,17 @@ export function useCompanyOnboardingWizard({
     setShowModulo11Breakdown,
     setBypassRfcCheckDigit,
     isRfcValid,
+    isCodigoPostalValid,
+    isDirty,
     rfcModulo11,
     canProceedStep1,
     handleCerFileChange,
     handleKeyFileChange,
+    handleFielDrop,
     createCompanyMutation,
     quickCreateCompany,
     nextStep,
-    prevStep
+    prevStep,
+    goToStep
   };
 }

@@ -1,19 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BookText, Download, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
+import { AlertCircle, BookText, Download, FileSpreadsheet, Loader2, Printer, RefreshCw } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
-import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import { fromCents, sumCents } from '../../shared/accounting-engine';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { AccountWithBalance, Company, Poliza } from '../../shared/types';
 import {
   buildAuxiliarAccountBlocks,
-  escapeHtml,
   exportAuxiliaresRangeXlsx,
   exportDiarioGeneralXlsx,
-  printReportHtmlDocument
+  printDiarioOrAuxiliarReport
 } from './auxiliaresDiarioExport';
+import { AuxiliaresAccountBlocks, DiarioGeneralTable } from './AuxiliaresDiarioTables';
 
 interface AuxiliaresDiarioTabProps {
   company: Company;
@@ -46,10 +45,27 @@ export function AuxiliaresDiarioTab({
   const [onlyWithActivity, setOnlyWithActivity] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
+  useEffect(() => {
+    const p = periodo || 1;
+    setPeriodFrom(p);
+    setPeriodTo(p);
+  }, [company.id, ejercicio, periodo]);
+
+  useEffect(() => {
+    const firstCode = affectableAccounts[0]?.code;
+    const lastCode = affectableAccounts[affectableAccounts.length - 1]?.code;
+    if (firstCode && !affectableAccounts.some((a) => a.code === codeFrom)) {
+      setCodeFrom(firstCode);
+    }
+    if (lastCode && !affectableAccounts.some((a) => a.code === codeTo)) {
+      setCodeTo(lastCode);
+    }
+  }, [company.id, affectableAccounts, codeFrom, codeTo]);
+
   const effectiveFrom = Math.min(periodFrom, periodTo);
   const effectiveTo = Math.max(periodFrom, periodTo);
 
-  const { data: rangeData, isLoading } = useQuery({
+  const { data: rangeData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['auxiliares-diario', company.id, ejercicio, effectiveFrom, effectiveTo],
     queryFn: async () => {
       const periods: number[] = [];
@@ -95,7 +111,14 @@ export function AuxiliaresDiarioTab({
     [startAccounts, polizas, codeFrom, codeTo, onlyWithActivity]
   );
 
+  const hasContent = mode === 'DIARIO' ? polizas.length > 0 : auxiliarBlocks.length > 0;
+  const emptyExportTitle =
+    mode === 'DIARIO'
+      ? 'No hay pólizas en el rango seleccionado para exportar'
+      : 'No hay movimientos auxiliares en el rango seleccionado para exportar';
+
   const handleExportXlsx = async () => {
+    if (!hasContent) return;
     setIsExporting(true);
     try {
       if (mode === 'DIARIO') {
@@ -112,54 +135,33 @@ export function AuxiliaresDiarioTab({
   };
 
   const handlePrint = () => {
-    const pLabel = `P${String(effectiveFrom).padStart(2, '0')} a P${String(effectiveTo).padStart(2, '0')} · Ejercicio ${ejercicio}`;
-    if (mode === 'DIARIO') {
-      const rowsHtml = polizas
-        .flatMap((p) =>
-          p.movements.map(
-            (m) =>
-              `<tr><td class="mono">${escapeHtml(p.fecha)}</td><td class="mono">${escapeHtml(p.tipo)} #${escapeHtml(p.folio)}</td><td class="mono">${escapeHtml(m.accountCode)}</td><td>${escapeHtml(m.accountName)}</td><td>${escapeHtml(m.concepto || p.concepto)}</td><td class="right">${m.cargo > 0 ? escapeHtml(formatCurrency(m.cargo)) : '—'}</td><td class="right">${m.abono > 0 ? escapeHtml(formatCurrency(m.abono)) : '—'}</td></tr>`
-          )
-        )
-        .join('');
-      const ok = printReportHtmlDocument(
-        `Diario General — ${company.name} (${company.rfc})`,
-        pLabel,
-        `<table><thead><tr><th>Fecha</th><th>Póliza</th><th>Cuenta</th><th>Nombre</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono</th></tr></thead><tbody>${rowsHtml}</tbody><tfoot><tr><td colspan="5" class="right">SUMAS IGUALES:</td><td class="right">${escapeHtml(formatCurrency(diarioTotals.cargos))}</td><td class="right">${escapeHtml(formatCurrency(diarioTotals.abonos))}</td></tr></tfoot></table>`
-      );
-      if (!ok) toast.error('Permite ventanas emergentes para imprimir.');
-      return;
-    }
-
-    const bodyHtml = auxiliarBlocks
-      .map(
-        (b) =>
-          `<table><thead><tr><th colspan="6">${escapeHtml(b.account.code)} — ${escapeHtml(b.account.name)} (Saldo Inicial: ${escapeHtml(formatCurrency(b.initialBalance))})</th></tr><tr><th>Fecha</th><th>Póliza</th><th>Referencia</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono / Saldo: ${escapeHtml(formatCurrency(b.finalBalance))}</th></tr></thead><tbody>${b.entries
-            .map(
-              (e) =>
-                `<tr><td class="mono">${escapeHtml(e.fecha)}</td><td class="mono">${escapeHtml(e.tipoPoliza)} #${escapeHtml(e.folioPoliza)}</td><td class="mono">${escapeHtml(e.referencia)}</td><td>${escapeHtml(e.concepto)}</td><td class="right">${e.cargo > 0 ? escapeHtml(formatCurrency(e.cargo)) : '—'}</td><td class="right">${e.abono > 0 ? escapeHtml(formatCurrency(e.abono)) : '—'} (${escapeHtml(formatCurrency(e.runningBalance))})</td></tr>`
-            )
-            .join('')}</tbody><tfoot><tr><td colspan="4" class="right">Totales ${escapeHtml(b.account.code)}:</td><td class="right">${escapeHtml(formatCurrency(b.totalCharges))}</td><td class="right">${escapeHtml(formatCurrency(b.totalCredits))} · Final: ${escapeHtml(formatCurrency(b.finalBalance))}</td></tr></tfoot></table>`
-      )
-      .join('');
-    const ok = printReportHtmlDocument(
-      `Auxiliar de Movimientos — ${company.name} (${company.rfc})`,
-      `${pLabel} · Cuentas ${codeFrom} a ${codeTo}`,
-      bodyHtml
-    );
+    if (!hasContent) return;
+    const ok = printDiarioOrAuxiliarReport({
+      mode,
+      company,
+      ejercicio,
+      effectiveFrom,
+      effectiveTo,
+      codeFrom,
+      codeTo,
+      polizas,
+      diarioTotals,
+      auxiliarBlocks
+    });
     if (!ok) toast.error('Permite ventanas emergentes para imprimir.');
   };
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3">
+      <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3 no-print">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
+          <div role="group" aria-label="Modo de libro contable" className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
             <button
               type="button"
+              aria-pressed={mode === 'DIARIO'}
               onClick={() => setMode('DIARIO')}
               className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                mode === 'DIARIO' ? 'bg-white text-blue-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                mode === 'DIARIO' ? 'bg-white text-blue-900 shadow-2xs' : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <BookText className="w-3.5 h-3.5" aria-hidden="true" />
@@ -167,9 +169,10 @@ export function AuxiliaresDiarioTab({
             </button>
             <button
               type="button"
+              aria-pressed={mode === 'AUXILIAR'}
               onClick={() => setMode('AUXILIAR')}
               className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                mode === 'AUXILIAR' ? 'bg-white text-blue-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                mode === 'AUXILIAR' ? 'bg-white text-blue-900 shadow-2xs' : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <FileSpreadsheet className="w-3.5 h-3.5" aria-hidden="true" />
@@ -180,18 +183,20 @@ export function AuxiliaresDiarioTab({
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
-              disabled={isLoading || isExporting}
+              disabled={isLoading || isExporting || !hasContent}
+              title={!hasContent ? emptyExportTitle : 'Exportar reporte a Excel (.xlsx)'}
               onClick={() => void handleExportXlsx()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Download className="w-3.5 h-3.5" aria-hidden="true" />}
               Excel (.XLSX)
             </button>
             <button
               type="button"
-              disabled={isLoading}
+              disabled={isLoading || !hasContent}
+              title={!hasContent ? emptyExportTitle : 'Imprimir o guardar como PDF'}
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-semibold disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" aria-hidden="true" />
               Imprimir / PDF
@@ -226,8 +231,8 @@ export function AuxiliaresDiarioTab({
                   {affectableAccounts.map((a) => <option key={a.id} value={a.code}>{a.code} - {a.name}</option>)}
                 </select>
               </div>
-              <label className="flex items-center gap-2 self-end pb-1.5 font-semibold text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={onlyWithActivity} onChange={(e) => setOnlyWithActivity(e.target.checked)} className="rounded border-slate-300" />
+              <label htmlFor="aux-only-activity" className="flex items-center gap-2 self-end pb-1.5 font-semibold text-slate-700 cursor-pointer">
+                <input id="aux-only-activity" type="checkbox" checked={onlyWithActivity} onChange={(e) => setOnlyWithActivity(e.target.checked)} className="rounded border-slate-300" />
                 Solo cuentas con saldo o movimiento
               </label>
             </>
@@ -235,109 +240,25 @@ export function AuxiliaresDiarioTab({
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+      {isError ? (
+        <div role="alert" className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs">
+          <AlertCircle className="w-7 h-7 text-red-600 mx-auto" aria-hidden="true" />
+          <p className="text-sm font-bold text-slate-900">Error al consultar Diario General y Auxiliares</p>
+          <p className="text-xs text-slate-600">{error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}</p>
+          <button type="button" onClick={() => void refetch()} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Reintentar
+          </button>
+        </div>
+      ) : isLoading ? (
+        <div role="status" aria-live="polite" aria-busy="true" className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-600 flex items-center justify-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin text-blue-700" aria-hidden="true" />
           <span>Generando reporte contable del rango seleccionado...</span>
         </div>
       ) : mode === 'DIARIO' ? (
-        <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase text-slate-600">
-                <th className="py-2.5 px-3">Fecha</th>
-                <th className="py-2.5 px-3">Póliza</th>
-                <th className="py-2.5 px-3">Cuenta</th>
-                <th className="py-2.5 px-3">Nombre</th>
-                <th className="py-2.5 px-3">Concepto</th>
-                <th className="py-2.5 px-3 text-right">Cargo</th>
-                <th className="py-2.5 px-3 text-right">Abono</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {polizas.length === 0 ? (
-                <tr><td colSpan={7} className="py-8 text-center text-slate-500">Sin pólizas registradas en el rango de periodos.</td></tr>
-              ) : (
-                polizas.flatMap((p) =>
-                  p.movements.map((m) => (
-                    <tr key={m.id} className="hover:bg-blue-50/30">
-                      <td className="py-2 px-3 font-mono whitespace-nowrap">{formatShortDate(p.fecha)}</td>
-                      <td className="py-2 px-3 font-mono font-bold text-blue-900 whitespace-nowrap">{p.tipo} #{p.folio}</td>
-                      <td className="py-2 px-3 font-mono">
-                        <button type="button" onClick={() => onSelectAccount(m.accountId)} className="text-blue-800 hover:underline font-bold cursor-pointer">
-                          {m.accountCode}
-                        </button>
-                      </td>
-                      <td className="py-2 px-3 text-slate-800">{m.accountName}</td>
-                      <td className="py-2 px-3 text-slate-600">{m.concepto || p.concepto}</td>
-                      <td className="py-2 px-3 text-right font-mono">{m.cargo > 0 ? formatCurrency(m.cargo) : '—'}</td>
-                      <td className="py-2 px-3 text-right font-mono">{m.abono > 0 ? formatCurrency(m.abono) : '—'}</td>
-                    </tr>
-                  ))
-                )
-              )}
-            </tbody>
-            <tfoot className="bg-[#0A1120] text-white font-mono font-bold">
-              <tr>
-                <td colSpan={5} className="py-2.5 px-3 text-right uppercase">Sumas Iguales ({polizas.length} pólizas):</td>
-                <td className="py-2.5 px-3 text-right text-cyan-300">{formatCurrency(diarioTotals.cargos)}</td>
-                <td className="py-2.5 px-3 text-right text-cyan-300">{formatCurrency(diarioTotals.abonos)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <DiarioGeneralTable polizas={polizas} diarioTotals={diarioTotals} onSelectAccount={onSelectAccount} />
       ) : (
-        <div className="space-y-4">
-          {auxiliarBlocks.length === 0 ? (
-            <div className="p-8 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
-              No se encontraron cuentas con saldo o movimiento en el rango seleccionado.
-            </div>
-          ) : (
-            auxiliarBlocks.map((b) => (
-              <div key={b.account.id} className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-x-auto">
-                <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <button type="button" onClick={() => onSelectAccount(b.account.id)} className="font-bold text-blue-900 hover:underline cursor-pointer">
-                    <span className="font-mono mr-1.5">{b.account.code}</span>{b.account.name}
-                  </button>
-                  <div className="font-mono flex flex-wrap gap-3 text-[11px]">
-                    <span>Inicial: <strong>{formatCurrency(b.initialBalance)}</strong></span>
-                    <span>Cargos: <strong>{formatCurrency(b.totalCharges)}</strong></span>
-                    <span>Abonos: <strong>{formatCurrency(b.totalCredits)}</strong></span>
-                    <span className="text-blue-900">Final: <strong>{formatCurrency(b.finalBalance)}</strong></span>
-                  </div>
-                </div>
-                {b.entries.length > 0 && (
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
-                        <th className="py-1.5 px-3">Fecha</th>
-                        <th className="py-1.5 px-3">Póliza</th>
-                        <th className="py-1.5 px-3">Referencia</th>
-                        <th className="py-1.5 px-3">Concepto</th>
-                        <th className="py-1.5 px-3 text-right">Cargo</th>
-                        <th className="py-1.5 px-3 text-right">Abono</th>
-                        <th className="py-1.5 px-3 text-right">Saldo</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {b.entries.map((e) => (
-                        <tr key={e.movementId} className="hover:bg-blue-50/30">
-                          <td className="py-1.5 px-3 font-mono whitespace-nowrap">{formatShortDate(e.fecha)}</td>
-                          <td className="py-1.5 px-3 font-mono font-semibold text-blue-900 whitespace-nowrap">{e.tipoPoliza} #{e.folioPoliza}</td>
-                          <td className="py-1.5 px-3 font-mono text-slate-600">{e.referencia}</td>
-                          <td className="py-1.5 px-3 text-slate-700">{e.concepto}</td>
-                          <td className="py-1.5 px-3 text-right font-mono">{e.cargo > 0 ? formatCurrency(e.cargo) : '—'}</td>
-                          <td className="py-1.5 px-3 text-right font-mono">{e.abono > 0 ? formatCurrency(e.abono) : '—'}</td>
-                          <td className="py-1.5 px-3 text-right font-mono font-bold">{formatCurrency(e.runningBalance)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+        <AuxiliaresAccountBlocks auxiliarBlocks={auxiliarBlocks} onSelectAccount={onSelectAccount} />
       )}
     </div>
   );

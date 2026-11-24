@@ -38,27 +38,53 @@ export async function uploadXmlsInSequentialBatches(params: {
   let skippedDuplicates = 0;
   let processed = 0;
 
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i]!;
-    onProgress({
-      currentBatch: i + 1,
-      totalBatches: batches.length,
-      processed,
-      total: xmls.length
-    });
-    const res = await apiClient.batchUploadCfdiXmls(companyId, batch);
-    uploadedCount += res.uploaded.length;
-    skippedDuplicates += res.skippedDuplicates;
-    processed += batch.length;
-    onProgress({
-      currentBatch: i + 1,
-      totalBatches: batches.length,
-      processed,
-      total: xmls.length
+  try {
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i]!;
+      onProgress({
+        currentBatch: i + 1,
+        totalBatches: batches.length,
+        processed,
+        total: xmls.length
+      });
+      const res = await apiClient.batchUploadCfdiXmls(companyId, batch);
+      uploadedCount += res.uploaded.length;
+      skippedDuplicates += res.skippedDuplicates;
+      processed += batch.length;
+      onProgress({
+        currentBatch: i + 1,
+        totalBatches: batches.length,
+        processed,
+        total: xmls.length
+      });
+    }
+    return { uploadedCount, skippedDuplicates };
+  } finally {
+    onProgress(null);
+  }
+}
+
+/** Elimina CFDIs en lotes de 10 usando Promise.allSettled para tolerar fallos parciales. */
+export async function deleteCfdisInBatches(ids: string[]): Promise<{
+  deletedCount: number;
+  failures: Array<{ id: string; error: string }>;
+}> {
+  let deletedCount = 0;
+  const failures: Array<{ id: string; error: string }> = [];
+  const batches = chunkArray(ids, 10);
+  for (const batch of batches) {
+    const results = await Promise.allSettled(batch.map((id) => apiClient.deleteCfdi(id)));
+    results.forEach((result, idx) => {
+      const cfdiId = batch[idx] || '';
+      if (result.status === 'fulfilled') {
+        deletedCount += 1;
+      } else {
+        const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        failures.push({ id: cfdiId, error: msg });
+      }
     });
   }
-  onProgress(null);
-  return { uploadedCount, skippedDuplicates };
+  return { deletedCount, failures };
 }
 
 /** Extracts valid XML payloads from dropped/selected XML or ZIP files within safety bounds (no 250 cap). */

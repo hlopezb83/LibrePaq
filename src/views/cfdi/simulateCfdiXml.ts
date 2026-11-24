@@ -25,6 +25,8 @@ export function buildSimulatedCfdiXml(
   const receptorRfc = isEmitido ? payload.counterpartyRfc : activeCompany?.rfc || 'XAXX010101000';
   const receptorNombre = isEmitido ? payload.counterpartyName : activeCompany?.name || 'Mi Empresa';
 
+  const ivaTrasladado = payload.tipoComprobante === 'I' ? payload.subtotal * 0.16 : 0;
+
   return buildCfdi40Xml({
     uuid: crypto.randomUUID(),
     serie: payload.tipoComprobante === 'I' ? 'FAC' : payload.tipoComprobante === 'P' ? 'REP' : 'NOM',
@@ -37,10 +39,10 @@ export function buildSimulatedCfdiXml(
     tipoComprobante: payload.tipoComprobante,
     subtotal: payload.subtotal,
     descuento: 0,
-    ivaTrasladado: payload.subtotal * 0.16,
+    ivaTrasladado,
     isrRetenido: payload.isrRetenido,
     ivaRetenido: payload.ivaRetenido,
-    total: payload.subtotal + (payload.subtotal * 0.16) - payload.isrRetenido - payload.ivaRetenido,
+    total: payload.subtotal + ivaTrasladado - payload.isrRetenido - payload.ivaRetenido,
     moneda: 'MXN',
     tipoCambio: 1,
     formaPago: '03',

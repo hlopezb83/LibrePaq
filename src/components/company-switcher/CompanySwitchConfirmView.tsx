@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import type { Company } from '../../shared/types';
-import type { CompanyTheme } from './companyThemes';
+import { getCompanyInitials, type CompanyTheme } from './companyThemes';
 
 interface CompanySwitchConfirmViewProps {
   activeCompany: Company | null;
@@ -36,9 +36,10 @@ export function CompanySwitchConfirmView({
               </span>
               <div className="flex items-center gap-2">
                 <div
+                  aria-hidden="true"
                   className={`w-6 h-6 rounded-md ${currentTheme.bg} ${currentTheme.text} font-mono font-bold text-[10px] flex items-center justify-center shrink-0`}
                 >
-                  {activeCompany.name.slice(0, 2).toUpperCase()}
+                  {getCompanyInitials(activeCompany.name)}
                 </div>
                 <span className="text-xs font-bold text-slate-800 truncate">
                   {activeCompany.name}
@@ -57,9 +58,10 @@ export function CompanySwitchConfirmView({
             </span>
             <div className="flex items-center gap-2">
               <div
+                aria-hidden="true"
                 className={`w-6 h-6 rounded-md ${targetTheme.bg} ${targetTheme.text} font-mono font-bold text-[10px] flex items-center justify-center shrink-0 shadow-2xs`}
               >
-                {pendingTargetCompany.name.slice(0, 2).toUpperCase()}
+                {getCompanyInitials(pendingTargetCompany.name)}
               </div>
               <span className="text-xs font-bold text-slate-900 truncate">
                 {pendingTargetCompany.name}

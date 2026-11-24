@@ -23,6 +23,7 @@ export interface ConciliacionBancosTabProps {
   onOpenLedger: (id: string) => void;
   csvInputRef: React.RefObject<HTMLInputElement | null>;
   onCsvUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  isCsvUploading?: boolean;
   isPeriodLocked: boolean;
   isReadOnlyClient?: boolean;
   addBankModalRef: React.RefObject<HTMLDialogElement | null>;
@@ -113,6 +114,7 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
         onTogglePending={() => setShowOnlyPending((p) => !p)}
         csvInputRef={csvInputRef}
         onCsvUpload={onCsvUpload}
+        isCsvUploading={props.isCsvUploading}
         onOpenPdfImport={() => { if (bankPdfModalRef.current && !bankPdfModalRef.current.open) bankPdfModalRef.current.showModal(); }}
         onOpenAddLine={() => { if (addBankModalRef.current && !addBankModalRef.current.open) addBankModalRef.current.showModal(); }}
         onExportExcel={actions.handleExportExcel}
@@ -136,24 +138,40 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
         onApplyAll={() => void actions.handleApplyN1()}
       />
 
-      {selectedLine && selectedBookMov && !isWriteLocked && (
+      {(selectedLine || selectedBookMov) && !isWriteLocked && (
         <div role="region" aria-label="Emparejamiento manual 1 a 1" className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="text-blue-950">
-            <strong>Emparejamiento Manual 1-a-1:</strong> Banco <span className="font-mono">{selectedLine.referencia}</span> ({formatCurrency(selectedLine.cargoBanco || selectedLine.abonoBanco)}) ↔ Libros <span className="font-mono">{selectedBookMov.polizaFolio}</span> ({formatCurrency(selectedBookMov.cargoContable || selectedBookMov.abonoContable)})
+            {selectedLine && selectedBookMov ? (
+              <>
+                <strong>Paso 2 — Emparejamiento Manual 1-a-1:</strong> Banco{' '}
+                <span className="font-mono">{selectedLine.referencia}</span> ({formatCurrency(selectedLine.cargoBanco || selectedLine.abonoBanco)}) ↔ Libros{' '}
+                <span className="font-mono">{selectedBookMov.polizaFolio}</span> ({formatCurrency(selectedBookMov.cargoContable || selectedBookMov.abonoContable)})
+              </>
+            ) : selectedLine ? (
+              <>
+                <strong>Paso 1 de 2:</strong> Partida bancaria <span className="font-mono">{selectedLine.referencia}</span> ({formatCurrency(selectedLine.cargoBanco || selectedLine.abonoBanco)}) seleccionada. Ahora haz clic en el movimiento correspondiente en <strong>2. Movimientos Contables en Libros</strong>.
+              </>
+            ) : (
+              <>
+                <strong>Paso 1 de 2:</strong> Movimiento en libros <span className="font-mono">{selectedBookMov?.polizaFolio}</span> ({formatCurrency((selectedBookMov?.cargoContable || selectedBookMov?.abonoContable) ?? 0)}) seleccionado. Ahora haz clic en la partida bancaria correspondiente en <strong>1. Estado de Cuenta Bancario</strong>.
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button type="button" onClick={() => { actions.setSelectedLineId(null); actions.setSelectedBookMovId(null); }} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 font-semibold cursor-pointer">
               Limpiar Selección
             </button>
-            <button
-              type="button"
-              disabled={actions.manualMatchMutation.isPending}
-              onClick={() => actions.manualMatchMutation.mutate({ lineId: selectedLine.id, movementId: selectedBookMov.movementId })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold cursor-pointer disabled:opacity-50"
-            >
-              <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
-              {actions.manualMatchMutation.isPending ? 'Conciliando...' : 'Conciliar Seleccionados'}
-            </button>
+            {selectedLine && selectedBookMov && (
+              <button
+                type="button"
+                disabled={actions.manualMatchMutation.isPending}
+                onClick={() => actions.manualMatchMutation.mutate({ lineId: selectedLine.id, movementId: selectedBookMov.movementId })}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+              >
+                <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+                {actions.manualMatchMutation.isPending ? 'Conciliando...' : 'Conciliar Seleccionados'}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -179,7 +197,9 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             reconData={reconData}
             reconFormula={reconFormula}
             bankStatementFinalBalance={actions.bankStatementBalance}
-            onBankStatementFinalBalanceChange={actions.handleBankBalanceChange}
+            bankBalanceDraft={actions.bankBalanceDraft}
+            hasCapturedBankBalance={actions.hasCapturedBankBalance}
+            onBankBalanceDraftChange={actions.handleBankBalanceChange}
             isLocked={isWriteLocked}
           />
           <BankStatementTable
@@ -195,7 +215,14 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             showOnlyPending={showOnlyPending}
             selectedLineId={actions.selectedLineId}
             onSelectLine={(id) => actions.setSelectedLineId((prev) => (prev === id ? null : id))}
-            activeBankLineId={activeBankLineId}
+            activeBankLineId={
+              actions.customCreatePolizaMutation.isPending
+                ? (actions.customCreatePolizaMutation.variables?.lineId ?? null)
+                : activeBankLineId
+            }
+            onTriggerCsvImport={() => csvInputRef.current?.click()}
+            onOpenAddLine={() => { if (addBankModalRef.current && !addBankModalRef.current.open) addBankModalRef.current.showModal(); }}
+            onClearPendingFilter={() => setShowOnlyPending(false)}
           />
           <BankBookMovementsTable
             reconData={reconData}

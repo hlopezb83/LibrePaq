@@ -1,4 +1,4 @@
-import { BookOpen, Scale, Wallet } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { DashboardSummary } from '../../shared/types';
 
@@ -8,10 +8,6 @@ export interface DashboardTrendSectionProps {
   monthlyTrend: DashboardSummary['monthlyTrend'];
   maxBar: number;
   onUpdatePeriod: (year: number, period: number) => void;
-  cuentasPorCobrar: number;
-  cuentasPorPagar: number;
-  onOpenLedger: (id: string) => void;
-  activeCompanyId: string;
 }
 
 export function DashboardTrendSection({
@@ -19,117 +15,149 @@ export function DashboardTrendSection({
   currentPeriod,
   monthlyTrend,
   maxBar,
-  onUpdatePeriod,
-  cuentasPorCobrar,
-  cuentasPorPagar,
-  onOpenLedger,
-  activeCompanyId
+  onUpdatePeriod
 }: DashboardTrendSectionProps) {
+  const hasTrendData = monthlyTrend.some((m) => m.ingresos > 0 || m.egresos > 0);
+  const midBar = Math.round(maxBar / 2);
+
   return (
     <section className="lg:col-span-5 bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 sm:p-5 flex flex-col justify-between min-w-0">
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="min-w-0">
             <h2 className="text-sm sm:text-base font-bold text-slate-900">
               Evolución Ingresos vs Egresos
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Haz clic en cualquier mes para cambiar de periodo ({companyYear})
             </p>
           </div>
           <div className="flex items-center gap-3 text-[11px] font-semibold">
             <span className="flex items-center gap-1.5 text-slate-800">
-              <span className="w-2.5 h-2.5 rounded-xs bg-blue-700 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-xs bg-blue-700 inline-block" aria-hidden="true" />
               Ingresos
             </span>
-            <span className="flex items-center gap-1.5 text-slate-600">
-              <span className="w-2.5 h-2.5 rounded-xs bg-slate-400 inline-block" />
+            <span className="flex items-center gap-1.5 text-slate-700">
+              <span className="w-2.5 h-2.5 rounded-xs bg-slate-500 inline-block" aria-hidden="true" />
               Egresos
             </span>
           </div>
         </div>
 
-        <div className="overflow-x-auto pb-1">
-          <div className={`relative h-48 flex items-end justify-between gap-1.5 pt-8 pb-2 px-1.5 border-b border-slate-200 ${monthlyTrend.length > 6 ? 'min-w-[440px]' : ''}`}>
-          {/* Líneas horizontales de referencia */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-1.5 top-8 bottom-7 flex flex-col justify-between"
-          >
-            <div className="border-b border-dashed border-slate-200 w-full" />
-            <div className="border-b border-dashed border-slate-200 w-full" />
-            <div className="border-b border-dashed border-slate-200 w-full" />
+        {!hasTrendData ? (
+          <div className="py-10 px-4 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 space-y-2">
+            <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center mx-auto">
+              <BarChart3 className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <p className="text-xs font-bold text-slate-800">
+              Sin movimientos registrados en {companyYear}
+            </p>
+            <p className="text-[11px] text-slate-600 max-w-xs mx-auto">
+              Contabiliza tus CFDIs o captura pólizas para visualizar el comparativo mensual de ingresos y egresos.
+            </p>
           </div>
-
-          {monthlyTrend.map((item, idx) => {
-            const ingHeight = item.ingresos > 0 ? Math.max(6, Math.round((item.ingresos / maxBar) * 124)) : 2;
-            const egrHeight = item.egresos > 0 ? Math.max(6, Math.round((item.egresos / maxBar) * 124)) : 2;
-            const isCurrent = item.periodo === currentPeriod;
-            const utilMes = item.ingresos - item.egresos;
-            const tooltipPos =
-              idx === 0
-                ? 'left-0'
-                : idx === monthlyTrend.length - 1
-                ? 'right-0'
-                : 'left-1/2 -translate-x-1/2';
-            return (
-              <button
-                key={item.periodo}
-                type="button"
-                aria-pressed={isCurrent}
-                onClick={() => onUpdatePeriod(companyYear, item.periodo)}
-                aria-label={`Cambiar a ${item.mesNombre}: Ingresos ${formatCurrency(
-                  item.ingresos
-                )}, Egresos ${formatCurrency(item.egresos)}`}
-                className={`relative z-10 flex-1 min-w-0 flex flex-col items-center gap-1.5 py-1 rounded-xl group cursor-pointer transition ${
-                  isCurrent
-                    ? 'bg-blue-50/80 ring-1 ring-blue-300'
-                    : 'hover:bg-slate-100/70'
-                }`}
+        ) : (
+          <div className="overflow-x-auto pb-1">
+            <div
+              className={`relative h-60 flex items-end justify-between gap-1.5 pt-20 pb-2 px-1.5 border-b border-slate-200 ${
+                monthlyTrend.length > 6 ? 'min-w-[440px]' : ''
+              }`}
+            >
+              {/* Líneas horizontales de referencia y escala Y */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-1.5 top-20 bottom-7 flex flex-col justify-between"
               >
-                {/* Tooltip flotante en Hover o Foco */}
-                <div className={`pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity absolute -top-14 ${tooltipPos} z-20 bg-[#0A1120] text-white text-[10px] font-mono rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap border border-slate-700`}>
-                  <div className="text-blue-300">Ing: {formatCurrency(item.ingresos)}</div>
-                  <div className="text-slate-300">Egr: {formatCurrency(item.egresos)}</div>
-                  <div
-                    className={`border-t border-slate-700 pt-0.5 mt-0.5 font-bold ${
-                      utilMes >= 0 ? 'text-emerald-300' : 'text-red-300'
+                <div className="relative border-b border-dashed border-slate-200 w-full">
+                  <span className="absolute -top-3.5 left-0 text-[9px] font-mono tabular-nums text-slate-500 bg-white/90 px-1 rounded">
+                    {formatCurrency(maxBar)}
+                  </span>
+                </div>
+                <div className="relative border-b border-dashed border-slate-200 w-full">
+                  <span className="absolute -top-3.5 left-0 text-[9px] font-mono tabular-nums text-slate-500 bg-white/90 px-1 rounded">
+                    {formatCurrency(midBar)}
+                  </span>
+                </div>
+                <div className="relative border-b border-dashed border-slate-200 w-full">
+                  <span className="absolute -top-3.5 left-0 text-[9px] font-mono tabular-nums text-slate-500 bg-white/90 px-1 rounded">
+                    $0
+                  </span>
+                </div>
+              </div>
+
+              {monthlyTrend.map((item, idx) => {
+                const ingHeight = item.ingresos > 0 ? Math.max(6, Math.round((item.ingresos / maxBar) * 124)) : 2;
+                const egrHeight = item.egresos > 0 ? Math.max(6, Math.round((item.egresos / maxBar) * 124)) : 2;
+                const isCurrent = item.periodo === currentPeriod;
+                const utilMes = item.ingresos - item.egresos;
+                const tooltipPos =
+                  idx === 0
+                    ? 'left-0'
+                    : idx === monthlyTrend.length - 1
+                    ? 'right-0'
+                    : 'left-1/2 -translate-x-1/2';
+                return (
+                  <button
+                    key={item.periodo}
+                    type="button"
+                    aria-pressed={isCurrent}
+                    onClick={() => onUpdatePeriod(companyYear, item.periodo)}
+                    aria-label={`Cambiar a ${item.mesNombre}: Ingresos ${formatCurrency(
+                      item.ingresos
+                    )}, Egresos ${formatCurrency(item.egresos)}`}
+                    className={`relative z-10 flex-1 min-w-0 flex flex-col items-center gap-1.5 py-1 rounded-xl group cursor-pointer transition ${
+                      isCurrent
+                        ? 'bg-blue-50/80 ring-1 ring-blue-300'
+                        : 'hover:bg-slate-100/70'
                     }`}
                   >
-                    Neto: {formatCurrency(utilMes)}
-                  </div>
-                </div>
+                    {/* Tooltip flotante en Hover o Foco (contenido dentro del padding pt-20) */}
+                    <div
+                      aria-hidden="true"
+                      className={`pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity absolute bottom-full mb-1.5 ${tooltipPos} z-20 bg-[#0A1120] text-white text-[10px] font-mono tabular-nums rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap border border-slate-700`}
+                    >
+                      <div className="text-blue-300">Ing: {formatCurrency(item.ingresos)}</div>
+                      <div className="text-slate-300">Egr: {formatCurrency(item.egresos)}</div>
+                      <div
+                        className={`border-t border-slate-700 pt-0.5 mt-0.5 font-bold ${
+                          utilMes >= 0 ? 'text-emerald-300' : 'text-red-300'
+                        }`}
+                      >
+                        Neto: {formatCurrency(utilMes)}
+                      </div>
+                    </div>
 
-                <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-32">
-                  <div
-                    style={{ height: `${ingHeight}px` }}
-                    className={`w-2 sm:w-2.5 rounded-t-xs transition-all ${
-                      isCurrent
-                        ? 'bg-blue-700'
-                        : 'bg-blue-600/75 group-hover:bg-blue-700'
-                    }`}
-                  />
-                  <div
-                    style={{ height: `${egrHeight}px` }}
-                    className={`w-2 sm:w-2.5 rounded-t-xs transition-all ${
-                      isCurrent
-                        ? 'bg-slate-600'
-                        : 'bg-slate-400 group-hover:bg-slate-600'
-                    }`}
-                  />
-                </div>
-                <span
-                  className={`text-[10px] font-mono whitespace-nowrap ${
-                    isCurrent ? 'font-bold text-blue-800' : 'text-slate-600'
-                  }`}
-                >
-                  {item.mesNombre.slice(0, 3)}
-                </span>
-              </button>
-            );
-          })}
+                    <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-32" aria-hidden="true">
+                      <div
+                        style={{ height: `${ingHeight}px` }}
+                        className={`w-2 sm:w-2.5 rounded-t-xs transition-all ${
+                          isCurrent
+                            ? 'bg-blue-700'
+                            : 'bg-blue-600/80 group-hover:bg-blue-700'
+                        }`}
+                      />
+                      <div
+                        style={{ height: `${egrHeight}px` }}
+                        className={`w-2 sm:w-2.5 rounded-t-xs transition-all ${
+                          isCurrent
+                            ? 'bg-slate-700'
+                            : 'bg-slate-500 group-hover:bg-slate-700'
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={`text-[10px] font-mono whitespace-nowrap ${
+                        isCurrent ? 'font-bold text-blue-800' : 'text-slate-600'
+                      }`}
+                    >
+                      {item.mesNombre.slice(0, 3)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="visually-hidden">
           <table>
@@ -154,42 +182,6 @@ export function DashboardTrendSection({
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 min-[340px]:grid-cols-2 gap-2.5 sm:gap-3 pt-4">
-        <button
-          type="button"
-          onClick={() => onOpenLedger(`${activeCompanyId}_105-00-000`)}
-          className="p-2.5 sm:p-3 rounded-xl bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 text-left transition cursor-pointer min-w-0"
-        >
-          <div className="flex items-center justify-between gap-1 text-xs text-slate-600">
-            <span className="flex items-center gap-1 font-semibold truncate">
-              <Wallet className="w-3.5 h-3.5 text-blue-700 shrink-0" aria-hidden="true" />
-              <span className="truncate">Clientes (CxC)</span>
-            </span>
-            <BookOpen className="w-3 h-3 text-blue-700 shrink-0" aria-hidden="true" />
-          </div>
-          <div className="mt-1 text-xs sm:text-sm font-bold font-mono text-slate-900 truncate">
-            {formatCurrency(cuentasPorCobrar)}
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onOpenLedger(`${activeCompanyId}_201-00-000`)}
-          className="p-2.5 sm:p-3 rounded-xl bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 text-left transition cursor-pointer min-w-0"
-        >
-          <div className="flex items-center justify-between gap-1 text-xs text-slate-600">
-            <span className="flex items-center gap-1 font-semibold truncate">
-              <Scale className="w-3.5 h-3.5 text-slate-700 shrink-0" aria-hidden="true" />
-              <span className="truncate">Proveedores (CxP)</span>
-            </span>
-            <BookOpen className="w-3 h-3 text-blue-700 shrink-0" aria-hidden="true" />
-          </div>
-          <div className="mt-1 text-xs sm:text-sm font-bold font-mono text-slate-900 truncate">
-            {formatCurrency(cuentasPorPagar)}
-          </div>
-        </button>
       </div>
     </section>
   );

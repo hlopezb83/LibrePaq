@@ -91,7 +91,7 @@ export function AdminSatFielTable({ expiringFiels, onInspectCompanyRfc }: AdminS
                             onClick={() => void copySerie(fiel.numeroSerie, copyKey)}
                             aria-label={`Copiar número de serie ${fiel.numeroSerie}`}
                             title={isCopied ? 'Copiado' : 'Copiar número de serie'}
-                            className="p-1 rounded hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
+                            className="min-h-7 min-w-7 inline-flex items-center justify-center rounded hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-600"
                           >
                             {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
                           </button>

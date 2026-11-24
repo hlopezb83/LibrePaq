@@ -24,6 +24,7 @@ export interface AjustesEmpresaTabProps {
   periodLock?: { isLocked: boolean } | null;
   togglePeriodLockMutation: { mutate: (lock: boolean) => void; isPending: boolean };
   isReadOnly?: boolean;
+  canEditRules?: boolean;
 }
 
 export function AjustesEmpresaTab({
@@ -45,7 +46,8 @@ export function AjustesEmpresaTab({
   updateCompanyMutation,
   periodLock,
   togglePeriodLockMutation,
-  isReadOnly = false
+  isReadOnly = false,
+  canEditRules = !isReadOnly
 }: AjustesEmpresaTabProps) {
   return (
     <section className="space-y-5">
@@ -56,7 +58,15 @@ export function AjustesEmpresaTab({
         >
           <Eye className="w-4 h-4 text-sky-700 shrink-0" aria-hidden="true" />
           <span>
-            <strong>Modo Solo lectura:</strong> Puedes consultar la ficha fiscal, candado de periodo y reglas contables de la empresa, pero no realizar modificaciones.
+            {canEditRules ? (
+              <>
+                <strong>Consulta de ficha fiscal:</strong> Puedes consultar la ficha fiscal y el candado de periodo (su edición corresponde a un Contador o Socio). Las reglas contables automáticas siguen disponibles abajo.
+              </>
+            ) : (
+              <>
+                <strong>Modo Solo lectura:</strong> Puedes consultar la ficha fiscal, candado de periodo y reglas contables de la empresa, pero no realizar modificaciones.
+              </>
+            )}
           </span>
         </div>
       )}

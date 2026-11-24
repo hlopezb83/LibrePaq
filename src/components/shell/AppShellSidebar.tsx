@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
-import { Link, useRouterState } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
+import { useRouterState } from '@tanstack/react-router';
 import {
   ChevronRight,
   Eye,
-  Lock,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -16,7 +15,7 @@ import type { User } from '@supabase/supabase-js';
 import type { DespachoRole } from '../../shared/types/despacho-rbac.types';
 import { useAuth, checkIsSuperAdmin } from '../../context/AuthContext';
 import { useSupportSession } from '../../lib/support-impersonation';
-import { parseNavTarget } from './parseNavTarget';
+import { AppShellSidebarNavItem } from './AppShellSidebarNavItem';
 
 interface AppShellSidebarProps {
   sidebarCollapsed: boolean;
@@ -26,6 +25,7 @@ interface AppShellSidebarProps {
   currentPath: string;
   navItems: CommandPaletteNavItem[];
   onOpenCommandPalette: () => void;
+  onBeforeNavigate?: () => void;
   isWorkspaceEmpty?: boolean;
   onEmptyModuleClick?: (label: string) => void;
   user?: User | null;
@@ -41,6 +41,7 @@ export function AppShellSidebar({
   currentPath,
   navItems,
   onOpenCommandPalette,
+  onBeforeNavigate,
   isWorkspaceEmpty = false,
   onEmptyModuleClick,
   user,
@@ -49,6 +50,8 @@ export function AppShellSidebar({
 }: AppShellSidebarProps) {
   const { hasAdminAccess } = useAuth();
   const supportSession = useSupportSession();
+  const mobileMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const drawerCloseBtnRef = useRef<HTMLButtonElement>(null);
   const routerSearch = useRouterState({
     select: (s) => (s.location.search as Record<string, unknown>) || {}
   });
@@ -61,9 +64,11 @@ export function AppShellSidebar({
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
+    drawerCloseBtnRef.current?.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setMobileMenuOpen(false);
+        requestAnimationFrame(() => mobileMenuBtnRef.current?.focus());
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -72,7 +77,8 @@ export function AppShellSidebar({
 
   return (
     <aside
-      className={`w-full ${
+      aria-label="Barra lateral de módulos"
+      className={`dark-surface w-full ${
         sidebarCollapsed ? 'lg:w-20' : 'lg:w-72'
       } lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto bg-[#0A1120] text-slate-100 flex flex-col border-b lg:border-b-0 lg:border-r border-[#1E293B] shrink-0 no-print transition-all duration-300 ease-in-out`}
     >
@@ -95,7 +101,7 @@ export function AppShellSidebar({
               onClick={() => setSidebarCollapsed(true)}
               title="Colapsar menú lateral (Ctrl+B)"
               aria-label="Colapsar menú lateral"
-              className="hidden lg:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#111C35] transition cursor-pointer"
+              className="hidden lg:flex p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#111C35] transition cursor-pointer"
             >
               <PanelLeftClose className="w-4 h-4" aria-hidden="true" />
             </button>
@@ -120,7 +126,7 @@ export function AppShellSidebar({
                     aria-hidden="true"
                   />
                 </span>
-                <span className="text-slate-400 group-hover:text-white text-[10px] font-mono flex items-center gap-0.5">
+                <span className="text-slate-300 group-hover:text-white text-[10px] font-mono flex items-center gap-0.5">
                   <ChevronRight className="w-3 h-3" aria-hidden="true" />
                   <span aria-hidden="true">Abrir</span>
                 </span>
@@ -135,17 +141,18 @@ export function AppShellSidebar({
             onClick={onOpenCommandPalette}
             aria-label={cmdPaletteAriaLabel}
             title={cmdPaletteAriaLabel}
-            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-blue-400 hover:text-white cursor-pointer"
+            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-blue-300 hover:text-white cursor-pointer"
           >
             <Search className="w-4 h-4" aria-hidden="true" />
           </button>
           <button
+            ref={mobileMenuBtnRef}
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             aria-expanded={mobileMenuOpen}
             aria-controls="primary-sidebar-nav"
-            aria-label="Mostrar u ocultar menú de módulos"
-            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-slate-300 hover:text-white cursor-pointer"
+            aria-label={mobileMenuOpen ? 'Cerrar menú de módulos' : 'Abrir menú de módulos'}
+            className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-2 rounded-xl bg-[#111C35] border border-[#1E293B] text-slate-200 hover:text-white cursor-pointer"
           >
             {mobileMenuOpen ? (
               <X className="w-4 h-4" aria-hidden="true" />
@@ -156,24 +163,55 @@ export function AppShellSidebar({
         </div>
       </div>
 
+      {mobileMenuOpen && (
+        <div
+          aria-hidden="true"
+          onClick={() => {
+            setMobileMenuOpen(false);
+            requestAnimationFrame(() => mobileMenuBtnRef.current?.focus());
+          }}
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs lg:hidden"
+        />
+      )}
+
       <div
-        className={`flex-1 flex flex-col min-h-0 max-h-[calc(100dvh-3.25rem)] lg:max-h-none overflow-y-auto overscroll-contain ${
-          mobileMenuOpen ? 'block' : 'hidden lg:flex'
+        className={`flex-1 flex flex-col min-h-0 overflow-y-auto overscroll-contain ${
+          mobileMenuOpen
+            ? 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-[#0A1120] border-r border-[#1E293B] shadow-2xl lg:static lg:inset-auto lg:z-auto lg:w-auto lg:max-w-none lg:border-r-0 lg:shadow-none'
+            : 'hidden lg:flex'
         }`}
       >
+        {mobileMenuOpen && (
+          <div className="flex lg:hidden items-center justify-between px-3 py-2.5 border-b border-[#1E293B] shrink-0">
+            <LibrePaqLogo variant="horizontal" size="sm" theme="dark" badge="PRO" showSubtitle={false} />
+            <button
+              ref={drawerCloseBtnRef}
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                requestAnimationFrame(() => mobileMenuBtnRef.current?.focus());
+              }}
+              aria-label="Cerrar menú de módulos"
+              className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-[#111C35] cursor-pointer"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         <div className="hidden lg:block px-2.5 pt-2.5">
           {!sidebarCollapsed ? (
             <button
               type="button"
               onClick={onOpenCommandPalette}
               aria-label={cmdPaletteAriaLabel}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#111C35] hover:bg-slate-800/90 border border-[#1E293B] text-xs text-slate-300 transition cursor-pointer"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#111C35] hover:bg-slate-800/90 border border-[#1E293B] text-xs text-slate-200 transition cursor-pointer"
             >
               <span className="flex items-center gap-2">
                 <Search className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
                 <span>{cmdPalettePlaceholder}</span>
               </span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-[#0A1120] text-slate-400 rounded border border-slate-700">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-[#0A1120] text-slate-300 rounded border border-slate-700">
                 Ctrl K
               </kbd>
             </button>
@@ -183,7 +221,7 @@ export function AppShellSidebar({
               onClick={onOpenCommandPalette}
               title={cmdPaletteAriaLabel}
               aria-label={cmdPaletteAriaLabel}
-              className="w-full flex items-center justify-center p-2 rounded-xl bg-[#111C35] hover:bg-slate-800 border border-[#1E293B] text-blue-400 hover:text-white transition cursor-pointer"
+              className="w-full flex items-center justify-center p-2 rounded-xl bg-[#111C35] hover:bg-slate-800 border border-[#1E293B] text-blue-300 hover:text-white transition cursor-pointer"
             >
               <Search className="w-4 h-4" aria-hidden="true" />
             </button>
@@ -206,129 +244,25 @@ export function AppShellSidebar({
               )}
             </div>
           )}
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1" role="list">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const parsedTarget = parseNavTarget(item.to);
-            const itemTab = parsedTarget.search?.tab;
-            const isLockedModule = !isOwner && isWorkspaceEmpty && parsedTarget.to !== '/';
-            const displayLabel =
-              !isOwner && isWorkspaceEmpty && parsedTarget.to === '/' ? 'Mi Despacho' : item.label;
-            const displaySublabel =
-              !isOwner && isWorkspaceEmpty && parsedTarget.to === '/'
-                ? 'Configura tu primera empresa'
-                : isLockedModule
-                ? 'Requiere empresa activa'
-                : item.sublabel;
-
-            const isActive = isLockedModule
-              ? false
-              : !isOwner && isWorkspaceEmpty && parsedTarget.to === '/'
-              ? true
-              : isOwner
-              ? currentPath === '/admin' &&
-                (itemTab ? activeAdminTab === itemTab : !activeAdminTab || activeAdminTab === 'metrics')
-              : parsedTarget.to === '/'
-              ? currentPath === '/'
-              : currentPath.startsWith(parsedTarget.to);
-
-            return (
-              <li key={item.to}>
-                <Link
-                  to={parsedTarget.to}
-                  search={parsedTarget.search}
-                  aria-current={isActive ? 'page' : undefined}
-                  aria-disabled={isLockedModule || undefined}
-                  onClick={(e) => {
-                    if (isLockedModule) {
-                      e.preventDefault();
-                      onEmptyModuleClick?.(item.label);
-                      return;
-                    }
-                    setMobileMenuOpen(false);
-                  }}
-                  title={
-                    isLockedModule
-                      ? `Primero da de alta una empresa en tu Despacho Contable para usar ${item.label}`
-                      : `${displayLabel} (${item.shortcut}) • ${displaySublabel}`
-                  }
-                  className={`group flex items-center ${
-                    sidebarCollapsed
-                      ? 'lg:flex-col lg:justify-center px-2 py-2 text-center'
-                      : 'gap-3 px-3 py-2'
-                  } rounded-xl text-xs sm:text-sm transition-all ${
-                    isActive
-                      ? isOwner
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm border border-amber-400'
-                        : 'bg-blue-700 text-white shadow-sm font-medium border border-blue-500/30'
-                      : isLockedModule
-                      ? 'text-slate-400 hover:bg-[#111C35]/70 hover:text-slate-300 border border-transparent'
-                      : 'text-slate-300 hover:bg-[#111C35] hover:text-white border border-transparent'
-                  }`}
-                >
-                  <Icon
-                    className={`w-5 h-5 shrink-0 ${
-                      isActive
-                        ? isOwner
-                          ? 'text-slate-950'
-                          : 'text-white'
-                        : isLockedModule
-                        ? 'text-slate-500'
-                        : isOwner
-                        ? 'text-amber-400 group-hover:text-amber-300'
-                        : 'text-slate-400 group-hover:text-blue-400'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  {!sidebarCollapsed ? (
-                    <div className="leading-tight min-w-0 flex-1">
-                      <div className="truncate flex items-center justify-between gap-1">
-                        <span className="text-xs font-semibold truncate">{displayLabel}</span>
-                        {isLockedModule ? (
-                          <Lock className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
-                        ) : (
-                          <span
-                            className={`text-[9px] font-mono ${
-                              isActive
-                                ? isOwner
-                                  ? 'text-slate-900 font-bold'
-                                  : 'text-blue-200'
-                                : 'text-slate-400 group-hover:text-slate-300'
-                            }`}
-                          >
-                            {item.shortcut}
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className={`text-[10px] truncate ${
-                          isActive
-                            ? isOwner
-                              ? 'text-slate-800'
-                              : 'text-blue-100'
-                            : isLockedModule
-                            ? 'text-slate-400'
-                            : 'text-slate-400'
-                        }`}
-                      >
-                        {displaySublabel}
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="hidden lg:flex items-center justify-center text-[9px] font-mono font-semibold text-slate-400 group-hover:text-slate-200 mt-0.5">
-                      {isLockedModule ? (
-                        <Lock className="w-3 h-3" aria-hidden="true" />
-                      ) : (
-                        item.shortcut
-                      )}
-                    </span>
-                  )}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+          <ul className="grid grid-cols-1 gap-1" role="list">
+            {navItems.map((item) => (
+              <AppShellSidebarNavItem
+                key={item.to}
+                item={item}
+                isOwner={isOwner}
+                isWorkspaceEmpty={isWorkspaceEmpty}
+                currentPath={currentPath}
+                activeAdminTab={activeAdminTab}
+                sidebarCollapsed={sidebarCollapsed && !mobileMenuOpen}
+                onNavigateItem={() => {
+                  onBeforeNavigate?.();
+                  setMobileMenuOpen(false);
+                }}
+                onEmptyModuleClick={onEmptyModuleClick}
+              />
+            ))}
+          </ul>
+        </nav>
       </div>
     </aside>
   );

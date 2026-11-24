@@ -16,7 +16,11 @@ export function parseNavTarget(target: string): ParsedNavTarget {
   const params = new URLSearchParams(rawQuery);
   const search: Record<string, string> = {};
   params.forEach((value, key) => {
-    search[key] = value;
+    const cleanValue =
+      value.length >= 2 && value.startsWith('"') && value.endsWith('"')
+        ? value.slice(1, -1)
+        : value;
+    search[key] = cleanValue;
   });
   return Object.keys(search).length > 0 ? { to, search } : { to };
 }

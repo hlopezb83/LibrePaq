@@ -3,6 +3,55 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
 import type { ToastContextType } from '../../context/ToastContext';
 
+export interface FiscalParamsDraft {
+  coefUtilidad: string;
+  tcDof: string;
+  perdidasAnt: string;
+  pagosAnt: string;
+  saldoIvaAnt: string;
+}
+
+export interface FiscalSavedParams {
+  coeficienteUtilidad: number;
+  tipoCambioDofCierre: number;
+  perdidasFiscalesPendientes: number;
+  pagosProvisionalesAnteriores: number;
+  saldoFavorIvaAnterior: number;
+}
+
+function parseNonNegative(raw: string): number {
+  const cleaned = raw.replaceAll(',', '.').trim();
+  if (!cleaned) return 0;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+export function sanitizeFiscalDecimalInput(raw: string): string {
+  const normalized = raw.replaceAll(',', '.').replace(/[^0-9.]/g, '');
+  const dotIdx = normalized.indexOf('.');
+  if (dotIdx === -1) return normalized;
+  return `${normalized.slice(0, dotIdx + 1)}${normalized.slice(dotIdx + 1).replaceAll('.', '')}`;
+}
+
+/**
+ * Determina si los parámetros capturados difieren de los guardados.
+ * Si no existen parámetros previos guardados (`!savedParams`), devuelve `true`
+ * para permitir guardar la configuración inicial de la empresa/periodo.
+ */
+export function isFiscalParamsDirty(
+  draft: FiscalParamsDraft,
+  savedParams: FiscalSavedParams | null | undefined
+): boolean {
+  if (!savedParams) return true;
+  return (
+    parseNonNegative(draft.coefUtilidad) !== savedParams.coeficienteUtilidad ||
+    parseNonNegative(draft.tcDof) !== savedParams.tipoCambioDofCierre ||
+    parseNonNegative(draft.perdidasAnt) !== savedParams.perdidasFiscalesPendientes ||
+    parseNonNegative(draft.pagosAnt) !== savedParams.pagosProvisionalesAnteriores ||
+    parseNonNegative(draft.saldoIvaAnt) !== savedParams.saldoFavorIvaAnterior
+  );
+}
+
 export function useAjustesFiscalParams(
   activeCompanyId: string,
   currentYear: number,
@@ -19,27 +68,27 @@ export function useAjustesFiscalParams(
     enabled: Boolean(activeCompanyId)
   });
 
-  const [coefUtilidad, setCoefUtilidad] = useState<number>(0.1845);
-  const [tcDof, setTcDof] = useState<number>(0);
-  const [perdidasAnt, setPerdidasAnt] = useState<number>(0);
-  const [pagosAnt, setPagosAnt] = useState<number>(0);
-  const [saldoIvaAnt, setSaldoIvaAnt] = useState<number>(0);
+  const [coefUtilidad, setCoefUtilidad] = useState<string>('0.1845');
+  const [tcDof, setTcDof] = useState<string>('0');
+  const [perdidasAnt, setPerdidasAnt] = useState<string>('0');
+  const [pagosAnt, setPagosAnt] = useState<string>('0');
+  const [saldoIvaAnt, setSaldoIvaAnt] = useState<string>('0');
 
   React.useEffect(() => {
-    setCoefUtilidad(0.1845);
-    setTcDof(0);
-    setPerdidasAnt(0);
-    setPagosAnt(0);
-    setSaldoIvaAnt(0);
+    setCoefUtilidad('0.1845');
+    setTcDof('0');
+    setPerdidasAnt('0');
+    setPagosAnt('0');
+    setSaldoIvaAnt('0');
   }, [activeCompanyId]);
 
   React.useEffect(() => {
     if (fiscalWp?.parameters) {
-      setCoefUtilidad(fiscalWp.parameters.coeficienteUtilidad);
-      setTcDof(fiscalWp.parameters.tipoCambioDofCierre);
-      setPerdidasAnt(fiscalWp.parameters.perdidasFiscalesPendientes);
-      setPagosAnt(fiscalWp.parameters.pagosProvisionalesAnteriores);
-      setSaldoIvaAnt(fiscalWp.parameters.saldoFavorIvaAnterior);
+      setCoefUtilidad(String(fiscalWp.parameters.coeficienteUtilidad));
+      setTcDof(String(fiscalWp.parameters.tipoCambioDofCierre));
+      setPerdidasAnt(String(fiscalWp.parameters.perdidasFiscalesPendientes));
+      setPagosAnt(String(fiscalWp.parameters.pagosProvisionalesAnteriores));
+      setSaldoIvaAnt(String(fiscalWp.parameters.saldoFavorIvaAnterior));
     }
   }, [fiscalWp]);
 
@@ -48,15 +97,27 @@ export function useAjustesFiscalParams(
       if (!canEditFiscalConfig) {
         throw new Error('Solo un Contador o Socio puede guardar los parámetros fiscales Día 17.');
       }
+      const cuNum = Math.min(1, parseNonNegative(coefUtilidad));
+      const tcNum = parseNonNegative(tcDof);
+      const perdidasNum = parseNonNegative(perdidasAnt);
+      const pagosNum = parseNonNegative(pagosAnt);
+      const ivaNum = parseNonNegative(saldoIvaAnt);
+
+      setCoefUtilidad(String(cuNum));
+      setTcDof(String(tcNum));
+      setPerdidasAnt(String(perdidasNum));
+      setPagosAnt(String(pagosNum));
+      setSaldoIvaAnt(String(ivaNum));
+
       return apiClient.saveTaxParameters({
         companyId: activeCompanyId,
         ejercicio: currentYear,
         periodo: currentPeriod,
-        coeficienteUtilidad: Number(coefUtilidad),
-        tipoCambioDofCierre: Number(tcDof),
-        perdidasFiscalesPendientes: Number(perdidasAnt),
-        pagosProvisionalesAnteriores: Number(pagosAnt),
-        saldoFavorIvaAnterior: Number(saldoIvaAnt)
+        coeficienteUtilidad: cuNum,
+        tipoCambioDofCierre: tcNum,
+        perdidasFiscalesPendientes: perdidasNum,
+        pagosProvisionalesAnteriores: pagosNum,
+        saldoFavorIvaAnterior: ivaNum
       });
     },
     onSuccess: () => {
@@ -68,22 +129,25 @@ export function useAjustesFiscalParams(
     }
   });
 
-  const isFiscalDirty = Boolean(
-    fiscalWp?.parameters &&
-      (Number(coefUtilidad) !== fiscalWp.parameters.coeficienteUtilidad ||
-        Number(tcDof) !== fiscalWp.parameters.tipoCambioDofCierre ||
-        Number(perdidasAnt) !== fiscalWp.parameters.perdidasFiscalesPendientes ||
-        Number(pagosAnt) !== fiscalWp.parameters.pagosProvisionalesAnteriores ||
-        Number(saldoIvaAnt) !== fiscalWp.parameters.saldoFavorIvaAnterior)
+  const isFiscalDirty = isFiscalParamsDirty(
+    { coefUtilidad, tcDof, perdidasAnt, pagosAnt, saldoIvaAnt },
+    fiscalWp?.parameters
   );
 
   const resetFiscalForm = () => {
-    if (!fiscalWp?.parameters) return;
-    setCoefUtilidad(fiscalWp.parameters.coeficienteUtilidad);
-    setTcDof(fiscalWp.parameters.tipoCambioDofCierre);
-    setPerdidasAnt(fiscalWp.parameters.perdidasFiscalesPendientes);
-    setPagosAnt(fiscalWp.parameters.pagosProvisionalesAnteriores);
-    setSaldoIvaAnt(fiscalWp.parameters.saldoFavorIvaAnterior);
+    if (!fiscalWp?.parameters) {
+      setCoefUtilidad('0.1845');
+      setTcDof('0');
+      setPerdidasAnt('0');
+      setPagosAnt('0');
+      setSaldoIvaAnt('0');
+      return;
+    }
+    setCoefUtilidad(String(fiscalWp.parameters.coeficienteUtilidad));
+    setTcDof(String(fiscalWp.parameters.tipoCambioDofCierre));
+    setPerdidasAnt(String(fiscalWp.parameters.perdidasFiscalesPendientes));
+    setPagosAnt(String(fiscalWp.parameters.pagosProvisionalesAnteriores));
+    setSaldoIvaAnt(String(fiscalWp.parameters.saldoFavorIvaAnterior));
   };
 
   return {

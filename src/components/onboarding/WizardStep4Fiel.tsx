@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import { Eye, EyeOff, FileKey2, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, FileKey2, KeyRound, Lock, ShieldCheck, UploadCloud } from 'lucide-react';
 
 interface WizardStep4FielProps {
   skipFiel: boolean;
@@ -11,6 +11,7 @@ interface WizardStep4FielProps {
   setFielPassword: (password: string) => void;
   onCerFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onFielDrop?: (files: FileList) => void;
 }
 
 export function WizardStep4Fiel({
@@ -21,9 +22,12 @@ export function WizardStep4Fiel({
   fielPassword,
   setFielPassword,
   onCerFileChange,
-  onKeyFileChange
+  onKeyFileChange,
+  onFielDrop
 }: WizardStep4FielProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
@@ -31,7 +35,7 @@ export function WizardStep4Fiel({
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
             Credenciales Criptográficas (FIEL / e.firma)
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-600">
             Permite la descarga masiva directa de facturas y complementos desde los servidores del SAT.
           </p>
         </div>
@@ -50,17 +54,44 @@ export function WizardStep4Fiel({
       </div>
 
       {!skipFiel ? (
-        <div className="space-y-3.5 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (e.dataTransfer.files?.length) {
+              onFielDrop?.(e.dataTransfer.files);
+            }
+          }}
+          className={`space-y-3.5 p-4 rounded-2xl border transition ${
+            isDragging
+              ? 'bg-blue-50/80 border-blue-600 ring-2 ring-blue-400/30'
+              : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <div className="flex items-center gap-2 text-xs text-slate-700 bg-white border border-dashed border-blue-300 rounded-xl px-3 py-2">
+            <UploadCloud className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
+            <span>
+              Arrastra juntos tus archivos <strong className="font-mono">.cer</strong> y{' '}
+              <strong className="font-mono">.key</strong> aquí, o selecciónalos manualmente:
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label
-                htmlFor="wizard-fiel-cer-input"
+              <span
+                id="wizard-fiel-cer-label"
                 className="block text-xs font-bold text-slate-700 mb-1"
               >
                 Certificado (.cer) *
-              </label>
+              </span>
               <label
                 htmlFor="wizard-fiel-cer-input"
+                aria-labelledby="wizard-fiel-cer-label"
                 className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer focus-within:outline-2 focus-within:outline-blue-700"
               >
                 <span className="truncate">{fielCerName || 'Seleccionar .cer...'}</span>
@@ -76,14 +107,15 @@ export function WizardStep4Fiel({
             </div>
 
             <div>
-              <label
-                htmlFor="wizard-fiel-key-input"
+              <span
+                id="wizard-fiel-key-label"
                 className="block text-xs font-bold text-slate-700 mb-1"
               >
                 Clave Privada (.key) *
-              </label>
+              </span>
               <label
                 htmlFor="wizard-fiel-key-input"
+                aria-labelledby="wizard-fiel-key-label"
                 className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 cursor-pointer focus-within:outline-2 focus-within:outline-blue-700"
               >
                 <span className="truncate">{fielKeyName || 'Seleccionar .key...'}</span>
@@ -101,7 +133,7 @@ export function WizardStep4Fiel({
 
           <div>
             <label htmlFor="wizard-fiel-pass" className="block text-xs font-bold text-slate-700 mb-1">
-              Contraseña de Clave Privada (.key)
+              Contraseña de Clave Privada (.key) *
             </label>
             <div className="relative">
               <input
@@ -117,17 +149,21 @@ export function WizardStep4Fiel({
                 onClick={() => setShowPassword((prev) => !prev)}
                 aria-pressed={showPassword}
                 aria-label={showPassword ? 'Ocultar contraseña de clave privada' : 'Mostrar contraseña de clave privada'}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-600 hover:text-slate-900 cursor-pointer"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 min-h-[28px] min-w-[28px] inline-flex items-center justify-center rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
               </button>
             </div>
           </div>
 
-          <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200">
-            <span className="text-[11px] text-slate-600">¿No tienes los archivos oficiales de e.firma en este dispositivo?</span>
-            <span className="text-[11px] font-medium text-slate-600">
-              Usa el botón &quot;Configurar después&quot; arriba para comenzar de inmediato.
+          <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-slate-200 text-[11px] text-emerald-900 font-semibold">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
+              <Lock className="w-3 h-3 text-emerald-700" aria-hidden="true" />
+              Cifrado Local en Memoria
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-900">
+              <ShieldCheck className="w-3 h-3 text-blue-700" aria-hidden="true" />
+              Canal HTTPS WS-Security · Art. 17-D CFF
             </span>
           </div>
         </div>

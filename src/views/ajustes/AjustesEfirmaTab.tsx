@@ -1,7 +1,8 @@
-import type { FormEvent } from 'react';
+import type { DragEvent, FormEvent } from 'react';
 import {
   FileCode2,
   KeyRound,
+  Loader2,
   Save,
   ShieldAlert,
   ShieldCheck,
@@ -11,6 +12,34 @@ import {
 import { formatShortDate } from '../../lib/formatters';
 import type { Company, FielCredentialStatus } from '../../shared/types';
 import { AjustesSoapHistoryCard, type SoapHistoryItem } from './AjustesSoapHistoryCard';
+
+function makeFielDropHandlers(
+  ext: '.cer' | '.key',
+  isReadOnly: boolean,
+  onSelect: (file: File | null) => void
+) {
+  return {
+    onDragOver: (e: DragEvent<HTMLLabelElement>) => {
+      if (isReadOnly) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    },
+    onDrop: (e: DragEvent<HTMLLabelElement>) => {
+      if (isReadOnly) return;
+      e.preventDefault();
+      const dropped = e.dataTransfer.files?.[0];
+      if (dropped && dropped.name.toLowerCase().endsWith(ext)) onSelect(dropped);
+    }
+  };
+}
+
+function getDropzoneClass(isReadOnly: boolean, hasFile: boolean): string {
+  const base =
+    'relative border-2 border-dashed rounded-xl p-3.5 text-center flex flex-col items-center justify-center gap-1 transition focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 focus-within:border-blue-600';
+  if (isReadOnly) return `${base} border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed opacity-70`;
+  if (hasFile) return `${base} border-emerald-300 bg-emerald-50/40 text-emerald-900 cursor-pointer`;
+  return `${base} border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/30 cursor-pointer`;
+}
 
 export interface AjustesEfirmaTabProps {
   activeCompany: Company;
@@ -174,11 +203,9 @@ export function AjustesEfirmaTab({
                 <span className="text-xs font-bold text-slate-700 block">Certificado Público SAT (.cer) *</span>
                 <label
                   htmlFor="efirma-cer-input"
-                  className={`relative border-2 border-dashed rounded-xl p-3.5 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 focus-within:border-blue-600 ${
-                    cerFile
-                      ? 'border-emerald-300 bg-emerald-50/40 text-emerald-900'
-                      : 'border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/30'
-                  }`}
+                  title={isReadOnly ? 'Modo solo lectura: no puedes cargar archivos .cer' : 'Haz clic o arrastra tu archivo .cer'}
+                  {...makeFielDropHandlers('.cer', Boolean(isReadOnly), setCerFile)}
+                  className={getDropzoneClass(Boolean(isReadOnly), Boolean(cerFile))}
                 >
                   <input
                     id="efirma-cer-input"
@@ -187,22 +214,14 @@ export function AjustesEfirmaTab({
                     accept=".cer"
                     disabled={isReadOnly}
                     onChange={(e) => setCerFile(e.target.files?.[0] || null)}
-                    className="visually-hidden"
+                    className="sr-only"
                   />
                   <FileCode2 className={`w-5 h-5 ${cerFile ? 'text-emerald-600' : 'text-slate-500'}`} aria-hidden="true" />
                   <span className="text-xs font-bold truncate max-w-full">
-                    {cerFile
-                      ? cerFile.name
-                      : fielStatus?.hasCredentials
-                        ? 'Archivo .cer registrado (clic para cambiar)'
-                        : 'Seleccionar archivo .cer'}
+                    {cerFile ? cerFile.name : fielStatus?.hasCredentials ? 'Archivo .cer registrado (clic o arrastra)' : 'Seleccionar o arrastrar .cer'}
                   </span>
-                  <span className="text-[10px] text-slate-600">
-                    {cerFile
-                      ? 'Certificado SAT listo para subir'
-                      : fielStatus?.hasCredentials
-                        ? `Certificado actual: Serie ${fielStatus.numeroSerieCertificado || 'SAT'}`
-                        : 'Certificado público emitido por el SAT'}
+                  <span className="text-[11px] text-slate-600">
+                    {cerFile ? 'Certificado SAT listo para subir' : fielStatus?.hasCredentials ? `Serie ${fielStatus.numeroSerieCertificado || 'SAT'}` : 'Certificado público emitido por el SAT'}
                   </span>
                 </label>
               </div>
@@ -211,11 +230,9 @@ export function AjustesEfirmaTab({
                 <span className="text-xs font-bold text-slate-700 block">Clave Privada (.key) *</span>
                 <label
                   htmlFor="efirma-key-input"
-                  className={`relative border-2 border-dashed rounded-xl p-3.5 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 focus-within:border-blue-600 ${
-                    keyFile
-                      ? 'border-emerald-300 bg-emerald-50/40 text-emerald-900'
-                      : 'border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/30'
-                  }`}
+                  title={isReadOnly ? 'Modo solo lectura: no puedes cargar archivos .key' : 'Haz clic o arrastra tu archivo .key'}
+                  {...makeFielDropHandlers('.key', Boolean(isReadOnly), setKeyFile)}
+                  className={getDropzoneClass(Boolean(isReadOnly), Boolean(keyFile))}
                 >
                   <input
                     id="efirma-key-input"
@@ -224,17 +241,13 @@ export function AjustesEfirmaTab({
                     accept=".key"
                     disabled={isReadOnly}
                     onChange={(e) => setKeyFile(e.target.files?.[0] || null)}
-                    className="visually-hidden"
+                    className="sr-only"
                   />
                   <KeyRound className={`w-5 h-5 ${keyFile || fielStatus?.hasCredentials ? 'text-emerald-600' : 'text-slate-500'}`} aria-hidden="true" />
                   <span className="text-xs font-bold truncate max-w-full">
-                    {keyFile
-                      ? keyFile.name
-                      : fielStatus?.hasCredentials
-                        ? 'Archivo .key registrado (clic para cambiar)'
-                        : 'Seleccionar archivo .key'}
+                    {keyFile ? keyFile.name : fielStatus?.hasCredentials ? 'Archivo .key registrado (clic o arrastra)' : 'Seleccionar o arrastrar .key'}
                   </span>
-                  <span className="text-[10px] text-slate-600">
+                  <span className="text-[11px] text-slate-600">
                     {keyFile
                       ? 'Llave privada lista para subir'
                       : fielStatus?.hasCredentials
@@ -253,7 +266,7 @@ export function AjustesEfirmaTab({
                     id="efirma-fiel-pass"
                     name="fielPassword"
                     type={showFielPass ? 'text' : 'password'}
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     disabled={isReadOnly}
                     value={fielPass}
                     onChange={(e) => setFielPass(e.target.value)}
@@ -292,15 +305,21 @@ export function AjustesEfirmaTab({
                 disabled={isReadOnly || isUploadingFiel || !fielPass || (!fielStatus?.hasCredentials && (!cerFile || !keyFile))}
                 aria-busy={isUploadingFiel}
                 title={
-                  !fielStatus?.hasCredentials && (!cerFile || !keyFile)
-                    ? 'Selecciona primero los archivos .cer y .key de tu e.firma SAT'
-                    : !fielPass
-                      ? 'Ingresa la contraseña de tu clave privada .key'
-                      : undefined
+                  isReadOnly
+                    ? 'Solo un Contador o Socio puede modificar la e.firma'
+                    : !fielStatus?.hasCredentials && (!cerFile || !keyFile)
+                      ? 'Selecciona primero los archivos .cer y .key de tu e.firma SAT'
+                      : !fielPass
+                        ? 'Ingresa la contraseña de tu clave privada .key'
+                        : 'Cifrar y validar credenciales SAT'
                 }
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save className="w-4 h-4" aria-hidden="true" />
+                {isUploadingFiel ? (
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                )}
                 {isUploadingFiel
                   ? 'Validando con SAT...'
                   : !cerFile && !keyFile && fielStatus?.hasCredentials

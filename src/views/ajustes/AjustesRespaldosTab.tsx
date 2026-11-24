@@ -1,5 +1,5 @@
-import type { ChangeEvent, RefObject } from 'react';
-import { AlertTriangle, Database, Download, FileSpreadsheet, FolderTree, Upload } from 'lucide-react';
+import { useEffect, useRef, type ChangeEvent, type RefObject } from 'react';
+import { AlertTriangle, Database, Download, FileSpreadsheet, FolderTree, Loader2, RefreshCw, Upload } from 'lucide-react';
 import { downloadCsvFile } from '../../lib/formatters';
 import type { Company, CompanyBackupBundle } from '../../shared/types';
 
@@ -16,6 +16,9 @@ export interface AjustesRespaldosTabProps {
   accountsList?: unknown[];
   polizasData?: unknown[];
   cfdisList?: unknown[];
+  isLoadingMetrics?: boolean;
+  isErrorMetrics?: boolean;
+  refetchMetrics?: () => void;
   isExportingBackup: boolean;
   isRestoringBackup: boolean;
   pendingRestore: PendingBackupRestore | null;
@@ -35,6 +38,9 @@ export function AjustesRespaldosTab({
   accountsList,
   polizasData,
   cfdisList,
+  isLoadingMetrics = false,
+  isErrorMetrics = false,
+  refetchMetrics,
   isExportingBackup,
   isRestoringBackup,
   pendingRestore,
@@ -48,6 +54,21 @@ export function AjustesRespaldosTab({
   canRestoreBackup = true,
   canImportCsv = true
 }: AjustesRespaldosTabProps) {
+  const restoreDialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dlg = restoreDialogRef.current;
+    if (!dlg) return;
+    if (pendingRestore && !dlg.open) {
+      dlg.showModal();
+    } else if (!pendingRestore && dlg.open) {
+      dlg.close();
+    }
+  }, [pendingRestore]);
+
+  const isRfcMismatch = Boolean(
+    pendingRestore && pendingRestore.backupRfc !== activeCompany.rfc.toUpperCase()
+  );
   return (
     <section className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -98,7 +119,7 @@ export function AjustesRespaldosTab({
               htmlFor="ajustes-restore-backup-input"
               title={!canRestoreBackup ? 'Solo el Titular o Socio puede restaurar respaldos' : undefined}
               className={`w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition shadow-2xs focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 ${
-                isRestoringBackup || !canRestoreBackup ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'
+                isRestoringBackup || !canRestoreBackup ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
               }`}
             >
               <input
@@ -109,7 +130,7 @@ export function AjustesRespaldosTab({
                 accept=".json"
                 disabled={isRestoringBackup || !canRestoreBackup}
                 onChange={handleRestoreBackupFile}
-                className="visually-hidden"
+                className="sr-only"
               />
               <Upload className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{isRestoringBackup ? 'Restaurando empresa...' : 'Seleccionar Archivo de Respaldo'}</span>
@@ -140,7 +161,7 @@ export function AjustesRespaldosTab({
               htmlFor="ajustes-import-csv-input"
               title={!canImportCsv ? 'Modo solo lectura: no tienes permisos para importar catálogo' : undefined}
               className={`w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition shadow-2xs focus-within:outline-2 focus-within:outline-purple-700 focus-within:outline-offset-2 ${
-                !canImportCsv ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'
+                !canImportCsv ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
               }`}
             >
               <input
@@ -151,7 +172,7 @@ export function AjustesRespaldosTab({
                 accept=".csv,.txt"
                 disabled={!canImportCsv}
                 onChange={handleImportCsvCatalog}
-                className="visually-hidden"
+                className="sr-only"
               />
               <FolderTree className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>Importar Catálogo CSV</span>
@@ -184,74 +205,123 @@ export function AjustesRespaldosTab({
         </div>
       </div>
 
-      {pendingRestore && (
-        <div
-          role="alertdialog"
-          aria-modal="false"
-          aria-labelledby="confirm-restore-backup-title"
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' && !isRestoringBackup) {
-              e.preventDefault();
-              cancelRestoreBackup();
-            }
-          }}
-          className="bg-amber-50 border border-amber-300 rounded-2xl p-4 sm:p-5 space-y-2 text-xs"
-        >
-          <div id="confirm-restore-backup-title" className="flex items-center gap-2 text-amber-950 font-bold">
-            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-            <span>
-              Confirmar restauración de respaldo para &ldquo;{pendingRestore.backupName}&rdquo; ({pendingRestore.backupRfc})
-            </span>
+      <dialog
+        ref={restoreDialogRef}
+        closedby={isRestoringBackup ? 'none' : 'any'}
+        aria-labelledby="confirm-restore-backup-title"
+        onCancel={(e) => {
+          if (isRestoringBackup) {
+            e.preventDefault();
+            return;
+          }
+          cancelRestoreBackup();
+        }}
+        className="m-auto w-full max-w-lg rounded-2xl border border-slate-300 bg-white p-0 shadow-2xl backdrop:bg-slate-900/50"
+      >
+        {pendingRestore && (
+          <div className="p-5 sm:p-6 space-y-4 text-xs">
+            <div className="flex items-start gap-2.5">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isRfcMismatch ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>
+                <AlertTriangle className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div className="space-y-1">
+                <h3 id="confirm-restore-backup-title" className="text-sm font-bold text-slate-900">
+                  Confirmar restauración de respaldo
+                </h3>
+                <p className="text-slate-600">
+                  Archivo de <strong className="text-slate-900">{pendingRestore.backupName}</strong> (<span className="font-mono font-semibold">{pendingRestore.backupRfc}</span>)
+                </p>
+              </div>
+            </div>
+
+            {isRfcMismatch && (
+              <div role="alert" className="p-3 rounded-xl border border-red-300 bg-red-50 text-red-950 space-y-1">
+                <p className="font-bold">Alerta: El RFC del respaldo no coincide con la empresa activa</p>
+                <p>
+                  Respaldo: <span className="font-mono font-bold">{pendingRestore.backupRfc}</span> · Empresa activa:{' '}
+                  <span className="font-mono font-bold">{activeCompany.rfc}</span>. Se restaurará la empresa destino indicada en el respaldo.
+                </p>
+              </div>
+            )}
+
+            <p className="text-slate-700 leading-relaxed">
+              Se cargarán <strong className="tabular-nums">{pendingRestore.polCount} pólizas</strong> y{' '}
+              <strong className="tabular-nums">{pendingRestore.accCount} cuentas</strong>. Los registros actuales de esa empresa serán reemplazados por el estado del respaldo.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                autoFocus
+                disabled={isRestoringBackup}
+                onClick={cancelRestoreBackup}
+                className="px-3.5 py-2 rounded-xl font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isRestoringBackup || !canRestoreBackup}
+                aria-busy={isRestoringBackup}
+                onClick={confirmRestoreBackup}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isRfcMismatch ? 'bg-red-700 hover:bg-red-800' : 'bg-amber-700 hover:bg-amber-800'
+                }`}
+              >
+                {isRestoringBackup && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
+                <span>{isRestoringBackup ? 'Restaurando empresa...' : 'Confirmar y restaurar respaldo'}</span>
+              </button>
+            </div>
           </div>
-          <p className="text-amber-900">
-            Se cargarán <strong>{pendingRestore.polCount} pólizas</strong> y{' '}
-            <strong>{pendingRestore.accCount} cuentas</strong>. Los registros actuales de esa empresa serán reemplazados por el estado del respaldo.
-          </p>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              autoFocus
-              disabled={isRestoringBackup}
-              onClick={cancelRestoreBackup}
-              className="px-3 py-1.5 rounded-xl font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              disabled={isRestoringBackup || !canRestoreBackup}
-              aria-busy={isRestoringBackup}
-              onClick={confirmRestoreBackup}
-              className="px-3.5 py-1.5 rounded-xl font-bold bg-amber-700 hover:bg-amber-800 text-white cursor-pointer disabled:opacity-50"
-            >
-              {isRestoringBackup ? 'Restaurando empresa...' : 'Confirmar y restaurar respaldo'}
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </dialog>
 
       {/* Estadísticas de Almacenamiento Contable */}
       <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
-          <Database className="w-4 h-4 text-blue-700" aria-hidden="true" />
-          Métricas de Almacenamiento Contable ({activeCompany.rfc})
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
+            <Database className="w-4 h-4 text-blue-700" aria-hidden="true" />
+            Métricas de Almacenamiento Contable ({activeCompany.rfc})
+          </h3>
+          {isErrorMetrics && refetchMetrics && (
+            <button
+              type="button"
+              onClick={refetchMetrics}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3" aria-hidden="true" />
+              Reintentar métricas
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-1">
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
             <span className="text-[10px] uppercase font-bold text-slate-600 block">Cuentas en Catálogo</span>
-            <span className="text-xl font-bold font-mono text-slate-900">{accountsList?.length ?? 0}</span>
+            <span className="text-xl font-bold font-mono tabular-nums text-slate-900">
+              {isLoadingMetrics ? '...' : isErrorMetrics ? '—' : (accountsList?.length ?? 0)}
+            </span>
           </div>
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
             <span className="text-[10px] uppercase font-bold text-slate-600 block">Pólizas del Periodo</span>
-            <span className="text-xl font-bold font-mono text-slate-900">{polizasData?.length ?? 0}</span>
+            <span className="text-xl font-bold font-mono tabular-nums text-slate-900">
+              {isLoadingMetrics ? '...' : isErrorMetrics ? '—' : (polizasData?.length ?? 0)}
+            </span>
           </div>
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">CFDIs 4.0 en Bóveda</span>
-            <span className="text-xl font-bold font-mono text-slate-900">{cfdisList?.length ?? 0}</span>
+            <span className="text-[10px] uppercase font-bold text-slate-600 block">CFDIs 4.0 en Bóveda</span>
+            <span className="text-xl font-bold font-mono tabular-nums text-slate-900">
+              {isLoadingMetrics ? '...' : isErrorMetrics ? '—' : (cfdisList?.length ?? 0)}
+            </span>
           </div>
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">Estado de Bóveda</span>
-            <span className="text-sm font-bold text-emerald-700 block mt-1">Sincronizado • 100% OK</span>
+            <span className="text-[10px] uppercase font-bold text-slate-600 block">Estado de Bóveda</span>
+            {isLoadingMetrics ? (
+              <span className="text-xs font-bold text-slate-600 block mt-1.5">Consultando...</span>
+            ) : isErrorMetrics ? (
+              <span className="text-xs font-bold text-red-700 block mt-1.5">Error al consultar</span>
+            ) : (
+              <span className="text-sm font-bold text-emerald-700 block mt-1">Sincronizado • 100% OK</span>
+            )}
           </div>
         </div>
       </div>

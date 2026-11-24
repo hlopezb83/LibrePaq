@@ -127,12 +127,66 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
             <p className="text-xs text-slate-600">{data.company.name} ({data.company.rfc}) • {REGIME_LABELS[determination.tipoRegimenAnual]}</p>
           </div>
         </div>
-        <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 font-mono tabular-nums">
-          Factor Act. INPC: {determination.factorActualizacionInpc.toFixed(4)}
-        </span>
+        {!isPersonaFisica && (
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 font-mono tabular-nums">
+            Factor Act. INPC: {determination.factorActualizacionInpc.toFixed(4)}
+          </span>
+        )}
       </div>
 
       <DeclaracionAnualKpiGrid determination={determination} reconciliation={reconciliation} />
+
+      {isPersonaFisica && (
+        <section className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <h3 id="annual-pf-base-heading" className="text-sm font-bold text-slate-900">
+              Integración de Base Gravable — {determination.tipoRegimenAnual === 'PF_RESICO' ? 'RESICO PF (Art. 113-F)' : 'Actividad Empresarial / Prof. (Art. 152)'}
+            </h3>
+            <Calculator className="w-4 h-4 text-blue-700" aria-hidden="true" />
+          </div>
+          <div tabIndex={0} role="region" aria-labelledby="annual-pf-base-heading" className="overflow-x-auto max-w-full">
+            <table className="w-full text-xs">
+              <caption className="visually-hidden">Integración de base gravable anual Persona Física</caption>
+              <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
+                <tr>
+                  <th scope="col" className="text-left py-1.5 px-2 font-bold">Concepto Fiscal</th>
+                  <th scope="col" className="text-right py-1.5 px-2 font-bold whitespace-nowrap">Importe MXN</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                <tr>
+                  <th scope="row" className="py-1.5 px-2 text-left font-normal text-slate-700">Ingresos Cobrados / Acumulables del Ejercicio</th>
+                  <td className="py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-900">{formatCurrency(determination.ingresosNominales)}</td>
+                </tr>
+                {determination.tipoRegimenAnual === 'PF_ART152' && (
+                  <>
+                    <tr>
+                      <th scope="row" className="py-1.5 px-2 text-left font-normal text-slate-700">(-) Deducciones Autorizadas y No Deducibles Netos</th>
+                      <td className="py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap text-emerald-700">
+                        {formatCurrency(-(determination.ingresosNominales - reconciliation.utilidadFiscal))}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row" className="py-1.5 px-2 text-left font-normal text-slate-700">(-) Pérdidas Fiscales de Ejercicios Anteriores</th>
+                      <td className="py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap text-emerald-700">
+                        {formatCurrency(-reconciliation.perdidasFiscalesAplicadas)}
+                      </td>
+                    </tr>
+                  </>
+                )}
+                <tr className="bg-blue-50/70 font-extrabold text-blue-950">
+                  <th scope="row" className="py-2 px-2 text-left font-extrabold">(=) Base Gravable ISR Anual</th>
+                  <td className={`py-2 px-2 text-right font-mono tabular-nums whitespace-nowrap ${
+                    (determination.tipoRegimenAnual === 'PF_RESICO' ? determination.ingresosNominales : reconciliation.resultadoFiscal) < 0 ? 'text-red-700' : ''
+                  }`}>
+                    {formatCurrency(determination.tipoRegimenAnual === 'PF_RESICO' ? determination.ingresosNominales : reconciliation.resultadoFiscal)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {!isPersonaFisica && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -154,7 +208,7 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
                 {conciliationRows.map((row) => (
                   <tr key={row.label} className={row.rowClass}>
                     <th scope="row" className={`py-1.5 px-2 text-left font-normal ${row.labelClass ?? 'text-slate-700'}`}>{row.label}</th>
-                    <td className={`py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap ${row.valueClass ?? 'text-slate-900'}`}>{formatCurrency(row.value)}</td>
+                    <td className={`py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap ${row.value < 0 ? 'text-red-700' : row.valueClass ?? 'text-slate-900'}`}>{formatCurrency(row.value)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -241,6 +295,7 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
 
       <DeclaracionAnualInputsCard
         inputs={inputs}
+        tipoRegimenAnual={determination.tipoRegimenAnual}
         isSaving={saveMutation.isPending}
         isReadOnly={isReadOnly}
         onSave={(payload) => saveMutation.mutate({ companyId: targetCompanyId, year: targetYear, payload })}

@@ -60,6 +60,16 @@ export function CfdiSimulatorModal({
   });
 
   useDialogLightDismiss(dialogRef, onClose);
+  const appliesIva = simTipoComprobante === 'I';
+  const simIva = appliesIva ? simSubtotal * 0.16 : 0;
+  const simTotal = simSubtotal + simIva - simIsrRetenido - simIvaRetenido;
+  const handleClose = () => {
+    if (dialogRef.current?.open) {
+      dialogRef.current.close();
+    } else {
+      onClose();
+    }
+  };
 
   return (
     <dialog
@@ -67,14 +77,14 @@ export function CfdiSimulatorModal({
       closedby="any"
       onClose={onClose}
       aria-labelledby="modal-sim-cfdi-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-xl overflow-hidden"
+      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-xl open:flex open:flex-col max-h-[92dvh] overflow-hidden p-0 m-auto backdrop:bg-slate-900/60"
     >
-      <div className="p-4 sm:p-5 max-h-[86dvh] overflow-y-auto overscroll-contain space-y-3.5">
+      <div className="p-4 sm:p-5 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3.5 scrollable-panel">
         <CfdiSimulatorHeader
           activeCompany={activeCompany}
           currentYear={currentYear}
           currentPeriod={currentPeriod}
-          onClose={onClose}
+          onClose={handleClose}
           onApplyPreset={applyPreset}
         />
 
@@ -128,7 +138,7 @@ export function CfdiSimulatorModal({
                   <div className="flex items-center gap-1">
                     {simRfcModulo11.isValidCheckDigit ? (
                       <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-0.5">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> M11 OK
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" aria-hidden="true" /> RFC válido
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold text-amber-800 flex items-center gap-1">
@@ -216,7 +226,11 @@ export function CfdiSimulatorModal({
                 htmlFor="sim-subtotal"
                 className="block text-xs font-semibold text-slate-700 mb-1"
               >
-                Subtotal / Base 16%
+                {appliesIva
+                  ? 'Subtotal / Base 16%'
+                  : simTipoComprobante === 'N'
+                  ? 'Percepciones / Subtotal'
+                  : 'Monto del Pago (REP)'}
               </label>
               <input
                 id="sim-subtotal"
@@ -267,18 +281,20 @@ export function CfdiSimulatorModal({
             </div>
           </div>
 
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-mono text-slate-700 flex justify-between">
-            <span>IVA 16%: {formatCurrency(simSubtotal * 0.16)}</span>
-            <span>Retenciones: -{formatCurrency(simIsrRetenido + simIvaRetenido)}</span>
-            <strong className="text-blue-800">
-              Total Neto: {formatCurrency(simSubtotal * 1.16 - simIsrRetenido - simIvaRetenido)}
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-mono text-slate-700 flex flex-wrap items-center justify-between gap-2">
+            <span className="tabular-nums">
+              {appliesIva ? `IVA 16%: ${formatCurrency(simIva)}` : 'IVA: $0.00 (Sin IVA automático)'}
+            </span>
+            <span className="tabular-nums">Retenciones: -{formatCurrency(simIsrRetenido + simIvaRetenido)}</span>
+            <strong className="text-blue-800 tabular-nums">
+              Total Neto: {formatCurrency(simTotal)}
             </strong>
           </div>
 
-          <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+          <div className="pt-3 border-t border-slate-200 flex flex-wrap justify-end gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               Cancelar

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
 
@@ -14,6 +15,7 @@ export function useDiotTabState(params: {
 }) {
   const { activeCompanyId, currentYear, currentPeriod, enabled } = params;
   const [copiedBatch, setCopiedBatch] = useState(false);
+  const toast = useToast();
 
   const { data: diotData, isLoading: isLoadingDiot, isError: isErrorDiot, refetch: refetchDiot } =
     useQuery({
@@ -23,7 +25,7 @@ export function useDiotTabState(params: {
     });
 
   const handleDownloadDiotTxt = () => {
-    if (!diotData) return;
+    if (!diotData || diotData.rows.length === 0) return;
     const blob = new Blob([diotData.batchTxtContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -31,10 +33,11 @@ export function useDiotTabState(params: {
     a.download = diotData.filename;
     a.click();
     URL.revokeObjectURL(url);
+    toast.success(`Archivo ${diotData.filename} descargado para carga batch SAT.`);
   };
 
   const handleExportDiotCsv = () => {
-    if (!diotData) return;
+    if (!diotData || diotData.rows.length === 0) return;
     const headers = [
       'Tipo Tercero',
       'Tipo Operación',
@@ -69,13 +72,11 @@ export function useDiotTabState(params: {
       r.cfdiCount,
       r.batchLine
     ]);
-    downloadCsvFile(
-      `Cedula_DIOT_${diotData.company.rfc}_${diotData.ejercicio}_P${String(
-        diotData.periodo
-      ).padStart(2, '0')}.csv`,
-      headers,
-      rows
-    );
+    const csvFilename = `Cedula_DIOT_${diotData.company.rfc}_${diotData.ejercicio}_P${String(
+      diotData.periodo
+    ).padStart(2, '0')}.csv`;
+    downloadCsvFile(csvFilename, headers, rows);
+    toast.success(`Cédula DIOT exportada en Excel (.CSV): ${csvFilename}`);
   };
 
   return {

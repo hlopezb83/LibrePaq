@@ -1,10 +1,12 @@
 import { FileCheck2, Printer } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
+import { calculateDia17Deadline } from '../../shared/date-utils';
 import type { DeliverableTabId } from '../../components/deliverables/useExecutiveDeliverables';
 
 interface DossierEntregablesTabProps {
   mesNombre: string;
   ejercicio: number;
+  periodo?: number;
   totals: { finalDeudor: number };
   incomeStatement: { utilidadNeta: number };
   balanceSheet: { totalActivo: number };
@@ -14,11 +16,13 @@ interface DossierEntregablesTabProps {
 export function DossierEntregablesTab({
   mesNombre,
   ejercicio,
+  periodo = 10,
   totals,
   incomeStatement,
   balanceSheet,
   onOpenDeliverablesModal
 }: DossierEntregablesTabProps) {
+  const dia17Deadline = calculateDia17Deadline(ejercicio, periodo).formattedSpanish;
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-[#0A1120] rounded-2xl p-6 text-white border border-blue-900 shadow-md">
@@ -65,7 +69,7 @@ export function DossierEntregablesTab({
             <h3 className="text-sm font-bold text-slate-900">Balanza de Comprobación</h3>
             <p className="text-xs text-slate-600 mt-0.5">Anexo 24 R.M.F. / NIF B-1</p>
           </div>
-          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between">
+          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between gap-2">
             <span>Sumas Iguales:</span>
             <strong className="text-emerald-800">{formatCurrency(totals.finalDeudor)}</strong>
           </div>
@@ -86,7 +90,7 @@ export function DossierEntregablesTab({
             <h3 className="text-sm font-bold text-slate-900">Estado de Resultados</h3>
             <p className="text-xs text-slate-600 mt-0.5">NIF B-3 Integral con Análisis %</p>
           </div>
-          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between">
+          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between gap-2">
             <span>{incomeStatement.utilidadNeta < 0 ? 'Pérdida Neta:' : 'Utilidad Neta:'}</span>
             <strong className={incomeStatement.utilidadNeta < 0 ? 'text-red-700' : 'text-slate-900'}>
               {formatCurrency(incomeStatement.utilidadNeta)}
@@ -109,7 +113,7 @@ export function DossierEntregablesTab({
             <h3 className="text-sm font-bold text-slate-900">Balance General</h3>
             <p className="text-xs text-slate-600 mt-0.5">NIF B-6 Posición Financiera</p>
           </div>
-          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between">
+          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between gap-2">
             <span>Total Activo:</span>
             <strong className="text-slate-900">{formatCurrency(balanceSheet.totalActivo)}</strong>
           </div>
@@ -130,9 +134,9 @@ export function DossierEntregablesTab({
             <h3 className="text-sm font-bold text-slate-900">Cédula Fiscal Día 17</h3>
             <p className="text-xs text-slate-600 mt-0.5">ISR Art. 14 / RESICO e IVA</p>
           </div>
-          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between">
+          <div className="text-xs font-mono text-slate-700 pt-2 border-t border-slate-100 flex justify-between gap-2">
             <span>Vencimiento:</span>
-            <strong className="text-amber-800">Día 17 del mes</strong>
+            <strong className="text-amber-800">{dia17Deadline}</strong>
           </div>
         </button>
       </div>

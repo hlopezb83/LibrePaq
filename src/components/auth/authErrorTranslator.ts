@@ -32,6 +32,13 @@ export function translateAuthError(rawMessage: string): string {
   if (msg.includes('invalid format') || msg.includes('valid email')) {
     return 'El formato de correo no es válido. Ingresa uno como contador@despacho.mx';
   }
+  if (
+    msg.includes('session missing') ||
+    msg.includes('auth session missing') ||
+    msg.includes('missing session')
+  ) {
+    return 'Tu sesión de recuperación expiró o no es válida. Solicita un nuevo enlace para restablecer tu contraseña.';
+  }
   if (msg.includes('expired') || msg.includes('invalid token') || msg.includes('session_not_found')) {
     return 'El enlace o sesión expiró. Inicia sesión o solicita un nuevo enlace.';
   }
@@ -48,5 +55,5 @@ export function translateAuthError(rawMessage: string): string {
     return 'El servicio de acceso en la nube no está disponible en este momento.';
   }
 
-  return rawMessage;
+  return 'No pudimos completar tu solicitud en este momento. Verifica tus datos e inténtalo de nuevo.';
 }

@@ -356,6 +356,6 @@ describe('Ola 4B — Anexo 24 .zip Oficial SAT, Nodos de Pago y Visor Fiel CFDI 
     expect(preview.conceptos[0]?.descripcion).toBe('Consultoría Contable Mensual');
     expect(preview.conceptos[0]?.importe).toBe(10000);
     expect(preview.impuestos.traslados).toHaveLength(1);
-    expect(preview.timbre.rfcProvCertif).toBe('SAT970701NN3');
+    expect(preview.timbre.rfcProvCertif).toBe('');
   });
 });

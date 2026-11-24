@@ -49,6 +49,14 @@ export function formatPolizaCopyText(pol: Poliza): string {
   ].join('\n');
 }
 
+export function hasPolizaCfdi(pol: Poliza): boolean {
+  return Boolean(
+    pol.cfdiUuid ||
+      (pol.cfdiUuids && pol.cfdiUuids.length > 0) ||
+      pol.movements.some((m) => Boolean(m.cfdiUuid))
+  );
+}
+
 export function filterPolizas(
   polizas: Poliza[],
   filterTipo: 'ALL' | PolizaType,
@@ -57,7 +65,7 @@ export function filterPolizas(
 ): Poliza[] {
   return polizas.filter((p) => {
     if (filterTipo !== 'ALL' && p.tipo !== filterTipo) return false;
-    const hasCfdi = Boolean(p.cfdiUuid || (p.cfdiUuids && p.cfdiUuids.length > 0));
+    const hasCfdi = hasPolizaCfdi(p);
     if (originFilter === 'WITH_CFDI' && !hasCfdi) return false;
     if (originFilter === 'MANUAL' && hasCfdi) return false;
     if (searchQuery.trim()) {
@@ -99,7 +107,8 @@ export function isPolizaDateInDifferentPeriod(
   if (!fecha || !currentYear || !currentPeriod) return false;
   const parts = fecha.split('-');
   if (parts.length < 2) return false;
-  return Number(parts[0]) !== currentYear || Number(parts[1]) !== currentPeriod;
+  const expectedPeriodMonth = currentPeriod === 13 ? 12 : currentPeriod;
+  return Number(parts[0]) !== currentYear || Number(parts[1]) !== expectedPeriodMonth;
 }
 
 export function parsePolizasUrlSearch(search: unknown): { urlSearchParam: string; isNewRequested: boolean } {

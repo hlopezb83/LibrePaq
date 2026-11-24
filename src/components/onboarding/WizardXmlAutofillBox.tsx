@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, FileText, Sparkles, UploadCloud } from 'lucide-react';
+import { CheckCircle2, FileText, Loader2, Sparkles, UploadCloud } from 'lucide-react';
 import type { CfdiCompanyCandidate } from '../../shared/cfdi-company-extractor';
 
 interface WizardXmlAutofillBoxProps {
@@ -91,16 +91,17 @@ export function WizardXmlAutofillBox({
 
         <label
           htmlFor="wizard-autofill-file"
+          aria-busy={isProcessing}
           className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-blue-700 border border-blue-300 text-xs font-bold shadow-2xs transition cursor-pointer shrink-0 focus-within:outline-2 focus-within:outline-blue-700 ${
-            isProcessing ? 'opacity-50 pointer-events-none' : ''
+            isProcessing ? 'opacity-60 pointer-events-none' : ''
           }`}
         >
           <input
             id="wizard-autofill-file"
             type="file"
             disabled={isProcessing}
-            accept=".xml,text/xml,application/xml,.pdf,application/pdf"
-            aria-label="Elegir archivo XML CFDI o PDF Constancia de Situación Fiscal"
+            accept=".xml,text/xml,application/xml,.pdf,application/pdf,.png,.jpg,.jpeg,.webp,image/*"
+            aria-label="Elegir archivo XML CFDI, PDF o imagen de Constancia de Situación Fiscal"
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = '';
@@ -108,17 +109,19 @@ export function WizardXmlAutofillBox({
             }}
             className="visually-hidden"
           />
-          {candidates.length > 0 ? (
+          {isProcessing ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+          ) : candidates.length > 0 ? (
             <FileText className="w-3.5 h-3.5" aria-hidden="true" />
           ) : (
             <UploadCloud className="w-3.5 h-3.5" aria-hidden="true" />
           )}
           <span>
             {isProcessing
-              ? 'Leyendo...'
+              ? 'Leyendo documento...'
               : candidates.length > 0
-              ? 'Cambiar XML o PDF'
-              : 'Elegir XML o PDF (CSF)'}
+              ? 'Cambiar archivo'
+              : 'Elegir XML, PDF o Imagen'}
           </span>
         </label>
       </div>
@@ -131,6 +134,7 @@ export function WizardXmlAutofillBox({
               <button
                 key={cand.role}
                 type="button"
+                aria-pressed={selected}
                 onClick={() => onSelectCandidate(cand)}
                 className={`p-2 rounded-xl border text-left text-xs transition cursor-pointer ${
                   selected

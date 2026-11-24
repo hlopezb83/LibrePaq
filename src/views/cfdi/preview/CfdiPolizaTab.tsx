@@ -20,21 +20,25 @@ export function CfdiPolizaTab({
 }: CfdiPolizaTabProps) {
   const isNonContabilizable = cfdi.statusSat === 'CANCELADO' || cfdi.tipoComprobante === 'T';
   const isDisabled = isWriteBlocked || isNonContabilizable;
+  const headingLabel = cfdi.polizaId
+    ? `Póliza Contable Registrada${cfdi.polizaFolio ? ` (${cfdi.polizaFolio})` : ''}`
+    : 'Vista Previa Sugerida de Póliza Contable';
+
   return (
     <div className="bg-white rounded-2xl border border-slate-300 p-5 shadow-2xs space-y-4">
       <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
         <div>
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <Scale className="w-4 h-4 text-blue-700" aria-hidden="true" />
-            Asiento Contable de Partida Doble Generado
+            {headingLabel}
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-600">
             Reglas fiscales NIF A-2 y Anexo 24: cargos y abonos balanceados al centavo.
           </p>
         </div>
         {autoPlan && (
           <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-900 border border-blue-200">
-            Tipo Sugerido: {autoPlan.polizaType}
+            {cfdi.polizaId ? `Póliza ${autoPlan.polizaType}` : `Tipo Sugerido: ${autoPlan.polizaType}`}
           </span>
         )}
       </div>
@@ -92,9 +96,9 @@ export function CfdiPolizaTab({
             </table>
           </div>
 
-          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
+          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" aria-hidden="true" />
               <span>Principio de partida doble estrictamente balanceado: diferencia $0.00 MXN.</span>
             </div>
             {!cfdi.polizaId && onContabilizar && (
@@ -123,8 +127,21 @@ export function CfdiPolizaTab({
           </div>
         </div>
       ) : (
-        <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl">
-          Cargando o generando plan de contabilización para este comprobante fiscal...
+        <div className="p-6 text-center text-xs text-slate-600 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+          <p className="font-semibold text-slate-800">
+            {cfdi.tipoComprobante === 'T'
+              ? 'Comprobante de Traslado (Tipo T) — Sin asiento contable'
+              : cfdi.statusSat === 'CANCELADO'
+              ? 'Comprobante Cancelado ante el SAT — No contabilizable'
+              : 'No se pudo proyectar el plan de contabilización automático'}
+          </p>
+          <p>
+            {cfdi.tipoComprobante === 'T'
+              ? 'Los CFDI Tipo T únicamente acreditan la propiedad o traslado de mercancías y no generan cargos ni abonos en resultados.'
+              : cfdi.statusSat === 'CANCELADO'
+              ? 'Las facturas canceladas ante el SAT no producen efectos fiscales deducibles ni acreditables.'
+              : 'Verifica que el catálogo de cuentas contables del periodo esté cargado para generar la vista previa.'}
+          </p>
         </div>
       )}
     </div>

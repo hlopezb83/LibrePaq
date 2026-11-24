@@ -41,6 +41,7 @@ interface DeliverableDia17DocProps {
   period: number;
   mesNombre: string;
   firmName: string;
+  issuanceCity?: string;
   issuanceDate: string;
   fechaVencimientoDia17: string;
   fiscalData: FiscalData;
@@ -57,6 +58,7 @@ export function DeliverableDia17Doc({
   period,
   mesNombre,
   firmName,
+  issuanceCity,
   issuanceDate,
   fechaVencimientoDia17,
   fiscalData,
@@ -86,9 +88,9 @@ export function DeliverableDia17Doc({
             Determinación Provisional de ISR y Definitiva de IVA • Periodo: <strong>{mesNombre} {year}</strong>
           </div>
         </div>
-        <div className="text-right text-[11px] text-slate-500 font-mono shrink-0">
+        <div className="text-right text-[11px] text-slate-600 font-mono shrink-0">
           <div>Folio: DOC-FIS-{year}-{String(period).padStart(2, '0')}</div>
-          <div>Emisión: {issuanceDate}</div>
+          <div>{issuanceCity ? `${issuanceCity}, ` : ''}{issuanceDate}</div>
           <div className="text-amber-800 font-bold mt-1">Vencimiento: {fechaVencimientoDia17}</div>
         </div>
       </div>
@@ -102,7 +104,7 @@ export function DeliverableDia17Doc({
                 ? '1. ISR Provisional (RESICO)'
                 : '1. ISR Provisional (Art. 14 LISR)'}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 tabular-nums">
               <div className="flex justify-between gap-3 text-slate-700 dia17-row">
                 <span>Ingresos nominales del mes</span>
                 <span className="font-mono">{formatCurrency(fiscalData.isrProvisional.ingresosPeriodo)}</span>
@@ -174,7 +176,7 @@ export function DeliverableDia17Doc({
             <div className="font-bold text-[11px] uppercase tracking-wider text-slate-900 bg-slate-100 p-1.5 rounded mb-2 dia17-card-title">
               2. IVA definitivo (Art. 5-D LIVA)
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 tabular-nums">
               <div className="flex justify-between gap-3 text-slate-700 dia17-row">
                 <span>Actos gravados cobrados al 16%</span>
                 <span className="font-mono">{formatCurrency(fiscalData.ivaDefinitivo.actosGravadosCobrado16)}</span>
@@ -210,7 +212,7 @@ export function DeliverableDia17Doc({
             <div className="font-bold text-[11px] uppercase tracking-wider text-slate-900 bg-slate-100 p-1.5 rounded mb-2 dia17-card-title">
               3. Retenciones por enterar
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 tabular-nums">
               <div className="flex justify-between gap-3 text-slate-700 dia17-row">
                 <span>ISR retenido (salarios y honorarios)</span>
                 <span className="font-mono">{formatCurrency(fiscalData.resumenLineaCapturaSat.retencionesIsrPorEnterar)}</span>
@@ -243,8 +245,8 @@ export function DeliverableDia17Doc({
             TOTAL ESTIMADO A PAGAR DÍA 17:
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-amber-300 text-lg sm:text-xl font-extrabold font-mono">
+        <div className="text-right tabular-nums">
+          <div className="text-amber-300 text-lg sm:text-xl font-extrabold font-mono whitespace-nowrap">
             {formatCurrency(fiscalData.resumenLineaCapturaSat.totalEstimadoDia17)}
           </div>
           <div className="text-[10px] text-slate-400 font-normal">

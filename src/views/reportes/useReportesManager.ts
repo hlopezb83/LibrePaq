@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { annualTaxClient } from '../../lib/annual-tax-client';
@@ -33,19 +33,10 @@ function resolveReportTab(raw: unknown): ReportTabId | null {
   return VALID_REPORT_TABS.includes(param as ReportTabId) ? (param as ReportTabId) : null;
 }
 
-function getInitialReportTab(): ReportTabId {
-  if (typeof window !== 'undefined' && window.location.search) {
-    const sp = new URLSearchParams(window.location.search);
-    if (sp.get('dossier') === 'true') return 'ENTREGABLES';
-    const resolved = resolveReportTab(sp.get('tab'));
-    if (resolved) return resolved;
-  }
-  return 'BALANZA';
-}
-
 export function useReportesManager() {
   const { activeCompany, activeCompanyId } = useCompany();
   const toast = useToast();
+  const navigate = useNavigate();
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
 
@@ -55,14 +46,10 @@ export function useReportesManager() {
   const urlDossier: unknown = useRouterState({
     select: (s) => (s.location.search as Record<string, unknown>)?.dossier
   });
-  const isDossierRequested =
-    urlDossier === true ||
-    urlDossier === 'true' ||
-    (typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('dossier') === 'true');
+  const isDossierRequested = urlDossier === true || urlDossier === 'true';
 
-  const [activeTab, setActiveTab] = useState<ReportTabId>(
-    () => resolveReportTab(urlTab) ?? getInitialReportTab()
+  const [activeTab, setActiveTabState] = useState<ReportTabId>(
+    () => (isDossierRequested ? 'ENTREGABLES' : resolveReportTab(urlTab) ?? 'BALANZA')
   );
   const [satXmlType, setSatXmlType] = useState<SatXmlType>('balanza');
   const [anexo24Options, setAnexo24Options] = useState<Anexo24UiOptions>({
@@ -75,12 +62,36 @@ export function useReportesManager() {
 
   useEffect(() => {
     if (isDossierRequested) {
-      setActiveTab('ENTREGABLES');
+      setActiveTabState('ENTREGABLES');
       return;
     }
     const next = resolveReportTab(urlTab);
-    if (next) setActiveTab(next);
+    if (next) setActiveTabState(next);
   }, [urlTab, isDossierRequested]);
+
+  const setActiveTab = useCallback(
+    (nextTab: ReportTabId) => {
+      setActiveTabState(nextTab);
+      void navigate({
+        to: '/reportes',
+        search: ((prev: Record<string, unknown>) => ({ ...prev, tab: nextTab, dossier: undefined })) as unknown as Record<string, string>,
+        replace: true
+      });
+    },
+    [navigate]
+  );
+
+  const consumeDossierParam = useCallback(() => {
+    void navigate({
+      to: '/reportes',
+      search: ((prev: Record<string, unknown>) => {
+        const next: Record<string, unknown> = { ...prev, tab: 'ENTREGABLES' };
+        delete next.dossier;
+        return next;
+      }) as unknown as Record<string, string>,
+      replace: true
+    });
+  }, [navigate]);
 
   const { data: periodLock } = useQuery({
     queryKey: ['period-lock', activeCompanyId, currentYear, currentPeriod],
@@ -195,15 +206,19 @@ export function useReportesManager() {
       return;
     }
     if (activeTab === 'BALANCE') {
+      const signedBal = (
+        a: typeof data.trialBalance[number],
+        expected: 'DEUDORA' | 'ACREEDORA'
+      ) => (a.nature !== expected ? -a.finalBalance : a.finalBalance);
       downloadCsvFile(
         `Balance_General_${data.company.rfc}_${data.ejercicio}_${periodCode}.csv`,
         ['Clasificación', 'Código', 'Nombre Cuenta', 'Saldo Final MXN'],
         [
-          ...data.balanceSheet.activos.map((a) => ['ACTIVO', a.code, a.name, a.finalBalance]),
+          ...data.balanceSheet.activos.map((a) => ['ACTIVO', a.code, a.name, signedBal(a, 'DEUDORA')]),
           ['TOTAL ACTIVO', '100', 'Total Activo', data.balanceSheet.totalActivo],
-          ...data.balanceSheet.pasivos.map((a) => ['PASIVO', a.code, a.name, a.finalBalance]),
+          ...data.balanceSheet.pasivos.map((a) => ['PASIVO', a.code, a.name, signedBal(a, 'ACREEDORA')]),
           ['TOTAL PASIVO', '200', 'Total Pasivo', data.balanceSheet.totalPasivo],
-          ...data.balanceSheet.capital.map((a) => ['CAPITAL', a.code, a.name, a.finalBalance]),
+          ...data.balanceSheet.capital.map((a) => ['CAPITAL', a.code, a.name, signedBal(a, 'ACREEDORA')]),
           ['UTILIDAD EJERCICIO', '305', 'Resultado del Ejercicio Actual', data.balanceSheet.utilidadEjercicio],
           ['PASIVO + CAPITAL', '', 'Suma Pasivo y Capital Contable', data.balanceSheet.totalPasivoMasCapital]
         ]
@@ -261,6 +276,7 @@ export function useReportesManager() {
     activeTab,
     setActiveTab,
     isDossierRequested,
+    consumeDossierParam,
     satXmlType,
     setSatXmlType,
     anexo24Options,

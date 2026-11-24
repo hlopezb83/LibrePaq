@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Megaphone, Send } from 'lucide-react';
+import { AlertTriangle, Loader2, Megaphone, Send } from 'lucide-react';
 import { apiClient } from '../../lib/api-client';
 import { useToast } from '../../context/ToastContext';
 import { AdminActiveBroadcastCard, BROADCAST_TYPE_STYLES, type BroadcastType } from './AdminActiveBroadcastCard';
@@ -35,6 +35,12 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
   const [message, setMessage] = useState('');
   const [type, setType] = useState<BroadcastType>('info');
   const [expiresAtInput, setExpiresAtInput] = useState('');
+  const [pendingPayload, setPendingPayload] = useState<{
+    title: string;
+    message: string;
+    type: BroadcastType;
+    expiresAt: string | null;
+  } | null>(null);
 
   useEffect(() => {
     const incomingId = currentBroadcast?.active ? currentBroadcast.id : null;
@@ -63,6 +69,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
     onSuccess: async (published) => {
       queryClient.setQueryData(['platform-broadcast'], published);
       setSyncedId(published.id);
+      setPendingPayload(null);
       await invalidateBroadcastQueries();
       toast.success('¡Comunicado global publicado en la nube! Visible para todos los despachos.');
     },
@@ -100,7 +107,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
       toast.warning('La fecha de expiración debe ser posterior al momento actual.');
       return;
     }
-    publishMutation.mutate({ title: title.trim(), message: message.trim(), type, expiresAt });
+    setPendingPayload({ title: title.trim(), message: message.trim(), type, expiresAt });
   };
 
   const previewStyle = BROADCAST_TYPE_STYLES[type];
@@ -178,7 +185,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
               <label htmlFor="broadcast-message" className="block text-xs font-bold text-slate-700">Mensaje Completo</label>
               <span className="text-[11px] font-mono tabular-nums text-slate-600">{message.length}/1000</span>
             </div>
-            <textarea id="broadcast-message" name="broadcastMessage" maxLength={1000} required disabled={isPending} value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 resize-none disabled:bg-slate-100" />
+            <textarea id="broadcast-message" name="broadcastMessage" maxLength={1000} required disabled={isPending} value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 resize-y disabled:bg-slate-100" />
           </div>
 
           {(title.trim() || message.trim()) && (
@@ -193,6 +200,50 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
                     Vigente hasta: {formatAdminDateTime(toIsoOrNull(expiresAtInput) || expiresAtInput)}
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {pendingPayload && (
+            <div
+              role="alertdialog"
+              aria-modal="false"
+              aria-labelledby="confirm-publish-broadcast-title"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && !publishMutation.isPending) {
+                  e.preventDefault();
+                  setPendingPayload(null);
+                }
+              }}
+              className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 text-xs space-y-2.5"
+            >
+              <div id="confirm-publish-broadcast-title" className="flex items-center gap-2 font-bold text-amber-950">
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+                <span>¿Publicar este comunicado global para todos los usuarios activos?</span>
+              </div>
+              <p className="text-amber-900">
+                El cintillo aparecerá de inmediato en la parte superior de todas las sesiones del despacho.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  autoFocus
+                  disabled={publishMutation.isPending}
+                  onClick={() => setPendingPayload(null)}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={publishMutation.isPending}
+                  aria-busy={publishMutation.isPending}
+                  onClick={() => publishMutation.mutate(pendingPayload)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {publishMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
+                  <span>{publishMutation.isPending ? 'Publicando...' : 'Confirmar y Publicar'}</span>
+                </button>
               </div>
             </div>
           )}
@@ -214,7 +265,7 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
               disabled={isPending || !title.trim() || !message.trim()}
               aria-busy={publishMutation.isPending}
               title={!title.trim() || !message.trim() ? 'Ingresa título y mensaje para publicar' : undefined}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold text-xs shadow-md transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md transition cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" aria-hidden="true" />
               {publishMutation.isPending ? 'Publicando...' : currentBroadcast?.active ? 'Actualizar Comunicado' : 'Publicar Comunicado en Vivo'}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Code2, Copy } from 'lucide-react';
+import { Check, Code2, Copy, Search } from 'lucide-react';
 import { apiClient } from '../../../lib/api-client';
 import { parseCfdiPreview } from '../../../shared/cfdi-preview-parser';
 import type { CfdiDocument } from '../../../shared/types';
@@ -14,6 +14,8 @@ interface CfdiXmlTabProps {
 export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: CfdiXmlTabProps) {
   const [fallbackXml, setFallbackXml] = useState<{ id: string; xml: string } | null>(null);
   const [loadingSelf, setLoadingSelf] = useState(false);
+  const [viewMode, setViewMode] = useState<'NODES' | 'RAW'>('NODES');
+  const [xmlSearch, setXmlSearch] = useState('');
 
   useEffect(() => {
     if (cfdi.xmlRaw || isLoadingXml !== undefined) {
@@ -45,9 +47,21 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
       : '';
   const xmlPayload =
     resolvedCfdi.xmlRaw ||
-    `<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Version="${preview.comprobante.version}" Serie="${preview.comprobante.serie}" Folio="${preview.comprobante.folio}" Fecha="${preview.comprobante.fecha}" Total="${preview.comprobante.total}" SubTotal="${preview.comprobante.subtotal}" Moneda="${preview.comprobante.moneda}">\n  <cfdi:Emisor Rfc="${preview.emisor.rfc}" Nombre="${preview.emisor.nombre}" RegimenFiscal="${preview.emisor.regimenFiscal}"/>\n  <cfdi:Receptor Rfc="${preview.receptor.rfc}" Nombre="${preview.receptor.nombre}" UsoCFDI="${preview.receptor.usoCfdi}"/>\n  <cfdi:Impuestos TotalImpuestosTrasladados="${preview.impuestos.totalImpuestosTrasladados}"${
+    `<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Version="${preview.comprobante.version}" Serie="${preview.comprobante.serie}" Folio="${preview.comprobante.folio}" Fecha="${preview.comprobante.fecha}" Total="${preview.comprobante.total}" SubTotal="${preview.comprobante.subtotal}" Moneda="${preview.comprobante.moneda}">\n  <cfdi:Emisor Rfc="${preview.emisor.rfc}" Nombre="${preview.emisor.nombre}"${preview.emisor.regimenFiscal ? ` RegimenFiscal="${preview.emisor.regimenFiscal}"` : ''}/>\n  <cfdi:Receptor Rfc="${preview.receptor.rfc}" Nombre="${preview.receptor.nombre}" UsoCFDI="${preview.receptor.usoCfdi}"/>\n  <cfdi:Impuestos TotalImpuestosTrasladados="${preview.impuestos.totalImpuestosTrasladados}"${
       totalRet > 0 ? ` TotalImpuestosRetenidos="${totalRet}"` : ''
     }>${retencionesSnippet}\n  </cfdi:Impuestos>\n</cfdi:Comprobante>`;
+
+  const filteredRawXml = useMemo(() => {
+    const q = xmlSearch.trim().toLowerCase();
+    if (!q) return xmlPayload;
+    const matched = xmlPayload.split('\n').filter((line) => line.toLowerCase().includes(q));
+    return matched.length > 0
+      ? matched.join('\n')
+      : `<!-- Sin coincidencias para "${xmlSearch.trim()}" -->`;
+  }, [xmlPayload, xmlSearch]);
+
+  const matchesSearch = (text: string) =>
+    !xmlSearch.trim() || text.toLowerCase().includes(xmlSearch.trim().toLowerCase());
 
   return (
     <div
@@ -67,22 +81,59 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => copyToClipboard(xmlPayload, 'XML_NODES')}
-          aria-label="Copiar nodos XML al portapapeles"
-          className="px-2.5 py-1.5 rounded-lg text-[11px] font-sans font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
-        >
-          {copiedText === 'XML_NODES' ? (
-            <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-          ) : (
-            <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-          )}
-          {copiedText === 'XML_NODES' ? 'XML Copiado' : 'Copiar Nodos XML'}
-        </button>
-        <span className="sr-only" aria-live="polite">
-          {copiedText === 'XML_NODES' ? 'Nodos XML copiados al portapapeles' : ''}
-        </span>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg bg-slate-900 border border-slate-700 p-0.5 font-sans text-[11px]" role="group" aria-label="Modo de visualización XML">
+            <button
+              type="button"
+              aria-pressed={viewMode === 'NODES'}
+              onClick={() => setViewMode('NODES')}
+              className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer transition ${
+                viewMode === 'NODES' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Nodos clave
+            </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === 'RAW'}
+              onClick={() => setViewMode('RAW')}
+              className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer transition ${
+                viewMode === 'RAW' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              XML completo
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => copyToClipboard(xmlPayload, 'XML_NODES')}
+            aria-label="Copiar nodos XML al portapapeles"
+            className="px-2.5 py-1.5 rounded-lg text-[11px] font-sans font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
+          >
+            {copiedText === 'XML_NODES' ? (
+              <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            {copiedText === 'XML_NODES' ? 'XML Copiado' : 'Copiar XML'}
+          </button>
+          <span className="sr-only" aria-live="polite">
+            {copiedText === 'XML_NODES' ? 'Nodos XML copiados al portapapeles' : ''}
+          </span>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+        <input
+          type="search"
+          value={xmlSearch}
+          onChange={(e) => setXmlSearch(e.target.value)}
+          placeholder="Buscar etiqueta, atributo, RFC o UUID en el XML..."
+          aria-label="Buscar dentro del XML del CFDI"
+          className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-400"
+        />
       </div>
 
       {isReconstructed && (
@@ -93,7 +144,13 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
         </div>
       )}
 
+      {viewMode === 'RAW' ? (
+        <pre tabIndex={0} className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-emerald-300 text-[11px] overflow-x-auto max-h-96 leading-relaxed">
+          <code>{filteredRawXml}</code>
+        </pre>
+      ) : (
       <div className="space-y-2.5 overflow-x-auto text-[11px] leading-relaxed">
+        {matchesSearch(`${preview.comprobante.serie} ${preview.comprobante.folio} ${preview.comprobante.total} Comprobante`) && (
         <div className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-cyan-400 font-bold">&lt;cfdi:Comprobante</span>
           <div className="pl-4 space-y-0.5 text-slate-300">
@@ -115,6 +172,7 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
           </div>
           <span className="text-cyan-400 font-bold">&gt;</span>
         </div>
+        )}
 
         <div className="pl-4 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800/80">
           <span className="text-blue-400 font-bold">&lt;cfdi:Emisor</span>
@@ -207,6 +265,7 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
 
         <div className="p-2.5 text-cyan-400 font-bold">&lt;/cfdi:Comprobante&gt;</div>
       </div>
+      )}
     </div>
   );
 }

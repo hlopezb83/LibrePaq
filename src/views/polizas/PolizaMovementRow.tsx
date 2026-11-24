@@ -1,9 +1,10 @@
 import React from 'react';
 import { AccountPickerCombobox } from '../../components/account-picker/AccountPickerCombobox';
 import { formatCurrency } from '../../lib/formatters';
-import type { Account } from '../../shared/types';
+import type { Account, CfdiDocument } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
 import { PolizaMovementAmountCells } from './PolizaMovementAmountCells';
+import { shouldTriggerDittoKey } from './polizaDirtyCheck';
 
 export interface PolizaMovementRowProps {
   idx: number;
@@ -13,6 +14,7 @@ export interface PolizaMovementRowProps {
   accountsById?: Map<string, Account>;
   affectableAccounts: Account[];
   cfdiUuids?: string[];
+  cfdisByUuid?: Map<string, CfdiDocument>;
   concepto: string;
   difference: number;
   accountRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
@@ -37,6 +39,7 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
   accountsById,
   affectableAccounts,
   cfdiUuids = [],
+  cfdisByUuid,
   concepto,
   difference,
   accountRefs,
@@ -58,7 +61,17 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
     : accounts?.find((a) => a.id === mov.accountId);
 
   return (
-    <tr className="hover:bg-slate-50/70 transition">
+    <tr
+      onFocusCapture={() => onRowFocus(idx)}
+      onKeyDown={(e) => {
+        if (e.key === 'F4') {
+          e.preventDefault();
+          e.stopPropagation();
+          addIva16Line(idx);
+        }
+      }}
+      className="hover:bg-slate-50/70 transition"
+    >
       <td className="p-2 min-w-[280px]">
         <AccountPickerCombobox
           accounts={affectableAccounts}
@@ -121,7 +134,14 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
               e.preventDefault();
               conceptoRefs.current[idx]?.focus();
               conceptoRefs.current[idx]?.select();
-            } else if (e.key === '"' || e.key === 'F3') {
+            } else if (
+              shouldTriggerDittoKey(
+                e.key,
+                e.currentTarget.value,
+                e.currentTarget.selectionStart,
+                e.currentTarget.selectionEnd
+              )
+            ) {
               e.preventDefault();
               setMovements((prev) =>
                 prev.map((item, i) =>
@@ -161,7 +181,14 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
                 cargoRefs.current[idx]?.focus();
                 cargoRefs.current[idx]?.select();
               }
-            } else if (e.key === '"' || e.key === 'F3') {
+            } else if (
+              shouldTriggerDittoKey(
+                e.key,
+                e.currentTarget.value,
+                e.currentTarget.selectionStart,
+                e.currentTarget.selectionEnd
+              )
+            ) {
               e.preventDefault();
               setMovements((prev) =>
                 prev.map((item, i) =>
@@ -193,11 +220,22 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
             className="w-full px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] font-mono text-slate-600"
           >
             <option value="">UUID: Predeterminado cabecera</option>
-            {cfdiUuids.map((u) => (
-              <option key={u} value={u}>
-                CFDI: {u.slice(0, 14)}...
-              </option>
-            ))}
+            {cfdiUuids.map((u) => {
+              const match = cfdisByUuid?.get(u.toUpperCase());
+              const counterparty = match
+                ? match.direction === 'EMITIDO'
+                  ? match.receptorNombre
+                  : match.emisorNombre
+                : '';
+              const label = match
+                ? `${match.serie}-${match.folio} · ${formatCurrency(match.total)} · ${counterparty}`
+                : `CFDI: ${u.slice(0, 14)}...`;
+              return (
+                <option key={u} value={u}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
         )}
       </td>

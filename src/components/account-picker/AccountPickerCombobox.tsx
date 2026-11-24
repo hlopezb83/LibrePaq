@@ -4,6 +4,7 @@ import { useFloating, autoUpdate, offset, flip, shift, size } from '@floating-ui
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Account, AccountWithBalance } from '../../shared/types';
 import { AccountPickerDropdown } from './AccountPickerDropdown';
+import { filterAccountPickerOptions } from './accountPickerSearch';
 
 interface AccountPickerComboboxProps {
   accounts: (Account | AccountWithBalance)[];
@@ -33,6 +34,7 @@ function AccountPickerComboboxBase({
 
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
 
   const selectedAccount = useMemo(
@@ -41,15 +43,9 @@ function AccountPickerComboboxBase({
   );
 
   const filteredAccounts = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    if (!q) return accounts;
-    return accounts.filter(
-      (a) =>
-        a.code.toLowerCase().includes(q) ||
-        a.name.toLowerCase().includes(q) ||
-        (a.satGroupCode && a.satGroupCode.toLowerCase().includes(q))
-    );
-  }, [accounts, query]);
+    const activeQuery = isTyping ? query : '';
+    return filterAccountPickerOptions(accounts, activeQuery);
+  }, [accounts, query, isTyping]);
 
   const { refs, floatingStyles } = useFloating({
     strategy: 'fixed',
@@ -79,7 +75,7 @@ function AccountPickerComboboxBase({
   });
 
   useEffect(() => {
-    if (query.trim().length > 0) {
+    if (isTyping && query.trim().length > 0) {
       setHighlightedIndex(0);
     } else if (value) {
       const matchIdx = filteredAccounts.findIndex((a) => a.id === value);
@@ -87,7 +83,7 @@ function AccountPickerComboboxBase({
     } else {
       setHighlightedIndex(0);
     }
-  }, [query, value, filteredAccounts]);
+  }, [query, isTyping, value, filteredAccounts]);
 
   useEffect(() => {
     if (!isOpen || !listRef.current) return;
@@ -104,6 +100,7 @@ function AccountPickerComboboxBase({
       ) {
         setIsOpen(false);
         setQuery('');
+        setIsTyping(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -114,6 +111,7 @@ function AccountPickerComboboxBase({
     onChange(account.id);
     setIsOpen(false);
     setQuery('');
+    setIsTyping(false);
     if (onAdvance) onAdvance();
   };
 
@@ -146,32 +144,38 @@ function AccountPickerComboboxBase({
         e.stopPropagation();
         const selected = filteredAccounts[highlightedIndex];
         if (selected) handleSelect(selected);
+      } else if (!isOpen) {
+        e.preventDefault();
+        onAdvance?.();
       }
     } else if (e.key === 'Tab') {
-      if (isOpen && filteredAccounts.length > 0 && (query.trim().length > 0 || !value)) {
+      if (isOpen && filteredAccounts.length > 0 && ((isTyping && query.trim().length > 0) || !value)) {
         const selected = filteredAccounts[highlightedIndex];
         if (selected) onChange(selected.id);
       }
       setIsOpen(false);
       setQuery('');
+      setIsTyping(false);
     } else if (e.key === 'Escape') {
       if (isOpen) {
         e.preventDefault();
         e.stopPropagation();
         setIsOpen(false);
         setQuery('');
+        setIsTyping(false);
       }
     } else if (e.key === 'F2') {
       e.preventDefault();
       setIsOpen((prev) => !prev);
+      setIsTyping(false);
     }
   };
 
-  const displayValue = isOpen
+  const displayValue = isTyping
     ? query
     : selectedAccount
     ? `${selectedAccount.code} — ${selectedAccount.name}`
-    : '';
+    : query;
 
   return (
     <div
@@ -207,13 +211,16 @@ function AccountPickerComboboxBase({
           placeholder={placeholder}
           onFocus={(e) => {
             setIsOpen(true);
+            setIsTyping(false);
             if (value) {
-              const matchIdx = filteredAccounts.findIndex((a) => a.id === value);
+              const matchIdx = accounts.findIndex((a) => a.id === value);
               if (matchIdx >= 0) setHighlightedIndex(matchIdx);
             }
-            e.target.select();
+            const target = e.currentTarget;
+            requestAnimationFrame(() => target.select());
           }}
           onChange={(e) => {
+            setIsTyping(true);
             setQuery(e.target.value);
             if (!isOpen) setIsOpen(true);
           }}

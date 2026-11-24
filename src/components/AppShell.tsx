@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   });
   const [cmdQuery, setCmdQuery] = useState('');
-  const { globalLedgerAccountId, openLedger, closeLedger } = useUIModal();
+  const { globalLedgerAccountId, openLedger, closeLedger, isModalOpen, closeAllModals } = useUIModal();
 
   const currentTheme = useMemo(
     () => (activeCompany ? getCompanyTheme(activeCompany.rfc) : getCompanyTheme('')),
@@ -101,9 +101,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     openModalWithRef(cmdDialogRef, hasOpenedCmd, setHasOpenedCmd, () => cmdInputRef.current?.focus());
   }, [openModalWithRef, hasOpenedCmd]);
 
-  const { isModalOpen } = useUIModal();
   useEffect(() => { if (isModalOpen('COMPANY_WIZARD')) openNewCompanyModal(); }, [isModalOpen, openNewCompanyModal]);
   useEffect(() => { try { localStorage.setItem('librepaq_sidebar_collapsed', String(sidebarCollapsed)); } catch {} }, [sidebarCollapsed]);
+  useEffect(() => { closeAllModals(); }, [currentPath, closeAllModals]);
 
   const isPublicPage = ['/landing', '/privacy', '/terms', '/reset-password'].includes(currentPath) || (!user && currentPath === '/');
   const { accounts, polizas, periodLock, togglePeriodLockMutation } = useAppShellData({
@@ -116,18 +116,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navItems = isOwner ? SUPERADMIN_NAV_ITEMS : APP_SHELL_NAV_ITEMS;
   const isWorkspaceEmpty = Boolean(user && !hasPlatformRole && !companiesLoading && companies.length === 0);
 
-  const navigateToCompanies = useCallback(
-    () => void navigate({ to: '/admin', search: { tab: 'companies' } }),
-    [navigate]
-  );
+  const navigateToCompanies = useCallback(() => void navigate({ to: '/admin', search: { tab: 'companies' } }), [navigate]);
 
   const { isExitingSupport, handleExitSupportMode } = useSupportModeExit({
-    supportSession,
-    isReadOnlySupportMode,
-    currentPath,
-    authLoading,
-    queryClient,
-    navigateToCompanies
+    supportSession, isReadOnlySupportMode, currentPath, authLoading, queryClient, navigateToCompanies
   });
 
   const navigateTarget = useCallback(
@@ -139,18 +131,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if (!authLoading && user && isOwner && currentPath === '/') {
-      void navigate({ to: '/admin' });
-    }
+    if (!authLoading && user && isOwner && currentPath === '/') void navigate({ to: '/admin' });
   }, [authLoading, user, isOwner, currentPath, navigate]);
 
   useAppShellDocumentTitle({
-    currentPath,
-    activeCompany,
-    navItems,
-    isOwner,
-    user,
-    isWorkspaceEmpty,
+    currentPath, activeCompany, navItems, isOwner, user, isWorkspaceEmpty,
     onPathChange: useCallback(() => setMobileMenuOpen(false), [])
   });
 
@@ -165,19 +150,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   useAppShellKeyboard({
-    shortcutsDialogRef,
-    cmdDialogRef,
-    switcherDialogRef,
-    openShortcutsModal,
-    openCommandPaletteModal,
-    openCompanySwitcherModal,
-    setSidebarCollapsed,
-    navItems,
-    navigate: navigateTarget,
-    stepPeriod,
-    activeCompany,
-    isOwner,
-    disableCommandPalette: isPublicPage || isWorkspaceEmpty
+    shortcutsDialogRef, cmdDialogRef, switcherDialogRef,
+    openShortcutsModal, openCommandPaletteModal, openCompanySwitcherModal, closeAllModals,
+    setSidebarCollapsed, navItems, navigate: navigateTarget, stepPeriod,
+    activeCompany, isOwner, isPublicPage,
+    disableCommandPalette: isPublicPage || isWorkspaceEmpty,
+    onEmptyModuleShortcut: (label) => toast.info(`Crea tu primera empresa o abre la Empresa Ejemplo para usar "${label}".`)
   });
 
   useEffect(() => {
@@ -212,6 +190,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         currentPath={currentPath}
         navItems={navItems}
         onOpenCommandPalette={openCommandPaletteModal}
+        onBeforeNavigate={closeAllModals}
         isWorkspaceEmpty={isWorkspaceEmpty}
         onEmptyModuleClick={(label) =>
           toast.info(`Crea tu primera empresa o abre la Empresa Ejemplo para usar "${label}".`)
@@ -263,9 +242,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 p-3 sm:p-4 lg:p-5 max-w-[1800px] w-full mx-auto focus:outline-none"
+          className="flex-1 p-3 sm:p-4 lg:p-5 pb-20 lg:pb-16 max-w-[1800px] w-full mx-auto focus:outline-none"
         >
-          {activeCompany && !isOwner && isSandboxDemoCompany(activeCompany) && (
+          {activeCompany && !isOwner && !user?.user_metadata?.is_guest && isSandboxDemoCompany(activeCompany) && (
             <SandboxDemoBanner
               company={activeCompany}
               onOpenNewCompanyWizard={openNewCompanyModal}

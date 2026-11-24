@@ -10,7 +10,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
   return (
     <>
       {/* Llamado a la Acción Final (CTA Banner) */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 relative overflow-hidden text-center">
+      <section className="dark-surface py-14 sm:py-20 lg:py-24 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 relative overflow-hidden text-center">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white text-balance">
             Moderniza la Contabilidad de Tu Despacho Hoy Mismo
@@ -42,7 +42,7 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
       </section>
 
       {/* Footer Profesional Completo */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-slate-300 text-xs py-14">
+      <footer className="dark-surface bg-slate-900 border-t border-slate-800 text-slate-300 text-xs py-14 sm:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
             <div>
@@ -51,19 +51,19 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
                 Sistema Contable y Fiscal Inteligente en la Nube con Facturación Electrónica SAT Anexo 24.
               </p>
               <p className="mt-3 text-cyan-300 font-mono font-medium">
-                Hecho en México para Contadores Mexicanos 🇲🇽
+                Hecho en México para Contadores Mexicanos <span aria-hidden="true">🇲🇽</span>
               </p>
             </div>
 
             <div>
               <h3 className="font-bold text-white text-sm mb-3">Módulos Contables</h3>
               <ul className="space-y-2">
-                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Tablero Fiscal y Cierre</a></li>
-                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Pólizas y Movimientos</a></li>
-                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Catálogo de Cuentas SAT</a></li>
-                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Bóveda CFDI 4.0 (ADD)</a></li>
-                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">DIOT y Bancos</a></li>
-                <li><a href="#caracteristicas" className="hover:text-white transition cursor-pointer">Balanza de Comprobación</a></li>
+                <li><a href="#mod-cierre" className="hover:text-white transition cursor-pointer">Candados y Cierre P13</a></li>
+                <li><a href="#mod-polizas" className="hover:text-white transition cursor-pointer">Pólizas y Movimientos</a></li>
+                <li><a href="#mod-catalogo" className="hover:text-white transition cursor-pointer">Catálogo de Cuentas SAT</a></li>
+                <li><a href="#mod-boveda" className="hover:text-white transition cursor-pointer">Bóveda CFDI 4.0 (ADD)</a></li>
+                <li><a href="#mod-bancos" className="hover:text-white transition cursor-pointer">DIOT y Bancos</a></li>
+                <li><a href="#mod-activos" className="hover:text-white transition cursor-pointer">Activos Fijos e INPC</a></li>
               </ul>
             </div>
 
@@ -91,10 +91,16 @@ export function LandingFooterSection({ onOpenAuth }: LandingFooterSectionProps) 
                     className="hover:text-cyan-300 transition"
                   >
                     Manual de Usuario (PDF)
+                    <span className="sr-only"> (abre en nueva pestaña)</span>
                   </a>
                 </li>
                 <li><span className="text-slate-300">Almacenamiento Cifrado y Respaldo 1-Clic</span></li>
-                <li><a href="https://wa.me/528116362252" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition">Soporte WhatsApp: +52 81 1636 2252</a></li>
+                <li>
+                  <a href="https://wa.me/528116362252" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition">
+                    Soporte WhatsApp: +52 81 1636 2252
+                    <span className="sr-only"> (abre en nueva pestaña)</span>
+                  </a>
+                </li>
                 <li><a href="mailto:hlopezb@gmail.com" className="hover:text-white transition">Contacto: hlopezb@gmail.com</a></li>
               </ul>
             </div>

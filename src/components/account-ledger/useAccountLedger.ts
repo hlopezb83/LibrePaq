@@ -7,7 +7,14 @@ import { apiClient } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
 import { exportAccountLedgerXlsx } from '../../lib/excel-export';
 import { MESES_SAT } from '../../shared/sat-constants';
+import type { AccountLedgerEntry } from '../../shared/types';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
+
+export function buildLedgerPeriodSuffix(effectiveFrom: number, effectiveTo: number): string {
+  const fromStr = String(effectiveFrom).padStart(2, '0');
+  const toStr = String(effectiveTo).padStart(2, '0');
+  return effectiveFrom !== effectiveTo ? `P${fromStr}-P${toStr}` : `P${fromStr}`;
+}
 
 export function useAccountLedger(
   companyId: string,
@@ -20,16 +27,27 @@ export function useAccountLedger(
   const dialogRef = useRef<HTMLDialogElement>(null);
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
-  const [periodFrom, setPeriodFrom] = useState<number>(currentPeriod ?? 1);
-  const [periodTo, setPeriodTo] = useState<number>(currentPeriod ?? 1);
+  const [periodFrom, setPeriodFromState] = useState<number>(currentPeriod ?? 1);
+  const [periodTo, setPeriodToState] = useState<number>(currentPeriod ?? 1);
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+
+  const requestDialogClose = () => {
+    const dialog = dialogRef.current;
+    if (dialog?.open) {
+      dialog.close();
+      return;
+    }
+    onClose();
+  };
+
   useDialogLightDismiss(dialogRef, onClose);
 
   useEffect(() => {
+    setLedgerSearch('');
     if (currentPeriod) {
-      setPeriodFrom(currentPeriod);
-      setPeriodTo(currentPeriod);
+      setPeriodFromState(currentPeriod);
+      setPeriodToState(currentPeriod);
     }
   }, [currentPeriod, accountId]);
 
@@ -37,9 +55,9 @@ export function useAccountLedger(
   useEffect(() => {
     if (prevCompanyIdRef.current !== companyId) {
       prevCompanyIdRef.current = companyId;
-      if (accountId) onClose();
+      if (accountId) requestDialogClose();
     }
-  }, [companyId, accountId, onClose]);
+  }, [companyId, accountId]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -50,6 +68,30 @@ export function useAccountLedger(
       dialog.close();
     }
   }, [accountId]);
+
+  const setPeriodFrom = (nextFrom: number) => {
+    setPeriodFromState(nextFrom);
+    setPeriodToState((prevTo) => Math.max(prevTo, nextFrom));
+  };
+
+  const setPeriodTo = (nextTo: number) => {
+    setPeriodToState(nextTo);
+    setPeriodFromState((prevFrom) => Math.min(prevFrom, nextTo));
+  };
+
+  const applyRangePreset = (preset: 'CURRENT' | 'YTD' | 'FULL_YEAR') => {
+    const active = currentPeriod ?? 1;
+    if (preset === 'CURRENT') {
+      setPeriodFromState(active);
+      setPeriodToState(active);
+    } else if (preset === 'YTD') {
+      setPeriodFromState(1);
+      setPeriodToState(active);
+    } else {
+      setPeriodFromState(1);
+      setPeriodToState(13);
+    }
+  };
 
   const effectiveFrom = Math.min(periodFrom, periodTo);
   const effectiveTo = Math.max(periodFrom, periodTo);
@@ -87,15 +129,23 @@ export function useAccountLedger(
         e.referencia.toLowerCase().includes(q) ||
         String(e.folioPoliza).includes(q) ||
         e.tipoPoliza.toLowerCase().includes(q) ||
+        `${e.tipoPoliza} #${e.folioPoliza}`.toLowerCase().includes(q) ||
         (e.cfdiUuid && e.cfdiUuid.toLowerCase().includes(q))
     );
   }, [data, ledgerSearch]);
 
-  const handleGoToPoliza = (folio: number) => {
-    onClose();
+  const handleGoToPoliza = (entry: Pick<AccountLedgerEntry, 'tipoPoliza' | 'folioPoliza' | 'periodo'>) => {
+    const queryStr = `${entry.tipoPoliza} #${entry.folioPoliza}`;
+    if (entry.periodo && currentPeriod && entry.periodo !== currentPeriod) {
+      toast.info(
+        `Póliza pertenece a P${String(entry.periodo).padStart(2, '0')}`,
+        `Cambia al periodo P${String(entry.periodo).padStart(2, '0')} en el selector superior si no aparece en la vista actual.`
+      );
+    }
+    requestDialogClose();
     void navigate({
       to: '/polizas',
-      search: { search: String(folio) }
+      search: { search: queryStr }
     });
   };
 
@@ -108,14 +158,14 @@ export function useAccountLedger(
       'Nombre Cuenta',
       'Referencia',
       'Concepto',
-      'UUID CFDI',
+      'Folio Fiscal (UUID)',
       'Cargo (Debe)',
       'Abono (Haber)',
       'Saldo Progresivo'
     ];
     const rows: Array<Array<string | number>> = [
       [
-        `${data.ejercicio}-${String(data.periodo).padStart(2, '0')}-01`,
+        `${data.ejercicio}-${String(effectiveFrom).padStart(2, '0')}-01`,
         'SALDO INICIAL',
         data.account.code,
         data.account.name,
@@ -139,8 +189,9 @@ export function useAccountLedger(
         e.runningBalance
       ])
     ];
+    const rangeSuffix = buildLedgerPeriodSuffix(effectiveFrom, effectiveTo);
     downloadCsvFile(
-      `Auxiliar_${data.account.code}_${data.ejercicio}_P${String(data.periodo).padStart(2, '0')}.csv`,
+      `Auxiliar_${data.account.code}_${data.ejercicio}_${rangeSuffix}.csv`,
       headers,
       rows
     );
@@ -167,15 +218,20 @@ export function useAccountLedger(
     isError,
     error,
     refetch,
+    currentPeriod: currentPeriod ?? 1,
     mesNombre,
     periodFrom,
     setPeriodFrom,
     periodTo,
     setPeriodTo,
+    effectiveFrom,
+    effectiveTo,
+    applyRangePreset,
     ledgerSearch,
     setLedgerSearch,
     filteredEntries,
     isExporting,
+    requestDialogClose,
     handleGoToPoliza,
     handleExportCsv,
     handleExportXlsx
