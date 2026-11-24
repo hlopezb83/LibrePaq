@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { AlertCircle, Lock, Wand2 } from 'lucide-react';
+import { Lock, Wand2 } from 'lucide-react';
+import { AlertBanner, Button, FormField, INPUT_BASE_CLASS, Select } from '../../components/ui';
 import type { CfdiDocument, PolizaType } from '../../shared/types';
 import { PolizaMultiCfdiBar } from './PolizaMultiCfdiBar';
 
@@ -61,44 +62,35 @@ export function PolizaEditorHeader({
   return (
     <>
       {isDateDifferentPeriod && (
-        <div
-          role="status"
-          className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2 shadow-2xs w-full min-w-0 max-w-full"
+        <AlertBanner
+          tone="warning"
+          title="Aviso de Periodo Fiscal:"
+          action={
+            onUseActivePeriodDate ? (
+              <Button variant="secondary" size="sm" onClick={onUseActivePeriodDate}>
+                Usar fecha del periodo activo
+              </Button>
+            ) : undefined
+          }
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
-            <span>
-              <strong>Aviso de Periodo Fiscal:</strong> La fecha (<strong>{fecha}</strong>) pertenece al periodo P{fecha.slice(5, 7)}/{fecha.slice(0, 4)}, distinto al activo (<strong>P{String(currentPeriod).padStart(2, '0')}/{currentYear}</strong>).
-            </span>
-          </div>
-          {onUseActivePeriodDate && (
-            <button
-              type="button"
-              onClick={onUseActivePeriodDate}
-              className="px-2.5 py-1 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-950 font-semibold text-[11px] border border-amber-400 cursor-pointer transition shrink-0"
-            >
-              Usar fecha del periodo activo
-            </button>
-          )}
-        </div>
+          La fecha (<strong>{fecha}</strong>) pertenece al periodo P{fecha.slice(5, 7)}/{fecha.slice(0, 4)}, distinto al activo (<strong>P{String(currentPeriod).padStart(2, '0')}/{currentYear}</strong>).
+        </AlertBanner>
       )}
 
       {isPeriodLocked && (
-        <div
-          role="status"
-          className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-center gap-2 shadow-2xs"
+        <AlertBanner
+          tone="danger"
+          icon={<Lock className="w-4 h-4" aria-hidden="true" />}
+          title="Periodo Bloqueado:"
         >
-          <Lock className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
-          <span>
-            <strong>Periodo Bloqueado:</strong> No es posible guardar cambios en este periodo fiscal porque ha sido cerrado ante el SAT.
-          </span>
-        </div>
+          No es posible guardar cambios en este periodo fiscal porque ha sido cerrado ante el SAT.
+        </AlertBanner>
       )}
 
       {formError && (
-        <div role="alert" aria-live="polite" className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800">
+        <AlertBanner tone="danger">
           {formError}
-        </div>
+        </AlertBanner>
       )}
 
       {!editingPolizaId && (
@@ -156,11 +148,8 @@ export function PolizaEditorHeader({
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full min-w-0">
-        <div className="min-w-0">
-          <label htmlFor="pol-tipo" className="block text-xs font-semibold text-slate-700 mb-1">
-            Tipo de Póliza *
-          </label>
-          <select
+        <FormField label="Tipo de Póliza" htmlFor="pol-tipo" required className="min-w-0">
+          <Select
             id="pol-tipo"
             form="poliza-form"
             value={tipo}
@@ -171,18 +160,15 @@ export function PolizaEditorHeader({
                 fechaInputRef.current?.focus();
               }
             }}
-            className="w-full min-w-0 px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white cursor-pointer"
+            className="font-semibold"
           >
             <option value="INGRESO">INGRESO</option>
             <option value="EGRESO">EGRESO</option>
             <option value="DIARIO">DIARIO</option>
-          </select>
-        </div>
+          </Select>
+        </FormField>
 
-        <div className="min-w-0">
-          <label htmlFor="pol-fecha" className="block text-xs font-semibold text-slate-700 mb-1">
-            Fecha Contable *
-          </label>
+        <FormField label="Fecha Contable" htmlFor="pol-fecha" required className="min-w-0">
           <input
             ref={fechaInputRef}
             id="pol-fecha"
@@ -197,14 +183,11 @@ export function PolizaEditorHeader({
                 focusConcepto();
               }
             }}
-            className="w-full min-w-0 px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono"
+            className={`${INPUT_BASE_CLASS} font-mono tabular-nums`}
           />
-        </div>
+        </FormField>
 
-        <div className="min-w-0">
-          <label htmlFor="pol-concepto" className="block text-xs font-semibold text-slate-700 mb-1">
-            Concepto General de la Póliza *
-          </label>
+        <FormField label="Concepto General de la Póliza" htmlFor="pol-concepto" required className="min-w-0">
           <input
             ref={conceptoInputRef}
             id="pol-concepto"
@@ -221,9 +204,9 @@ export function PolizaEditorHeader({
               }
             }}
             placeholder="Ej. Provisión de servicios profesionales del mes"
-            className="w-full min-w-0 px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+            className={INPUT_BASE_CLASS}
           />
-        </div>
+        </FormField>
       </div>
     </>
   );

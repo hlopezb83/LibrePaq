@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle2, Landmark, Lock, Plus, Sparkles, Trash2, Unlink, UploadCloud } from 'lucide-react';
+import { Button, ClearFiltersButton, EmptyState, InlineConfirm, StatusBadge } from '../../components/ui';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { BankReconciliationResponse } from '../../shared/types';
 
@@ -43,9 +44,7 @@ export function BankStatementTable({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmUnmatchId, setConfirmUnmatchId] = useState<string | null>(null);
   const isLocked = isPeriodLocked || isReadOnlyClient;
-  const lockReason = isReadOnlyClient
-    ? 'Modo solo lectura'
-    : 'Periodo bloqueado ante el SAT';
+  const lockReason = isReadOnlyClient ? 'Modo solo lectura' : 'Periodo bloqueado ante el SAT';
   const visibleLines = showOnlyPending
     ? reconData.statementLines.filter((l) => !l.matchedMovementId)
     : reconData.statementLines;
@@ -75,9 +74,7 @@ export function BankStatementTable({
         className="overflow-x-auto max-h-[380px] overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-600"
       >
         <table className="w-full text-left border-collapse erp-sticky-table">
-          <caption className="visually-hidden">
-            Movimientos del estado de cuenta bancario
-          </caption>
+          <caption className="visually-hidden">Movimientos del estado de cuenta bancario</caption>
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
               <th scope="col" className="py-2.5 px-4 w-[110px]">Fecha</th>
@@ -92,53 +89,48 @@ export function BankStatementTable({
           <tbody className="divide-y divide-slate-200 text-xs">
             {visibleLines.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-600 space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto shadow-2xs">
-                    <Landmark className="w-6 h-6" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-800 text-sm">
-                      {showOnlyPending && reconData.statementLines.length > 0
+                <td colSpan={7}>
+                  <EmptyState
+                    icon={<Landmark className="w-6 h-6" aria-hidden="true" />}
+                    tone="blue"
+                    title={
+                      showOnlyPending && reconData.statementLines.length > 0
                         ? 'Sin partidas bancarias pendientes por conciliar'
-                        : 'No hay extractos bancarios registrados para esta cuenta'}
-                    </p>
-                    <p className="text-xs text-slate-600 max-w-sm mx-auto mt-1">
-                      {showOnlyPending && reconData.statementLines.length > 0
+                        : 'No hay extractos bancarios registrados para esta cuenta'
+                    }
+                    description={
+                      showOnlyPending && reconData.statementLines.length > 0
                         ? 'Todos los movimientos del estado de cuenta ya están cruzados.'
-                        : 'Importa un CSV o registra un movimiento manual para iniciar la conciliación.'}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {showOnlyPending && reconData.statementLines.length > 0 && onClearPendingFilter && (
-                      <button
-                        type="button"
-                        onClick={onClearPendingFilter}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 cursor-pointer"
-                      >
-                        Ver todos los movimientos
-                      </button>
-                    )}
-                    {!isLocked && !showOnlyPending && onTriggerCsvImport && (
-                      <button
-                        type="button"
-                        onClick={onTriggerCsvImport}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 cursor-pointer"
-                      >
-                        <UploadCloud className="w-3.5 h-3.5" aria-hidden="true" />
-                        Importar CSV Banco
-                      </button>
-                    )}
-                    {!isLocked && !showOnlyPending && onOpenAddLine && (
-                      <button
-                        type="button"
-                        onClick={onOpenAddLine}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                        Agregar Línea Manual
-                      </button>
-                    )}
-                  </div>
+                        : 'Importa un CSV o registra un movimiento manual para iniciar la conciliación.'
+                    }
+                    actions={
+                      <>
+                        {showOnlyPending && reconData.statementLines.length > 0 && onClearPendingFilter && (
+                          <ClearFiltersButton onClick={onClearPendingFilter} label="Ver todos los movimientos" />
+                        )}
+                        {!isLocked && !showOnlyPending && onTriggerCsvImport && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={onTriggerCsvImport}
+                            leftIcon={<UploadCloud className="w-3.5 h-3.5" aria-hidden="true" />}
+                          >
+                            Importar CSV Banco
+                          </Button>
+                        )}
+                        {!isLocked && !showOnlyPending && onOpenAddLine && (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={onOpenAddLine}
+                            leftIcon={<Plus className="w-3.5 h-3.5" aria-hidden="true" />}
+                          >
+                            Agregar Línea Manual
+                          </Button>
+                        )}
+                      </>
+                    }
+                  />
                 </td>
               </tr>
             ) : (
@@ -150,7 +142,11 @@ export function BankStatementTable({
                     key={line.id}
                     tabIndex={!line.matchedMovementId && onSelectLine ? 0 : undefined}
                     aria-selected={!line.matchedMovementId && onSelectLine ? isSelected : undefined}
-                    aria-label={!line.matchedMovementId && onSelectLine ? `${isSelected ? 'Deseleccionar' : 'Seleccionar'} movimiento bancario ${line.referencia} por ${formatCurrency(line.cargoBanco || line.abonoBanco)} para cruce manual` : undefined}
+                    aria-label={
+                      !line.matchedMovementId && onSelectLine
+                        ? `${isSelected ? 'Deseleccionar' : 'Seleccionar'} movimiento bancario ${line.referencia} por ${formatCurrency(line.cargoBanco || line.abonoBanco)} para cruce manual`
+                        : undefined
+                    }
                     onClick={() => {
                       if (!line.matchedMovementId && onSelectLine) onSelectLine(line.id);
                     }}
@@ -165,8 +161,8 @@ export function BankStatementTable({
                       isSelected
                         ? 'bg-blue-100/80 ring-1 ring-inset ring-blue-400 cursor-pointer'
                         : line.matchedMovementId
-                        ? 'hover:bg-blue-50/30'
-                        : 'bg-amber-50/40 hover:bg-amber-50/70 cursor-pointer'
+                          ? 'hover:bg-blue-50/30'
+                          : 'bg-amber-50/40 hover:bg-amber-50/70 cursor-pointer'
                     }
                   >
                     <td className="py-2.5 px-4 font-mono text-slate-600 w-[110px] whitespace-nowrap">
@@ -176,9 +172,7 @@ export function BankStatementTable({
                     <td className="py-2.5 px-4 font-mono font-bold text-slate-900 w-[130px] whitespace-nowrap">
                       {line.referencia}
                     </td>
-                    <td className="py-2.5 px-4 text-slate-800 font-medium">
-                      {line.descripcion}
-                    </td>
+                    <td className="py-2.5 px-4 text-slate-800 font-medium">{line.descripcion}</td>
                     <td className="py-2.5 px-4 text-right font-mono text-slate-900 font-semibold w-[130px] whitespace-nowrap tabular-nums">
                       {line.cargoBanco > 0 ? formatCurrency(line.cargoBanco) : '—'}
                     </td>
@@ -187,14 +181,11 @@ export function BankStatementTable({
                     </td>
                     <td className="py-2.5 px-4 text-center w-[150px]">
                       {line.matchedMovementId ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                        <StatusBadge tone="emerald" icon={<CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}>
                           Conciliado ({line.matchedPolizaFolio || 'Póliza'})
-                        </span>
+                        </StatusBadge>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-950 border border-amber-300">
-                          Sin Conciliar
-                        </span>
+                        <StatusBadge tone="amber">Sin Conciliar</StatusBadge>
                       )}
                     </td>
                     <td
@@ -203,8 +194,9 @@ export function BankStatementTable({
                     >
                       {!line.matchedMovementId ? (
                         <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
+                          <Button
+                            size="sm"
+                            variant={isLocked ? 'secondary' : 'primary'}
                             disabled={isCreatePolizaPending || isLocked}
                             aria-busy={isCreatePolizaPending && isRowMutating}
                             onClick={() => onCreatePolizaFromBank(line.id)}
@@ -213,43 +205,29 @@ export function BankStatementTable({
                                 ? `${lockReason}. No es posible generar pólizas.`
                                 : 'Elegir contracuenta, IVA y generar póliza'
                             }
-                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-2xs transition ${
+                            leftIcon={
                               isLocked
-                                ? 'opacity-50 cursor-not-allowed bg-slate-500 text-white'
-                                : 'bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer'
-                            }`}
+                                ? <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+                                : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                            }
                           >
-                            {isLocked ? <Lock className="w-3.5 h-3.5" aria-hidden="true" /> : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
                             {isCreatePolizaPending && isRowMutating ? 'Creando...' : 'Crear Póliza'}
-                          </button>
+                          </Button>
                           {onDeleteBankLine && (
                             confirmDeleteId === line.id ? (
-                              <span
-                                role="group"
-                                aria-label="Confirmar eliminación de línea"
-                                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setConfirmDeleteId(null); } }}
-                                className="inline-flex items-center gap-1"
-                              >
-                                <button
-                                  type="button"
-                                  disabled={isDeletePending || isLocked}
-                                  aria-label={`Confirmar eliminación de ${line.referencia}`}
-                                  onClick={() => { setConfirmDeleteId(null); onDeleteBankLine(line.id); }}
-                                  className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-40 cursor-pointer"
-                                >
-                                  Confirmar
-                                </button>
-                                <button
-                                  type="button"
-                                  autoFocus
-                                  disabled={isDeletePending}
-                                  aria-label={`Cancelar eliminación de ${line.referencia}`}
-                                  onClick={() => setConfirmDeleteId(null)}
-                                  className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-                                >
-                                  Cancelar
-                                </button>
-                              </span>
+                              <div tabIndex={-1} autoFocus className="inline-block focus:outline-none">
+                                <InlineConfirm
+                                  ariaLabel={`Confirmar eliminación de ${line.referencia}`}
+                                  busy={isDeletePending || isLocked}
+                                  confirmLabel="Confirmar"
+                                  cancelLabel="Cancelar"
+                                  onCancel={() => setConfirmDeleteId(null)}
+                                  onConfirm={() => {
+                                    setConfirmDeleteId(null);
+                                    onDeleteBankLine(line.id);
+                                  }}
+                                />
+                              </div>
                             ) : (
                               <button
                                 type="button"
@@ -265,48 +243,32 @@ export function BankStatementTable({
                           )}
                         </div>
                       ) : confirmUnmatchId === line.id ? (
-                        <span
-                          role="group"
-                          aria-label="Confirmar desconciliación"
-                          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setConfirmUnmatchId(null); } }}
-                          className="inline-flex items-center gap-1"
-                        >
-                          <button
-                            type="button"
-                            disabled={isUnmatchPending || isLocked}
-                            aria-label={`Confirmar desconciliación de ${line.referencia}`}
-                            onClick={() => { setConfirmUnmatchId(null); onUnmatchBankLine(line.id); }}
-                            className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 cursor-pointer"
-                          >
-                            Confirmar
-                          </button>
-                          <button
-                            type="button"
-                            autoFocus
-                            disabled={isUnmatchPending}
-                            aria-label={`Cancelar desconciliación de ${line.referencia}`}
-                            onClick={() => setConfirmUnmatchId(null)}
-                            className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-                          >
-                            Cancelar
-                          </button>
-                        </span>
+                        <div tabIndex={-1} autoFocus className="inline-block focus:outline-none">
+                          <InlineConfirm
+                            ariaLabel={`Confirmar desconciliación de ${line.referencia}`}
+                            busy={isUnmatchPending || isLocked}
+                            confirmLabel="Confirmar"
+                            cancelLabel="Cancelar"
+                            onCancel={() => setConfirmUnmatchId(null)}
+                            onConfirm={() => {
+                              setConfirmUnmatchId(null);
+                              onUnmatchBankLine(line.id);
+                            }}
+                          />
+                        </div>
                       ) : (
-                        <button
-                          type="button"
+                        <Button
+                          size="sm"
+                          variant="secondary"
                           disabled={isUnmatchPending || isLocked}
                           aria-busy={isUnmatchPending && isRowMutating}
                           onClick={() => setConfirmUnmatchId(line.id)}
                           title={isLocked ? lockReason : 'Desvincular esta línea bancaria para volver a conciliar'}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                            isLocked
-                              ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-500 border-slate-200'
-                              : 'text-slate-700 bg-slate-100 hover:bg-red-50 hover:text-red-800 border-slate-200 hover:border-red-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
-                          }`}
+                          leftIcon={<Unlink className="w-3.5 h-3.5" aria-hidden="true" />}
+                          className={!isLocked ? 'hover:bg-red-50 hover:text-red-800 hover:border-red-200' : ''}
                         >
-                          <Unlink className="w-3.5 h-3.5" aria-hidden="true" />
                           {isUnmatchPending && isRowMutating ? 'Desvinculando...' : 'Desconciliar'}
-                        </button>
+                        </Button>
                       )}
                     </td>
                   </tr>

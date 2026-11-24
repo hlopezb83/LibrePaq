@@ -1,3 +1,5 @@
+import { BookText, FileSpreadsheet } from 'lucide-react';
+import { EmptyState } from '../../components/ui';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { Poliza } from '../../shared/types';
 import type { AuxiliarAccountBlock } from './auxiliaresDiarioExport';
@@ -12,23 +14,37 @@ export function DiarioGeneralTable({
   onSelectAccount: (accountId: string) => void;
 }) {
   return (
-    <div tabIndex={0} role="region" aria-label="Tabla de Diario General" className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-x-auto focus:outline-none focus:ring-2 focus:ring-blue-600">
-      <table className="w-full text-left border-collapse text-xs">
+    <div
+      tabIndex={0}
+      role="region"
+      aria-label="Tabla de Diario General"
+      className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-auto max-h-[min(560px,65dvh)] focus:outline-none focus:ring-2 focus:ring-blue-600"
+    >
+      <table className="w-full text-left border-collapse text-xs erp-sticky-table">
         <caption className="visually-hidden">Diario General de pólizas contables</caption>
-        <thead>
+        <thead className="sticky top-0 z-20">
           <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase text-slate-600">
-            <th scope="col" className="py-2.5 px-3">Fecha</th>
-            <th scope="col" className="py-2.5 px-3">Póliza</th>
-            <th scope="col" className="py-2.5 px-3">Cuenta</th>
-            <th scope="col" className="py-2.5 px-3">Nombre</th>
+            <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Fecha</th>
+            <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Póliza</th>
+            <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Cuenta</th>
+            <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Nombre</th>
             <th scope="col" className="py-2.5 px-3">Concepto</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Cargo</th>
-            <th scope="col" className="py-2.5 px-3 text-right">Abono</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Cargo</th>
+            <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Abono</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
           {polizas.length === 0 ? (
-            <tr><td colSpan={7} className="py-8 text-center text-slate-600">Sin pólizas registradas en el rango de periodos.</td></tr>
+            <tr>
+              <td colSpan={7} className="py-6 px-4">
+                <EmptyState
+                  icon={<BookText className="w-5 h-5" aria-hidden="true" />}
+                  tone="slate"
+                  title="Sin pólizas en el rango"
+                  description="Sin pólizas registradas en el rango de periodos seleccionado."
+                />
+              </td>
+            </tr>
           ) : (
             polizas.flatMap((p) =>
               p.movements.map((m) => (
@@ -49,9 +65,9 @@ export function DiarioGeneralTable({
             )
           )}
         </tbody>
-        <tfoot className="bg-[#0A1120] text-white font-mono font-bold tabular-nums">
-          <tr>
-            <td colSpan={5} className="py-2.5 px-3 text-right uppercase">Sumas Iguales ({polizas.length} pólizas):</td>
+        <tfoot className="sticky bottom-0 z-10 bg-[#0A1120] text-white font-mono font-bold tabular-nums shadow-2xl">
+          <tr className="bg-[#0A1120] border-t-2 border-blue-500">
+            <td colSpan={5} className="py-2.5 px-3 text-right uppercase whitespace-nowrap">Sumas Iguales ({polizas.length} pólizas):</td>
             <td className="py-2.5 px-3 text-right text-cyan-300 whitespace-nowrap">{formatCurrency(diarioTotals.cargos)}</td>
             <td className="py-2.5 px-3 text-right text-cyan-300 whitespace-nowrap">{formatCurrency(diarioTotals.abonos)}</td>
           </tr>
@@ -71,9 +87,13 @@ export function AuxiliaresAccountBlocks({
   return (
     <div className="space-y-4">
       {auxiliarBlocks.length === 0 ? (
-        <div className="p-8 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-600">
-          No se encontraron cuentas con saldo o movimiento en el rango seleccionado.
-        </div>
+        <EmptyState
+          variant="card"
+          tone="slate"
+          icon={<FileSpreadsheet className="w-5 h-5" aria-hidden="true" />}
+          title="Sin cuentas con movimiento"
+          description="No se encontraron cuentas con saldo o movimiento en el rango seleccionado."
+        />
       ) : (
         auxiliarBlocks.map((b) => (
           <div key={b.account.id} tabIndex={0} role="region" aria-label={`Auxiliar de cuenta ${b.account.code} ${b.account.name}`} className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-x-auto focus:outline-none focus:ring-2 focus:ring-blue-600">

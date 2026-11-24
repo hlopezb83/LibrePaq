@@ -1,4 +1,5 @@
 import { Scale } from 'lucide-react';
+import { AlertBanner, KpiCard, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import { formatBalanceCutoffLabel } from '../../shared/date-utils';
 import type { AccountWithBalance, Company, FinancialStatementsResponse } from '../../shared/types';
@@ -89,9 +90,9 @@ export function BalanceGeneralTab({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-3.5 sm:p-6 border-b-2 border-slate-900">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight break-words">
               {company.name}
@@ -107,51 +108,38 @@ export function BalanceGeneralTab({
               {cutoffLabel} • Cifras expresadas en Pesos Mexicanos (MXN)
             </div>
           </div>
-          <div className="text-right hidden sm:block">
+          <div className="text-right hidden sm:block shrink-0">
             <Scale className="w-8 h-8 text-blue-700 ml-auto" aria-hidden="true" />
-            <span
-              className={`inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-                isBalanced
-                  ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
-                  : 'text-amber-800 bg-amber-50 border-amber-300'
-              }`}
-            >
+            <StatusBadge tone={isBalanced ? 'emerald' : 'amber'} shape="tag" className="mt-1">
               {isBalanced
                 ? 'Ecuación Cuadrada (A = P + C)'
                 : `Descuadre: ${formatCurrency(Math.abs(balanceSheet.totalActivo - balanceSheet.totalPasivoMasCapital))}`}
-            </span>
+            </StatusBadge>
           </div>
         </div>
       </div>
 
-      <div
-        className={`p-3.5 sm:p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-          isBalanced
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-            : 'bg-amber-50 border-amber-300 text-amber-950'
-        }`}
+      <AlertBanner
+        tone={isBalanced ? 'success' : 'warning'}
+        icon={<Scale className="w-4 h-4" aria-hidden="true" />}
+        action={
+          <StatusBadge tone={isBalanced ? 'emerald' : 'amber'}>
+            {isBalanced ? 'NIF B-6 Verificado ✔' : 'Diferencia en Ecuación ⚠'}
+          </StatusBadge>
+        }
       >
-        <div className="flex items-start sm:items-center gap-2.5 text-xs font-semibold">
-          <Scale
-            className={`w-5 h-5 shrink-0 mt-0.5 sm:mt-0 ${
-              isBalanced ? 'text-emerald-700' : 'text-amber-700'
-            }`}
-            aria-hidden="true"
-          />
-          <span className="leading-relaxed">
-            {isBalanced ? 'Ecuación Contable Cuadrada' : 'Ecuación Contable con Diferencia'}: Total Activo (
-            <strong className="font-mono">{formatCurrency(balanceSheet.totalActivo)}</strong>) {isBalanced ? '=' : '≠'}{' '}
-            Pasivo + Capital Contable (
-            <strong className="font-mono">{formatCurrency(balanceSheet.totalPasivoMasCapital)}</strong>)
-          </span>
-        </div>
-        <span
-          className={`self-start sm:self-auto px-2.5 py-1 rounded-full text-[11px] font-bold shrink-0 ${
-            isBalanced ? 'bg-emerald-700 text-white' : 'bg-amber-700 text-white'
-          }`}
-        >
-          {isBalanced ? 'NIF B-6 Verificado ✔' : 'Diferencia en Ecuación ⚠'}
+        <span className="font-semibold">
+          {isBalanced ? 'Ecuación Contable Cuadrada' : 'Ecuación Contable con Diferencia'}: Total Activo (
+          <strong className="font-mono">{formatCurrency(balanceSheet.totalActivo)}</strong>) {isBalanced ? '=' : '≠'}{' '}
+          Pasivo + Capital Contable (
+          <strong className="font-mono">{formatCurrency(balanceSheet.totalPasivoMasCapital)}</strong>)
         </span>
+      </AlertBanner>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <KpiCard label="Total Activo" value={formatCurrency(balanceSheet.totalActivo)} valueClassName="text-blue-800" hint="100% Base Vertical" />
+        <KpiCard label="Total Pasivo" value={formatCurrency(balanceSheet.totalPasivo)} hint={`${fmtPct(balanceSheet.totalPasivo, balanceSheet.totalActivo)} del Activo`} />
+        <KpiCard label="Capital Contable" value={formatCurrency(totalCapital)} valueClassName={totalCapital < 0 ? 'text-red-700' : 'text-emerald-800'} hint={`${fmtPct(totalCapital, balanceSheet.totalActivo)} del Activo`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">

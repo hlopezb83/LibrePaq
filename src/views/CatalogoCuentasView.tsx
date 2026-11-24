@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertCircle, Eye, Lock, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button, EmptyState } from '../components/ui';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { useUIModal } from '../context/UIModalContext';
 import { AccountEditorModal } from './catalogo/AccountEditorModal';
@@ -123,7 +124,6 @@ export function CatalogoCuentasView() {
 
   return (
     <div className="space-y-4">
-      {/* Encabezado del Catálogo */}
       <CatalogoHeaderBar
         csvImportRef={csvImportRef}
         isPeriodLocked={isPeriodLocked}
@@ -134,32 +134,6 @@ export function CatalogoCuentasView() {
         onOpenCreateModal={openCreateModal}
       />
 
-      {isPeriodLocked && (
-        <div
-          role="status"
-          className="px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center gap-2 shadow-2xs"
-        >
-          <Lock className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-          <span>
-            <strong>Periodo {String(activeCompany?.currentPeriod ?? 1).padStart(2, '0')}/{currentYear} bloqueado ante el SAT:</strong>{' '}
-            El catálogo se encuentra en modo de consulta y auditoría de Libro Mayor (altas, ediciones y bajas deshabilitadas).
-          </span>
-        </div>
-      )}
-
-      {isReadOnlyClient && !isPeriodLocked && (
-        <div
-          role="status"
-          className="px-4 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 text-xs flex items-center gap-2 shadow-2xs"
-        >
-          <Eye className="w-4 h-4 text-sky-700 shrink-0" aria-hidden="true" />
-          <span>
-            <strong>Modo Solo lectura:</strong> Puedes consultar el catálogo contable, abrir el Libro Mayor de cada cuenta y exportar a Excel, pero no crear, editar ni eliminar cuentas.
-          </span>
-        </div>
-      )}
-
-      {/* Barra de Búsqueda, Expansión Jerárquica y Filtros */}
       <CatalogoFilterBar
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
@@ -179,27 +153,29 @@ export function CatalogoCuentasView() {
         onResetFilters={resetFilters}
       />
 
-      {/* Tabla del Catálogo de Cuentas */}
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
         <CatalogoKeyboardShortcutsBar selectedAccount={selectedAccount} isWriteBlocked={isWriteBlocked} />
 
         {isError ? (
-          <div role="alert" className="p-8 text-center space-y-3">
-            <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-            <p className="text-sm font-bold text-slate-900">
-              Error al cargar el catálogo de cuentas
-            </p>
-            <p className="text-xs text-slate-600">
-              {error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
-            </p>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-              Reintentar
-            </button>
+          <div role="alert">
+            <EmptyState
+              tone="red"
+              icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+              title="Error al cargar el catálogo de cuentas"
+              description={
+                error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'
+              }
+              actions={
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => void refetch()}
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+                >
+                  Reintentar
+                </Button>
+              }
+            />
           </div>
         ) : (
           <CatalogoTable
@@ -227,7 +203,6 @@ export function CatalogoCuentasView() {
         )}
       </div>
 
-      {/* Modal para Crear o Editar Cuenta Contable */}
       <AccountEditorModal
         dialogRef={dialogRef}
         editingAccountId={editingAccountId}

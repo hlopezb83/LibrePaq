@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, Info, Layers, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, Layers, TrendingUp } from 'lucide-react';
+import { AlertBanner, Button, EmptyState, KpiCard, StatusBadge, TabBar, type TabBarItem } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
-import { handleTablistKeyDown } from '../../hooks/useTablistKeyboard';
 import { formatBalanceCutoffLabel } from '../../shared/date-utils';
 import { exportExtendedStatementsXlsx } from '../../lib/excel-export';
 import { formatCurrency } from '../../lib/formatters';
@@ -22,7 +22,7 @@ interface FlujosCapitalTabProps {
   onSelectAccount?: (accountId: string) => void;
 }
 
-const SUB_TABS: ReadonlyArray<{ id: SubTabId; label: string }> = [
+const SUB_TABS: ReadonlyArray<TabBarItem<SubTabId>> = [
   { id: 'FLUJOS', label: 'Flujos de Efectivo (NIF B-2)' },
   { id: 'CAPITAL', label: 'Cambios en el Capital (NIF B-4)' },
   { id: 'COMPARATIVO', label: 'Comparativo vs. Ejercicio Anterior' }
@@ -122,41 +122,27 @@ export function FlujosCapitalTab({
               4 Estados Financieros Básicos (NIF B-2 y NIF B-4) y Comparativo Interanual
             </div>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="export"
+            size="md"
             onClick={handleExport}
-            disabled={isExporting}
-            aria-busy={isExporting}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-bold text-white shadow-xs transition cursor-pointer shrink-0 no-print"
+            loading={isExporting}
+            leftIcon={<Download className="w-4 h-4" aria-hidden="true" />}
+            className="no-print"
           >
-            <Download className="w-4 h-4" aria-hidden="true" />
-            <span>{isExporting ? 'Generando Excel...' : 'Exportar Excel NIF (.xlsx)'}</span>
-          </button>
+            {isExporting ? 'Generando Excel...' : 'Exportar Excel NIF (.xlsx)'}
+          </Button>
         </div>
 
-        <div role="tablist" aria-label="Sub-secciones de estados financieros NIF B-2, NIF B-4 y comparativo" className="flex flex-nowrap items-center gap-2 erp-tab-scroller no-print">
-          {SUB_TABS.map((tab) => {
-            const isSelected = activeSubTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                id={`nif-subtab-${tab.id}`}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                aria-controls={`nif-subpanel-${tab.id}`}
-                tabIndex={isSelected ? 0 : -1}
-                onClick={() => setActiveSubTab(tab.id)}
-                onKeyDown={(e) => handleTablistKeyDown(e, SUB_TABS, activeSubTab, setActiveSubTab, 'nif-subtab-')}
-                className={`shrink-0 relative px-3.5 py-2 rounded-t-xl text-xs font-semibold whitespace-nowrap border-b-2 transition cursor-pointer ${
-                  isSelected ? 'bg-blue-50 text-blue-900 border-blue-700 font-bold' : 'bg-slate-50 text-slate-700 border-transparent hover:bg-slate-100'
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        <TabBar
+          tabs={SUB_TABS}
+          activeId={activeSubTab}
+          onSelect={setActiveSubTab}
+          idPrefix="nif-subtab-"
+          ariaLabel="Sub-secciones de estados financieros NIF B-2, NIF B-4 y comparativo"
+          panelId={`nif-subpanel-${activeSubTab}`}
+          className="no-print"
+        />
       </div>
 
       <div id="nif-subpanel-FLUJOS" role="tabpanel" aria-labelledby="nif-subtab-FLUJOS" hidden={activeSubTab !== 'FLUJOS'}>
@@ -171,16 +157,20 @@ export function FlujosCapitalTab({
                 <p className="text-[11px] text-slate-600 pl-7">Ventana: {data.cashFlowWindowLabel}</p>
               )}
             </div>
-            <span
-              role={cashFlow.isReconciled ? 'status' : 'alert'}
-              aria-live={cashFlow.isReconciled ? 'polite' : 'assertive'}
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                cashFlow.isReconciled ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-300'
-              }`}
-            >
-              {cashFlow.isReconciled ? <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> : <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}
-              <span>{cashFlow.isReconciled ? 'Reconciliado con Caja y Bancos' : `Diferencia: ${formatCurrency(cashFlow.diferenciaReconciliacion)}`}</span>
+            <span role={cashFlow.isReconciled ? 'status' : 'alert'} aria-live={cashFlow.isReconciled ? 'polite' : 'assertive'}>
+              <StatusBadge
+                tone={cashFlow.isReconciled ? 'emerald' : 'amber'}
+                icon={cashFlow.isReconciled ? <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> : <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
+                {cashFlow.isReconciled ? 'Reconciliado con Caja y Bancos' : `Diferencia: ${formatCurrency(cashFlow.diferenciaReconciliacion)}`}
+              </StatusBadge>
             </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <KpiCard label="Flujo Operación" value={formatCurrency(cashFlow.flujoNetoOperacion)} valueClassName={cashFlow.flujoNetoOperacion < 0 ? 'text-red-700' : 'text-emerald-800'} />
+            <KpiCard label="Flujo Inversión" value={formatCurrency(cashFlow.flujoNetoInversion)} valueClassName={cashFlow.flujoNetoInversion < 0 ? 'text-red-700' : 'text-slate-900'} />
+            <KpiCard label="Flujo Financiamiento" value={formatCurrency(cashFlow.flujoNetoFinanciamiento)} valueClassName={cashFlow.flujoNetoFinanciamiento < 0 ? 'text-red-700' : 'text-slate-900'} />
           </div>
 
           <CashFlowSection title="1. Actividades de Operación" items={cashFlow.actividadesOperacion} totalLabel="(=) Flujo Neto de Actividades de Operación" totalAmount={cashFlow.flujoNetoOperacion} emptyLabel="Sin movimientos operativos en el periodo." />
@@ -213,15 +203,13 @@ export function FlujosCapitalTab({
               <Layers className="w-5 h-5 text-blue-700" aria-hidden="true" />
               <h3 id="equity-table-caption" className="text-sm font-bold text-slate-900 uppercase">Estado de Cambios en el Capital Contable (NIF B-4)</h3>
             </div>
-            <span
-              role={equityChanges.isBalanced ? 'status' : 'alert'}
-              aria-live={equityChanges.isBalanced ? 'polite' : 'assertive'}
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                equityChanges.isBalanced ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-300'
-              }`}
-            >
-              {equityChanges.isBalanced ? <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> : <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}
-              <span>{equityChanges.isBalanced ? 'Cuadre Horizontal/Vertical Verificado' : 'Revisar Cuadre Patrimonial'}</span>
+            <span role={equityChanges.isBalanced ? 'status' : 'alert'} aria-live={equityChanges.isBalanced ? 'polite' : 'assertive'}>
+              <StatusBadge
+                tone={equityChanges.isBalanced ? 'emerald' : 'amber'}
+                icon={equityChanges.isBalanced ? <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> : <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
+                {equityChanges.isBalanced ? 'Cuadre Horizontal/Vertical Verificado' : 'Revisar Cuadre Patrimonial'}
+              </StatusBadge>
             </span>
           </div>
 
@@ -272,26 +260,30 @@ export function FlujosCapitalTab({
           </div>
 
           {isLoadingPrevReports ? (
-            <div role="status" aria-live="polite" aria-busy="true" className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-              <Info className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
-              <span>Consultando saldos comparativos del {prevYearHeader}...</span>
-            </div>
+            <AlertBanner tone="blue" className="aria-busy">
+              Consultando saldos comparativos del {prevYearHeader}...
+            </AlertBanner>
           ) : !data.hasPreviousComparative ? (
-            <div role="status" className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-              <Info className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-              <span>No existen saldos previos registrados para el {prevYearHeader}; la columna comparativa se muestra en $0.00.</span>
-            </div>
+            <AlertBanner tone="warning">
+              No existen saldos previos registrados para el {prevYearHeader}; la columna comparativa se muestra en $0.00.
+            </AlertBanner>
           ) : null}
 
           {comparativeRows.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center space-y-3">
-              <p className="text-xs font-medium text-slate-700">No hay cuentas con saldo distinto de cero en este comparativo interanual.</p>
-              {hideZeroRows && (
-                <button type="button" onClick={() => setHideZeroRows(false)} className="inline-flex items-center px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer transition">
-                  Mostrar cuentas sin saldo
-                </button>
-              )}
-            </div>
+            <EmptyState
+              variant="dashed"
+              tone="slate"
+              icon={<ArrowRightLeft className="w-5 h-5" aria-hidden="true" />}
+              title="Sin saldos en el comparativo"
+              description="No hay cuentas con saldo distinto de cero en este comparativo interanual."
+              actions={
+                hideZeroRows ? (
+                  <Button variant="primary" size="sm" onClick={() => setHideZeroRows(false)}>
+                    Mostrar cuentas sin saldo
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div tabIndex={0} role="region" aria-labelledby="comparative-table-caption" className="overflow-x-auto max-h-[540px] max-w-full rounded-xl border border-slate-200">
               <table className="w-full text-xs border-collapse">

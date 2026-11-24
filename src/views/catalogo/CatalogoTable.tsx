@@ -4,6 +4,8 @@ import {
   useTable
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { FolderTree } from 'lucide-react';
+import { ClearFiltersButton, EmptyState } from '../../components/ui';
 import type { AccountWithBalance } from '../../shared/types';
 import { catalogoTableFeatures, useCatalogoColumns } from './useCatalogoColumns';
 
@@ -118,7 +120,7 @@ export function CatalogoTable({
           {table.getHeaderGroups().map((headerGroup) => (
             <tr
               key={headerGroup.id}
-              className="border-b border-slate-200 text-[11px] font-bold text-slate-600 bg-slate-50/90"
+              className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600 bg-slate-50"
             >
               {headerGroup.headers.map((header) => (
                 <th
@@ -152,24 +154,25 @@ export function CatalogoTable({
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="py-12 text-center text-slate-500">
-                <p>No se encontraron cuentas contables que coincidan con los filtros aplicados.</p>
-                {onResetFilters && (
-                  <button
-                    type="button"
-                    onClick={onResetFilters}
-                    className="mt-2 inline-flex items-center px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-blue-800 transition cursor-pointer"
-                  >
-                    Limpiar filtros
-                  </button>
-                )}
+              <td colSpan={columns.length} className="p-0">
+                <EmptyState
+                  tone="blue"
+                  icon={<FolderTree className="w-6 h-6" aria-hidden="true" />}
+                  title="No se encontraron cuentas contables"
+                  description="No hay cuentas que coincidan con la búsqueda o filtros aplicados en el catálogo."
+                  actions={
+                    onResetFilters ? (
+                      <ClearFiltersButton onClick={onResetFilters} />
+                    ) : undefined
+                  }
+                />
               </td>
             </tr>
           ) : (
             <>
               {paddingTop > 0 && (
-                <tr>
-                  <td style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
+                <tr data-spacer="true">
+                  <td data-spacer="true" style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
                 </tr>
               )}
               {virtualRows.map((virtualRow) => {
@@ -223,8 +226,8 @@ export function CatalogoTable({
                 );
               })}
               {paddingBottom > 0 && (
-                <tr>
-                  <td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
+                <tr data-spacer="true">
+                  <td data-spacer="true" style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
                 </tr>
               )}
             </>

@@ -97,7 +97,7 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: 
     <div
       role="region"
       aria-label="Estructura XML del CFDI"
-      className="dark-surface bg-slate-950 text-slate-100 rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4"
+      className="dark-surface bg-[#0A1120] text-slate-100 rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4"
     >
       <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-slate-300 flex-wrap">

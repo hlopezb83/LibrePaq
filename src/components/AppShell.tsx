@@ -22,6 +22,7 @@ import { useAppShellDocumentTitle } from './shell/useAppShellDocumentTitle';
 import { useAppShellData } from './shell/useAppShellData';
 import { WhatsAppSupportButton } from './WhatsAppSupportButton';
 import { BroadcastBanner } from './shell/BroadcastBanner';
+import { PeriodLockedBanner } from './shell/PeriodLockedBanner';
 import { ReadOnlyRoleBanner } from './shell/ReadOnlyRoleBanner';
 import { SupportModeBanner } from './shell/SupportModeBanner';
 import { ExecutiveTopHeader } from './shell/ExecutiveTopHeader';
@@ -74,20 +75,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     [activeCompany]
   );
 
-  const openModalWithRef = useCallback((
-    ref: React.RefObject<HTMLDialogElement | null>,
-    hasOpened: boolean,
-    setHasOpened: (v: boolean) => void,
-    onOpened?: () => void
-  ) => {
+  const openModalWithRef = useCallback((ref: React.RefObject<HTMLDialogElement | null>, hasOpened: boolean, setHasOpened: (v: boolean) => void, onOpened?: () => void) => {
     const showSafe = (attempt = 0) => {
       const el = ref.current;
-      if (el) {
-        if (!el.open) el.showModal();
-        onOpened?.();
-      } else if (attempt < 80) {
-        setTimeout(() => showSafe(attempt + 1), 50);
-      }
+      if (el) { if (!el.open) el.showModal(); onOpened?.(); }
+      else if (attempt < 80) setTimeout(() => showSafe(attempt + 1), 50);
     };
     if (!hasOpened) setHasOpened(true);
     requestAnimationFrame(() => showSafe(0));
@@ -116,6 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isOwner = hasPlatformRole && !isReadOnlySupportMode;
   const navItems = isOwner ? SUPERADMIN_NAV_ITEMS : APP_SHELL_NAV_ITEMS;
   const isWorkspaceEmpty = Boolean(user && !hasPlatformRole && !companiesLoading && companies.length === 0);
+  const canTogglePeriodLock = !isReadOnlySupportMode && !isReadOnlyClient && (effectiveCompanyRole === 'OWNER' || effectiveCompanyRole === 'SOCIO' || effectiveCompanyRole === 'CONTADOR');
 
   const navigateToCompanies = useCallback(() => void navigate({ to: '/admin', search: { tab: 'companies' } }), [navigate]);
 
@@ -237,7 +230,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               isPeriodLocked={Boolean(periodLock?.isLocked)}
               isTogglingLock={togglePeriodLockMutation.isPending}
               onTogglePeriodLock={(next) => {
-                if (!isReadOnlySupportMode && !isReadOnlyClient) togglePeriodLockMutation.mutate(next);
+                if (canTogglePeriodLock) togglePeriodLockMutation.mutate(next);
               }}
               isReadOnlyClient={isReadOnlyClient}
               effectiveCompanyRole={effectiveCompanyRole}
@@ -249,6 +242,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         {isReadOnlyClient && !supportSession && effectiveCompanyRole === 'CLIENTE_LECTURA' && (
           <ReadOnlyRoleBanner />
+        )}
+        {!isOwner && activeCompany && periodLock?.isLocked && (
+          <PeriodLockedBanner
+            period={activeCompany.currentPeriod}
+            year={activeCompany.currentYear}
+            canReopen={canTogglePeriodLock}
+            isReopening={togglePeriodLockMutation.isPending}
+            onReopen={() => togglePeriodLockMutation.mutate(false)}
+          />
         )}
         <BroadcastBanner />
 

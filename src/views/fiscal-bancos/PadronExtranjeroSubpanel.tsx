@@ -1,3 +1,5 @@
+import { FormField, Input } from '../../components/ui';
+
 export interface PadronExtranjeroSubpanelProps {
   isReadOnly: boolean;
   tpIdFiscal: string;
@@ -19,26 +21,27 @@ export function PadronExtranjeroSubpanel({
 }: PadronExtranjeroSubpanelProps) {
   return (
     <div className="sm:col-span-2 lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-lg border border-blue-200">
-      <div>
-        <label htmlFor="tp-id-fiscal" className="block text-[11px] font-bold text-slate-700 mb-1">
-          ID Fiscal Extranjero
-        </label>
-        <input
+      <FormField label="ID Fiscal Extranjero" htmlFor="tp-id-fiscal">
+        <Input
           id="tp-id-fiscal"
+          size="sm"
           type="text"
           disabled={isReadOnly}
           value={tpIdFiscal}
           onChange={(e) => setTpIdFiscal(e.target.value)}
           placeholder="US-99-123456"
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white disabled:bg-slate-100"
+          className="font-mono"
         />
-      </div>
-      <div>
-        <label htmlFor="tp-pais" className="block text-[11px] font-bold text-slate-700 mb-1">
-          País (ISO / SAT)
-        </label>
-        <input
+      </FormField>
+
+      <FormField
+        label="País (ISO / SAT)"
+        htmlFor="tp-pais"
+        hint="Usa ZZZ si el país no está en catálogo SAT."
+      >
+        <Input
           id="tp-pais"
+          size="sm"
           type="text"
           list="diot-paises-sat"
           maxLength={3}
@@ -46,7 +49,7 @@ export function PadronExtranjeroSubpanel({
           value={tpPais}
           onChange={(e) => setTpPais(e.target.value.toUpperCase())}
           placeholder="USA / ZZZ"
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono uppercase bg-white disabled:bg-slate-100"
+          className="font-mono uppercase"
         />
         <datalist id="diot-paises-sat">
           <option value="USA">Estados Unidos</option>
@@ -57,23 +60,20 @@ export function PadronExtranjeroSubpanel({
           <option value="CHN">China</option>
           <option value="ZZZ">Otro país (especificar jurisdicción)</option>
         </datalist>
-        <p className="mt-0.5 text-[10px] text-slate-500">Usa ZZZ si el país no está en catálogo SAT.</p>
-      </div>
+      </FormField>
+
       {tpPais.trim().toUpperCase() === 'ZZZ' && (
-        <div>
-          <label htmlFor="tp-jurisdiccion" className="block text-[11px] font-bold text-slate-700 mb-1">
-            Jurisdicción (País ZZZ)
-          </label>
-          <input
+        <FormField label="Jurisdicción (País ZZZ)" htmlFor="tp-jurisdiccion">
+          <Input
             id="tp-jurisdiccion"
+            size="sm"
             type="text"
             disabled={isReadOnly}
             value={tpJurisdiccionFiscal}
             onChange={(e) => setTpJurisdiccionFiscal(e.target.value)}
             placeholder="Nombre de jurisdicción"
-            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white disabled:bg-slate-100"
           />
-        </div>
+        </FormField>
       )}
     </div>
   );

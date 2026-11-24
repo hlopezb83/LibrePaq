@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Calendar, Check, Copy, Eye, KeyRound, X } from 'lucide-react';
+import { Button, ClearFiltersButton, StatusBadge } from '../../components/ui';
 import type {
   AdminCompaniesPageQuery,
   AdminCompanySummary,
@@ -147,13 +148,10 @@ export function SuperAdminCompaniesTab({
               <X className="w-3 h-3" aria-hidden="true" />
             </button>
           )}
-          <button
-            type="button"
+          <ClearFiltersButton
+            label="Limpiar todo"
             onClick={() => onQueryChange({ ...query, page: 1, search: '', ownerType: 'ALL', fielFilter: 'ALL' })}
-            className="text-blue-700 hover:text-blue-900 font-bold px-1.5 py-0.5 rounded hover:bg-blue-50 transition cursor-pointer"
-          >
-            Limpiar todo
-          </button>
+          />
         </div>
       )}
 
@@ -193,13 +191,13 @@ export function SuperAdminCompaniesTab({
             {isLoading ? (
               Array.from({ length: 4 }).map((_, idx) => (
                 <tr key={`skeleton-${idx}`} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
-                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-4 w-28 bg-slate-200 rounded mb-1.5" /><div className="h-3 w-36 bg-slate-100 rounded" /></td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-4 w-32 bg-slate-200 rounded mb-1" /><div className="h-3 w-24 bg-slate-100 rounded" /></td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-3.5 w-28 bg-slate-200 rounded mb-1" /><div className="h-3 w-16 bg-slate-100 rounded" /></td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-5 w-16 bg-slate-200 rounded" /></td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-3.5 w-24 bg-slate-200 rounded mb-1" /><div className="h-4 w-20 bg-slate-100 rounded-full" /></td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100"><div className="h-3.5 w-16 bg-slate-200 rounded" /></td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100 text-right"><div className="h-7 w-20 bg-slate-200 rounded-xl ml-auto" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-200"><div className="h-4 w-28 bg-slate-200 rounded mb-1.5" /><div className="h-3 w-36 bg-slate-100 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-200"><div className="h-4 w-32 bg-slate-200 rounded mb-1" /><div className="h-3 w-24 bg-slate-100 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-200"><div className="h-3.5 w-28 bg-slate-200 rounded mb-1" /><div className="h-3 w-16 bg-slate-100 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-200"><div className="h-5 w-16 bg-slate-200 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-200"><div className="h-3.5 w-24 bg-slate-200 rounded mb-1" /><div className="h-4 w-20 bg-slate-100 rounded-full" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-200"><div className="h-3.5 w-16 bg-slate-200 rounded" /></td>
+                  <td className="py-2.5 px-2.5 border-b border-slate-200 text-right"><div className="h-7 w-20 bg-slate-200 rounded-xl ml-auto" /></td>
                 </tr>
               ))
             ) : sortedCompanies.length === 0 ? (
@@ -212,7 +210,7 @@ export function SuperAdminCompaniesTab({
             ) : (
               sortedCompanies.map((c) => (
                 <tr key={c.id} className="group hover:bg-slate-50 transition">
-                  <th scope="row" className="py-2.5 px-2.5 max-w-[190px] text-left font-normal border-b border-slate-100 bg-white group-hover:bg-slate-50 lg:sticky lg:left-0 lg:border-r lg:border-slate-200 z-[1]">
+                  <th scope="row" className="py-2.5 px-2.5 max-w-[190px] text-left font-normal border-b border-slate-200 bg-white group-hover:bg-slate-50 lg:sticky lg:left-0 lg:border-r lg:border-slate-200 z-[1]">
                     <div className="inline-flex items-center gap-1">
                       <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">{c.rfc}</span>
                       <button
@@ -234,32 +232,38 @@ export function SuperAdminCompaniesTab({
                       {c.name}
                     </button>
                   </th>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100 max-w-[185px]"><CompanyUserOwnerCell company={c} /></td>
-                  <td className="py-2.5 px-2.5 max-w-[165px] border-b border-slate-100">
+                  <td className="py-2.5 px-2.5 border-b border-slate-200 max-w-[185px]"><CompanyUserOwnerCell company={c} /></td>
+                  <td className="py-2.5 px-2.5 max-w-[165px] border-b border-slate-200">
                     <p className="truncate text-slate-700" title={c.regimenFiscal}>{c.regimenFiscal}</p>
                     <p className="font-mono text-[11px] text-slate-600">C.P. {c.codigoPostal}</p>
                   </td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
+                  <td className="py-2.5 px-2.5 border-b border-slate-200 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
                       <Calendar className="w-3 h-3 text-slate-600" aria-hidden="true" />
                       P{String(c.currentPeriod).padStart(2, '0')} / {c.currentYear}
                     </span>
                   </td>
-                  <td className="py-2.5 px-2.5 border-b border-slate-100 whitespace-nowrap">
+                  <td className="py-2.5 px-2.5 border-b border-slate-200 whitespace-nowrap">
                     <div className="flex flex-col items-start gap-1">
-                      <span className="text-[11px] font-semibold text-slate-800">{(c.polizasCount ?? 0).toLocaleString('es-MX')} pól. · {(c.cfdisCount ?? 0).toLocaleString('es-MX')} CFDI</span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${c.hasFiel ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'}`}>
-                        <KeyRound className="w-2.5 h-2.5" aria-hidden="true" /> {c.hasFiel ? 'e.firma activa' : 'Sin e.firma'}
-                      </span>
+                      <span className="text-[11px] font-semibold font-mono tabular-nums text-slate-800">{(c.polizasCount ?? 0).toLocaleString('es-MX')} pól. · {(c.cfdisCount ?? 0).toLocaleString('es-MX')} CFDI</span>
+                      <StatusBadge tone={c.hasFiel ? 'emerald' : 'slate'} icon={<KeyRound className="w-2.5 h-2.5" aria-hidden="true" />}>
+                        {c.hasFiel ? 'e.firma activa' : 'Sin e.firma'}
+                      </StatusBadge>
                     </div>
                   </td>
-                  <td className="py-2.5 px-2.5 text-slate-600 text-[11px] border-b border-slate-100 whitespace-nowrap">
+                  <td className="py-2.5 px-2.5 text-slate-600 text-[11px] border-b border-slate-200 whitespace-nowrap">
                     {formatAdminDate(c.createdAt)}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right border-b border-slate-100 whitespace-nowrap">
-                    <button type="button" onClick={(e) => openDrawer(c.id, e.currentTarget)} className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition cursor-pointer">
-                      <Eye className="w-3.5 h-3.5" aria-hidden="true" /> Inspeccionar<span className="visually-hidden"> {c.name}</span>
-                    </button>
+                  <td className="py-2.5 px-2.5 text-right border-b border-slate-200 whitespace-nowrap">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leftIcon={<Eye className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />}
+                      onClick={(e) => openDrawer(c.id, e.currentTarget)}
+                      className="text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100"
+                    >
+                      Inspeccionar<span className="visually-hidden"> {c.name}</span>
+                    </Button>
                   </td>
                 </tr>
               ))

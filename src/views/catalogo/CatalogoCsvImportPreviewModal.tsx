@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, X } from 'lucide-react';
-import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet } from 'lucide-react';
+import { AlertBanner, Button, ModalShell, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import {
   downloadCatalogoTemplateCsv,
@@ -29,7 +29,6 @@ export function CatalogoCsvImportPreviewModal({
 }: CatalogoCsvImportPreviewModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [confirmUnbalanced, setConfirmUnbalanced] = useState(false);
-  useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(preview) });
 
   useEffect(() => {
     setConfirmUnbalanced(false);
@@ -56,56 +55,74 @@ export function CatalogoCsvImportPreviewModal({
     (!isUnbalancedBalanza || confirmUnbalanced);
 
   return (
-    <dialog
-      ref={dialogRef}
-      closedby="any"
+    <ModalShell
+      dialogRef={dialogRef}
+      isOpen={Boolean(preview)}
       onClose={onClose}
-      aria-labelledby="csv-preview-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl max-h-[92dvh] open:flex open:flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
-    >
-      <header className="p-4 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
-            <FileSpreadsheet className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 id="csv-preview-title" className="text-sm font-bold text-slate-900 truncate">
-                Vista Previa de Importación de Catálogo
-              </h2>
-              {preview.fileFormat && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                  {FORMAT_LABELS[preview.fileFormat]}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 truncate">{preview.fileName}</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={isImporting}
-          aria-label="Cerrar vista previa de importación"
-          className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer disabled:opacity-40"
-        >
-          <X className="w-5 h-5" aria-hidden="true" />
-        </button>
-      </header>
+      busy={isImporting}
+      titleId="csv-preview-title"
+      title={
+        <span className="inline-flex items-center gap-2 flex-wrap">
+          <span>Vista Previa de Importación de Catálogo</span>
+          {preview.fileFormat && (
+            <StatusBadge tone="purple">{FORMAT_LABELS[preview.fileFormat]}</StatusBadge>
+          )}
+        </span>
+      }
+      subtitle={preview.fileName}
+      icon={<FileSpreadsheet className="w-5 h-5" aria-hidden="true" />}
+      iconTone="blue"
+      maxWidth="2xl"
+      closeLabel="Cerrar vista previa de importación"
+      footerJustify="between"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={downloadCatalogoTemplateCsv}
+            leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />}
+          >
+            Descargar plantilla CSV
+          </Button>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3 text-xs">
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="md" disabled={isImporting} onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={isImporting}
+              disabled={!canConfirm}
+              onClick={onConfirm}
+              leftIcon={<CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
+            >
+              {isImporting ? 'Importando...' : `Importar ${preview.allValidRows.length} cuentas`}
+            </Button>
+          </div>
+        </>
+      }
+    >
+      <div className="space-y-3 text-xs">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
             <span className="text-[11px] font-bold text-emerald-800 block">Cuentas Nuevas</span>
-            <span className="text-lg font-mono font-bold text-emerald-950">{preview.toCreate.length}</span>
+            <span className="text-lg font-mono tabular-nums font-bold text-emerald-950">
+              {preview.toCreate.length}
+            </span>
           </div>
           <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
             <span className="text-[11px] font-bold text-blue-800 block">A Actualizar</span>
-            <span className="text-lg font-mono font-bold text-blue-950">{preview.toUpdate.length}</span>
+            <span className="text-lg font-mono tabular-nums font-bold text-blue-950">
+              {preview.toUpdate.length}
+            </span>
           </div>
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
             <span className="text-[11px] font-bold text-amber-800 block">Filas Omitidas</span>
-            <span className="text-lg font-mono font-bold text-amber-950">{preview.skipped.length}</span>
+            <span className="text-lg font-mono tabular-nums font-bold text-amber-950">
+              {preview.skipped.length}
+            </span>
           </div>
         </div>
 
@@ -114,53 +131,50 @@ export function CatalogoCsvImportPreviewModal({
             <span className="text-[11px] font-semibold text-slate-700">
               Periodo detectado en archivo Anexo 24:
             </span>
-            <span className="px-2.5 py-0.5 rounded-lg border border-slate-300 bg-white text-xs font-mono font-bold text-slate-800">
+            <StatusBadge tone="slate" shape="tag" className="text-xs px-2.5 py-0.5">
               {preview.fechaInicioOperaciones}
-            </span>
+            </StatusBadge>
           </div>
         )}
 
         {preview.balanzaValidation && (
-          <div
-            role={preview.balanzaValidation.isBalanced ? 'status' : 'alert'}
-            className={`p-3 rounded-xl border space-y-2 ${
+          <AlertBanner
+            tone={preview.balanzaValidation.isBalanced ? 'success' : 'danger'}
+            title={
               preview.balanzaValidation.isBalanced
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-                : 'bg-red-50 border-red-300 text-red-950'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2 font-bold">
-              <span>
-                {preview.balanzaValidation.isBalanced
-                  ? 'Validación Balanza BN.xml: Deudor = Acreedor (Cuadrada)'
-                  : `Descuadre detectado en BN.xml (${formatCurrency(preview.balanzaValidation.difference)})`}
-              </span>
-              {preview.balanzaValidation.anio && preview.balanzaValidation.mes && (
-                <span className="font-mono text-[11px]">
+                ? 'Validación Balanza BN.xml: Deudor = Acreedor (Cuadrada)'
+                : `Descuadre detectado en BN.xml (${formatCurrency(preview.balanzaValidation.difference)})`
+            }
+            action={
+              preview.balanzaValidation.anio && preview.balanzaValidation.mes ? (
+                <StatusBadge tone="slate" shape="tag">
                   P{preview.balanzaValidation.mes}/{preview.balanzaValidation.anio}
-                </span>
+                </StatusBadge>
+              ) : undefined
+            }
+          >
+            <div className="mt-1.5 space-y-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono tabular-nums text-[11px]">
+                <div>Saldo Ini Deudor: <strong>{formatCurrency(preview.balanzaValidation.totalDeudor)}</strong></div>
+                <div>Saldo Ini Acreedor: <strong>{formatCurrency(preview.balanzaValidation.totalAcreedor)}</strong></div>
+                <div>Debe: <strong>{formatCurrency(preview.balanzaValidation.totalDebe)}</strong></div>
+                <div>Haber: <strong>{formatCurrency(preview.balanzaValidation.totalHaber)}</strong></div>
+              </div>
+              {isUnbalancedBalanza && (
+                <label className="flex items-start gap-2 pt-1.5 border-t border-red-200 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={confirmUnbalanced}
+                    onChange={(e) => setConfirmUnbalanced(e.target.checked)}
+                    className="mt-0.5 rounded border-red-400 text-red-700 focus:ring-red-600"
+                  />
+                  <span className="text-[11px] font-semibold text-red-950">
+                    Confirmo importar esta balanza aun con el descuadre detectado entre Deudor/Acreedor o Debe/Haber.
+                  </span>
+                </label>
               )}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono tabular-nums text-[11px]">
-              <div>Saldo Ini Deudor: <strong>{formatCurrency(preview.balanzaValidation.totalDeudor)}</strong></div>
-              <div>Saldo Ini Acreedor: <strong>{formatCurrency(preview.balanzaValidation.totalAcreedor)}</strong></div>
-              <div>Debe: <strong>{formatCurrency(preview.balanzaValidation.totalDebe)}</strong></div>
-              <div>Haber: <strong>{formatCurrency(preview.balanzaValidation.totalHaber)}</strong></div>
-            </div>
-            {isUnbalancedBalanza && (
-              <label className="flex items-start gap-2 pt-1.5 border-t border-red-200 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={confirmUnbalanced}
-                  onChange={(e) => setConfirmUnbalanced(e.target.checked)}
-                  className="mt-0.5 rounded border-red-400 text-red-700 focus:ring-red-600"
-                />
-                <span className="text-[11px] font-semibold text-red-950">
-                  Confirmo importar esta balanza aun con el descuadre detectado entre Deudor/Acreedor o Debe/Haber.
-                </span>
-              </label>
-            )}
-          </div>
+          </AlertBanner>
         )}
 
         {preview.skipped.length > 0 && (
@@ -193,24 +207,18 @@ export function CatalogoCsvImportPreviewModal({
                       <span className="font-mono font-bold text-blue-900 shrink-0">{r.code}</span>
                       <span className="truncate text-slate-800">{r.name}</span>
                       {r.satGroupCode && (
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono text-[10px] shrink-0">
+                        <StatusBadge tone="slate" shape="tag" className="shrink-0">
                           SAT {r.satGroupCode}
-                        </span>
+                        </StatusBadge>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="font-mono tabular-nums text-[11px] text-slate-700">
                         {formatCurrency(r.initialBalance ?? 0)}
                       </span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                          isUpdate
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
+                      <StatusBadge tone={isUpdate ? 'blue' : 'emerald'} shape="tag" className="shrink-0">
                         {isUpdate ? 'Actualizar' : 'Nueva'}
-                      </span>
+                      </StatusBadge>
                     </div>
                   </div>
                 );
@@ -223,50 +231,11 @@ export function CatalogoCsvImportPreviewModal({
             </div>
           </div>
         ) : (
-          <div role="alert" className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-900">
+          <AlertBanner tone="danger">
             No se detectaron filas válidas para importar. Descarga la plantilla CSV oficial para verificar el formato.
-          </div>
+          </AlertBanner>
         )}
       </div>
-
-      <footer className="p-3.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={downloadCatalogoTemplateCsv}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer"
-        >
-          <Download className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
-          Descargar plantilla CSV
-        </button>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={isImporting}
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-200/70 cursor-pointer disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            disabled={!canConfirm}
-            onClick={onConfirm}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-          >
-            {isImporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-            )}
-            <span>
-              {isImporting
-                ? 'Importando...'
-                : `Importar ${preview.allValidRows.length} cuentas`}
-            </span>
-          </button>
-        </div>
-      </footer>
-    </dialog>
+    </ModalShell>
   );
 }

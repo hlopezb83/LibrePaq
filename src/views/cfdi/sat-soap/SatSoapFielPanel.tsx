@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, FileKey2, KeyRound, ShieldCheck } from 'lucide-react';
+import { AlertBanner, Button, StatusBadge } from '../../../components/ui';
 import { SatFielCredentialsCard } from './SatFielCredentialsCard';
 import { SatSoapDownloadCard } from './SatSoapDownloadCard';
 import { useSatSoapFielManager } from './useSatSoapFielManager';
@@ -80,21 +81,21 @@ export function SatSoapFielPanel({
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-indigo-200 shadow-xs overflow-hidden">
-      {/* Encabezado e.firma + Conexión SAT */}
-      <div className="px-5 py-4 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+    <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
+      {/* Encabezado e.firma + Conexión SAT en superficie blanca limpia */}
+      <div className="px-5 py-4 bg-white border-b border-slate-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 flex items-center justify-center shrink-0">
-            <FileKey2 className="w-5 h-5 text-blue-300" aria-hidden="true" />
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
+            <FileKey2 className="w-5 h-5" aria-hidden="true" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold">Descarga Masiva de Facturas SAT con e.firma (CFDI 4.0)</h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                Conexión Oficial SAT
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">
+                Descarga Masiva de Facturas SAT con e.firma (CFDI 4.0)
+              </h3>
+              <StatusBadge tone="emerald">Conexión Oficial SAT</StatusBadge>
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               {hasCredentials
                 ? 'Sincroniza y descarga automáticamente todas las facturas del periodo directamente del SAT.'
                 : 'Conecta los certificados de la empresa para descargar automáticamente todas las facturas del periodo directamente del SAT.'}
@@ -105,69 +106,57 @@ export function SatSoapFielPanel({
         <div className="flex items-center gap-2.5 flex-wrap">
           {hasCredentials ? (
             <>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+              <StatusBadge
+                tone="emerald"
+                icon={<ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
                 <span>e.firma Activa: {fielStatus?.nombreTitular || fielStatus?.rfcTitular}</span>
                 <span className="text-[10px] opacity-80 font-mono">
                   (Vigente hasta {fielStatus?.validTo?.slice(0, 10)})
                 </span>
-              </span>
+              </StatusBadge>
               {!showChangeFiel && !isReadOnlyClient && (
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setShowChangeFiel(true)}
-                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer"
                 >
                   Cambiar e.firma
-                </button>
+                </Button>
               )}
             </>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
-              <KeyRound className="w-4 h-4 text-amber-300" aria-hidden="true" />
+            <StatusBadge
+              tone="amber"
+              icon={<KeyRound className="w-3.5 h-3.5" aria-hidden="true" />}
+            >
               Sin e.firma configurada
-            </span>
+            </StatusBadge>
           )}
         </div>
       </div>
 
       <div className="p-4 sm:p-5 space-y-4">
         {panelFeedback && (
-          <div
-            role="status"
-            className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 text-xs text-emerald-950 font-medium"
+          <AlertBanner
+            tone="success"
+            icon={<CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
+            onDismiss={() => setPanelFeedback(null)}
+            dismissLabel="Cerrar aviso"
           >
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
-              {panelFeedback}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPanelFeedback(null)}
-              className="text-emerald-700 hover:underline font-semibold cursor-pointer"
-            >
-              Cerrar
-            </button>
-          </div>
+            {panelFeedback}
+          </AlertBanner>
         )}
 
         {panelError && (
-          <div
-            role="alert"
-            className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-center justify-between gap-3 text-xs text-red-900 font-medium"
+          <AlertBanner
+            tone="danger"
+            icon={<AlertCircle className="w-4 h-4" aria-hidden="true" />}
+            onDismiss={() => setPanelError(null)}
+            dismissLabel="Cerrar aviso"
           >
-            <span className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
-              {panelError}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPanelError(null)}
-              className="text-red-700 hover:underline font-semibold cursor-pointer"
-            >
-              Cerrar
-            </button>
-          </div>
+            {panelError}
+          </AlertBanner>
         )}
 
         {/* Si no hay credenciales o el usuario eligió cambiar su e.firma, mostramos el formulario de carga */}

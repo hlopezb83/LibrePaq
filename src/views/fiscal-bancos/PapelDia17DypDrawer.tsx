@@ -17,7 +17,7 @@ const SECTION_BADGES: Record<'ISR' | 'IVA' | 'RETENCIONES' | 'TOTAL', string> = 
   ISR: 'bg-blue-50 text-blue-800 border-blue-200',
   IVA: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   RETENCIONES: 'bg-amber-50 text-amber-900 border-amber-200',
-  TOTAL: 'bg-slate-900 text-white border-slate-900'
+  TOTAL: 'bg-blue-700 text-white border-blue-700'
 };
 
 const SECTION_TITLES: Record<'ISR' | 'IVA' | 'RETENCIONES' | 'TOTAL', string> = {

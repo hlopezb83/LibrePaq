@@ -1,4 +1,5 @@
 import { Activity, AlertTriangle, CheckCircle2, Clock, RefreshCw, ShieldAlert, XCircle } from 'lucide-react';
+import { Button, EmptyState, KpiCard, StatusBadge, type KpiTone } from '../../components/ui';
 import type { AdminPlatformAlert, AdminSatHealthResponse, PlatformAlertStatus } from '../../shared/admin-types';
 import { AdminErrorBanner } from './AdminErrorBanner';
 import { AdminSatFielTable } from './AdminSatFielTable';
@@ -53,11 +54,11 @@ export function SuperAdminSatHealthTab({
   const formatCount = (value?: number) =>
     isLoading && value == null ? '...' : value != null ? value.toLocaleString('es-MX') : '—';
 
-  const kpis = [
-    { label: 'Solicitudes (7d)', value: formatCount(satHealth?.totalRequests7d), icon: Activity, boxClass: 'bg-blue-50 border-blue-200 text-blue-700' },
-    { label: 'Completadas', value: formatCount(satHealth?.completedRequests7d), icon: CheckCircle2, boxClass: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-    { label: 'Pendientes', value: formatCount(satHealth?.pendingRequests7d), icon: Clock, boxClass: 'bg-amber-50 border-amber-200 text-amber-800' },
-    { label: 'Fallidas', value: formatCount(satHealth?.failedRequests7d), icon: XCircle, boxClass: 'bg-red-50 border-red-200 text-red-700' }
+  const kpis: Array<{ label: string; value: string; icon: typeof Activity; tone: KpiTone }> = [
+    { label: 'Solicitudes (7d)', value: formatCount(satHealth?.totalRequests7d), icon: Activity, tone: 'blue' },
+    { label: 'Completadas', value: formatCount(satHealth?.completedRequests7d), icon: CheckCircle2, tone: 'emerald' },
+    { label: 'Pendientes', value: formatCount(satHealth?.pendingRequests7d), icon: Clock, tone: 'amber' },
+    { label: 'Fallidas', value: formatCount(satHealth?.failedRequests7d), icon: XCircle, tone: 'red' }
   ];
 
   return (
@@ -89,17 +90,17 @@ export function SuperAdminSatHealthTab({
             </p>
           </div>
           {onRetry && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onRetry}
               disabled={isLoading}
-              aria-busy={isLoading}
+              loading={isLoading}
               title={isLoading ? 'Consultando telemetría SAT...' : 'Actualizar telemetría de salud SAT'}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
               {isLoading ? 'Consultando...' : 'Actualizar Salud SAT'}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -118,15 +119,13 @@ export function SuperAdminSatHealthTab({
           {kpis.map((kpi) => {
             const Icon = kpi.icon;
             return (
-              <div key={kpi.label} className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{kpi.label}</p>
-                  <p className="text-2xl font-black text-slate-900 mt-1 tabular-nums">{kpi.value}</p>
-                </div>
-                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${kpi.boxClass}`}>
-                  <Icon className="w-5 h-5" aria-hidden="true" />
-                </div>
-              </div>
+              <KpiCard
+                key={kpi.label}
+                label={kpi.label}
+                value={kpi.value}
+                icon={<Icon className="w-4 h-4" aria-hidden="true" />}
+                iconTone={kpi.tone}
+              />
             );
           })}
         </div>
@@ -137,9 +136,13 @@ export function SuperAdminSatHealthTab({
             Desglose de Códigos de Respuesta SAT (7 días)
           </h3>
           {!satHealth?.errorCodeBreakdown || satHealth.errorCodeBreakdown.length === 0 ? (
-            <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3">
-              Sin códigos de error SAT registrados en los últimos 7 días.
-            </p>
+            <EmptyState
+              variant="dashed"
+              tone="emerald"
+              icon={<CheckCircle2 className="w-5 h-5" aria-hidden="true" />}
+              title="Sin incidencias SAT recientes"
+              description="Sin códigos de error SAT registrados en los últimos 7 días."
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
               {satHealth.errorCodeBreakdown.map((item) => (
@@ -150,9 +153,9 @@ export function SuperAdminSatHealthTab({
                       {SAT_CODE_HINTS[item.code] || 'Respuesta reportada por WebService SAT'}
                     </p>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-950 border border-amber-300 tabular-nums shrink-0">
+                  <StatusBadge tone="amber" shape="tag" className="px-2.5 py-0.5 rounded-full text-xs shrink-0 tabular-nums">
                     {item.count.toLocaleString('es-MX')}
-                  </span>
+                  </StatusBadge>
                 </div>
               ))}
             </div>

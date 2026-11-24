@@ -9,6 +9,7 @@ import {
 import type { CommandPaletteNavItem } from './commandPaletteTypes';
 import { CommandPaletteCompanyConfirm } from './CommandPaletteCompanyConfirm';
 import { CommandPaletteResultOption } from './CommandPaletteResultOption';
+import { Button, EmptyState } from '../ui';
 
 export type { CommandPaletteNavItem };
 
@@ -212,8 +213,8 @@ export function CommandPaletteModal({
       ) : (
       <div className="flex flex-col max-h-[90dvh] bg-white divide-y divide-slate-100">
         {/* Cabecera / Input de búsqueda universal */}
-        <div className="p-2.5 sm:p-3.5 flex items-center gap-2.5 bg-slate-50/70 shrink-0 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-inset">
-          <div className="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 flex items-center justify-center shrink-0 shadow-xs">
+        <div className="p-2.5 sm:p-3.5 flex items-center gap-2.5 bg-slate-50/70 shrink-0 focus-within:ring-2 focus-within:ring-blue-600/20 focus-within:ring-inset">
+          <div className="w-8 h-8 rounded-xl bg-blue-100/80 text-blue-700 flex items-center justify-center shrink-0 shadow-2xs">
             <Search className="w-4 h-4" aria-hidden="true" />
           </div>
 
@@ -257,14 +258,15 @@ export function CommandPaletteModal({
           )}
 
           <div className="flex items-center gap-1.5 shrink-0 pl-1 border-l border-slate-200">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => dialogRef.current?.close()}
               aria-label="Cerrar paleta de comandos"
-              className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 shadow-2xs cursor-pointer"
+              className="font-mono text-[10px]"
             >
               ESC
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -273,21 +275,21 @@ export function CommandPaletteModal({
           id="cmd-palette-listbox"
           role="listbox"
           aria-label="Resultados de comandos contables"
-          className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3 scrollable-panel"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 space-y-3 scrollable-panel"
         >
           {flattenedItems.length === 0 ? (
-            <div className="py-12 px-4 text-center">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mb-3">
-                <Search className="w-6 h-6" aria-hidden="true" />
-              </div>
-              <p className="text-sm font-semibold text-slate-700">
-                Sin coincidencias para &ldquo;{query}&rdquo;
-              </p>
-              <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto">
-                Prueba buscando por código de cuenta (ej. <code>102</code>), nombre (<code>BBVA</code>),
-                tipo de póliza (<code>Diario</code>) o módulo (<code>Balanza</code>).
-              </p>
-            </div>
+            <EmptyState
+              variant="plain"
+              tone="slate"
+              icon={<Search className="w-6 h-6" aria-hidden="true" />}
+              title={<>Sin coincidencias para &ldquo;{query}&rdquo;</>}
+              description={
+                <>
+                  Prueba buscando por código de cuenta (ej. <code>102</code>), nombre (<code>BBVA</code>),
+                  tipo de póliza (<code>Diario</code>) o módulo (<code>Balanza</code>).
+                </>
+              }
+            />
           ) : (
             groupedCategories.map((group) => (
               <div key={group.categoryTitle} role="group" aria-label={group.categoryTitle} className="space-y-1">

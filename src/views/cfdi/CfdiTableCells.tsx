@@ -1,4 +1,5 @@
 import { Copy, ShieldAlert } from 'lucide-react';
+import { StatusBadge } from '../../components/ui';
 import { checkRfc69BStatus } from '../../shared/sat-69b';
 import type { CfdiDocument } from '../../shared/types';
 
@@ -14,30 +15,33 @@ export function CfdiTipoCell({ row }: { row: CfdiDocument }) {
       ? 'Traslado (T)'
       : 'Ingreso (I)';
 
+  const directionTone =
+    row.tipoComprobante === 'P'
+      ? 'slate'
+      : row.direction === 'EMITIDO'
+      ? 'emerald'
+      : 'blue';
+
   return (
     <div className="space-y-1 whitespace-nowrap">
       <div className="flex items-center gap-1">
-        <span
-          className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded uppercase border ${
-            row.tipoComprobante === 'P'
-              ? 'bg-slate-100 text-slate-800 border-slate-300'
-              : row.direction === 'EMITIDO'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : 'bg-blue-50 text-blue-800 border-blue-200'
-          }`}
-        >
+        <StatusBadge tone={directionTone} shape="tag">
           {row.direction}
-        </span>
+        </StatusBadge>
         {(row.metodoPago === 'PUE' || row.metodoPago === 'PPD') && (
           <span
-            className={`inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+            title={
               row.metodoPago === 'PPD'
-                ? 'bg-amber-50 text-amber-900 border-amber-300'
-                : 'bg-slate-100 text-slate-700 border-slate-300'
-            }`}
-            title={row.metodoPago === 'PPD' ? 'Pago en Parcialidades o Diferido' : 'Pago en Una Sola Exhibición'}
+                ? 'Pago en Parcialidades o Diferido'
+                : 'Pago en Una Sola Exhibición'
+            }
           >
-            {row.metodoPago}
+            <StatusBadge
+              tone={row.metodoPago === 'PPD' ? 'amber' : 'slate'}
+              shape="tag"
+            >
+              {row.metodoPago}
+            </StatusBadge>
           </span>
         )}
       </div>
@@ -66,16 +70,18 @@ export function CfdiTerceroCell({
         <span className={`truncate ${isCancelled ? 'line-through text-slate-500' : ''}`}>
           {terceroNombre}
         </span>
-        <span className="font-mono text-[10px] text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.5 rounded shrink-0">
+        <StatusBadge tone="slate" shape="tag" className="font-normal">
           {terceroRfc}
-        </span>
+        </StatusBadge>
         {efosCheck.isEfos && (
-          <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-900 border border-red-300 shrink-0"
-            title="Contribuyente listado en Artículo 69-B del CFF (EFOS SAT). Comprobante presuntamente no deducible."
-          >
-            <ShieldAlert className="w-3 h-3 text-red-700" aria-hidden="true" />
-            69-B: {efosCheck.record?.situacion || 'EFOS'}
+          <span title="Contribuyente listado en Artículo 69-B del CFF (EFOS SAT). Comprobante presuntamente no deducible.">
+            <StatusBadge
+              tone="red"
+              shape="tag"
+              icon={<ShieldAlert className="w-3 h-3" aria-hidden="true" />}
+            >
+              69-B: {efosCheck.record?.situacion || 'EFOS'}
+            </StatusBadge>
           </span>
         )}
       </div>

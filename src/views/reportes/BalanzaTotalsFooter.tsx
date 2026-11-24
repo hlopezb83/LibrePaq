@@ -42,15 +42,15 @@ export function BalanzaTotalsFooter({
 
   return (
     <tfoot className="sticky bottom-0 z-10 shadow-2xl">
-      <tr className="bg-[#0A1120] text-white font-mono text-xs font-bold border-t-2 border-blue-500">
-        <td colSpan={4} className="py-3 px-4 text-right uppercase tracking-wider">
-          <div className="flex items-center justify-end gap-2">
+      <tr className="bg-[#0A1120] text-white font-mono text-xs font-bold tabular-nums border-t-2 border-blue-500">
+        <td colSpan={4} className="py-3 px-4 text-right uppercase tracking-wider whitespace-nowrap">
+          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
             {isAllThreeBalanced ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 whitespace-nowrap">
                 Sumas Iguales (3/3) ✔
               </span>
             ) : !isFiltered ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-300 border border-red-500/40">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-300 border border-red-500/40 whitespace-nowrap">
                 Diferencia ({diffInit >= 0.01 ? 'Inicial' : diffMov >= 0.01 ? 'Movimientos' : 'Final'}): {formatCurrency(maxPairDiff)}
               </span>
             ) : null}
@@ -61,25 +61,25 @@ export function BalanzaTotalsFooter({
             </span>
           </div>
         </td>
-        <td className="py-3 px-4 text-right">
+        <td className="py-3 px-4 text-right whitespace-nowrap">
           <div className="text-emerald-300">D: {formatCurrency(filteredBalanzaTotals.initialDeudor)}</div>
           <div className="text-slate-400 text-[11px]">
             A: {formatCurrency(filteredBalanzaTotals.initialAcreedor)}
           </div>
         </td>
-        <td className="py-3 px-4 text-right text-cyan-300 text-[13px]">
+        <td className="py-3 px-4 text-right text-cyan-300 text-[13px] whitespace-nowrap">
           {formatCurrency(filteredBalanzaTotals.cargos)}
         </td>
-        <td className="py-3 px-4 text-right text-cyan-300 text-[13px]">
+        <td className="py-3 px-4 text-right text-cyan-300 text-[13px] whitespace-nowrap">
           {formatCurrency(filteredBalanzaTotals.abonos)}
         </td>
-        <td className="py-3 px-4 text-right">
+        <td className="py-3 px-4 text-right whitespace-nowrap">
           <div className="text-emerald-300">D: {formatCurrency(filteredBalanzaTotals.finalDeudor)}</div>
           <div className="text-slate-400 text-[11px]">
             A: {formatCurrency(filteredBalanzaTotals.finalAcreedor)}
           </div>
         </td>
-        <td className="no-print py-3 px-4" />
+        <td className="no-print py-3 px-4 whitespace-nowrap" />
       </tr>
     </tfoot>
   );

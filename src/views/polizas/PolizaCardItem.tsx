@@ -9,6 +9,7 @@ import {
   FileCode2,
   Sparkles
 } from 'lucide-react';
+import { StatusBadge } from '../../components/ui';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { Poliza } from '../../shared/types';
@@ -75,6 +76,8 @@ function PolizaCardItemBase({
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   const allUuids = collectPolizaUniqueUuids(pol);
   const discrepancyAmount = Math.abs(pol.totalCargos - pol.totalAbonos);
+  const tipoTone =
+    pol.tipo === 'INGRESO' ? 'emerald' : pol.tipo === 'EGRESO' ? 'amber' : 'blue';
 
   return (
     <article
@@ -99,18 +102,10 @@ function PolizaCardItemBase({
               )}
             </button>
           )}
-          <span
-            className={`px-2.5 py-1 rounded-lg font-mono text-xs font-bold border shrink-0 ${
-              pol.tipo === 'INGRESO'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : pol.tipo === 'EGRESO'
-                ? 'bg-amber-50 text-amber-900 border-amber-200'
-                : 'bg-blue-50 text-blue-800 border-blue-200'
-            }`}
-          >
+          <StatusBadge tone={tipoTone} shape="tag" className="px-2.5 py-1 text-xs shrink-0">
             {pol.tipo} #{pol.folio}
-          </span>
-          <span className="font-mono text-xs text-slate-600 shrink-0">
+          </StatusBadge>
+          <span className="font-mono tabular-nums text-xs text-slate-600 shrink-0">
             {formatShortDate(pol.fecha)}
           </span>
           <h2
@@ -120,22 +115,21 @@ function PolizaCardItemBase({
             {pol.concepto}
           </h2>
           {compactMode && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            <StatusBadge tone="slate" className="font-mono tabular-nums">
               {pol.movements.length} partida{pol.movements.length === 1 ? '' : 's'}
-            </span>
+            </StatusBadge>
           )}
           {pol.origin === 'ADD_AUTO' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-              <Sparkles className="w-3 h-3" aria-hidden="true" />
+            <StatusBadge tone="blue" icon={<Sparkles className="w-3 h-3" aria-hidden="true" />}>
               Auto ADD
-            </span>
+            </StatusBadge>
           )}
           {allUuids.length > 0 && (
             <div className="inline-flex flex-wrap items-center gap-1">
               {allUuids.length > 1 && (
-                <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 text-[10px] font-bold">
+                <StatusBadge tone="purple" shape="tag">
                   {allUuids.length} CFDIs
-                </span>
+                </StatusBadge>
               )}
               {allUuids.slice(0, 3).map((uuid) => (
                 <button
@@ -161,7 +155,9 @@ function PolizaCardItemBase({
                 </button>
               ))}
               {allUuids.length > 3 && (
-                <span className="text-[10px] font-mono text-slate-500">+{allUuids.length - 3}</span>
+                <span className="text-[10px] font-mono tabular-nums text-slate-500">
+                  +{allUuids.length - 3}
+                </span>
               )}
               <span className="visually-hidden" aria-live="polite">
                 {copiedUuid ? `UUID ${copiedUuid} copiado al portapapeles` : ''}
@@ -183,15 +179,17 @@ function PolizaCardItemBase({
           </div>
 
           {pol.isBalanced ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+            <StatusBadge tone="emerald" icon={<CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}>
               Cuadrada
-            </span>
+            </StatusBadge>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-800 border border-red-200 font-mono tabular-nums">
-              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+            <StatusBadge
+              tone="red"
+              icon={<AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}
+              className="font-mono tabular-nums"
+            >
               Descuadrada ({formatCurrency(discrepancyAmount)})
-            </span>
+            </StatusBadge>
           )}
 
           <PolizaCardActions

@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Trash2
 } from 'lucide-react';
+import { InlineConfirm } from '../../components/ui';
 import type { Poliza } from '../../shared/types';
 
 interface PolizaCardActionsProps {
@@ -59,6 +60,7 @@ export function PolizaCardActions({
 }: PolizaCardActionsProps) {
   const reverseTargetPeriod = String(currentPeriod ?? pol.periodo).padStart(2, '0');
   const canReverse = Boolean(onConfirmReverse || onReverse);
+
   return (
     <div className="flex flex-wrap items-center gap-1.5 no-print">
       {onPrintPoliza && (
@@ -118,38 +120,17 @@ export function PolizaCardActions({
 
       {canReverse && (
         confirmReverseId === pol.id ? (
-          <div
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.stopPropagation();
-                onCancelReverse?.();
-              }
-            }}
-            className="inline-flex flex-wrap items-center gap-1 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1"
-          >
-            <button
-              type="button"
-              disabled={isWriteBlocked || isReversing}
-              aria-busy={isReversing}
-              aria-label={`Confirmar reverso de póliza ${pol.tipo} #${pol.folio} en P${reverseTargetPeriod}`}
-              onClick={() => (onConfirmReverse ? onConfirmReverse(pol) : onReverse?.(pol))}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-amber-950 hover:bg-amber-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isReversing && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
-              <span>{isReversing ? 'Revirtiendo...' : `Confirmar reverso en P${reverseTargetPeriod}`}</span>
-            </button>
-            <span className="text-amber-300" aria-hidden="true">|</span>
-            <button
-              type="button"
-              autoFocus
-              disabled={isReversing}
-              aria-label={`Cancelar reverso de póliza ${pol.tipo} #${pol.folio}`}
-              onClick={onCancelReverse}
-              className="px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 hover:bg-white cursor-pointer disabled:opacity-50"
-            >
-              No
-            </button>
-          </div>
+          <InlineConfirm
+            tone="warning"
+            message={`Reverso en P${reverseTargetPeriod}`}
+            confirmLabel={isReversing ? 'Revirtiendo...' : 'Confirmar'}
+            cancelLabel="No"
+            busy={isWriteBlocked || isReversing}
+            ariaLabel={`Confirmar reverso de póliza ${pol.tipo} #${pol.folio} en P${reverseTargetPeriod}`}
+            className="bg-amber-50 border-amber-300"
+            onConfirm={() => (onConfirmReverse ? onConfirmReverse(pol) : onReverse?.(pol))}
+            onCancel={() => onCancelReverse?.()}
+          />
         ) : (
           <button
             type="button"
@@ -207,37 +188,15 @@ export function PolizaCardActions({
       </button>
 
       {confirmDeleteId === pol.id ? (
-        <div
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation();
-              onCancelDelete();
-            }
-          }}
-          className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1"
-        >
-          <button
-            type="button"
-            disabled={isWriteBlocked || isDeleting}
-            aria-label={`Confirmar eliminación de póliza ${pol.tipo} #${pol.folio}`}
-            onClick={() => onConfirmDelete(pol.id)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-red-800 hover:bg-red-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isDeleting && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
-            <span>{isDeleting ? 'Borrando...' : 'Confirmar'}</span>
-          </button>
-          <span className="text-red-300" aria-hidden="true">|</span>
-          <button
-            type="button"
-            autoFocus
-            disabled={isDeleting}
-            aria-label={`Cancelar eliminación de póliza ${pol.tipo} #${pol.folio}`}
-            onClick={onCancelDelete}
-            className="px-2 py-0.5 rounded text-[11px] font-semibold text-slate-700 hover:bg-white cursor-pointer disabled:opacity-50"
-          >
-            No
-          </button>
-        </div>
+        <InlineConfirm
+          tone="danger"
+          confirmLabel={isDeleting ? 'Borrando...' : 'Confirmar'}
+          cancelLabel="No"
+          busy={isWriteBlocked || isDeleting}
+          ariaLabel={`Confirmar eliminación de póliza ${pol.tipo} #${pol.folio}`}
+          onConfirm={() => onConfirmDelete(pol.id)}
+          onCancel={onCancelDelete}
+        />
       ) : (
         <button
           type="button"

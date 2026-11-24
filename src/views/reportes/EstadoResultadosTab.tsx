@@ -1,4 +1,5 @@
 import { TrendingUp } from 'lucide-react';
+import { StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import { formatIncomePeriodLabel } from '../../shared/date-utils';
 import type { AccountWithBalance, Company, FinancialStatementsResponse } from '../../shared/types';
@@ -130,9 +131,7 @@ export function EstadoResultadosTab({
           <div className="text-sm font-bold text-blue-900 mt-1 uppercase tracking-wide flex flex-wrap items-center gap-2">
             <span>Estado de Resultados Integral (NIF B-3)</span>
             {incomeStatement.isPreCloseP13 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                Vista Pre-Cierre Anual
-              </span>
+              <StatusBadge tone="amber">Vista Pre-Cierre Anual</StatusBadge>
             )}
           </div>
           <div className="text-xs text-slate-600">
@@ -141,9 +140,9 @@ export function EstadoResultadosTab({
         </div>
         <div className="text-right hidden sm:block shrink-0">
           <TrendingUp className="w-8 h-8 text-blue-700 ml-auto" aria-hidden="true" />
-          <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+          <StatusBadge tone="emerald" shape="tag" className="mt-1">
             NIF B-3 Mes + Acum. Ejercicio
-          </span>
+          </StatusBadge>
         </div>
       </div>
 

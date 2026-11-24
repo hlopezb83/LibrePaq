@@ -27,7 +27,7 @@ export function CommandPaletteResultOption({
       onClick={onSelect}
       onMouseEnter={onHover}
       className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer select-none ${
-        isSelected ? 'bg-blue-600 text-white shadow-xs font-medium' : 'hover:bg-slate-100 text-slate-800'
+        isSelected ? 'bg-blue-700 text-white shadow-xs font-medium' : 'hover:bg-slate-100 text-slate-800'
       }`}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">

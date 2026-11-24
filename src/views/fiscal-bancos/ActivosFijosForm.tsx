@@ -1,4 +1,5 @@
 import { Plus, Save, X } from 'lucide-react';
+import { Button, FormField, Input, Select, StatusBadge } from '../../components/ui';
 import type { FixedAssetCategory, FixedAssetRecord } from '../../shared/types';
 
 function sanitizeNumberInput(raw: string): number {
@@ -72,73 +73,63 @@ export function ActivosFijosForm({
       {isEditing && (
         <div role="status" className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs text-blue-950">
           <span className="inline-flex items-center gap-2 font-semibold">
-            <span className="px-2 py-0.5 rounded-full bg-blue-700 text-white text-[11px] font-bold">
-              Editando activo
-            </span>
+            <StatusBadge tone="blue">Editando activo</StatusBadge>
             <span className="font-mono font-bold">{assetCode}</span>
             {assetName && <span className="text-slate-700 truncate">— {assetName}</span>}
           </span>
           <button
             type="button"
             onClick={onCancelEdit}
-            className="text-[11px] font-semibold text-blue-800 hover:underline cursor-pointer"
+            className="text-xs font-semibold text-blue-800 hover:underline cursor-pointer"
           >
             Cancelar edición
           </button>
         </div>
       )}
-      <div>
-        <label htmlFor="asset-code" className="block text-[10px] font-bold text-slate-700 mb-1">
-          Código *
-        </label>
-        <input
+
+      <FormField label="Código" htmlFor="asset-code" required>
+        <Input
           id="asset-code"
+          size="sm"
           type="text"
           required
           disabled={isWriteLocked}
           value={assetCode}
           onChange={(e) => setAssetCode(e.target.value)}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
+          className="font-mono"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label htmlFor="asset-name" className="block text-[10px] font-bold text-slate-700 mb-1">
-          Descripción del Bien *
-        </label>
-        <input
+      <FormField label="Descripción del Bien" htmlFor="asset-name" required>
+        <Input
           id="asset-name"
+          size="sm"
           type="text"
           required
           disabled={isWriteLocked}
           value={assetName}
           onChange={(e) => setAssetName(e.target.value)}
           placeholder="Ej. Laptop Dell Latitude / Utilitario"
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white disabled:bg-slate-100"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label htmlFor="asset-date" className="block text-[10px] font-bold text-slate-700 mb-1">
-          Fecha Adquisición *
-        </label>
-        <input
+      <FormField label="Fecha Adquisición" htmlFor="asset-date" required>
+        <Input
           id="asset-date"
+          size="sm"
           type="date"
           required
           disabled={isWriteLocked}
           value={assetDate}
           onChange={(e) => handleDateChange(e.target.value)}
-          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
+          className="font-mono"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label htmlFor="asset-category" className="block text-[10px] font-bold text-slate-700 mb-1">
-          Categoría / Tasa LISR
-        </label>
-        <select
+      <FormField label="Categoría / Tasa LISR" htmlFor="asset-category">
+        <Select
           id="asset-category"
+          size="sm"
           disabled={isWriteLocked}
           value={assetCat}
           onChange={(e) => {
@@ -149,22 +140,19 @@ export function ActivosFijosForm({
             else if (cat === 'MOBILIARIO_10' || cat === 'MAQUINARIA_10') setAssetRate(10);
             else setAssetRate(5);
           }}
-          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white disabled:bg-slate-100"
         >
           <option value="COMPUTO_30">Cómputo (30%)</option>
           <option value="TRANSPORTE_25">Transporte (25%)</option>
           <option value="MOBILIARIO_10">Mobiliario (10%)</option>
           <option value="MAQUINARIA_10">Maquinaria (10%)</option>
           <option value="EDIFICIOS_5">Construcciones (5%)</option>
-        </select>
-      </div>
+        </Select>
+      </FormField>
 
-      <div>
-        <label htmlFor="asset-moi" className="block text-[10px] font-bold text-slate-700 mb-1">
-          MOI ($) *
-        </label>
-        <input
+      <FormField label="MOI ($)" htmlFor="asset-moi" required>
+        <Input
           id="asset-moi"
+          size="sm"
           type="number"
           inputMode="decimal"
           min="0.01"
@@ -174,16 +162,14 @@ export function ActivosFijosForm({
           placeholder="0.00"
           value={assetMoi}
           onChange={(e) => setAssetMoi(e.target.value)}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
+          className="font-mono"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label htmlFor="asset-meses-prev" className="block text-[10px] font-bold text-slate-700 mb-1">
-          Meses Dep. Previos (Migración)
-        </label>
-        <input
+      <FormField label="Meses Dep. Previos (Migración)" htmlFor="asset-meses-prev">
+        <Input
           id="asset-meses-prev"
+          size="sm"
           type="number"
           inputMode="numeric"
           min="0"
@@ -192,16 +178,14 @@ export function ActivosFijosForm({
           title="Meses ya depreciados previamente (ej. migración desde CONTPAQi)"
           value={mesesDepreciadosPrevios}
           onChange={(e) => setMesesDepreciadosPrevios(Math.floor(sanitizeNumberInput(e.target.value)))}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
+          className="font-mono"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label htmlFor="asset-inpc-adq" className="block text-[10px] font-bold text-slate-700 mb-1">
-          INPC Adquisición (INEGI DOF)
-        </label>
-        <input
+      <FormField label="INPC Adquisición (INEGI DOF)" htmlFor="asset-inpc-adq">
+        <Input
           id="asset-inpc-adq"
+          size="sm"
           type="number"
           inputMode="decimal"
           min="0.001"
@@ -209,16 +193,14 @@ export function ActivosFijosForm({
           disabled={isWriteLocked}
           value={assetInpcAdq}
           onChange={(e) => setAssetInpcAdq(sanitizeNumberInput(e.target.value))}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
+          className="font-mono"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label htmlFor="asset-inpc-mid" className="block text-[10px] font-bold text-slate-700 mb-1">
-          INPC Medio Periodo (INEGI DOF)
-        </label>
-        <input
+      <FormField label="INPC Medio Periodo (INEGI DOF)" htmlFor="asset-inpc-mid">
+        <Input
           id="asset-inpc-mid"
+          size="sm"
           type="number"
           inputMode="decimal"
           min="0.001"
@@ -226,48 +208,52 @@ export function ActivosFijosForm({
           disabled={isWriteLocked}
           value={assetInpcUso}
           onChange={(e) => setAssetInpcUso(sanitizeNumberInput(e.target.value))}
-          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-mono bg-white disabled:bg-slate-100"
+          className="font-mono"
         />
-      </div>
+      </FormField>
 
       {isEditing && (
-        <div>
-          <label htmlFor="asset-status" className="block text-[10px] font-bold text-slate-700 mb-1">
-            Estatus del Bien
-          </label>
-          <select
+        <FormField label="Estatus del Bien" htmlFor="asset-status">
+          <Select
             id="asset-status"
+            size="sm"
             disabled={isWriteLocked}
             value={assetStatus}
             onChange={(e) => setAssetStatus(e.target.value as FixedAssetRecord['estatus'])}
-            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 bg-white disabled:bg-slate-100"
           >
             <option value="ACTIVO">ACTIVO</option>
             <option value="BAJA">BAJA</option>
             <option value="TOTALMENTE_DEPRECIADO">TOTALMENTE DEPRECIADO</option>
-          </select>
-        </div>
+          </Select>
+        </FormField>
       )}
 
       <div className={`flex items-end gap-2 ${isEditing ? 'lg:col-span-3' : 'lg:col-span-4'}`}>
-        <button
+        <Button
           type="submit"
-          disabled={isPending || isWriteLocked}
+          variant="primary"
+          size="sm"
+          loading={isPending}
+          disabled={isWriteLocked}
           title={isWriteLocked ? lockTitle : undefined}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer"
+          leftIcon={
+            isEditing
+              ? <Save className="w-3.5 h-3.5" aria-hidden="true" />
+              : <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+          }
         >
-          {isEditing ? <Save className="w-3.5 h-3.5" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
           {isEditing ? 'Guardar Cambios' : 'Agregar Activo'}
-        </button>
+        </Button>
         {isEditing && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={onCancelEdit}
-            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"
+            leftIcon={<X className="w-3.5 h-3.5" aria-hidden="true" />}
           >
-            <X className="w-3.5 h-3.5" aria-hidden="true" />
             Cancelar Edición
-          </button>
+          </Button>
         )}
       </div>
 

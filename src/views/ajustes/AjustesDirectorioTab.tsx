@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Activity, Building2, LayoutGrid, Plus, Search, Users, X } from 'lucide-react';
+import { Activity, Building2, LayoutGrid, Plus, Search, Users } from 'lucide-react';
+import { Button, ClearFiltersButton, EmptyState, SearchInput, StatusBadge } from '../../components/ui';
 import { useUIModal } from '../../context/UIModalContext';
 import type { Company } from '../../shared/types';
 import { AjustesDirectorioCompanyCard } from './AjustesDirectorioCompanyCard';
@@ -74,9 +75,9 @@ export function AjustesDirectorioTab({
               <h2 className="text-base sm:text-lg font-bold text-slate-900">
                 Directorio de Empresas Registradas (Multi-RFC)
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap shrink-0">
+              <StatusBadge tone="blue" shape="tag" className="px-2.5 py-0.5 rounded-full text-xs">
                 {companies.length} {companies.length === 1 ? 'empresa' : 'empresas'}
-              </span>
+              </StatusBadge>
             </div>
             <p className="text-xs text-slate-500">
               {canViewDespachoMonitor || canCreateCompany
@@ -117,52 +118,26 @@ export function AjustesDirectorioTab({
               </div>
             )}
 
-            <search className="relative flex-1 min-w-0 sm:min-w-[180px] sm:max-w-xs">
-              <label htmlFor="directorio-company-search" className="visually-hidden">
-                Buscar empresa por razón social, RFC o régimen fiscal
-              </label>
-              <Search
-                className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                aria-hidden="true"
-              />
-              <input
-                id="directorio-company-search"
-                name="companySearch"
-                type="search"
-                value={companySearch}
-                onChange={(e) => setCompanySearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape' && companySearch) {
-                    e.preventDefault();
-                    setCompanySearch('');
-                  }
-                }}
-                placeholder="Buscar por nombre o RFC..."
-                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-500 focus:outline-blue-700 focus:border-blue-700"
-              />
-              {companySearch && (
-                <button
-                  type="button"
-                  onClick={() => setCompanySearch('')}
-                  aria-label="Limpiar búsqueda de empresas"
-                  title="Limpiar búsqueda (Esc)"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              )}
-            </search>
+            <SearchInput
+              id="directorio-company-search"
+              name="companySearch"
+              aria-label="Buscar empresa por razón social, RFC o régimen fiscal"
+              value={companySearch}
+              onChange={setCompanySearch}
+              placeholder="Buscar por nombre o RFC..."
+              clearLabel="Limpiar búsqueda de empresas"
+              containerClassName="flex-1 min-w-0 sm:min-w-[180px] sm:max-w-xs"
+            />
 
             {canCreateCompany && (
-              <button
-                type="button"
+              <Button
+                variant="primary"
                 title="Registrar una nueva empresa en el despacho"
+                leftIcon={<Plus className="w-4 h-4 shrink-0" aria-hidden="true" />}
                 onClick={openCompanyWizard}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
               >
-                <Plus className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span>Dar de Alta Empresa</span>
-              </button>
+                Dar de Alta Empresa
+              </Button>
             )}
           </div>
         </div>
@@ -175,51 +150,37 @@ export function AjustesDirectorioTab({
       </div>
 
       {companies.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-300/90 p-8 text-center space-y-3 shadow-2xs">
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center mx-auto">
-            <Building2 className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="space-y-1 max-w-md mx-auto">
-            <p className="text-sm font-bold text-slate-900">Aún no hay empresas registradas</p>
-            <p className="text-xs text-slate-600">
-              {canCreateCompany
-                ? 'Da de alta tu primera empresa o cliente del despacho para comenzar a importar CFDIs, generar pólizas y emitir reportes NIF.'
-                : 'Aún no tienes empresas asignadas para consultar.'}
-            </p>
-          </div>
-          {canCreateCompany && (
-            <button
-              type="button"
-              onClick={openCompanyWizard}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-              <span>Dar de Alta Primera Empresa</span>
-            </button>
-          )}
-        </div>
+        <EmptyState
+          variant="card"
+          tone="blue"
+          icon={<Building2 className="w-5 h-5" aria-hidden="true" />}
+          title="Aún no hay empresas registradas"
+          description={
+            canCreateCompany
+              ? 'Da de alta tu primera empresa o cliente del despacho para comenzar a importar CFDIs, generar pólizas y emitir reportes NIF.'
+              : 'Aún no tienes empresas asignadas para consultar.'
+          }
+          actions={
+            canCreateCompany ? (
+              <Button
+                variant="primary"
+                leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}
+                onClick={openCompanyWizard}
+              >
+                Dar de Alta Primera Empresa
+              </Button>
+            ) : undefined
+          }
+        />
       ) : filteredCompanies.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-300/90 p-8 text-center space-y-3 shadow-2xs">
-          <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-500 border border-slate-200 flex items-center justify-center mx-auto">
-            <Search className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="space-y-1 max-w-md mx-auto">
-            <p className="text-sm font-bold text-slate-900">
-              No se encontraron empresas para &ldquo;{companySearch.trim()}&rdquo;
-            </p>
-            <p className="text-xs text-slate-600">
-              Verifica el RFC (12 o 13 caracteres) o la razón social, o limpia el filtro para ver todo tu directorio.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCompanySearch('')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Limpiar búsqueda</span>
-          </button>
-        </div>
+        <EmptyState
+          variant="card"
+          tone="slate"
+          icon={<Search className="w-5 h-5" aria-hidden="true" />}
+          title={`No se encontraron empresas para “${companySearch.trim()}”`}
+          description="Verifica el RFC (12 o 13 caracteres) o la razón social, o limpia el filtro para ver todo tu directorio."
+          actions={<ClearFiltersButton label="Limpiar búsqueda" onClick={() => setCompanySearch('')} />}
+        />
       ) : canViewDespachoMonitor && viewMode === 'semaforo' ? (
         <DespachoMonitorPanel
           companies={filteredCompanies}

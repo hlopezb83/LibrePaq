@@ -185,9 +185,15 @@ function AccountPickerComboboxBase({
       }}
       className="relative w-full"
     >
-      <div className="relative">
+      <div
+        className={`relative flex items-center rounded-xl border bg-white transition-colors focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/20 ${
+          isOpen
+            ? 'border-blue-600 ring-2 ring-blue-600/20 shadow-xs'
+            : 'border-slate-300 hover:border-slate-400'
+        }`}
+      >
         <Search
-          className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+          className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
           aria-hidden="true"
         />
         <input
@@ -225,11 +231,7 @@ function AccountPickerComboboxBase({
             if (!isOpen) setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          className={`w-full pl-8 pr-8 py-1.5 rounded-lg border text-xs font-mono transition focus:outline-none focus:ring-1 focus:ring-blue-600 bg-white ${
-            isOpen
-              ? 'border-blue-500 ring-1 ring-blue-500/20 shadow-xs'
-              : 'border-slate-300 hover:border-slate-400'
-          }`}
+          className="w-full pl-8 pr-9 py-2 rounded-xl bg-transparent text-xs font-mono text-slate-900 placeholder:text-slate-500 focus:outline-none"
         />
         <button
           type="button"
@@ -241,9 +243,12 @@ function AccountPickerComboboxBase({
             setIsOpen(next);
             if (next) inputRef.current?.focus();
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[28px] min-w-[28px] inline-flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
         >
-          <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+          <ChevronDown
+            className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180 text-blue-700' : ''}`}
+            aria-hidden="true"
+          />
         </button>
       </div>
 

@@ -1,4 +1,5 @@
 import { BarChart3 } from 'lucide-react';
+import { EmptyState } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import type { DashboardSummary } from '../../shared/types';
 
@@ -47,17 +48,13 @@ export function DashboardTrendSection({
         </div>
 
         {!hasTrendData ? (
-          <div className="py-10 px-4 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 space-y-2">
-            <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center mx-auto">
-              <BarChart3 className="w-5 h-5" aria-hidden="true" />
-            </div>
-            <p className="text-xs font-bold text-slate-800">
-              Sin movimientos registrados en {companyYear}
-            </p>
-            <p className="text-[11px] text-slate-600 max-w-xs mx-auto">
-              Contabiliza tus CFDIs o captura pólizas para visualizar el comparativo mensual de ingresos y egresos.
-            </p>
-          </div>
+          <EmptyState
+            variant="dashed"
+            tone="slate"
+            icon={<BarChart3 className="w-5 h-5" aria-hidden="true" />}
+            title={`Sin movimientos registrados en ${companyYear}`}
+            description="Contabiliza tus CFDIs o captura pólizas para visualizar el comparativo mensual de ingresos y egresos."
+          />
         ) : (
           <div className="space-y-2.5">
             <div className="w-full max-w-full overflow-x-clip">
@@ -78,8 +75,10 @@ export function DashboardTrendSection({
                 </div>
 
                 {monthlyTrend.map((item, idx) => {
-                  const ingHeight = item.ingresos > 0 ? Math.max(6, Math.round((item.ingresos / maxBar) * 124)) : 2;
-                  const egrHeight = item.egresos > 0 ? Math.max(6, Math.round((item.egresos / maxBar) * 124)) : 2;
+                  const ingHeight =
+                    item.ingresos > 0 ? Math.max(6, Math.round((item.ingresos / maxBar) * 124)) : 2;
+                  const egrHeight =
+                    item.egresos > 0 ? Math.max(6, Math.round((item.egresos / maxBar) * 124)) : 2;
                   const isCurrent = item.periodo === currentPeriod;
                   const utilMes = item.ingresos - item.egresos;
                   const tooltipPos =
@@ -103,23 +102,28 @@ export function DashboardTrendSection({
                           : 'hover:bg-slate-100/70'
                       }`}
                     >
-                      {/* Tooltip flotante en Hover o Foco (contenido dentro del padding pt-20) */}
+                      {/* Tooltip flotante en Hover o Foco */}
                       <div
                         aria-hidden="true"
-                        className={`pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity absolute bottom-full mb-1.5 ${tooltipPos} z-20 bg-[#0A1120] text-white text-[10px] font-mono tabular-nums rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap border border-slate-700`}
+                        className={`pointer-events-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity absolute bottom-full mb-1.5 ${tooltipPos} z-20 bg-white text-slate-900 text-[10px] font-mono tabular-nums rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap border border-slate-300`}
                       >
-                        <div className="text-blue-300">Ing: {formatCurrency(item.ingresos)}</div>
-                        <div className="text-slate-300">Egr: {formatCurrency(item.egresos)}</div>
+                        <div className="text-blue-700 font-semibold">
+                          Ing: {formatCurrency(item.ingresos)}
+                        </div>
+                        <div className="text-slate-600">Egr: {formatCurrency(item.egresos)}</div>
                         <div
-                          className={`border-t border-slate-700 pt-0.5 mt-0.5 font-bold ${
-                            utilMes >= 0 ? 'text-emerald-300' : 'text-red-300'
+                          className={`border-t border-slate-200 pt-0.5 mt-0.5 font-bold ${
+                            utilMes >= 0 ? 'text-emerald-700' : 'text-red-700'
                           }`}
                         >
                           Neto: {formatCurrency(utilMes)}
                         </div>
                       </div>
 
-                      <div className="w-full flex items-end justify-center gap-0.5 h-32" aria-hidden="true">
+                      <div
+                        className="w-full flex items-end justify-center gap-0.5 h-32"
+                        aria-hidden="true"
+                      >
                         <div
                           style={{ height: `${ingHeight}px` }}
                           className={`w-1.5 sm:w-2.5 rounded-t-xs transition-all ${
@@ -162,7 +166,11 @@ export function DashboardTrendSection({
                   <span className="text-slate-700">
                     Egr: <strong>{formatCurrency(activeItem.egresos)}</strong>
                   </span>
-                  <span className={activeNeto >= 0 ? 'text-emerald-800 font-bold' : 'text-red-700 font-bold'}>
+                  <span
+                    className={
+                      activeNeto >= 0 ? 'text-emerald-800 font-bold' : 'text-red-700 font-bold'
+                    }
+                  >
                     Neto: {formatCurrency(activeNeto)}
                   </span>
                 </div>

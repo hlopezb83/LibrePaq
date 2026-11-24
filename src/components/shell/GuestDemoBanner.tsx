@@ -18,8 +18,9 @@ export function GuestDemoBanner({
   return (
     <aside
       aria-label="Aviso de Modo Demostración en Vivo"
-      className="bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-slate-950 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-sm no-print z-30"
+      className="bg-gradient-to-r from-amber-400 via-amber-400 to-amber-500 text-slate-950 px-3 py-1.5 sm:px-5 sm:py-2 text-xs font-bold shadow-sm no-print z-30"
     >
+      <div className="max-w-[1800px] mx-auto flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <div className="w-5 h-5 rounded-full bg-slate-950 text-amber-300 flex items-center justify-center shrink-0">
           <FlaskConical className="w-3 h-3 animate-pulse" aria-hidden="true" />
@@ -59,6 +60,7 @@ export function GuestDemoBanner({
           )}
           <span className="hidden sm:inline">{isSigningOut ? 'Saliendo...' : 'Salir'}</span>
         </button>
+      </div>
       </div>
     </aside>
   );

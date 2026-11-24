@@ -1,8 +1,9 @@
-import type { ComponentType } from 'react';
+import type { ReactNode } from 'react';
 import {
   Users, Building2, ReceiptText, FileCode2, ShieldCheck, ExternalLink,
   Activity, FileKey2, AlertTriangle, UserPlus, ArrowRight
 } from 'lucide-react';
+import { KpiCard, StatusBadge, getButtonClasses, type BadgeTone, type KpiTone } from '../../components/ui';
 import type { AdminPlatformMetrics } from '../../shared/admin-types';
 import { AdminErrorBanner } from './AdminErrorBanner';
 import { formatAdminTime } from './adminFormatters';
@@ -25,23 +26,24 @@ interface KpiCardItem {
   title: string;
   value: string;
   subtitle: string;
-  icon: ComponentType<{ className?: string }>;
-  accentClass: string;
+  icon: ReactNode;
+  iconTone: KpiTone;
+  tone?: KpiTone;
   onAction?: () => void;
   actionHint?: string;
 }
 
-function getSystemStatus(isError: boolean, isLoading: boolean, metrics?: AdminPlatformMetrics) {
+function getSystemStatus(isError: boolean, isLoading: boolean, metrics?: AdminPlatformMetrics): { label: string; tone: BadgeTone } {
   if (isError || metrics?.supabaseConnected === false) {
-    return { label: 'Sin conexión', badgeClass: 'bg-red-500/20 text-red-200 border-red-400/50', dotClass: 'bg-red-400' };
+    return { label: 'Sin conexión', tone: 'red' };
   }
   if (isLoading && !metrics) {
-    return { label: 'Verificando...', badgeClass: 'bg-slate-500/25 text-slate-200 border-slate-400/40', dotClass: 'bg-slate-300 animate-pulse motion-reduce:animate-none' };
+    return { label: 'Verificando...', tone: 'slate' };
   }
   if ((metrics?.satErrors7d ?? 0) > 0) {
-    return { label: 'Atención SAT', badgeClass: 'bg-amber-500/25 text-amber-200 border-amber-400/50', dotClass: 'bg-amber-400 animate-pulse motion-reduce:animate-none' };
+    return { label: 'Atención SAT', tone: 'amber' };
   }
-  return { label: 'Sistemas Normales', badgeClass: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40', dotClass: 'bg-emerald-400 animate-pulse motion-reduce:animate-none' };
+  return { label: 'Sistemas Normales', tone: 'emerald' };
 }
 
 export function SuperAdminMetricsCards({
@@ -73,8 +75,8 @@ export function SuperAdminMetricsCards({
       title: 'Usuarios',
       value: formatMetric(finalUsers),
       subtitle: metrics?.newUsers7d != null ? `+${metrics.newUsers7d.toLocaleString('es-MX')} últimos 7d` : 'Cuentas registradas en Supabase Auth',
-      icon: Users,
-      accentClass: 'bg-blue-50 border-blue-200 text-blue-700',
+      icon: <Users className="w-4 h-4" aria-hidden="true" />,
+      iconTone: 'blue',
       onAction: onNavigateTab ? () => onNavigateTab('users') : undefined,
       actionHint: onNavigateTab ? 'Ver usuarios' : undefined
     },
@@ -82,8 +84,8 @@ export function SuperAdminMetricsCards({
       title: 'Empresas',
       value: formatMetric(finalCompanies),
       subtitle: metrics?.activeCompaniesCount != null ? `${metrics.activeCompaniesCount.toLocaleString('es-MX')} activas` : 'Empresas fiscales registradas',
-      icon: Building2,
-      accentClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+      icon: <Building2 className="w-4 h-4" aria-hidden="true" />,
+      iconTone: 'emerald',
       onAction: onNavigateTab ? () => onNavigateTab('companies') : undefined,
       actionHint: onNavigateTab ? 'Ver empresas' : undefined
     },
@@ -91,15 +93,15 @@ export function SuperAdminMetricsCards({
       title: 'Pólizas',
       value: formatMetric(metrics?.totalPolizas),
       subtitle: 'Asientos de diario, ingresos y egresos',
-      icon: ReceiptText,
-      accentClass: 'bg-indigo-50 border-indigo-200 text-indigo-700'
+      icon: <ReceiptText className="w-4 h-4" aria-hidden="true" />,
+      iconTone: 'blue'
     },
     {
       title: 'CFDIs',
       value: formatMetric(metrics?.totalCfdis),
       subtitle: 'Comprobantes fiscales XML procesados',
-      icon: FileCode2,
-      accentClass: 'bg-purple-50 border-purple-200 text-purple-700'
+      icon: <FileCode2 className="w-4 h-4" aria-hidden="true" />,
+      iconTone: 'default'
     }
   ];
 
@@ -111,15 +113,15 @@ export function SuperAdminMetricsCards({
         metrics?.activeCompaniesCount != null
           ? `${metrics.activeCompaniesCount.toLocaleString('es-MX')} de ${denomCompanies.toLocaleString('es-MX')} con operación`
           : 'Empresas con movimiento contable',
-      icon: Activity,
-      accentClass: 'bg-cyan-50 border-cyan-200 text-cyan-800'
+      icon: <Activity className="w-4 h-4" aria-hidden="true" />,
+      iconTone: 'blue'
     },
     {
       title: 'Empresas con e.firma',
       value: formatMetric(metrics?.companiesWithFielCount),
       subtitle: 'Certificados FIEL vigentes o cargados',
-      icon: FileKey2,
-      accentClass: 'bg-teal-50 border-teal-200 text-teal-700',
+      icon: <FileKey2 className="w-4 h-4" aria-hidden="true" />,
+      iconTone: 'emerald',
       onAction: onNavigateFielCompanies,
       actionHint: onNavigateFielCompanies ? 'Ver con e.firma' : undefined
     },
@@ -127,8 +129,9 @@ export function SuperAdminMetricsCards({
       title: 'Errores SAT 7d',
       value: formatMetric(metrics?.satErrors7d),
       subtitle: satErrors > 0 ? 'Solicitudes SAT con incidencia reciente' : 'Descargas masivas sin fallos críticos',
-      icon: AlertTriangle,
-      accentClass: satErrors > 0 ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-slate-50 border-slate-200 text-slate-700',
+      icon: <AlertTriangle className="w-4 h-4" aria-hidden="true" />,
+      iconTone: satErrors > 0 ? 'amber' : 'default',
+      tone: satErrors > 0 ? 'amber' : 'default',
       onAction: onNavigateTab ? () => onNavigateTab('sat') : undefined,
       actionHint: onNavigateTab ? 'Ver Salud SAT' : undefined
     },
@@ -136,84 +139,72 @@ export function SuperAdminMetricsCards({
       title: 'Registros 30d',
       value: formatMetric(metrics?.newUsers30d),
       subtitle: 'Nuevas cuentas creadas en 30 días',
-      icon: UserPlus,
-      accentClass: 'bg-sky-50 border-sky-200 text-sky-700'
+      icon: <UserPlus className="w-4 h-4" aria-hidden="true" />,
+      iconTone: 'blue'
     }
   ];
 
-  const renderCard = (card: KpiCardItem) => {
-    const Icon = card.icon;
-    const inner = (
-      <>
-        <div className="min-w-0 text-left">
-          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{card.title}</p>
-          <p className="text-2xl font-black text-slate-900 mt-1 tabular-nums">{card.value}</p>
-          <p className="text-[11px] text-slate-600 mt-0.5">{card.subtitle}</p>
-          {card.actionHint && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 mt-1.5">
-              {card.actionHint}
-              <ArrowRight className="w-3 h-3" aria-hidden="true" />
-            </span>
-          )}
-        </div>
-        <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${card.accentClass}`}>
-          <Icon className="w-6 h-6" aria-hidden="true" />
-        </div>
-      </>
-    );
-
-    if (card.onAction) {
-      return (
-        <button
-          key={card.title}
-          type="button"
-          onClick={card.onAction}
-          aria-label={`${card.title}: ${card.value}. ${card.actionHint || 'Ir a la pestaña correspondiente'}`}
-          className="w-full bg-white border border-slate-300/80 hover:border-blue-400 hover:shadow-sm rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3 transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-        >
-          {inner}
-        </button>
-      );
-    }
-
-    return (
-      <div key={card.title} className="bg-white border border-slate-300/80 rounded-2xl p-4 shadow-2xs flex items-center justify-between gap-3">
-        {inner}
-      </div>
-    );
-  };
+  const renderCard = (card: KpiCardItem) => (
+    <KpiCard
+      key={card.title}
+      label={card.title}
+      value={card.value}
+      icon={card.icon}
+      iconTone={card.iconTone}
+      tone={card.tone}
+      hint={card.subtitle}
+      onClick={card.onAction}
+      footer={
+        card.actionHint ? (
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700">
+            {card.actionHint}
+            <ArrowRight className="w-3 h-3" aria-hidden="true" />
+          </span>
+        ) : undefined
+      }
+    />
+  );
 
   return (
     <div className="space-y-4">
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border border-blue-900/60 rounded-2xl p-4 sm:p-5 text-white shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-300/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-11 h-11 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-cyan-300 shrink-0">
-            <ShieldCheck className="w-6 h-6" aria-hidden="true" />
+          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+            <ShieldCheck className="w-5 h-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm sm:text-base font-bold text-white">Infraestructura Cloud en Producción</h2>
-              <span role="status" className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusConfig.badgeClass}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dotClass}`} aria-hidden="true" />
+              <h2 className="text-sm sm:text-base font-bold text-slate-900">Infraestructura Cloud en Producción</h2>
+              <StatusBadge tone={statusConfig.tone} dot>
                 {statusConfig.label}
-              </span>
+              </StatusBadge>
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
-              librepaq.com · Supabase PostgreSQL · Google Firebase Hosting · {syncTime ? `Actualizado: ${syncTime}` : 'Sin sincronización reciente'}
+            <p className="text-xs text-slate-600 mt-0.5 font-mono tabular-nums">
+              librepaq.com · Supabase PostgreSQL · Firebase Hosting · {syncTime ? `Actualizado: ${syncTime}` : 'Sin sincronización reciente'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-slate-100 border border-white/15 transition cursor-pointer">
+          <a
+            href="https://supabase.com/dashboard"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={getButtonClasses('secondary', 'sm')}
+          >
             Supabase Console
             <span className="visually-hidden"> (abre en nueva pestaña)</span>
-            <ExternalLink className="w-3 h-3 text-slate-200" aria-hidden="true" />
+            <ExternalLink className="w-3 h-3 text-slate-500" aria-hidden="true" />
           </a>
-          <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-slate-100 border border-white/15 transition cursor-pointer">
+          <a
+            href="https://console.firebase.google.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={getButtonClasses('secondary', 'sm')}
+          >
             Firebase Console
             <span className="visually-hidden"> (abre en nueva pestaña)</span>
-            <ExternalLink className="w-3 h-3 text-slate-200" aria-hidden="true" />
+            <ExternalLink className="w-3 h-3 text-slate-500" aria-hidden="true" />
           </a>
         </div>
       </div>

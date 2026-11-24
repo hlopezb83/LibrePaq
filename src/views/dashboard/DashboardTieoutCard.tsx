@@ -10,6 +10,7 @@ import {
   Scale,
   ShieldAlert
 } from 'lucide-react';
+import { AlertBanner, Button, StatusBadge } from '../../components/ui';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
 import { computeThreeWayTieout } from '../../shared/engine/three-way-tieout.engine';
@@ -115,17 +116,17 @@ export function DashboardTieoutCard({ company, mesActualNombre }: DashboardTieou
       tieout.diot.actosPagadosTotal
     ].some((v) => Math.abs(v) >= 0.01);
 
-  const badgeStyle = isLoading
-    ? 'bg-slate-100 text-slate-700 border-slate-300'
+  const badgeTone = isLoading
+    ? 'slate'
     : isError
-      ? 'bg-red-50 text-red-800 border-red-300'
+      ? 'red'
       : !hasTieoutActivity
-        ? 'bg-slate-100 text-slate-700 border-slate-300'
+        ? 'slate'
         : tieout.status === 'VERDE'
-          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+          ? 'emerald'
           : tieout.status === 'AMARILLO'
-            ? 'bg-amber-50 text-amber-900 border-amber-300'
-            : 'bg-red-50 text-red-800 border-red-300';
+            ? 'amber'
+            : 'red';
 
   const statusLabel = isLoading
     ? 'Calculando amarre...'
@@ -138,6 +139,20 @@ export function DashboardTieoutCard({ company, mesActualNombre }: DashboardTieou
           : tieout.status === 'AMARILLO'
             ? 'Amarre con Observaciones'
             : 'Discrepancia ADD ↔ Libros ↔ DIOT';
+
+  const statusIcon = isLoading ? (
+    <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+  ) : isError ? (
+    <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
+  ) : !hasTieoutActivity ? (
+    <Scale className="w-3.5 h-3.5" aria-hidden="true" />
+  ) : tieout.status === 'VERDE' ? (
+    <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+  ) : tieout.status === 'AMARILLO' ? (
+    <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+  ) : (
+    <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
+  );
 
   const deltaPills = [
     { label: 'Dif. Ing', value: tieout.deltas.deltaIngresos },
@@ -153,7 +168,7 @@ export function DashboardTieoutCard({ company, mesActualNombre }: DashboardTieou
     >
       <div className="p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
             <Scale className="w-4 h-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
@@ -161,29 +176,15 @@ export function DashboardTieoutCard({ company, mesActualNombre }: DashboardTieou
               <h2 className="text-sm font-bold text-slate-900">
                 Amarre Integral 3-Vías ({mesActualNombre} {ejercicio})
               </h2>
-              <span
-                role="status"
-                aria-live="polite"
-                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badgeStyle}`}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-600" aria-hidden="true" />
-                ) : isError ? (
-                  <ShieldAlert className="w-3.5 h-3.5 text-red-600" aria-hidden="true" />
-                ) : !hasTieoutActivity ? (
-                  <Scale className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
-                ) : tieout.status === 'VERDE' ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
-                ) : tieout.status === 'AMARILLO' ? (
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                ) : (
-                  <ShieldAlert className="w-3.5 h-3.5 text-red-600" aria-hidden="true" />
-                )}
-                <span>{statusLabel}</span>
+              <span role="status" aria-live="polite" className="inline-flex">
+                <StatusBadge tone={badgeTone} icon={statusIcon}>
+                  {statusLabel}
+                </StatusBadge>
               </span>
             </div>
             <p className="text-xs text-slate-600 mt-0.5">
-              Cruce automático en pesos ($): <strong>SAT ADD</strong> (PUE+REP neto NC) vs <strong>Contabilidad</strong> (401/501/601/208/118/102) vs <strong>DIOT</strong>.
+              Cruce automático en pesos ($): <strong>SAT ADD</strong> (PUE+REP neto NC) vs{' '}
+              <strong>Contabilidad</strong> (401/501/601/208/118/102) vs <strong>DIOT</strong>.
             </p>
           </div>
         </div>
@@ -193,62 +194,68 @@ export function DashboardTieoutCard({ company, mesActualNombre }: DashboardTieou
             {deltaPills.map((pill) => {
               const hasDiff = Math.abs(pill.value) >= 0.01;
               const isHigh = hasDiff && tieout.status === 'ROJO';
-              const pillClass = !hasDiff
-                ? 'bg-slate-100 border-slate-200 text-slate-800'
-                : isHigh
-                  ? 'bg-red-50 border-red-300 text-red-900'
-                  : 'bg-amber-50 border-amber-300 text-amber-900';
+              const tone = !hasDiff ? 'slate' : isHigh ? 'red' : 'amber';
               return (
-                <span
+                <StatusBadge
                   key={pill.label}
-                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border ${pillClass}`}
+                  tone={tone}
+                  shape="tag"
+                  icon={
+                    hasDiff ? (
+                      <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    ) : undefined
+                  }
+                  className="tabular-nums"
                 >
-                  {hasDiff && (
-                    <AlertTriangle
-                      className={`w-3 h-3 shrink-0 ${isHigh ? 'text-red-600' : 'text-amber-600'}`}
-                      aria-hidden="true"
-                    />
-                  )}
-                  <span>
-                    {pill.label}: <strong>{formatCurrency(pill.value)}</strong>
-                  </span>
-                </span>
+                  {pill.label}: <strong>{formatCurrency(pill.value)}</strong>
+                </StatusBadge>
               );
             })}
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             aria-expanded={expanded}
             aria-controls="dashboard-tieout-detail"
             onClick={() => setExpanded((prev) => !prev)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition cursor-pointer shrink-0"
+            rightIcon={
+              expanded ? (
+                <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+              )
+            }
           >
-            <span>{expanded ? 'Ocultar detalle' : 'Ver detalle 3-Vías'}</span>
-            {expanded ? (
-              <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
-            )}
-          </button>
+            {expanded ? 'Ocultar detalle' : 'Ver detalle 3-Vías'}
+          </Button>
         </div>
       </div>
 
       {isError && (
-        <div
-          role="alert"
-          className="mx-4 mb-4 p-3 rounded-xl bg-red-50 border border-red-200 flex flex-wrap items-center justify-between gap-2 text-xs text-red-900"
-        >
-          <span>No fue posible consultar todas las fuentes del amarre 3-Vías (Balanza, ADD, Pólizas o DIOT).</span>
-          <button
-            type="button"
-            disabled={isFetching}
-            onClick={handleRetry}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-red-100 border border-red-300 font-bold text-red-800 disabled:opacity-50 cursor-pointer"
+        <div className="mx-4 mb-4">
+          <AlertBanner
+            tone="danger"
+            action={
+              <Button
+                variant="danger-outline"
+                size="sm"
+                loading={isFetching}
+                onClick={handleRetry}
+                leftIcon={
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
+                }
+              >
+                {isFetching ? 'Reintentando...' : 'Reintentar'}
+              </Button>
+            }
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span>{isFetching ? 'Reintentando...' : 'Reintentar'}</span>
-          </button>
+            No fue posible consultar todas las fuentes del amarre 3-Vías (Balanza, ADD, Pólizas o
+            DIOT).
+          </AlertBanner>
         </div>
       )}
 

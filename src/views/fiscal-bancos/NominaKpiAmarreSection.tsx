@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { AlertCircle, BookOpen, CheckCircle2, FileUp, Users } from 'lucide-react';
+import { AlertBanner, Button, KpiCard, StatusBadge, type BadgeTone } from '../../components/ui';
 import { useUIModal } from '../../context/UIModalContext';
 import { formatCurrency } from '../../lib/formatters';
 import type { PayrollPeriodSummary } from '../../shared/types/payroll-summary.types';
@@ -14,40 +15,12 @@ export function NominaKpiAmarreSection({ summary, periodLabel, isrAccountId }: N
   const navigate = useNavigate();
   const { openLedger } = useUIModal();
 
-  const kpiCards = [
-    {
-      label: 'Recibos Timbrados (Tipo N)',
-      value: String(summary.nominaCount),
-      sub: `Periodo ${periodLabel}`,
-      tone: 'text-slate-900',
-      icon: true
-    },
-    {
-      label: 'Total Percepciones',
-      value: formatCurrency(summary.totalPercepciones),
-      sub: `IMSS Obrero est.: ${formatCurrency(summary.imssObreroEstimado)}`,
-      tone: 'text-slate-900'
-    },
-    {
-      label: 'Subsidio al Empleo / Otros Pagos',
-      value: formatCurrency(summary.totalSubsidioEmpleo),
-      sub: 'Complemento Nómina 1.2',
-      tone: 'text-blue-700'
-    },
-    {
-      label: 'Neto Pagado',
-      value: formatCurrency(summary.totalNetoPagado),
-      sub: `ISR retenido: ${formatCurrency(summary.isrRetenidoCfdis)}`,
-      tone: 'text-emerald-700'
-    }
-  ];
-
-  const amarreMeta =
+  const amarreMeta: { tone: BadgeTone; label: string } =
     summary.amarreStatus === 'CUADRADO'
-      ? { badge: 'bg-emerald-50 text-emerald-800 border-emerald-300', label: 'CUADRADO vs Libros' }
+      ? { tone: 'emerald', label: 'CUADRADO vs Libros' }
       : summary.amarreStatus === 'DIFERENCIA'
-        ? { badge: 'bg-red-50 text-red-800 border-red-300', label: 'CON DIFERENCIA' }
-        : { badge: 'bg-slate-100 text-slate-700 border-slate-300', label: 'SIN NÓMINA EN PERIODO' };
+        ? { tone: 'red', label: 'CON DIFERENCIA' }
+        : { tone: 'slate', label: 'SIN NÓMINA EN PERIODO' };
 
   const amarreRows = [
     { label: 'ISR Retenido CFDIs (Nómina 1.2)', value: formatCurrency(summary.isrRetenidoCfdis), tone: 'text-slate-900' },
@@ -64,16 +37,29 @@ export function NominaKpiAmarreSection({ summary, periodLabel, isrAccountId }: N
       <section aria-labelledby="nomina-kpi-heading" className="space-y-2">
         <h2 id="nomina-kpi-heading" className="visually-hidden">Resumen mensual de Nómina 1.2</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {kpiCards.map((k) => (
-            <div key={k.label} className="bg-white p-4 rounded-2xl border border-slate-300/90 shadow-2xs min-w-0">
-              <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
-                <span>{k.label}</span>
-                {k.icon && <Users className="w-4 h-4 text-blue-600 shrink-0" aria-hidden="true" />}
-              </div>
-              <p className={`text-xl font-bold font-mono tabular-nums mt-1 ${k.tone}`}>{k.value}</p>
-              <p className="text-[11px] font-mono tabular-nums text-slate-600 mt-0.5">{k.sub}</p>
-            </div>
-          ))}
+          <KpiCard
+            label="Recibos Timbrados (Tipo N)"
+            value={String(summary.nominaCount)}
+            icon={<Users className="w-4 h-4" aria-hidden="true" />}
+            hint={`Periodo ${periodLabel}`}
+          />
+          <KpiCard
+            label="Total Percepciones"
+            value={formatCurrency(summary.totalPercepciones)}
+            hint={`IMSS Obrero est.: ${formatCurrency(summary.imssObreroEstimado)}`}
+          />
+          <KpiCard
+            label="Subsidio al Empleo / Otros Pagos"
+            value={formatCurrency(summary.totalSubsidioEmpleo)}
+            valueClassName="text-blue-700"
+            hint="Complemento Nómina 1.2"
+          />
+          <KpiCard
+            label="Neto Pagado"
+            value={formatCurrency(summary.totalNetoPagado)}
+            valueClassName="text-emerald-700"
+            hint={`ISR retenido: ${formatCurrency(summary.isrRetenidoCfdis)}`}
+          />
         </div>
       </section>
 
@@ -87,10 +73,19 @@ export function NominaKpiAmarreSection({ summary, periodLabel, isrAccountId }: N
               Compara la suma de ISR retenido en CFDIs Tipo N vigentes contra los abonos del periodo en balanza
             </p>
           </div>
-          <span role="status" className={`self-start sm:self-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${amarreMeta.badge}`}>
-            {summary.amarreStatus === 'CUADRADO' && <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}
-            {summary.amarreStatus === 'DIFERENCIA' && <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />}
-            {amarreMeta.label}
+          <span role="status" className="self-start sm:self-auto shrink-0">
+            <StatusBadge
+              tone={amarreMeta.tone}
+              icon={
+                summary.amarreStatus === 'CUADRADO' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                ) : summary.amarreStatus === 'DIFERENCIA' ? (
+                  <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                ) : undefined
+              }
+            >
+              {amarreMeta.label}
+            </StatusBadge>
           </span>
         </div>
 
@@ -104,37 +99,42 @@ export function NominaKpiAmarreSection({ summary, periodLabel, isrAccountId }: N
         </div>
 
         {summary.amarreStatus === 'DIFERENCIA' && (
-          <div role="status" className="text-xs text-red-900 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span>
-              Existe una discrepancia entre el ISR retenido en los recibos Tipo N y los abonos contabilizados en la cuenta{' '}
-              <strong className="font-mono">{summary.cuentaIsrCode}</strong>. Revisa las pólizas de nómina del periodo o verifica XMLs Tipo N.
-            </span>
-            {isrAccountId && (
-              <button
-                type="button"
-                onClick={() => openLedger(isrAccountId)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-red-100 text-red-900 border border-red-300 font-semibold shrink-0 cursor-pointer"
-              >
-                <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
-                Ver Libro Mayor ({summary.cuentaIsrCode})
-              </button>
-            )}
-          </div>
+          <AlertBanner
+            tone="danger"
+            action={
+              isrAccountId && (
+                <Button
+                  size="sm"
+                  variant="danger-outline"
+                  onClick={() => openLedger(isrAccountId)}
+                  leftIcon={<BookOpen className="w-3.5 h-3.5" aria-hidden="true" />}
+                >
+                  Ver Libro Mayor ({summary.cuentaIsrCode})
+                </Button>
+              )
+            }
+          >
+            Existe una discrepancia entre el ISR retenido en los recibos Tipo N y los abonos contabilizados en la cuenta{' '}
+            <strong className="font-mono">{summary.cuentaIsrCode}</strong>. Revisa las pólizas de nómina del periodo o verifica XMLs Tipo N.
+          </AlertBanner>
         )}
+
         {summary.amarreStatus === 'SIN_NOMINA' && (
-          <div role="status" className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span>
-              No se encontraron recibos de nómina (CFDI Tipo N) vigentes en el periodo {periodLabel}. Si pagaste sueldos, importa los XMLs correspondientes en la <strong>Bóveda Digital (ADD)</strong>.
-            </span>
-            <button
-              type="button"
-              onClick={() => void navigate({ to: '/add' })}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold shrink-0 cursor-pointer"
-            >
-              <FileUp className="w-3.5 h-3.5" aria-hidden="true" />
-              Ir a Bóveda Digital (ADD)
-            </button>
-          </div>
+          <AlertBanner
+            tone="info"
+            action={
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => void navigate({ to: '/add' })}
+                leftIcon={<FileUp className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
+                Ir a Bóveda Digital (ADD)
+              </Button>
+            }
+          >
+            No se encontraron recibos de nómina (CFDI Tipo N) vigentes en el periodo {periodLabel}. Si pagaste sueldos, importa los XMLs correspondientes en la <strong>Bóveda Digital (ADD)</strong>.
+          </AlertBanner>
         )}
       </section>
     </>

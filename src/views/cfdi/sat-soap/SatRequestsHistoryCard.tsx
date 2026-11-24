@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import {
+  ArrowDownLeft,
+  ArrowUpRight,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -9,6 +11,7 @@ import {
   RefreshCw,
   XCircle
 } from 'lucide-react';
+import { Button, StatusBadge } from '../../../components/ui';
 import type { SatDownloadRequestRecord } from '../../../shared/types';
 import { useToast } from '../../../context/ToastContext';
 import { translateSatErrorCode } from './satErrorTranslator';
@@ -63,11 +66,11 @@ export function SatRequestsHistoryCard({
             <span className="text-xs font-bold text-slate-800 truncate">
               Bitácora de Solicitudes y Descargas SAT
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200/80 text-slate-700 font-mono shrink-0">
+            <StatusBadge tone="slate" shape="tag" className="shrink-0">
               {satRequests.length}
-            </span>
+            </StatusBadge>
           </div>
-          <div className="flex items-center gap-1 text-xs text-slate-500 font-medium shrink-0">
+          <div className="flex items-center gap-1 text-xs text-slate-600 font-medium shrink-0">
             <span>{isOpen ? 'Ocultar' : 'Ver bitácora'}</span>
             {isOpen ? (
               <ChevronUp className="w-4 h-4" aria-hidden="true" />
@@ -78,34 +81,47 @@ export function SatRequestsHistoryCard({
         </button>
 
         {hasPending && onVerifyPending && (
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
+            loading={isVerifyingPending}
             disabled={isVerifyingPending || isReadOnlyClient}
             onClick={onVerifyPending}
-            aria-label={isVerifyingPending ? 'Consultando al SAT solicitudes pendientes' : 'Comprobar con el SAT solicitudes pendientes'}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            aria-label={
+              isVerifyingPending
+                ? 'Consultando al SAT solicitudes pendientes'
+                : 'Comprobar con el SAT solicitudes pendientes'
+            }
             title={verifyDisabledReason}
+            leftIcon={
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isVerifyingPending ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+            }
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isVerifyingPending ? 'animate-spin' : ''}`} aria-hidden="true" />
             <span className="hidden sm:inline">
               {isVerifyingPending ? 'Consultando...' : 'Comprobar con el SAT'}
             </span>
-          </button>
+          </Button>
         )}
       </div>
 
       {isOpen && (
         <div className="p-3 sm:p-4 border-t border-slate-200 bg-white space-y-2.5">
           <p className="text-[11px] text-slate-600 leading-relaxed">
-            Registro oficial de peticiones comunicadas con los Servicios Oficiales del SAT para esta empresa.
+            Registro oficial de peticiones comunicadas con los Servicios Oficiales del SAT para
+            esta empresa.
           </p>
 
           <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden font-mono text-xs">
             {visibleRequests.map((r) => {
               const isDone = r.estadoSolicitud === 'TERMINADA';
-              const isPartial = r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE';
+              const isPartial =
+                r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE';
               const isError = r.estadoSolicitud === 'ERROR';
-              const isPending = r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO';
+              const isPending =
+                r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO';
               const translated = isError
                 ? translateSatErrorCode(r.codigoEstadoSat, r.mensajeSat)
                 : null;
@@ -117,13 +133,25 @@ export function SatRequestsHistoryCard({
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-800 font-sans text-xs">
-                        <span aria-hidden="true">{r.tipoSolicitud === 'EMITIDOS' ? '📤 ' : '📥 '}</span>
+                      <span className="inline-flex items-center gap-1.5 font-bold text-slate-800 font-sans text-xs">
+                        {r.tipoSolicitud === 'EMITIDOS' ? (
+                          <ArrowUpRight
+                            className="w-3.5 h-3.5 text-emerald-700 shrink-0"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <ArrowDownLeft
+                            className="w-3.5 h-3.5 text-blue-700 shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
                         {r.tipoSolicitud === 'EMITIDOS'
                           ? 'Emitidas (Ingresos)'
                           : 'Recibidas (Gastos)'}
                       </span>
-                      <span className="text-slate-500" aria-hidden="true">•</span>
+                      <span className="text-slate-500" aria-hidden="true">
+                        •
+                      </span>
                       <span className="text-slate-600 text-[11px]">
                         {r.fechaInicial} al {r.fechaFinal}
                       </span>
@@ -131,7 +159,10 @@ export function SatRequestsHistoryCard({
 
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
                       <span>Folio:</span>
-                      <strong className="text-slate-800 truncate max-w-[140px] sm:max-w-[200px]" title={r.idSolicitudSat}>
+                      <strong
+                        className="text-slate-800 truncate max-w-[140px] sm:max-w-[200px]"
+                        title={r.idSolicitudSat}
+                      >
                         {r.idSolicitudSat}
                       </strong>
                       <button
@@ -148,26 +179,27 @@ export function SatRequestsHistoryCard({
 
                   <div className="flex items-center gap-2 shrink-0 self-start md:self-center font-sans flex-wrap">
                     {isDone && (r.cfdisDescargados || 0) > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                      <StatusBadge
+                        tone="emerald"
+                        icon={<CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}
+                      >
                         {r.cfdisDescargados} XMLs integrados
-                      </span>
+                      </StatusBadge>
                     )}
 
                     {isDone && (!r.cfdisDescargados || r.cfdisDescargados === 0) && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
-                        0 comprobantes en el periodo
-                      </span>
+                      <StatusBadge tone="slate">0 comprobantes en el periodo</StatusBadge>
                     )}
 
                     {isPartial && (
                       <div className="flex flex-col items-start md:items-end gap-0.5">
-                        <span
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900"
-                          title={r.mensajeSat}
-                        >
-                          <XCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                          {r.cfdisDescargados || 0} XMLs (Parcial · límite SAT)
+                        <span title={r.mensajeSat}>
+                          <StatusBadge
+                            tone="amber"
+                            icon={<XCircle className="w-3.5 h-3.5" aria-hidden="true" />}
+                          >
+                            {r.cfdisDescargados || 0} XMLs (Parcial · límite SAT)
+                          </StatusBadge>
                         </span>
                         {r.mensajeSat && (
                           <span className="text-[10px] text-amber-900 font-sans max-w-xs md:text-right">
@@ -179,31 +211,34 @@ export function SatRequestsHistoryCard({
 
                     {isPending && (
                       <div className="flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
-                          <Clock className="w-3.5 h-3.5 text-blue-600" aria-hidden="true" />
+                        <StatusBadge
+                          tone="blue"
+                          icon={<Clock className="w-3.5 h-3.5" aria-hidden="true" />}
+                        >
                           En proceso SAT
-                        </span>
+                        </StatusBadge>
                         {onVerifyPending && (
-                          <button
-                            type="button"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             disabled={isVerifyingPending || isReadOnlyClient}
                             onClick={onVerifyPending}
-                            className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-[11px] font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             title={verifyDisabledReason}
                           >
                             Comprobar
-                          </button>
+                          </Button>
                         )}
                       </div>
                     )}
 
                     {isError && translated && (
-                      <span
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900"
-                        title={r.mensajeSat || translated.explanation}
-                      >
-                        <XCircle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                        {translated.shortLabel}
+                      <span title={r.mensajeSat || translated.explanation}>
+                        <StatusBadge
+                          tone="amber"
+                          icon={<XCircle className="w-3.5 h-3.5" aria-hidden="true" />}
+                        >
+                          {translated.shortLabel}
+                        </StatusBadge>
                       </span>
                     )}
 
@@ -218,13 +253,9 @@ export function SatRequestsHistoryCard({
 
           {satRequests.length > 10 && (
             <div className="flex justify-center pt-1">
-              <button
-                type="button"
-                onClick={() => setShowAll((v) => !v)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 cursor-pointer transition"
-              >
+              <Button variant="secondary" size="sm" onClick={() => setShowAll((v) => !v)}>
                 {showAll ? 'Mostrar últimas 10' : `Ver todas (${satRequests.length})`}
-              </button>
+              </Button>
             </div>
           )}
         </div>

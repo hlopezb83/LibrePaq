@@ -1,5 +1,6 @@
 import React from 'react';
 import { Calculator, Plus, Scale, Zap } from 'lucide-react';
+import { Button } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import type { Account, CfdiDocument } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
@@ -88,38 +89,41 @@ export function PolizaMovementsTable({
       <div className="bg-slate-50 px-3 sm:px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-800">
-            Movimientos Contables ({movements.length} partidas)
+            Movimientos Contables (<span className="font-mono tabular-nums">{movements.length}</span> partidas)
           </span>
           <span className="text-[11px] text-slate-500 font-mono">
             • Pulsa <kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 font-bold">=</kbd> para cuadrar
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
+          <Button
+            variant="export-outline"
+            size="sm"
             onClick={() => addIva16Line(Math.min(activeRowIdx, movements.length - 1))}
             title="Calcula el 16% de IVA sobre la partida activa (atajo F4) y genera el asiento automáticamente"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition"
+            leftIcon={<Calculator className="w-3.5 h-3.5" aria-hidden="true" />}
           >
-            <Calculator className="w-3.5 h-3.5" aria-hidden="true" />
             Desglosar IVA 16% (F4)
-          </button>
+          </Button>
 
           {Math.abs(difference) >= 0.01 && (
             <button
               type="button"
               onClick={autoBalanceDifference}
               title="Genera o completa la partida de contrapartida para igualar Cargos y Abonos"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 cursor-pointer transition"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 cursor-pointer transition font-mono tabular-nums"
             >
               <Scale className="w-3.5 h-3.5" aria-hidden="true" />
               <Zap className="w-3 h-3" aria-hidden="true" />
-              Cuadrar Asiento ({formatCurrency(Math.abs(difference))})
+              <span>Cuadrar Asiento ({formatCurrency(Math.abs(difference))})</span>
             </button>
           )}
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-blue-50! text-blue-800! border-blue-200! hover:bg-blue-100!"
+            leftIcon={<Plus className="w-3.5 h-3.5" aria-hidden="true" />}
             onClick={() =>
               setMovements((prev) => [
                 ...prev,
@@ -133,11 +137,9 @@ export function PolizaMovementsTable({
                 }
               ])
             }
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
           >
-            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
             Agregar Partida
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -145,7 +147,7 @@ export function PolizaMovementsTable({
         <table className="w-full text-left border-collapse">
           <caption className="visually-hidden">Partidas del asiento contable en captura</caption>
           <thead>
-            <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 bg-slate-50/90">
+            <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600 bg-slate-50/90">
               <th scope="col" className="py-2.5 px-3 min-w-[280px]">
                 Cuenta Contable Afectable (Buscar Código o Nombre)
               </th>
@@ -188,7 +190,7 @@ export function PolizaMovementsTable({
             ))}
           </tbody>
           <tfoot>
-            <tr className="bg-slate-100 border-t border-slate-300 font-mono tabular-nums text-xs font-bold">
+            <tr className="bg-slate-50 border-t border-slate-200 font-mono tabular-nums text-xs font-bold">
               <td colSpan={3} className="py-2.5 px-4 text-right text-slate-700">
                 Sumas Iguales (Partida Doble):
               </td>

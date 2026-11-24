@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { createColumnHelper, tableFeatures } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, ExternalLink, FileText } from 'lucide-react';
+import { StatusBadge } from '../../components/ui';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { CfdiDocument } from '../../shared/types';
 import { CfdiActionsCell } from './CfdiActionsCell';
@@ -241,9 +242,7 @@ export function useCfdiColumns({
           return (
             <div className="flex flex-wrap items-center gap-1">
               {row.statusSat === 'CANCELADO' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
-                  Cancelado SAT
-                </span>
+                <StatusBadge tone="red">Cancelado SAT</StatusBadge>
               )}
               {row.polizaId ? (
                 <button
@@ -255,16 +254,18 @@ export function useCfdiColumns({
                     })
                   }
                   title="Ir a Pólizas Contables para consultar el asiento"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                  className="inline-flex rounded-full cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>{row.polizaFolio || 'Contabilizado'}</span>
-                  <ExternalLink className="w-3 h-3 ml-0.5 opacity-75" aria-hidden="true" />
+                  <StatusBadge
+                    tone="emerald"
+                    icon={<CheckCircle2 className="w-3 h-3" aria-hidden="true" />}
+                  >
+                    <span>{row.polizaFolio || 'Contabilizado'}</span>
+                    <ExternalLink className="w-3 h-3 ml-0.5 opacity-75" aria-hidden="true" />
+                  </StatusBadge>
                 </button>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-                  Sin Póliza
-                </span>
+                <StatusBadge tone="amber">Sin Póliza</StatusBadge>
               )}
             </div>
           );

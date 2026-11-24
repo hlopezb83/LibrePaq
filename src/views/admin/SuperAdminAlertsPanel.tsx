@@ -1,4 +1,5 @@
 import { AlertTriangle, Bell, CheckCircle2, Info, Loader2, RefreshCw, RotateCcw, ShieldAlert } from 'lucide-react';
+import { Button, EmptyState, StatusBadge, type BadgeTone } from '../../components/ui';
 import type {
   AdminPlatformAlert,
   PlatformAlertCategory,
@@ -29,21 +30,21 @@ const FILTER_PILLS: ReadonlyArray<{ value: 'ALL' | PlatformAlertStatus; label: s
 
 const SEVERITY_META: Record<
   PlatformAlertSeverity,
-  { label: string; badgeClass: string; icon: typeof ShieldAlert }
+  { label: string; tone: BadgeTone; icon: typeof ShieldAlert }
 > = {
   critical: {
     label: 'Crítica',
-    badgeClass: 'bg-red-100 text-red-900 border-red-300',
+    tone: 'red',
     icon: ShieldAlert
   },
   warning: {
     label: 'Preventiva',
-    badgeClass: 'bg-amber-100 text-amber-950 border-amber-300',
+    tone: 'amber',
     icon: AlertTriangle
   },
   info: {
     label: 'Info',
-    badgeClass: 'bg-blue-100 text-blue-900 border-blue-300',
+    tone: 'blue',
     icon: Info
   }
 };
@@ -89,17 +90,17 @@ export function SuperAdminAlertsPanel({
           </p>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={onScan}
           disabled={isScanning}
-          aria-busy={isScanning}
+          loading={isScanning}
           title={isScanning ? 'Escaneando salud de plataforma...' : 'Ejecutar escaneo proactivo de alertas SAT y cuotas'}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+          leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />}
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />
           {isScanning ? 'Escaneando...' : 'Escanear Ahora'}
-        </button>
+        </Button>
       </div>
 
       <div role="group" aria-label="Filtrar alertas por estado" className="flex flex-wrap items-center gap-2">
@@ -113,7 +114,7 @@ export function SuperAdminAlertsPanel({
               onClick={() => onStatusFilterChange(pill.value)}
               className={`px-3 py-1 rounded-full text-xs font-bold border transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
                 active
-                  ? 'bg-slate-900 text-white border-slate-900'
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-2xs'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
               }`}
             >
@@ -137,31 +138,33 @@ export function SuperAdminAlertsPanel({
           ))}
         </ul>
       ) : visibleAlerts.length === 0 ? (
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p>No hay alertas registradas para el filtro seleccionado.</p>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {statusFilter !== 'ALL' && (
-              <button
-                type="button"
-                onClick={() => onStatusFilterChange('ALL')}
-                className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        <EmptyState
+          variant="dashed"
+          tone="slate"
+          icon={<Bell className="w-5 h-5" aria-hidden="true" />}
+          title="Sin alertas para este filtro"
+          description="No hay alertas registradas para el filtro seleccionado."
+          actions={
+            <>
+              {statusFilter !== 'ALL' && (
+                <Button variant="secondary" size="sm" onClick={() => onStatusFilterChange('ALL')}>
+                  Ver todas las alertas
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onScan}
+                disabled={isScanning}
+                loading={isScanning}
+                title={isScanning ? 'Escaneando salud de plataforma...' : 'Ejecutar escaneo proactivo de alertas'}
+                leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />}
               >
-                Ver todas las alertas
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onScan}
-              disabled={isScanning}
-              aria-busy={isScanning}
-              title={isScanning ? 'Escaneando salud de plataforma...' : 'Ejecutar escaneo proactivo de alertas'}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} aria-hidden="true" />
-              {isScanning ? 'Escaneando...' : 'Escanear plataforma'}
-            </button>
-          </div>
-        </div>
+                {isScanning ? 'Escaneando...' : 'Escanear plataforma'}
+              </Button>
+            </>
+          }
+        />
       ) : (
         <ul className="space-y-2.5">
           {visibleAlerts.map((alert) => {
@@ -184,12 +187,9 @@ export function SuperAdminAlertsPanel({
               >
                 <div className="space-y-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${sev.badgeClass}`}
-                    >
-                      <SevIcon className="w-3 h-3" aria-hidden="true" />
+                    <StatusBadge tone={sev.tone} icon={<SevIcon className="w-3 h-3" aria-hidden="true" />}>
                       {sev.label}
-                    </span>
+                    </StatusBadge>
                     <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] font-semibold text-slate-700">
                       {CATEGORY_LABELS[alert.category]}
                     </span>

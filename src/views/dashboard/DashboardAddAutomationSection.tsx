@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, CheckCircle2, CloudDownload, Loader2, Sparkles } from 'lucide-react';
+import { Button, EmptyState, StatusBadge, getButtonClasses } from '../../components/ui';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { CfdiDocument } from '../../shared/types';
 
@@ -42,9 +43,9 @@ export function DashboardAddAutomationSection({
               Contabilizador Automático ADD (CFDI 4.0)
             </h2>
             {totalPending > 0 && (
-              <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-mono tabular-nums">
+              <StatusBadge tone="amber" className="font-mono tabular-nums">
                 {totalPending} {totalPending === 1 ? 'pendiente' : 'pendientes'}
-              </span>
+              </StatusBadge>
             )}
           </div>
           <p className="text-xs text-slate-600 mt-0.5">
@@ -59,8 +60,10 @@ export function DashboardAddAutomationSection({
 
         <div className="flex flex-wrap items-center gap-2">
           {pendingCfdis.length > 1 && !isWriteSuppressed && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={isBatchPending}
               disabled={isAnyPending}
               title={
                 isAnyPending
@@ -70,15 +73,16 @@ export function DashboardAddAutomationSection({
                   : `Contabilizar lote de ${pendingCfdis.length} CFDIs pendientes`
               }
               onClick={() => onBatchAutoPoliza(pendingCfdis.map((c) => c.id))}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-800 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-200 cursor-pointer"
+              leftIcon={
+                isBatchPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
+                )
+              }
             >
-              {isBatchPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              )}
               {isBatchPending ? 'Contabilizando...' : `Contabilizar lote (${pendingCfdis.length})`}
-            </button>
+            </Button>
           )}
           <Link
             to="/add"
@@ -91,53 +95,45 @@ export function DashboardAddAutomationSection({
 
       <div className="p-5 flex-1">
         {pendingCfdis.length === 0 ? (
-          <div className="h-full py-10 text-center space-y-2">
-            {(cfdisTotalesPeriodo ?? 0) === 0 ? (
-              <>
-                <div className="w-11 h-11 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center mx-auto shadow-2xs">
-                  <CloudDownload className="w-6 h-6" aria-hidden="true" />
-                </div>
-                <p className="text-sm font-bold text-slate-900">
-                  Aún no tienes facturas registradas en este periodo
-                </p>
-                <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                  {isWriteSuppressed
-                    ? 'Modo solo consulta: no hay comprobantes XML registrados para revisar en este periodo.'
-                    : 'Sincroniza automáticamente tus facturas del SAT con tu e.firma o sube tus archivos XML en la Bóveda ADD.'}
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="w-11 h-11 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
-                </div>
-                <p className="text-sm font-bold text-slate-900">
-                  ¡Todos los CFDIs del ADD están contabilizados!
-                </p>
-                <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                  Todas tus facturas del periodo cuentan con su póliza contable correspondiente.
-                </p>
-              </>
-            )}
-            {!isWriteSuppressed && (
-              <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                <Link
-                  to="/add"
-                  search={{ sat: 'open' }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer"
-                >
-                  <CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Descargar del SAT (e.firma)</span>
-                </Link>
-                <Link
-                  to="/add"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 transition cursor-pointer"
-                >
-                  Subir Archivos XML
-                </Link>
-              </div>
-            )}
-          </div>
+          <EmptyState
+            tone={(cfdisTotalesPeriodo ?? 0) === 0 ? 'blue' : 'emerald'}
+            icon={
+              (cfdisTotalesPeriodo ?? 0) === 0 ? (
+                <CloudDownload className="w-6 h-6" aria-hidden="true" />
+              ) : (
+                <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
+              )
+            }
+            title={
+              (cfdisTotalesPeriodo ?? 0) === 0
+                ? 'Aún no tienes facturas registradas en este periodo'
+                : '¡Todos los CFDIs del ADD están contabilizados!'
+            }
+            description={
+              (cfdisTotalesPeriodo ?? 0) === 0
+                ? isWriteSuppressed
+                  ? 'Modo solo consulta: no hay comprobantes XML registrados para revisar en este periodo.'
+                  : 'Sincroniza automáticamente tus facturas del SAT con tu e.firma o sube tus archivos XML en la Bóveda ADD.'
+                : 'Todas tus facturas del periodo cuentan con su póliza contable correspondiente.'
+            }
+            actions={
+              !isWriteSuppressed ? (
+                <>
+                  <Link
+                    to="/add"
+                    search={{ sat: 'open' }}
+                    className={getButtonClasses('primary', 'md')}
+                  >
+                    <CloudDownload className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Descargar del SAT (e.firma)</span>
+                  </Link>
+                  <Link to="/add" className={getButtonClasses('secondary', 'md')}>
+                    Subir Archivos XML
+                  </Link>
+                </>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="space-y-3">
             {pendingCfdis.map((cfdi) => {
@@ -150,15 +146,12 @@ export function DashboardAddAutomationSection({
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase border ${
-                          cfdi.direction === 'EMITIDO'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : 'bg-blue-50 text-blue-800 border-blue-200'
-                        }`}
+                      <StatusBadge
+                        tone={cfdi.direction === 'EMITIDO' ? 'emerald' : 'blue'}
+                        shape="tag"
                       >
                         {cfdi.direction} ({cfdi.metodoPago})
-                      </span>
+                      </StatusBadge>
                       <span className="font-mono text-xs font-bold text-slate-900">
                         {serieFolio}
                       </span>
@@ -186,10 +179,11 @@ export function DashboardAddAutomationSection({
                       </div>
                     </div>
                     {!isWriteSuppressed ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
+                        size="md"
+                        loading={isRowPending}
                         disabled={isAnyPending}
-                        aria-busy={isRowPending}
                         aria-label={`Generar póliza para CFDI ${serieFolio} (${cfdi.uuid.slice(0, 8)})`}
                         title={
                           isRowPending
@@ -199,19 +193,18 @@ export function DashboardAddAutomationSection({
                             : 'Generar póliza cuadrada desde este CFDI'
                         }
                         onClick={() => onSingleAutoPoliza(cfdi.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs cursor-pointer"
+                        leftIcon={
+                          isRowPending ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                          )
+                        }
                       >
-                        {isRowPending ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                        )}
-                        <span>{isRowPending ? 'Generando...' : 'Generar Póliza'}</span>
-                      </button>
+                        {isRowPending ? 'Generando...' : 'Generar Póliza'}
+                      </Button>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                        Solo consulta
-                      </span>
+                      <StatusBadge tone="slate">Solo consulta</StatusBadge>
                     )}
                   </div>
                 </div>

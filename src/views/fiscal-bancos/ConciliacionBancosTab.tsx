@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Link2, RefreshCw } from 'lucide-react';
+import { Button, EmptyState } from '../../components/ui';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
@@ -174,43 +175,49 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => { actions.setSelectedLineId(null); actions.setSelectedBookMovId(null); }}
               title="Cancelar selección actual (Esc)"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer transition"
             >
               <span>Limpiar Selección</span>
               <kbd className="hidden sm:inline-block px-1 py-0.2 rounded border border-slate-300 bg-slate-100 text-[10px] font-mono text-slate-600">Esc</kbd>
-            </button>
+            </Button>
             {selectedLine && selectedBookMov && (
-              <button
-                type="button"
-                disabled={actions.manualMatchMutation.isPending}
+              <Button
+                variant="primary"
+                size="sm"
+                loading={actions.manualMatchMutation.isPending}
                 onClick={() => actions.manualMatchMutation.mutate({ lineId: selectedLine.id, movementId: selectedBookMov.movementId })}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                leftIcon={<Link2 className="w-3.5 h-3.5" aria-hidden="true" />}
               >
-                <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
                 {actions.manualMatchMutation.isPending ? 'Conciliando...' : 'Conciliar Seleccionados'}
-              </button>
+              </Button>
             )}
           </div>
         </div>
       )}
 
       {isErrorRecon ? (
-        <div role="alert" className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs">
-          <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-          <p className="text-sm font-bold text-slate-900">Error al cargar la conciliación bancaria</p>
-          <p className="text-xs text-slate-600">{errorRecon instanceof Error ? errorRecon.message : 'Error de conexión al servidor contable.'}</p>
-          {onRetryRecon && (
-            <button type="button" onClick={onRetryRecon} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer">
-              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" /> Reintentar
-            </button>
-          )}
+        <div role="alert">
+          <EmptyState
+            variant="card"
+            tone="red"
+            icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+            title="Error al cargar la conciliación bancaria"
+            description={errorRecon instanceof Error ? errorRecon.message : 'Error de conexión al servidor contable.'}
+            actions={
+              onRetryRecon && (
+                <Button variant="primary" onClick={onRetryRecon} leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}>
+                  Reintentar
+                </Button>
+              )
+            }
+          />
         </div>
       ) : isLoadingRecon || !reconData || !reconFormula ? (
-        <div role="status" aria-live="polite" aria-busy="true" className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500">
+        <div role="status" aria-live="polite" aria-busy="true" className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-600">
           Cargando estado de cuenta bancario y movimientos contables...
         </div>
       ) : (

@@ -145,7 +145,7 @@ export function AccountPickerDropdown({
                     {isSelected && (
                       <Check
                         className={`w-3.5 h-3.5 ml-1 ${
-                          isHighlighted ? 'text-white' : 'text-blue-600'
+                          isHighlighted ? 'text-white' : 'text-blue-700'
                         }`}
                         aria-hidden="true"
                       />

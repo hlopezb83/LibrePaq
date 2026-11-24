@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, FileArchive, FilePlus2, FileSpreadsheet } from 'lucide-react';
+import { Button } from '../../components/ui';
 
 interface CfdiDropzoneSecondaryActionsProps {
   isReadOnlyClient: boolean;
@@ -24,31 +25,33 @@ export function CfdiDropzoneSecondaryActions({
     <>
       <div className="hidden lg:inline-flex items-center gap-2">
         {!isReadOnlyClient && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={onOpenSimulator}
             title="Registrar comprobante o retención manual (Alt+S)"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold transition cursor-pointer"
+            leftIcon={<FilePlus2 className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />}
           >
-            <FilePlus2 className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
             <span>Captura Manual</span>
-            <kbd className="font-mono text-[9px] bg-white px-1 py-0.5 rounded border border-slate-300 text-slate-500">
+            <kbd className="font-mono text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-300 text-slate-600">
               Alt+S
             </kbd>
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
+        <Button
+          variant="export"
+          size="md"
           onClick={onExportCsv}
           title="Exportar comprobantes visibles a formato Excel / CSV"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold transition cursor-pointer"
+          leftIcon={<FileSpreadsheet className="w-3.5 h-3.5" aria-hidden="true" />}
         >
-          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
           <span>Exportar Excel</span>
-        </button>
+        </Button>
         {onExportZip && (
-          <button
-            type="button"
+          <Button
+            variant="export-outline"
+            size="md"
+            loading={isExportingZip}
             disabled={isExportingZip || !hasVisibleCfdis}
             onClick={onExportZip}
             title={
@@ -56,28 +59,27 @@ export function CfdiDropzoneSecondaryActions({
                 ? 'Descargar los XML visibles en un archivo .ZIP'
                 : 'No hay comprobantes visibles para empaquetar'
             }
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-semibold transition cursor-pointer"
+            leftIcon={<FileArchive className="w-3.5 h-3.5" aria-hidden="true" />}
           >
-            <FileArchive className="w-3.5 h-3.5 text-slate-700" aria-hidden="true" />
             <span>{isExportingZip ? 'Empaquetando...' : 'Descargar XML (.zip)'}</span>
-          </button>
+          </Button>
         )}
       </div>
 
       <div className="relative lg:hidden">
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="md"
           aria-expanded={showSecondaryMenu}
           aria-haspopup="menu"
           onClick={() => setShowSecondaryMenu((v) => !v)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setShowSecondaryMenu(false);
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold transition cursor-pointer"
+          rightIcon={<ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
         >
           <span>Más acciones</span>
-          <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
-        </button>
+        </Button>
         {showSecondaryMenu && (
           <div
             role="menu"

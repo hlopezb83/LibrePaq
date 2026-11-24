@@ -62,7 +62,7 @@ export function getQuickActionItems(
       title: 'Generar Paquete Ejecutivo de Cierre Mensual (Dossier PDF/Excel)',
       subtitle: 'Balanza, Estado de Resultados, Pólizas, Mayor y Conciliación foliados',
       badge: 'Auditoría SAT',
-      badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
       icon: Zap,
       action: () => {
         if (onOpenDeliverables) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button, EmptyState } from '../components/ui';
 import { CfdiInvoicePreviewModal } from './cfdi/preview/CfdiInvoicePreviewModal';
 import { CfdiAlertsBanners } from './cfdi/CfdiAlertsBanners';
 import { CfdiBatchActionBar } from './cfdi/CfdiBatchActionBar';
@@ -54,30 +55,20 @@ export function AddCfdiView() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (document.querySelector('dialog[open]')) return;
       const el = document.activeElement as HTMLElement | null;
-      const activeTag = (el?.tagName || '').toLowerCase();
-      const isEditable =
-        activeTag === 'input' ||
-        activeTag === 'textarea' ||
-        activeTag === 'select' ||
-        Boolean(el?.isContentEditable);
-      if (isEditable) return;
+      const tag = (el?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || el?.isContentEditable) return;
 
       if (e.key === '/' && !e.altKey && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         document.getElementById('add-search')?.focus();
-        return;
-      }
-
-      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      } else if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const key = e.key.toLowerCase();
         if (key === 'u' && !isReadOnlyClient) {
           e.preventDefault();
           fileInputRef.current?.click();
         } else if (key === 's' && !isReadOnlyClient) {
           e.preventDefault();
-          if (simModalRef.current && !simModalRef.current.open) {
-            simModalRef.current.showModal();
-          }
+          if (simModalRef.current && !simModalRef.current.open) simModalRef.current.showModal();
         } else if (key === 'f') {
           e.preventDefault();
           document.getElementById('add-search')?.focus();
@@ -184,6 +175,11 @@ export function AddCfdiView() {
         currentYear={currentYear}
         currentPeriod={currentPeriod}
         onSoapDownloadSuccess={onSoapDownloadSuccess}
+        tab={tab}
+        setTab={setTab}
+        totalCfdisCount={scopedCfdis.length}
+        emitidosCount={emitidosCount}
+        recibidosCount={recibidosCount}
       />
 
       <CfdiBatchActionBar
@@ -211,10 +207,6 @@ export function AddCfdiView() {
         totalCfdisCount={scopedCfdis.length}
         allYearCount={countInCurrentYear}
         tab={tab}
-        setTab={setTab}
-        pendingCount={pendingCfdis.length}
-        emitidosCount={emitidosCount}
-        recibidosCount={recibidosCount}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         tipoFilter={tipoFilter}
@@ -231,20 +223,18 @@ export function AddCfdiView() {
 
       <div id="cfdi-table-wrapper" className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
         {isError ? (
-          <div role="alert" className="p-8 text-center space-y-3">
-            <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-            <p className="text-sm font-bold text-slate-900">Error al cargar la Bóveda Digital ADD</p>
-            <p className="text-xs text-slate-600">
-              {error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
-            </p>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-              Reintentar
-            </button>
+          <div role="alert">
+            <EmptyState
+              tone="red"
+              icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+              title="Error al cargar la Bóveda Digital ADD"
+              description={error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
+              actions={
+                <Button variant="primary" onClick={() => void refetch()} leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}>
+                  Reintentar
+                </Button>
+              }
+            />
           </div>
         ) : (
           <CfdiTable

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Download, FileCheck2, RefreshCw, Search, X } from 'lucide-react';
+import { AlertCircle, Download, FileCheck2, RefreshCw } from 'lucide-react';
+import { Button, ClearFiltersButton, EmptyState, SearchInput } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
@@ -108,24 +109,19 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
 
   if (isError) {
     return (
-      <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-8">
-        <div className="w-12 h-12 rounded-full bg-red-100 text-red-700 flex items-center justify-center mx-auto">
-          <AlertCircle className="w-6 h-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h2 className="font-bold text-slate-900 text-base">Error al consultar antigüedad de saldos PPD</h2>
-          <p className="text-xs text-slate-600 mt-1">
-            {error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Reintentar consulta</span>
-        </button>
+      <div role="alert" className="max-w-lg mx-auto my-8">
+        <EmptyState
+          variant="card"
+          tone="red"
+          icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+          title="Error al consultar antigüedad de saldos PPD"
+          description={error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
+          actions={
+            <Button variant="primary" onClick={() => void refetch()} leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}>
+              Reintentar consulta
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -191,16 +187,16 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
       <div id="cxc-cxp-panel" role="tabpanel" aria-labelledby={`cxc-cxp-mode-${mode}`} className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
         {items.length > 0 && (
           <div className="p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70">
-            <div className="relative flex-1 min-w-[220px] max-w-md">
+            <div className="flex-1 min-w-[220px] max-w-md">
               <label htmlFor="cxc-cxp-search" className="visually-hidden">
                 Buscar por RFC, nombre, serie-folio o UUID
               </label>
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
-              <input
+              <SearchInput
                 id="cxc-cxp-search"
-                type="search"
+                size="sm"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={setSearchQuery}
+                clearLabel="Limpiar búsqueda de cartera"
                 onKeyDown={(e) => {
                   if (e.key === 'Escape' && searchQuery) {
                     e.preventDefault();
@@ -208,78 +204,63 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
                   }
                 }}
                 placeholder="Buscar por RFC, razón social, serie-folio o UUID..."
-                className="w-full pl-8 pr-8 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
               />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Limpiar búsqueda de cartera"
-                  title="Limpiar búsqueda (Esc)"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-0.5 rounded cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {hasFilters && (
-                <button
-                  type="button"
+                <ClearFiltersButton
                   onClick={() => { setBucketFilter(null); setSearchQuery(''); }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer transition"
-                >
-                  <X className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Limpiar filtros ({filteredItems.length}/{items.length})</span>
-                </button>
+                  label={`Limpiar filtros (${filteredItems.length}/${items.length})`}
+                />
               )}
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="secondary"
                 onClick={handleExportCsv}
                 disabled={filteredItems.length === 0}
                 title={filteredItems.length === 0 ? 'Sin registros filtrados para exportar' : 'Exportar cartera filtrada a CSV / Excel'}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-slate-800 cursor-pointer transition"
+                leftIcon={<Download className="w-3.5 h-3.5" aria-hidden="true" />}
               >
-                <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Exportar CSV / Excel</span>
-              </button>
+                Exportar CSV / Excel
+              </Button>
             </div>
           </div>
         )}
 
         {filteredItems.length === 0 ? (
-          <div className="p-10 text-center space-y-3">
-            <FileCheck2 className="w-9 h-9 text-emerald-600 mx-auto" aria-hidden="true" />
-            <h3 className="text-sm font-bold text-slate-900">
-              {hasFilters
+          <EmptyState
+            icon={<FileCheck2 className="w-6 h-6" aria-hidden="true" />}
+            tone="emerald"
+            title={
+              hasFilters
                 ? 'Sin comprobantes PPD que coincidan con el filtro'
                 : mode === 'CXC'
                   ? 'Sin facturas emitidas PPD con saldo pendiente'
-                  : 'Sin facturas recibidas PPD con saldo pendiente'}
-            </h3>
-            <p className="text-xs text-slate-600 max-w-md mx-auto">
-              {hasFilters
+                  : 'Sin facturas recibidas PPD con saldo pendiente'
+            }
+            description={
+              hasFilters
                 ? 'Ajusta los criterios de búsqueda o el rango de antigüedad seleccionado.'
-                : 'No hay comprobantes con método de pago PPD en esta cartera o todos han sido liquidados con Complementos de Pago 2.0.'}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-              {hasFilters && (
-                <button type="button" onClick={() => { setBucketFilter(null); setSearchQuery(''); }} className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer transition">
-                  Limpiar filtros
-                </button>
-              )}
-              {!hasFilters && otherCount > 0 && (
-                <button type="button" onClick={() => setMode(otherMode)} className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer transition">
-                  Ver {otherMode === 'CXP' ? 'Cuentas por Pagar (CxP)' : 'Cuentas por Cobrar (CxC)'} ({otherCount})
-                </button>
-              )}
-              {!hasFilters && (
-                <button type="button" onClick={() => void navigate({ to: '/add' })} className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold cursor-pointer transition">
-                  Ir a Bóveda CFDI (ADD)
-                </button>
-              )}
-            </div>
-          </div>
+                : 'No hay comprobantes con método de pago PPD en esta cartera o todos han sido liquidados con Complementos de Pago 2.0.'
+            }
+            actions={
+              <>
+                {hasFilters && (
+                  <ClearFiltersButton onClick={() => { setBucketFilter(null); setSearchQuery(''); }} />
+                )}
+                {!hasFilters && otherCount > 0 && (
+                  <Button size="sm" variant="primary" onClick={() => setMode(otherMode)}>
+                    Ver {otherMode === 'CXP' ? 'Cuentas por Pagar (CxP)' : 'Cuentas por Cobrar (CxC)'} ({otherCount})
+                  </Button>
+                )}
+                {!hasFilters && (
+                  <Button size="sm" variant="secondary" onClick={() => void navigate({ to: '/add' })}>
+                    Ir a Bóveda CFDI (ADD)
+                  </Button>
+                )}
+              </>
+            }
+          />
         ) : (
           <CxcCxpTable
             mode={mode}

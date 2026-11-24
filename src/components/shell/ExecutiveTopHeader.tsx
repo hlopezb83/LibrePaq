@@ -41,8 +41,9 @@ export function ExecutiveTopHeader({ user, onSignOut, isSigningOut = false }: Ex
   const roleMeta = getExecutiveRoleMeta(platformRole);
 
   return (
-    <header className="bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2.5 sm:px-5 py-1.5 shadow-2xs no-print min-h-[42px] flex items-center justify-between gap-2">
-      {/* Lado Izquierdo: Identidad de Dueño */}
+    <header className="bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2.5 sm:px-5 py-1.5 shadow-2xs no-print min-h-[42px]">
+      <div className="max-w-[1800px] mx-auto flex items-center justify-between gap-2">
+        {/* Lado Izquierdo: Identidad de Dueño */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-50 border border-amber-300 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
           <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4" aria-hidden="true" />
@@ -114,6 +115,7 @@ export function ExecutiveTopHeader({ user, onSignOut, isSigningOut = false }: Ex
             )}
           </button>
         </div>
+      </div>
       </div>
     </header>
   );

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertCircle, BookOpen, Building, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertBanner, Button, EmptyState, KpiCard } from '../../components/ui';
 import { useCompany } from '../../context/CompanyContext';
 import { formatCurrency } from '../../lib/formatters';
 import type { AccountWithBalance } from '../../shared/types';
@@ -49,20 +50,27 @@ export function ActivosFijosTab({
   return (
     <div className="space-y-5">
       {fa.isErrorAssets ? (
-        <div role="alert" className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs">
-          <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-          <p className="text-sm font-bold text-slate-900">Error al cargar los activos fijos</p>
-          <p className="text-xs text-slate-600">
-            {fa.errorAssets instanceof Error ? fa.errorAssets.message : 'Error de conexión con el servidor contable.'}
-          </p>
-          <button
-            type="button"
-            onClick={() => void fa.refetchAssets()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-            Reintentar
-          </button>
+        <div role="alert">
+          <EmptyState
+            variant="card"
+            tone="red"
+            icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+            title="Error al cargar los activos fijos"
+            description={
+              fa.errorAssets instanceof Error
+                ? fa.errorAssets.message
+                : 'Error de conexión con el servidor contable.'
+            }
+            actions={
+              <Button
+                variant="primary"
+                onClick={() => void fa.refetchAssets()}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
+                Reintentar
+              </Button>
+            }
+          />
         </div>
       ) : fa.loadingAssets || !fa.fixedAssetsData ? (
         <div
@@ -76,37 +84,23 @@ export function ActivosFijosTab({
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-300 min-w-0">
-              <div className="text-[11px] font-bold uppercase text-slate-500">
-                Monto Original de la Inversión (MOI Total)
-              </div>
-              <div className="mt-1 text-lg font-bold font-mono tabular-nums text-slate-900">
-                {formatCurrency(fa.fixedAssetsData.totals.totalMoi)}
-              </div>
-              <div className="text-[11px] text-slate-600">
-                {fa.fixedAssetsData.assets.length} activos fijos (corte P{String(fa.activePeriod).padStart(2, '0')}/{year})
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-slate-300 min-w-0">
-              <div className="text-[11px] font-bold uppercase text-slate-500">
-                Depreciación Contable del Mes (NIF C-6)
-              </div>
-              <div className="mt-1 text-lg font-bold font-mono tabular-nums text-blue-800">
-                {formatCurrency(depMensual)}
-              </div>
-              <div className="text-[11px] text-slate-600">Cargo a 601-01-006 / Abono a 171-01-001</div>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-slate-300 min-w-0">
-              <div className="text-[11px] font-bold uppercase text-slate-500">
-                Deducción de Inversión Actualizada (Art. 31 LISR INPC)
-              </div>
-              <div className="mt-1 text-lg font-bold font-mono tabular-nums text-emerald-800">
-                {formatCurrency(fa.fixedAssetsData.totals.totalDepreciacionMensualFiscal)}
-              </div>
-              <div className="text-[11px] text-slate-600">Con Factor de Actualización INPC a 4 decimales</div>
-            </div>
+            <KpiCard
+              label="Monto Original de la Inversión (MOI Total)"
+              value={formatCurrency(fa.fixedAssetsData.totals.totalMoi)}
+              hint={`${fa.fixedAssetsData.assets.length} activos fijos (corte P${String(fa.activePeriod).padStart(2, '0')}/${year})`}
+            />
+            <KpiCard
+              label="Depreciación Contable del Mes (NIF C-6)"
+              value={formatCurrency(depMensual)}
+              valueClassName="text-blue-800"
+              hint="Cargo a 601-01-006 / Abono a 171-01-001"
+            />
+            <KpiCard
+              label="Deducción de Inversión Actualizada (Art. 31 LISR INPC)"
+              value={formatCurrency(fa.fixedAssetsData.totals.totalDepreciacionMensualFiscal)}
+              valueClassName="text-emerald-800"
+              hint="Con Factor de Actualización INPC a 4 decimales"
+            />
           </div>
 
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-4">
@@ -124,17 +118,17 @@ export function ActivosFijosTab({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => fa.setIsInpcModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 cursor-pointer"
+                  leftIcon={<BookOpen className="w-4 h-4 text-blue-700" aria-hidden="true" />}
                 >
-                  <BookOpen className="w-4 h-4 text-blue-600" aria-hidden="true" />
                   Catálogo INPC / DOF
-                </button>
-                <button
-                  type="button"
-                  disabled={fa.genDepPolizaMutation.isPending || isWriteLocked || fa.hasDepPolizaThisPeriod || noDepAmount}
+                </Button>
+                <Button
+                  variant="primary"
+                  loading={fa.genDepPolizaMutation.isPending}
+                  disabled={isWriteLocked || fa.hasDepPolizaThisPeriod || noDepAmount}
                   title={
                     fa.hasDepPolizaThisPeriod
                       ? 'Ya existe una póliza de depreciación registrada para este periodo'
@@ -145,19 +139,20 @@ export function ActivosFijosTab({
                           : 'Generar póliza mensual de depreciación contable'
                   }
                   onClick={() => setConfirmDepPoliza(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-2xs cursor-pointer"
+                  leftIcon={
+                    fa.genDepPolizaMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" aria-hidden="true" />
+                    )
+                  }
                 >
-                  {fa.genDepPolizaMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" aria-hidden="true" />
-                  )}
                   {fa.genDepPolizaMutation.isPending
                     ? 'Generando Póliza...'
                     : fa.hasDepPolizaThisPeriod
                       ? 'Depreciación del Mes ya Generada'
                       : 'Generar Póliza de Depreciación del Mes'}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -171,39 +166,36 @@ export function ActivosFijosTab({
                     setConfirmDepPoliza(false);
                   }
                 }}
-                className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
               >
-                <div className="space-y-0.5 text-amber-950">
-                  <p className="font-semibold">
-                    ¿Confirmas registrar la póliza de Diario de Depreciación del periodo P{String(fa.activePeriod).padStart(2, '0')}/{year}?
-                  </p>
-                  <p className="font-mono text-[11px] text-amber-900">
+                <AlertBanner
+                  tone="warning"
+                  title={`¿Confirmas registrar la póliza de Diario de Depreciación del periodo P${String(fa.activePeriod).padStart(2, '0')}/${year}?`}
+                  action={
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="secondary" autoFocus onClick={() => setConfirmDepPoliza(false)}>
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        loading={fa.genDepPolizaMutation.isPending}
+                        disabled={isWriteLocked}
+                        onClick={() => {
+                          fa.genDepPolizaMutation.mutate(undefined, {
+                            onSuccess: () => setConfirmDepPoliza(false)
+                          });
+                        }}
+                        leftIcon={fa.genDepPolizaMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : undefined}
+                      >
+                        {fa.genDepPolizaMutation.isPending ? 'Generando...' : 'Confirmar Póliza'}
+                      </Button>
+                    </div>
+                  }
+                >
+                  <span className="font-mono text-[11px] block mt-0.5">
                     Debe: 601-01-006 Depreciación ({formatCurrency(depMensual)}) · Haber: 171-01-001 Dep. Acumulada ({formatCurrency(depMensual)})
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    autoFocus
-                    onClick={() => setConfirmDepPoliza(false)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={fa.genDepPolizaMutation.isPending || isWriteLocked}
-                    onClick={() => {
-                      fa.genDepPolizaMutation.mutate(undefined, {
-                        onSuccess: () => setConfirmDepPoliza(false)
-                      });
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold disabled:opacity-50 cursor-pointer"
-                  >
-                    {fa.genDepPolizaMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
-                    {fa.genDepPolizaMutation.isPending ? 'Generando...' : 'Confirmar Póliza'}
-                  </button>
-                </div>
+                  </span>
+                </AlertBanner>
               </div>
             )}
 

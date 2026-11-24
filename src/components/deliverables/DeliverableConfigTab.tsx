@@ -106,7 +106,7 @@ export function DeliverableConfigTab({
             disabled={isSavingBranding}
             aria-busy={isSavingBranding}
             onClick={onSaveBranding}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-xs font-bold text-white transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-xs font-bold text-white transition cursor-pointer"
           >
             <Cloud className="w-3.5 h-3.5" aria-hidden="true" />
             <span>{isSavingBranding ? 'Guardando...' : 'Guardar en la Nube'}</span>

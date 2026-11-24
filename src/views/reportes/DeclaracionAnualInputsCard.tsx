@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, Lock, Save } from 'lucide-react';
+import { Lock, Save } from 'lucide-react';
+import { AlertBanner, Button, Input, StatusBadge } from '../../components/ui';
 import type { AnnualTaxInputs, AnnualTaxRegimeType, SaveAnnualTaxInputsPayload } from '../../shared/types/annual-tax.types';
 
 interface DeclaracionAnualInputsCardProps {
@@ -154,8 +155,8 @@ export function DeclaracionAnualInputsCard({
                 : `Parámetros Anuales, INPC, CUCA y CUFIN (${inputs.ejercicio})`}
             </h3>
             {isDirty && (
-              <span role="status" className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                Cambios sin guardar
+              <span role="status">
+                <StatusBadge tone="amber">Cambios sin guardar</StatusBadge>
               </span>
             )}
           </div>
@@ -164,30 +165,30 @@ export function DeclaracionAnualInputsCard({
             {lastSavedText && <span className="ml-1.5 font-medium text-slate-700">• Último guardado: {lastSavedText}</span>}
           </p>
         </div>
-        <button
+        <Button
           type="submit"
-          disabled={isSaving || isReadOnly}
-          aria-busy={isSaving}
+          variant="primary"
+          size="md"
+          loading={isSaving}
+          disabled={isReadOnly}
           title={isReadOnly ? 'Modo solo lectura' : undefined}
-          className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition cursor-pointer"
+          leftIcon={<Save className="w-3.5 h-3.5" aria-hidden="true" />}
+          className="hidden sm:inline-flex"
         >
-          <Save className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>{isSaving ? 'Guardando...' : 'Guardar y Recalcular'}</span>
-        </button>
+          {isSaving ? 'Guardando...' : 'Guardar y Recalcular'}
+        </Button>
       </div>
 
       {isReadOnly && (
-        <div role="status" className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
-          <Lock className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-          <span>Modo solo lectura: los parámetros anuales no pueden modificarse en esta sesión.</span>
-        </div>
+        <AlertBanner tone="warning" icon={<Lock className="w-4 h-4" aria-hidden="true" />}>
+          Modo solo lectura: los parámetros anuales no pueden modificarse en esta sesión.
+        </AlertBanner>
       )}
 
       {validationError && (
-        <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-900">
-          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
-          <span>{validationError}</span>
-        </div>
+        <AlertBanner tone="danger">
+          <span className="font-semibold">{validationError}</span>
+        </AlertBanner>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -206,7 +207,7 @@ export function DeclaracionAnualInputsCard({
                 <label htmlFor={inputId} className="text-xs font-semibold text-slate-800">{field.label}</label>
                 <span id={hintId} className="text-[11px] font-medium text-slate-600">{field.unit} • {effectiveHint}</span>
               </div>
-              <input
+              <Input
                 id={inputId}
                 type="number"
                 inputMode="decimal"
@@ -222,8 +223,8 @@ export function DeclaracionAnualInputsCard({
                   setValidationError(null);
                   setDrafts((prev) => ({ ...prev, [field.key]: nextVal }));
                 }}
-                className={`w-full px-3 py-2 rounded-xl border bg-slate-50/50 focus:bg-white focus:border-blue-500 text-xs font-mono tabular-nums text-slate-900 disabled:bg-slate-100 disabled:text-slate-600 ${
-                  isInpcInvalid ? 'border-red-500' : 'border-slate-300'
+                className={`bg-slate-50/50 focus:bg-white font-mono tabular-nums ${
+                  isInpcInvalid ? 'border-red-500' : ''
                 }`}
               />
               {field.exampleNote && (
@@ -237,16 +238,18 @@ export function DeclaracionAnualInputsCard({
       </div>
 
       <div className="sm:hidden pt-1">
-        <button
+        <Button
           type="submit"
-          disabled={isSaving || isReadOnly}
-          aria-busy={isSaving}
+          variant="primary"
+          size="lg"
+          loading={isSaving}
+          disabled={isReadOnly}
           title={isReadOnly ? 'Modo solo lectura' : undefined}
-          className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-xs transition cursor-pointer"
+          leftIcon={<Save className="w-3.5 h-3.5" aria-hidden="true" />}
+          className="w-full"
         >
-          <Save className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>{isSaving ? 'Guardando...' : 'Guardar y Recalcular'}</span>
-        </button>
+          {isSaving ? 'Guardando...' : 'Guardar y Recalcular'}
+        </Button>
       </div>
     </form>
   );

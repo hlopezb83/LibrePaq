@@ -1,5 +1,6 @@
-import { AlertCircle, Eye, FilePlus2, Lock, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertCircle, FilePlus2, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
+import { Button, EmptyState, getButtonClasses } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { useUIModal } from '../context/UIModalContext';
 import { PedimentoEditorModal } from './polizas/PedimentoEditorModal';
@@ -24,39 +25,16 @@ export function PolizasView() {
     }
   };
 
+  const hasFiltersActive = m.polizas.length > 0 || m.hasAdvancedFilters;
+  const blockedNewTitle = m.isReadOnlyClient
+    ? 'Tu rol Cliente (Solo lectura) no permite capturar pólizas'
+    : m.isPeriodLocked
+    ? 'Periodo fiscal bloqueado ante el SAT'
+    : undefined;
+
   return (
     <div className="space-y-4">
-      {/* Alerta de Periodo Bloqueado cuando aplica */}
-      {m.isPeriodLocked && (
-        <div
-          role="status"
-          className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs shadow-2xs"
-        >
-          <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-sm block text-amber-950">
-              Periodo Fiscal P{String(m.currentPeriod).padStart(2, '0')}/{m.currentYear} Bloqueado ante el SAT
-            </span>
-            <p className="text-amber-800 leading-relaxed">
-              Este periodo mensual se encuentra protegido contra modificaciones involuntarias para salvaguardar la contabilidad declarada.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {m.isReadOnlyClient && m.effectiveCompanyRole !== null && !m.isPeriodLocked && (
-        <div
-          role="status"
-          className="bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 flex items-start gap-3 text-sky-950 text-xs shadow-2xs"
-        >
-          <Eye className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" aria-hidden="true" />
-          <span>
-            <strong>Modo Solo lectura:</strong> Puedes consultar pólizas, partidas, Libro Mayor y exportar CSV, pero no capturar, duplicar, editar ni eliminar pólizas.
-          </span>
-        </div>
-      )}
-
-      {/* Barra de Filtros y Acciones */}
+      {/* Cabecera, Filtros y Acciones */}
       <PolizasFilterBar
         currentYear={m.currentYear}
         currentPeriod={m.currentPeriod}
@@ -105,23 +83,28 @@ export function PolizasView() {
 
       {/* Lista de Pólizas */}
       {m.isError ? (
-        <div
-          role="alert"
-          className="p-8 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-2xs"
-        >
-          <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-          <p className="text-sm font-bold text-slate-900">Error al cargar las pólizas del periodo</p>
-          <p className="text-xs text-slate-600">
-            {m.error instanceof Error ? m.error.message : 'Error de conexión con el servidor contable.'}
-          </p>
-          <button
-            type="button"
-            onClick={() => void m.refetch()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-            Reintentar
-          </button>
+        <div role="alert">
+          <EmptyState
+            variant="card"
+            tone="red"
+            icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+            title="Error al cargar las pólizas del periodo"
+            description={
+              m.error instanceof Error
+                ? m.error.message
+                : 'Error de conexión con el servidor contable.'
+            }
+            actions={
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => void m.refetch()}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
+                Reintentar
+              </Button>
+            }
+          />
         </div>
       ) : m.isLoading ? (
         <div
@@ -156,64 +139,64 @@ export function PolizasView() {
           ))}
         </div>
       ) : m.filteredPolizas.length === 0 ? (
-        <div className="p-12 bg-white rounded-2xl border border-slate-300 text-center space-y-4 shadow-2xs">
-          <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto shadow-2xs">
-            <FilePlus2 className="w-7 h-7" aria-hidden="true" />
-          </div>
-          <div className="max-w-md mx-auto space-y-1">
-            <p className="text-base font-bold text-slate-800">
-              {m.polizas.length > 0 || m.hasAdvancedFilters
-                ? 'Ninguna póliza coincide con los filtros actuales'
-                : 'No se encontraron pólizas en este periodo'}
-            </p>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              {m.polizas.length > 0 || m.hasAdvancedFilters
-                ? 'Ajusta o limpia los filtros de búsqueda, tipo, periodo o monto para ver todas las pólizas registradas.'
-                : m.isReadOnlyClient
-                ? 'No hay pólizas registradas en este periodo. Tu rol Cliente (Solo lectura) permite consultar otros periodos desde el selector superior o revisar los comprobantes en la Bóveda ADD.'
-                : 'Inicia capturando una póliza contable con cuadre automático, o genera pólizas en lote desde tus facturas CFDI 4.0.'}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            {(m.polizas.length > 0 || m.hasAdvancedFilters) && (
-              <button
-                type="button"
-                onClick={m.clearAllFilters}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
-              >
-                Limpiar filtros
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={m.openNewPolizaModal}
-              disabled={m.isWriteBlocked}
-              title={
-                m.isReadOnlyClient
-                  ? 'Tu rol Cliente (Solo lectura) no permite capturar pólizas'
-                  : m.isPeriodLocked
-                  ? 'Periodo fiscal bloqueado ante el SAT'
-                  : undefined
-              }
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-              <span>Capturar Nueva Póliza</span>
-              {!m.isWriteBlocked && (
-                <kbd className="font-mono text-[10px] bg-blue-900/80 px-1 py-0.5 rounded border border-blue-500/40 text-blue-200">
-                  Alt+N
-                </kbd>
-              )}
-            </button>
-            <Link
-              to="/add"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-emerald-600" aria-hidden="true" />
-              <span>Ir a Bóveda ADD</span>
-            </Link>
-          </div>
-        </div>
+        <EmptyState
+          variant="card"
+          tone="blue"
+          icon={<FilePlus2 className="w-6 h-6" aria-hidden="true" />}
+          title={
+            hasFiltersActive
+              ? 'Ninguna póliza coincide con los filtros actuales'
+              : 'No se encontraron pólizas en este periodo'
+          }
+          description={
+            hasFiltersActive
+              ? 'Ajusta o limpia los filtros de búsqueda, tipo, periodo o monto para ver todas las pólizas registradas.'
+              : m.isReadOnlyClient
+              ? 'No hay pólizas registradas en este periodo. Tu rol Cliente (Solo lectura) permite consultar otros periodos desde el selector superior o revisar los comprobantes en la Bóveda ADD.'
+              : 'Inicia capturando una póliza contable con cuadre automático, o genera pólizas en lote desde tus facturas CFDI 4.0.'
+          }
+          actions={
+            hasFiltersActive ? (
+              <>
+                <Button variant="primary" size="lg" onClick={m.clearAllFilters}>
+                  Limpiar filtros
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  disabled={m.isWriteBlocked}
+                  title={blockedNewTitle}
+                  onClick={m.openNewPolizaModal}
+                  leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}
+                >
+                  Capturar Nueva Póliza
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  disabled={m.isWriteBlocked}
+                  title={blockedNewTitle}
+                  onClick={m.openNewPolizaModal}
+                  leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}
+                >
+                  <span>Capturar Nueva Póliza</span>
+                  {!m.isWriteBlocked && (
+                    <kbd className="font-mono text-[10px] bg-blue-900/80 px-1 py-0.5 rounded border border-blue-500/40 text-blue-200">
+                      Alt+N
+                    </kbd>
+                  )}
+                </Button>
+                <Link to="/add" className={getButtonClasses('secondary', 'lg')}>
+                  <Sparkles className="w-4 h-4 text-emerald-600" aria-hidden="true" />
+                  <span>Ir a Bóveda ADD</span>
+                </Link>
+              </>
+            )
+          }
+        />
       ) : (
         <div className="space-y-4">
           {m.filteredPolizas.map((pol) => {

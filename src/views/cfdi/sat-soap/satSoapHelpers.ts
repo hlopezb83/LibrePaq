@@ -137,3 +137,66 @@ export const SAT_TIPO_SOLICITUD_OPTS = [
     dotColor: 'bg-indigo-600'
   }
 ] as const;
+
+export function summarizeSatRequestsForRange(params: {
+  satRequests: SatDownloadRequestRecord[];
+  fechaInicial: string;
+  fechaFinal: string;
+  tipoSolicitud: 'RECIBIDOS' | 'EMITIDOS' | 'AMBOS';
+  dismissedErrorId: string | null;
+}) {
+  const { satRequests, fechaInicial, fechaFinal, tipoSolicitud, dismissedErrorId } = params;
+  const completedRequests = satRequests.filter((r) => r.estadoSolicitud === 'TERMINADA');
+  const periodCompletedRequests = completedRequests.filter(
+    (r) => r.fechaInicial === fechaInicial && r.fechaFinal === fechaFinal
+  );
+  const periodHasCompleted = periodCompletedRequests.length > 0;
+  const periodDownloadedCount = periodCompletedRequests.reduce(
+    (acc, r) => acc + (r.cfdisDescargados || 0),
+    0
+  );
+  const latestCompleted =
+    periodCompletedRequests[0] ||
+    satRequests.find(
+      (r) =>
+        r.estadoSolicitud === 'TERMINADA' &&
+        r.fechaInicial === fechaInicial &&
+        r.fechaFinal === fechaFinal
+    );
+  const totalDownloaded =
+    periodDownloadedCount > 0
+      ? periodDownloadedCount
+      : completedRequests.reduce((acc, r) => acc + (r.cfdisDescargados || 0), 0);
+  const pendingRequests = satRequests.filter(
+    (r) => r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO'
+  );
+  const matchesRangeAndType = (r: SatDownloadRequestRecord) =>
+    r.fechaInicial === fechaInicial &&
+    r.fechaFinal === fechaFinal &&
+    (tipoSolicitud === 'AMBOS' || r.tipoSolicitud === tipoSolicitud);
+
+  const activePendingInPeriod = pendingRequests.find(matchesRangeAndType);
+  const existingCompletedInPeriod = completedRequests.find(matchesRangeAndType);
+  const relevantError = satRequests.find(
+    (r) =>
+      (r.estadoSolicitud === 'ERROR' ||
+        r.estadoSolicitud === 'PARCIAL' ||
+        r.estadoSolicitud === 'ERROR_LIMITE') &&
+      r.id !== dismissedErrorId &&
+      r.fechaInicial === fechaInicial &&
+      r.fechaFinal === fechaFinal &&
+      (!periodHasCompleted ||
+        r.estadoSolicitud === 'PARCIAL' ||
+        r.estadoSolicitud === 'ERROR_LIMITE')
+  );
+
+  return {
+    periodDownloadedCount,
+    latestCompleted,
+    totalDownloaded,
+    pendingRequests,
+    activePendingInPeriod,
+    existingCompletedInPeriod,
+    relevantError
+  };
+}

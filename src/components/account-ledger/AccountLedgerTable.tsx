@@ -143,7 +143,7 @@ export function AccountLedgerTable({
               <>
                 {paddingTop > 0 && (
                   <tr>
-                    <td colSpan={7} style={{ height: `${paddingTop}px` }} />
+                    <td colSpan={7} data-spacer="true" style={{ height: `${paddingTop}px` }} />
                   </tr>
                 )}
                 {virtualItems.map((virtualRow) => {
@@ -161,7 +161,7 @@ export function AccountLedgerTable({
                 })}
                 {paddingBottom > 0 && (
                   <tr>
-                    <td colSpan={7} style={{ height: `${paddingBottom}px` }} />
+                    <td colSpan={7} data-spacer="true" style={{ height: `${paddingBottom}px` }} />
                   </tr>
                 )}
               </>
@@ -186,7 +186,7 @@ export function AccountLedgerTable({
             ))}
           </tbody>
 
-          <tfoot>
+          <tfoot className="sticky bottom-0 z-10">
             {isFiltered && (
               <tr className="bg-blue-50/90 border-t border-blue-200 text-blue-950 font-mono text-xs font-bold">
                 <td colSpan={4} className="py-2 px-3 text-right">

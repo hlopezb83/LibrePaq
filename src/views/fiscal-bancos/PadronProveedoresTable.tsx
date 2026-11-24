@@ -1,4 +1,5 @@
-import { Info, Pencil, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Info, Pencil, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
+import { Button, ClearFiltersButton, EmptyState, StatusBadge } from '../../components/ui';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import type { Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
 
@@ -58,21 +59,21 @@ export function PadronProveedoresTable({
         <tbody className="divide-y divide-slate-200 text-xs">
           {thirdParties.length === 0 ? (
             <tr>
-              <td colSpan={8} className="py-8 text-center text-slate-600 space-y-2">
-                <p>
-                  {totalCount === 0
-                    ? 'No hay proveedores o clientes registrados aún en el padrón fiscal.'
-                    : 'Ningún proveedor o cliente coincide con la búsqueda.'}
-                </p>
-                {totalCount > 0 && onClearSearch && (
-                  <button
-                    type="button"
-                    onClick={onClearSearch}
-                    className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 font-semibold text-xs border border-blue-200 cursor-pointer"
-                  >
-                    Limpiar búsqueda
-                  </button>
-                )}
+              <td colSpan={8}>
+                <EmptyState
+                  icon={<Users className="w-6 h-6" aria-hidden="true" />}
+                  tone="blue"
+                  title={
+                    totalCount === 0
+                      ? 'No hay proveedores o clientes registrados aún en el padrón fiscal'
+                      : 'Ningún proveedor o cliente coincide con la búsqueda'
+                  }
+                  actions={
+                    totalCount > 0 && onClearSearch && (
+                      <ClearFiltersButton onClick={onClearSearch} label="Limpiar búsqueda" />
+                    )
+                  }
+                />
               </td>
             </tr>
           ) : (
@@ -80,42 +81,29 @@ export function PadronProveedoresTable({
               const tpCheck = validateRfcModulo11(tp.rfc);
               const isEditing = editingRfc === tp.rfc;
               return (
-                <tr
-                  key={tp.id}
-                  className={isEditing ? 'bg-blue-50/70' : 'hover:bg-blue-50/30'}
-                >
+                <tr key={tp.id} className={isEditing ? 'bg-blue-50/70' : 'hover:bg-blue-50/30'}>
                   <th scope="row" className="py-2.5 px-3 font-normal text-left">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono font-bold text-blue-800">{tp.rfc}</span>
                       {tpCheck.isValidCheckDigit ? (
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          title="Dígito verificador SAT Módulo 11 válido"
-                        >
-                          RFC válido
+                        <span title="Dígito verificador SAT Módulo 11 válido">
+                          <StatusBadge tone="emerald" shape="tag">RFC válido</StatusBadge>
                         </span>
                       ) : (
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
-                          title={`Discrepancia SAT Módulo 11: calcula '${tpCheck.expectedCheckDigit}'`}
-                        >
-                          M11: {tpCheck.expectedCheckDigit}
+                        <span title={`Discrepancia SAT Módulo 11: calcula '${tpCheck.expectedCheckDigit}'`}>
+                          <StatusBadge tone="amber" shape="tag">M11: {tpCheck.expectedCheckDigit}</StatusBadge>
                         </span>
                       )}
                     </div>
                   </th>
-                  <td className="py-2.5 px-3 font-medium text-slate-900">
-                    {tp.nombre}
-                  </td>
+                  <td className="py-2.5 px-3 font-medium text-slate-900">{tp.nombre}</td>
                   <td className="py-2.5 px-3">
                     <div className="flex flex-wrap items-center gap-1">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">
-                        {ROL_LABELS[tp.rol] ?? tp.rol}
-                      </span>
+                      <StatusBadge tone="slate">{ROL_LABELS[tp.rol] ?? tp.rol}</StatusBadge>
                       {tp.tipoTerceroDiot === '05' && (
-                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 font-mono font-semibold text-[10px]">
+                        <StatusBadge tone="blue" shape="tag">
                           05 Extranjero{tp.pais ? ` · ${tp.pais}` : ''}
-                        </span>
+                        </StatusBadge>
                       )}
                     </div>
                   </td>
@@ -130,37 +118,33 @@ export function PadronProveedoresTable({
                   </td>
                   <td className="py-2.5 px-3 text-center">
                     {tp.estatus69B === 'LIMPIO' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        <ShieldCheck className="w-3 h-3" aria-hidden="true" />
+                      <StatusBadge tone="emerald" icon={<ShieldCheck className="w-3 h-3" aria-hidden="true" />}>
                         69-B Limpio
-                      </span>
+                      </StatusBadge>
                     ) : tp.estatus69B === 'DESVIRTUADO' ? (
-                      <span
-                        title="Contribuyente que desvirtuó los hechos imputados ante el SAT (Art. 69-B CFF)"
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200"
-                      >
-                        <Info className="w-3 h-3" aria-hidden="true" />
-                        {EFOS_LABELS.DESVIRTUADO}
+                      <span title="Contribuyente que desvirtuó los hechos imputados ante el SAT (Art. 69-B CFF)">
+                        <StatusBadge tone="blue" icon={<Info className="w-3 h-3" aria-hidden="true" />}>
+                          {EFOS_LABELS.DESVIRTUADO}
+                        </StatusBadge>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-900 border border-red-300">
-                        <ShieldAlert className="w-3 h-3" aria-hidden="true" />
+                      <StatusBadge tone="red" icon={<ShieldAlert className="w-3 h-3" aria-hidden="true" />}>
                         {EFOS_LABELS[tp.estatus69B] ?? tp.estatus69B}
-                      </span>
+                      </StatusBadge>
                     )}
                   </td>
                   <td className="py-2.5 px-3 text-right">
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
+                      variant="secondary"
                       disabled={isReadOnlyClient}
                       onClick={() => { if (!isReadOnlyClient) onEditThirdParty(tp); }}
                       aria-label={`Editar perfil fiscal de ${tp.rfc}`}
                       title={isReadOnlyClient ? 'Modo solo lectura' : 'Cargar en formulario para editar'}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 min-h-[28px] min-w-[28px] rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 hover:border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
+                      leftIcon={<Pencil className="w-3 h-3" aria-hidden="true" />}
                     >
-                      <Pencil className="w-3 h-3" aria-hidden="true" />
                       Editar
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               );

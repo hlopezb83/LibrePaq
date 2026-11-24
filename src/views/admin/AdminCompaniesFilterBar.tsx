@@ -1,4 +1,5 @@
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Building2, Download } from 'lucide-react';
+import { Button, Select } from '../../components/ui';
 import type { AdminCompaniesPageQuery } from '../../shared/admin-types';
 import type { CompanySort } from './adminCompaniesHelpers';
 import { AdminSearchInput } from './AdminSearchInput';
@@ -56,46 +57,49 @@ export function AdminCompaniesFilterBar({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-600 whitespace-nowrap">
+          <span role="status" aria-live="polite" className="text-[11px] font-mono tabular-nums text-slate-600 whitespace-nowrap">
             {total.toLocaleString('es-MX')} empresas encontradas
           </span>
 
           <div className="inline-flex items-center gap-1">
             <label htmlFor="admin-companies-sort" className="visually-hidden">Ordenar empresas</label>
-            <select
+            <Select
+              size="sm"
               id="admin-companies-sort"
               value={sortBy}
               onChange={(e) => onQueryChange({ ...query, page: 1, sortBy: e.target.value as CompanySort, sortDir })}
-              className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 cursor-pointer"
+              className="font-semibold text-slate-700"
             >
               <option value="createdAt">Fecha creación</option>
               <option value="polizasCount">Pólizas</option>
               <option value="cfdisCount">CFDIs</option>
-            </select>
-            <button
-              type="button"
+            </Select>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => onQueryChange({ ...query, page: 1, sortBy, sortDir: sortDir === 'desc' ? 'asc' : 'desc' })}
               aria-label={`Cambiar orden a ${sortDir === 'desc' ? 'ascendente' : 'descendente'}`}
               title={sortDir === 'desc' ? 'Orden descendente (clic para cambiar a ascendente)' : 'Orden ascendente (clic para cambiar a descendente)'}
-              className="p-1.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="px-2"
             >
               {sortDir === 'desc' ? (
                 <ArrowDownWideNarrow className="w-3.5 h-3.5" aria-hidden="true" />
               ) : (
                 <ArrowUpNarrowWide className="w-3.5 h-3.5" aria-hidden="true" />
               )}
-            </button>
+            </Button>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             disabled={!canExport}
             title={!canExport ? 'No hay empresas en la página actual para exportar' : `Exportar ${exportCount} empresas de la página actual en CSV`}
+            leftIcon={<Download className="w-3.5 h-3.5" aria-hidden="true" />}
             onClick={onExportCsv}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5" aria-hidden="true" /> Exportar CSV
-          </button>
+            Exportar CSV
+          </Button>
 
           <AdminSearchInput
             id="admin-companies-search"

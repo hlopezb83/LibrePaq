@@ -11,6 +11,7 @@ import {
   Zap
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
+import { Button, StatusBadge, getButtonClasses } from '../../components/ui';
 import type {
   BankReconciliationResponse,
   CfdiDocument,
@@ -113,18 +114,20 @@ export function DashboardAuditBar({
               ? `Se detectaron ${efosCount} RFC(s) señalados en lista negra SAT Art. 69-B. Haz clic para auditar en Padrón RFC.`
               : 'Consultar Padrón RFC y verificación preventiva Lista 69-B del SAT'
           }
-          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border transition shrink-0 ${
-            efosCount > 0
-              ? 'bg-red-50 hover:bg-red-100 text-red-900 border-red-300'
-              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300'
-          }`}
+          className="inline-flex rounded-full shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
         >
-          {efosCount > 0 ? (
-            <ShieldAlert className="w-3.5 h-3.5 text-red-700" aria-hidden="true" />
-          ) : (
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
-          )}
-          <span>{efosCount > 0 ? `Alerta Art. 69-B: ${efosCount} EFOS` : 'Padrón Art. 69-B: 0 EFOS'}</span>
+          <StatusBadge
+            tone={efosCount > 0 ? 'red' : 'slate'}
+            icon={
+              efosCount > 0 ? (
+                <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
+              ) : (
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
+              )
+            }
+          >
+            {efosCount > 0 ? `Alerta Art. 69-B: ${efosCount} EFOS` : 'Padrón Art. 69-B: 0 EFOS'}
+          </StatusBadge>
         </Link>
       </div>
 
@@ -162,10 +165,11 @@ export function DashboardAuditBar({
           }
           footerLeft={
             kpis.cfdisPendientesContabilizar >= 1 && pendingCfdis.length > 0 ? (
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="sm"
+                loading={isBatchAutoPolizaPending}
                 disabled={isBatchAutoPolizaPending || isSingleAutoPolizaPending || isPeriodLocked || isReadOnly}
-                aria-busy={isBatchAutoPolizaPending}
                 onClick={() => onBatchAutoPoliza(pendingCfdis.map((c) => c.id))}
                 title={
                   isReadOnly
@@ -178,19 +182,18 @@ export function DashboardAuditBar({
                     ? `Generar pólizas del lote mostrado (${pendingCfdis.length} de ${kpis.cfdisPendientesContabilizar} pendientes)`
                     : `Generar pólizas de los ${pendingCfdis.length} archivos XML pendientes en 1 clic`
                 }
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-700 hover:bg-amber-800 text-white shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
+                leftIcon={
+                  isBatchAutoPolizaPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Sparkles className="w-3 h-3" aria-hidden="true" />
+                  )
+                }
               >
-                {isBatchAutoPolizaPending ? (
-                  <Loader2 className="w-3 h-3 animate-spin text-amber-100" aria-hidden="true" />
-                ) : (
-                  <Sparkles className="w-3 h-3 text-amber-100" aria-hidden="true" />
-                )}
-                <span>
-                  {isBatchAutoPolizaPending
-                    ? 'Contabilizando...'
-                    : `Contabilizar lote (${pendingCfdis.length})`}
-                </span>
-              </button>
+                {isBatchAutoPolizaPending
+                  ? 'Contabilizando...'
+                  : `Contabilizar lote (${pendingCfdis.length})`}
+              </Button>
             ) : (
               <span className="text-[10px] font-mono text-slate-600">
                 Atajo: <kbd className="bg-white px-1 rounded border border-slate-300">Alt+2</kbd>
@@ -198,16 +201,7 @@ export function DashboardAuditBar({
             )
           }
           footerRight={
-            <Link
-              to="/add"
-              className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
-                kpis.cfdisPendientesContabilizar > 0
-                  ? 'bg-white hover:bg-amber-100 text-amber-900 border-amber-300'
-                  : kpis.cfdisTotalesPeriodo === 0
-                  ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
-                  : 'bg-white hover:bg-emerald-100 text-emerald-900 border-emerald-200'
-              }`}
-            >
+            <Link to="/add" className={getButtonClasses('secondary', 'sm')}>
               <span>Ir al ADD (Alt+2)</span>
               <ArrowRight className="w-3 h-3" aria-hidden="true" />
             </Link>
@@ -288,7 +282,7 @@ export function DashboardAuditBar({
               ? 'Descuadrada'
               : !hasActivity
               ? 'Sin movimientos'
-              : 'Partida Doble ✔'
+              : 'Partida Doble'
           }
           description={
             !isTrialBalanced ? (

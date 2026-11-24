@@ -172,7 +172,7 @@ export function CxcCxpTable({
           })}
         </tbody>
         {items.length > 0 && (
-          <tfoot className="bg-slate-100 border-t-2 border-slate-300 text-xs font-bold text-slate-900">
+          <tfoot className="sticky bottom-0 z-10 bg-slate-100 [&_td]:bg-slate-100 border-t-2 border-slate-300 text-xs font-bold text-slate-900">
             <tr>
               <td colSpan={4} className="py-2.5 px-3 text-right uppercase tracking-wider text-slate-700">
                 Subtotales filtrados ({items.length} {items.length === 1 ? 'documento' : 'documentos'}):

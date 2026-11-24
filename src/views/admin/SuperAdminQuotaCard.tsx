@@ -1,5 +1,6 @@
 import { useEffect, useId } from 'react';
 import { Gauge, Loader2, Lock, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { AlertBanner, Button, FormField, Input, Select } from '../../components/ui';
 import type { WorkspacePlanTier } from '../../shared/admin-types';
 import { AdminErrorBanner } from './AdminErrorBanner';
 import {
@@ -86,13 +87,9 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChang
       </div>
 
       {!canEdit && (
-        <div
-          role="status"
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-950 text-xs"
-        >
-          <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-          <span>Permiso de solo lectura: no tienes autorización para modificar cuotas o planes.</span>
-        </div>
+        <AlertBanner tone="warning" icon={<Lock className="w-3.5 h-3.5" aria-hidden="true" />}>
+          Permiso de solo lectura: no tienes autorización para modificar cuotas o planes.
+        </AlertBanner>
       )}
 
       {quotaQuery.isError && (
@@ -104,25 +101,25 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChang
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="text-xs">
-            <label htmlFor={planTierId} className="font-semibold text-slate-700 block mb-1">Plan</label>
-            <select
+          <FormField htmlFor={planTierId} label="Plan">
+            <Select
+              size="sm"
               id={planTierId}
               name="planTier"
               value={planTier}
               onChange={(e) => setPlanTier(e.target.value as WorkspacePlanTier)}
               disabled={disabled}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-600"
+              className="font-semibold"
             >
               {PLAN_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{PLAN_LABELS[opt.value]}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </FormField>
 
-          <div className="text-xs">
-            <label htmlFor={maxCompaniesId} className="font-semibold text-slate-700 block mb-1">Máx. empresas (RFC)</label>
-            <input
+          <FormField htmlFor={maxCompaniesId} label="Máx. empresas (RFC)">
+            <Input
+              size="sm"
               id={maxCompaniesId}
               name="maxCompanies"
               type="number"
@@ -134,13 +131,13 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChang
               aria-invalid={!companiesValid}
               aria-describedby={validationError ? validationErrorId : undefined}
               disabled={disabled}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
+              className="font-mono tabular-nums"
             />
-          </div>
+          </FormField>
 
-          <div className="text-xs">
-            <label htmlFor={maxCfdisId} className="font-semibold text-slate-700 block mb-1">Máx. CFDIs / mes</label>
-            <input
+          <FormField htmlFor={maxCfdisId} label="Máx. CFDIs / mes">
+            <Input
+              size="sm"
               id={maxCfdisId}
               name="maxCfdisPerMonth"
               type="number"
@@ -152,13 +149,13 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChang
               aria-invalid={!cfdisValid}
               aria-describedby={validationError ? validationErrorId : undefined}
               disabled={disabled}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
+              className="font-mono tabular-nums"
             />
-          </div>
+          </FormField>
 
-          <div className="text-xs">
-            <label htmlFor={maxStorageId} className="font-semibold text-slate-700 block mb-1">Almacenamiento (MB)</label>
-            <input
+          <FormField htmlFor={maxStorageId} label="Almacenamiento (MB)" hint="Mín. 10 MB">
+            <Input
+              size="sm"
               id={maxStorageId}
               name="maxStorageMb"
               type="number"
@@ -170,10 +167,9 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChang
               aria-invalid={!storageValid}
               aria-describedby={validationError ? `${storageHintId} ${validationErrorId}` : storageHintId}
               disabled={disabled}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs tabular-nums disabled:bg-slate-100 disabled:text-slate-600"
+              className="font-mono tabular-nums"
             />
-            <p id={storageHintId} className="text-[11px] text-slate-600 mt-1">Mín. 10 MB</p>
-          </div>
+          </FormField>
         </div>
 
         {validationError && (
@@ -182,8 +178,7 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChang
           </p>
         )}
 
-        <div className="text-xs">
-          <label htmlFor={notesId} className="font-semibold text-slate-700 block mb-1">Notas operativas</label>
+        <FormField htmlFor={notesId} label="Notas operativas">
           <textarea
             id={notesId}
             name="notes"
@@ -192,36 +187,39 @@ export function SuperAdminQuotaCard({ workspaceId, userId, canEdit, onStateChang
             onChange={(e) => setNotes(e.target.value)}
             disabled={disabled}
             placeholder="Acuerdo comercial, vigencia o exención temporal..."
-            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs disabled:bg-slate-100 disabled:text-slate-600"
+            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
           />
-        </div>
+        </FormField>
 
         <div className="flex flex-wrap justify-end gap-2">
           {isDirty && canEdit && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={isSaving}
+              leftIcon={<RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />}
               onClick={handleDiscard}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
             >
-              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
               Descartar
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="sm"
             disabled={disabled || !isDirty || !isValid}
+            loading={isSaving}
             title={saveTitle}
-            aria-busy={isSaving}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            leftIcon={
+              isSaving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Save className="w-3.5 h-3.5" aria-hidden="true" />
+              )
+            }
           >
-            {isSaving ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-            ) : (
-              <Save className="w-3.5 h-3.5" aria-hidden="true" />
-            )}
             {isSaving ? 'Guardando...' : 'Guardar Cuota'}
-          </button>
+          </Button>
         </div>
       </form>
     </section>

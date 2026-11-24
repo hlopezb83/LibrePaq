@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Loader2, Megaphone, Send } from 'lucide-react';
+import { AlertBanner, Button, FormField, INPUT_BASE_CLASS, Input, getButtonClasses } from '../../components/ui';
 import { apiClient } from '../../lib/api-client';
 import { useToast } from '../../context/ToastContext';
 import { AdminActiveBroadcastCard, BROADCAST_TYPE_STYLES, type BroadcastType } from './AdminActiveBroadcastCard';
@@ -157,15 +158,40 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
         <form onSubmit={handleSaveBroadcast} className="space-y-3.5 pt-2 border-t border-slate-200">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <div className="md:col-span-2">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <label htmlFor="broadcast-title" className="block text-xs font-bold text-slate-700">Título del Comunicado</label>
-                <span className="text-[11px] font-mono tabular-nums text-slate-600">{title.length}/200</span>
-              </div>
-              <input id="broadcast-title" name="broadcastTitle" type="text" maxLength={200} required disabled={isPending} value={title} onChange={(e) => { setTitle(e.target.value); if (pendingPayload) setPendingPayload(null); }} placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible" className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-slate-100" />
+              <FormField
+                htmlFor="broadcast-title"
+                label={
+                  <span className="inline-flex items-center justify-between w-full gap-2">
+                    <span>Título del Comunicado</span>
+                    <span className="text-[11px] font-mono tabular-nums text-slate-600">{title.length}/200</span>
+                  </span>
+                }
+              >
+                <Input
+                  id="broadcast-title"
+                  name="broadcastTitle"
+                  type="text"
+                  maxLength={200}
+                  required
+                  disabled={isPending}
+                  value={title}
+                  onChange={(e) => { setTitle(e.target.value); if (pendingPayload) setPendingPayload(null); }}
+                  placeholder="ej. Mantenimiento programado de servidores SAT o Nueva función disponible"
+                />
+              </FormField>
             </div>
             <div>
-              <label htmlFor="broadcast-expires-at" className="block text-xs font-bold text-slate-700 mb-1">Expiración automática (opcional)</label>
-              <input id="broadcast-expires-at" name="broadcastExpiresAt" type="datetime-local" min={toDatetimeLocalValue(new Date().toISOString())} disabled={isPending} value={expiresAtInput} onChange={(e) => { setExpiresAtInput(e.target.value); if (pendingPayload) setPendingPayload(null); }} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-slate-100" />
+              <FormField htmlFor="broadcast-expires-at" label="Expiración automática (opcional)">
+                <Input
+                  id="broadcast-expires-at"
+                  name="broadcastExpiresAt"
+                  type="datetime-local"
+                  min={toDatetimeLocalValue(new Date().toISOString())}
+                  disabled={isPending}
+                  value={expiresAtInput}
+                  onChange={(e) => { setExpiresAtInput(e.target.value); if (pendingPayload) setPendingPayload(null); }}
+                />
+              </FormField>
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                 {EXPIRATION_PRESETS.map((preset) => (
                   <button
@@ -190,13 +216,28 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
             </div>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <label htmlFor="broadcast-message" className="block text-xs font-bold text-slate-700">Mensaje Completo</label>
-              <span className="text-[11px] font-mono tabular-nums text-slate-600">{message.length}/1000</span>
-            </div>
-            <textarea id="broadcast-message" name="broadcastMessage" maxLength={1000} required disabled={isPending} value={message} onChange={(e) => { setMessage(e.target.value); if (pendingPayload) setPendingPayload(null); }} rows={3} placeholder="Escribe el mensaje claro que verán todos los contadores..." className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 resize-y disabled:bg-slate-100" />
-          </div>
+          <FormField
+            htmlFor="broadcast-message"
+            label={
+              <span className="inline-flex items-center justify-between w-full gap-2">
+                <span>Mensaje Completo</span>
+                <span className="text-[11px] font-mono tabular-nums text-slate-600">{message.length}/1000</span>
+              </span>
+            }
+          >
+            <textarea
+              id="broadcast-message"
+              name="broadcastMessage"
+              maxLength={1000}
+              required
+              disabled={isPending}
+              value={message}
+              onChange={(e) => { setMessage(e.target.value); if (pendingPayload) setPendingPayload(null); }}
+              rows={3}
+              placeholder="Escribe el mensaje claro que verán todos los contadores..."
+              className={`${INPUT_BASE_CLASS} resize-y`}
+            />
+          </FormField>
 
           {(title.trim() || message.trim()) && (
             <div role="region" aria-label="Vista previa del comunicado" className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${previewStyle.box}`}>
@@ -215,47 +256,30 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
           )}
 
           {pendingPayload && (
-            <div
-              role="alertdialog"
-              aria-modal="false"
-              aria-labelledby="confirm-publish-broadcast-title"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && !publishMutation.isPending) {
-                  e.preventDefault();
-                  cancelPending();
-                }
-              }}
-              className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 text-xs space-y-2.5"
+            <AlertBanner
+              tone="warning"
+              icon={<AlertTriangle className="w-4 h-4" aria-hidden="true" />}
+              title="¿Publicar este comunicado global para todos los usuarios activos?"
+              action={
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="secondary" size="sm" autoFocus disabled={publishMutation.isPending} onClick={cancelPending}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={publishMutation.isPending}
+                    loading={publishMutation.isPending}
+                    leftIcon={publishMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : undefined}
+                    onClick={() => publishMutation.mutate(pendingPayload)}
+                  >
+                    {publishMutation.isPending ? 'Publicando...' : 'Confirmar y Publicar'}
+                  </Button>
+                </div>
+              }
             >
-              <div id="confirm-publish-broadcast-title" className="flex items-center gap-2 font-bold text-amber-950 break-words">
-                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-                <span>¿Publicar este comunicado global para todos los usuarios activos?</span>
-              </div>
-              <p className="text-amber-900 break-words">
-                El cintillo aparecerá de inmediato en la parte superior de todas las sesiones del despacho.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  autoFocus
-                  disabled={publishMutation.isPending}
-                  onClick={cancelPending}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={publishMutation.isPending}
-                  aria-busy={publishMutation.isPending}
-                  onClick={() => publishMutation.mutate(pendingPayload)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {publishMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
-                  <span>{publishMutation.isPending ? 'Publicando...' : 'Confirmar y Publicar'}</span>
-                </button>
-              </div>
-            </div>
+              El cintillo aparecerá de inmediato en la parte superior de todas las sesiones del despacho.
+            </AlertBanner>
           )}
 
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pt-1">
@@ -274,9 +298,9 @@ export function SuperAdminBroadcastTab({ canManage = true }: { canManage?: boole
               ref={publishBtnRef}
               type="submit"
               disabled={isPending || !title.trim() || !message.trim()}
-              aria-busy={publishMutation.isPending}
+              aria-busy={publishMutation.isPending || undefined}
               title={!title.trim() || !message.trim() ? 'Ingresa título y mensaje para publicar' : undefined}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md transition cursor-pointer"
+              className={getButtonClasses('primary', 'md')}
             >
               <Send className="w-3.5 h-3.5" aria-hidden="true" />
               {publishMutation.isPending ? 'Publicando...' : currentBroadcast?.active ? 'Actualizar Comunicado' : 'Publicar Comunicado en Vivo'}

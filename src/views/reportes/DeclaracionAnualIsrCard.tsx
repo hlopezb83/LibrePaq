@@ -1,4 +1,5 @@
-import { Landmark } from 'lucide-react';
+import { Calculator, Landmark, Percent, Scale } from 'lucide-react';
+import { KpiCard } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import type {
   AnnualFiscalReconciliation,
@@ -31,62 +32,66 @@ export function DeclaracionAnualKpiGrid({
 
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 ${isPersonaFisica ? 'xl:grid-cols-3' : 'xl:grid-cols-4'} gap-3.5`}>
-      <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-1">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-          {isPfResico ? 'Ingresos Cobrados (Base RESICO)' : 'Resultado Fiscal'}
-        </span>
-        <div className="text-xl font-extrabold font-mono tabular-nums text-slate-900">
-          {formatCurrency(isPfResico ? determination.ingresosNominales : reconciliation.resultadoFiscal)}
-        </div>
-        <p className="text-[11px] text-slate-600 font-mono tabular-nums">
-          {isPfResico
-            ? 'Flujo de efectivo acumulado (Art. 113-F)'
-            : `Utilidad Fiscal: ${formatCurrency(reconciliation.utilidadFiscal)}`}
-        </p>
-      </div>
+      <KpiCard
+        label={isPfResico ? 'Ingresos Cobrados (Base RESICO)' : 'Resultado Fiscal'}
+        value={formatCurrency(isPfResico ? determination.ingresosNominales : reconciliation.resultadoFiscal)}
+        icon={<Scale className="w-4 h-4" aria-hidden="true" />}
+        iconTone="blue"
+        hint={
+          <span className="font-mono tabular-nums">
+            {isPfResico
+              ? 'Flujo de efectivo acumulado (Art. 113-F)'
+              : `Utilidad Fiscal: ${formatCurrency(reconciliation.utilidadFiscal)}`}
+          </span>
+        }
+      />
 
-      <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-1">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-          ISR Anual ({determination.tasaAplicablePct.toFixed(2)}%)
-        </span>
-        <div className="text-xl font-extrabold font-mono tabular-nums text-blue-900">
-          {formatCurrency(determination.isrAnualCausado)}
-        </div>
-        <p className={`text-[11px] font-bold font-mono tabular-nums ${isNetCargo ? 'text-amber-700' : 'text-emerald-700'}`}>
-          {isNetCargo
-            ? `Neto a Cargo: ${formatCurrency(determination.isrACargo)}`
-            : `Saldo a Favor: ${formatCurrency(determination.isrAFavor)}`}
-        </p>
-      </div>
+      <KpiCard
+        label={`ISR Anual (${determination.tasaAplicablePct.toFixed(2)}%)`}
+        value={formatCurrency(determination.isrAnualCausado)}
+        valueClassName="text-blue-900"
+        icon={<Landmark className="w-4 h-4" aria-hidden="true" />}
+        iconTone={isNetCargo ? 'amber' : 'emerald'}
+        hint={
+          <span className={`font-bold font-mono tabular-nums ${isNetCargo ? 'text-amber-700' : 'text-emerald-700'}`}>
+            {isNetCargo
+              ? `Neto a Cargo: ${formatCurrency(determination.isrACargo)}`
+              : `Saldo a Favor: ${formatCurrency(determination.isrAFavor)}`}
+          </span>
+        }
+      />
 
-      <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-1">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">PTU por Pagar (10%)</span>
-        <div className="text-xl font-extrabold font-mono tabular-nums text-slate-900">
-          {formatCurrency(determination.ptuPorPagar10Pct)}
-        </div>
-        <p className="text-[11px] text-slate-600 font-mono tabular-nums">
-          Renta Gravable: {formatCurrency(determination.ptuBase)}
-        </p>
-      </div>
+      <KpiCard
+        label="PTU por Pagar (10%)"
+        value={formatCurrency(determination.ptuPorPagar10Pct)}
+        icon={<Calculator className="w-4 h-4" aria-hidden="true" />}
+        iconTone="default"
+        hint={
+          <span className="font-mono tabular-nums">
+            Renta Gravable: {formatCurrency(determination.ptuBase)}
+          </span>
+        }
+      />
 
       {!isPersonaFisica && (
-        <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-            Nuevo Coeficiente de Utilidad
-          </span>
-          <div className="text-xl font-extrabold font-mono tabular-nums text-emerald-800">
-            {determination.nuevoCoeficienteUtilidad.toFixed(4)}
-          </div>
-          {determination.tipoRegimenAnual !== 'PM_GENERAL' ? (
-            <p className="text-[11px] font-medium text-amber-800">
-              Aplica solo a PM Régimen General (Art. 14 LISR)
-            </p>
-          ) : (
-            <p className="text-[11px] text-slate-600 font-mono tabular-nums">
-              Ingresos Nom.: {formatCurrency(determination.ingresosNominales)}
-            </p>
-          )}
-        </div>
+        <KpiCard
+          label="Nuevo Coeficiente de Utilidad"
+          value={determination.nuevoCoeficienteUtilidad.toFixed(4)}
+          valueClassName="text-emerald-800"
+          icon={<Percent className="w-4 h-4" aria-hidden="true" />}
+          iconTone="emerald"
+          hint={
+            determination.tipoRegimenAnual !== 'PM_GENERAL' ? (
+              <span className="font-medium text-amber-800">
+                Aplica solo a PM Régimen General (Art. 14 LISR)
+              </span>
+            ) : (
+              <span className="font-mono tabular-nums">
+                Ingresos Nom.: {formatCurrency(determination.ingresosNominales)}
+              </span>
+            )
+          }
+        />
       )}
     </div>
   );

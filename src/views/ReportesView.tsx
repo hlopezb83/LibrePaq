@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Button, EmptyState } from '../components/ui';
 import { MESES_SAT } from '../shared/sat-constants';
 import { useUIModal } from '../context/UIModalContext';
 import { ReportesHeaderBar } from './reportes/ReportesHeaderBar';
@@ -61,27 +62,25 @@ export function ReportesView() {
 
   if (isError) {
     return (
-      <div
-        role="alert"
-        className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12"
-      >
-        <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-          <AlertCircle className="w-6 h-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h3 className="font-bold text-slate-900 text-base">Error al generar Estados Financieros</h3>
-          <p className="text-xs text-slate-600 mt-1">
-            {error instanceof Error ? error.message : 'Error desconocido de conexión'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Reintentar cálculo</span>
-        </button>
+      <div role="alert" className="max-w-lg mx-auto my-12">
+        <EmptyState
+          variant="card"
+          tone="red"
+          icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+          title="Error al generar Estados Financieros"
+          description={
+            error instanceof Error ? error.message : 'Error desconocido de conexión'
+          }
+          actions={
+            <Button
+              variant="primary"
+              onClick={() => void refetch()}
+              leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+            >
+              Reintentar cálculo
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -92,9 +91,10 @@ export function ReportesView() {
         role="status"
         aria-live="polite"
         aria-busy="true"
-        className="p-10 bg-white rounded-2xl border border-slate-300 text-center text-xs text-slate-500"
+        className="p-10 bg-white rounded-2xl border border-slate-300/90 shadow-2xs text-center text-xs text-slate-600 flex items-center justify-center gap-2"
       >
-        Calculando estados financieros y balanza de comprobación...
+        <Loader2 className="w-4 h-4 animate-spin text-blue-700" aria-hidden="true" />
+        <span>Calculando estados financieros y balanza de comprobación...</span>
       </div>
     );
   }

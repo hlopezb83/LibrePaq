@@ -1,12 +1,23 @@
 import React from 'react';
 import {
+  ChevronDown,
+  ChevronUp,
   CloudDownload,
   FileCode2,
   Lock,
   Sparkles,
   UploadCloud
 } from 'lucide-react';
+import {
+  Button,
+  PageHeader,
+  StatusBadge,
+  TabBar,
+  getButtonClasses,
+  type TabBarItem
+} from '../../components/ui';
 import { CfdiDropzoneSecondaryActions } from './CfdiDropzoneSecondaryActions';
+import type { CfdiTabFilter } from './filterCfdis';
 import { SatSoapFielPanel } from './sat-soap/SatSoapFielPanel';
 import { getFirstDateForPeriod, getLastDateForPeriod } from '../../lib/formatters';
 import { isSandboxDemoCompany } from '../../lib/sandbox-demo-seeder';
@@ -43,6 +54,11 @@ export interface CfdiDropzoneBarProps {
   currentYear: number;
   currentPeriod: number;
   onSoapDownloadSuccess: (msg: string) => void;
+  tab: CfdiTabFilter;
+  setTab: (tab: CfdiTabFilter) => void;
+  totalCfdisCount: number;
+  emitidosCount: number;
+  recibidosCount: number;
 }
 
 export function CfdiDropzoneBar({
@@ -70,12 +86,24 @@ export function CfdiDropzoneBar({
   activeCompanyId,
   currentYear,
   currentPeriod,
-  onSoapDownloadSuccess
+  onSoapDownloadSuccess,
+  tab,
+  setTab,
+  totalCfdisCount,
+  emitidosCount,
+  recibidosCount
 }: CfdiDropzoneBarProps) {
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
   const uploadPct = uploadBatchProgress
     ? Math.round((uploadBatchProgress.processed / Math.max(1, uploadBatchProgress.total)) * 100)
     : 0;
+
+  const tabs: ReadonlyArray<TabBarItem<CfdiTabFilter>> = [
+    { id: 'ALL', label: 'Todos', count: totalCfdisCount },
+    { id: 'PENDING', label: 'Por Contabilizar', count: pendingCfdisCount },
+    { id: 'EMITIDO', label: 'Emitidos (Ingreso)', count: emitidosCount },
+    { id: 'RECIBIDO', label: 'Recibidos (Gasto)', count: recibidosCount }
+  ];
 
   return (
     <>
@@ -98,126 +126,135 @@ export function CfdiDropzoneBar({
           }
           handleDrop(e);
         }}
-        className={`flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border transition shadow-2xs ${
-          isDragging
-            ? 'border-2 border-dashed border-blue-600 bg-blue-50/40'
-            : 'border-slate-300/90'
-        }`}
       >
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
-            <FileCode2 className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-bold text-slate-900">
-              Bóveda Digital de Comprobantes (ADD CFDI 4.0)
-            </h1>
-            <p className="text-xs text-slate-600 mt-0.5">
-              {isDragging
-                ? '¡Suelta tus archivos .XML o .ZIP aquí para importarlos a la Bóveda ADD!'
-                : 'Descarga facturas del mes desde el SAT con e.firma, sube archivos .XML o .ZIP del SAT, o arrástralos aquí'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {!isReadOnlyClient && pendingCfdisCount > 0 && (
-            <button
-              type="button"
-              disabled={isBatchContabilizarPending || isWriteBlocked}
-              onClick={onBatchContabilizarPending}
-              title={
-                isPeriodLocked
-                  ? 'Periodo bloqueado ante el SAT'
-                  : 'Contabilizar comprobantes pendientes en lote'
-              }
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition ${
-                isWriteBlocked
-                  ? 'bg-slate-400 cursor-not-allowed opacity-60'
-                  : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer ring-1 ring-emerald-500'
-              }`}
-            >
-              {isWriteBlocked ? (
-                <Lock className="w-3.5 h-3.5" aria-hidden="true" />
-              ) : (
-                <Sparkles className={`w-3.5 h-3.5 ${isBatchContabilizarPending ? 'animate-spin' : ''}`} aria-hidden="true" />
-              )}
-              {isBatchContabilizarPending
-                ? batchProgress
-                  ? `Contabilizando (${batchProgress.current}/${batchProgress.total})...`
-                  : 'Contabilizando...'
-                : isPeriodLocked
-                ? 'Periodo Bloqueado'
-                : `Contabilizar (${pendingCfdisCount})`}
-            </button>
-          )}
-
-          {!isReadOnlyClient && (
+        <PageHeader
+          icon={<FileCode2 className="w-5 h-5" aria-hidden="true" />}
+          iconTone="blue"
+          title="Bóveda Digital de Comprobantes (ADD CFDI 4.0)"
+          subtitle={
+            isDragging
+              ? '¡Suelta tus archivos .XML o .ZIP aquí para importarlos a la Bóveda ADD!'
+              : 'Descarga facturas del mes desde el SAT con e.firma, sube archivos .XML o .ZIP del SAT, o arrástralos aquí'
+          }
+          className={isDragging ? 'border-2 border-dashed border-blue-600 bg-blue-50/40' : ''}
+          actions={
             <>
-              <button
-                type="button"
-                aria-expanded={showSoapFielPanel}
-                aria-controls="sat-soap-fiel-section"
-                onClick={() => setShowSoapFielPanel((prev) => !prev)}
-                title="Descargar automáticamente facturas emitidas y recibidas del SAT con e.firma"
-                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer border ${
-                  showSoapFielPanel
-                    ? 'bg-indigo-700 text-white border-indigo-800 ring-2 ring-indigo-400 ring-offset-1'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700'
-                }`}
-              >
-                <CloudDownload className="w-4 h-4 text-indigo-100" aria-hidden="true" />
-                <span>Descargar del SAT</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-800/90 text-indigo-100">
-                  e.firma
-                </span>
-                <span className="text-[10px] text-indigo-200 font-mono" aria-hidden="true">
-                  {showSoapFielPanel ? '▲' : '▼'}
-                </span>
-              </button>
+              {!isReadOnlyClient && pendingCfdisCount > 0 && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={isBatchContabilizarPending}
+                  disabled={isBatchContabilizarPending || isWriteBlocked}
+                  onClick={onBatchContabilizarPending}
+                  title={
+                    isPeriodLocked
+                      ? 'Periodo bloqueado ante el SAT'
+                      : 'Contabilizar comprobantes pendientes en lote'
+                  }
+                  leftIcon={
+                    isWriteBlocked ? (
+                      <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+                    ) : (
+                      <Sparkles
+                        className={`w-3.5 h-3.5 ${isBatchContabilizarPending ? 'animate-spin' : ''}`}
+                        aria-hidden="true"
+                      />
+                    )
+                  }
+                >
+                  {isBatchContabilizarPending
+                    ? batchProgress
+                      ? `Contabilizando (${batchProgress.current}/${batchProgress.total})...`
+                      : 'Contabilizando...'
+                    : isPeriodLocked
+                    ? 'Periodo Bloqueado'
+                    : `Contabilizar (${pendingCfdisCount})`}
+                </Button>
+              )}
 
-              <label
-                htmlFor="cfdi-dropzone-upload"
-                aria-busy={isUploadingFiles}
-                title={
-                  isUploadingFiles
-                    ? 'Importando archivos XML...'
-                    : 'Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)'
-                }
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 text-xs font-semibold text-white shadow-2xs transition ${
-                  isUploadingFiles
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'cursor-pointer'
-                }`}
-              >
-                <input
-                  id="cfdi-dropzone-upload"
-                  ref={fileInputRef}
-                  type="file"
-                  disabled={isUploadingFiles}
-                  accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
-                  multiple
-                  onChange={handleFileUpload}
-                  className="sr-only"
-                />
-                <UploadCloud className={`w-3.5 h-3.5 text-blue-100 ${isUploadingFiles ? 'animate-pulse' : ''}`} aria-hidden="true" />
-                <span>{isUploadingFiles ? 'Importando XMLs...' : 'Subir XMLs / ZIP'}</span>
-                <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
-                  Alt+U
-                </kbd>
-              </label>
+              {!isReadOnlyClient && (
+                <>
+                  <Button
+                    variant={showSoapFielPanel ? 'primary' : 'secondary'}
+                    size="md"
+                    aria-expanded={showSoapFielPanel}
+                    aria-controls="sat-soap-fiel-section"
+                    onClick={() => setShowSoapFielPanel((prev) => !prev)}
+                    title="Descargar automáticamente facturas emitidas y recibidas del SAT con e.firma"
+                    leftIcon={<CloudDownload className="w-4 h-4" aria-hidden="true" />}
+                    rightIcon={
+                      showSoapFielPanel ? (
+                        <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
+                      )
+                    }
+                  >
+                    <span>Descargar del SAT</span>
+                    <StatusBadge
+                      tone={showSoapFielPanel ? 'blue' : 'slate'}
+                      shape="tag"
+                      className={showSoapFielPanel ? 'bg-blue-800/80 text-white border-blue-400/50' : ''}
+                    >
+                      e.firma
+                    </StatusBadge>
+                  </Button>
+
+                  <label
+                    htmlFor="cfdi-dropzone-upload"
+                    aria-busy={isUploadingFiles}
+                    title={
+                      isUploadingFiles
+                        ? 'Importando archivos XML...'
+                        : 'Subir archivos XML o ZIP locales a la Bóveda ADD (Alt+U)'
+                    }
+                    className={`${getButtonClasses('primary', 'md')} focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-1 ${
+                      isUploadingFiles ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <input
+                      id="cfdi-dropzone-upload"
+                      ref={fileInputRef}
+                      type="file"
+                      disabled={isUploadingFiles}
+                      accept=".xml,text/xml,.zip,application/zip,application/x-zip-compressed"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="sr-only"
+                    />
+                    <UploadCloud
+                      className={`w-3.5 h-3.5 ${isUploadingFiles ? 'animate-pulse' : ''}`}
+                      aria-hidden="true"
+                    />
+                    <span>{isUploadingFiles ? 'Importando XMLs...' : 'Subir XMLs / ZIP'}</span>
+                    <kbd className="hidden sm:inline font-mono text-[9px] bg-blue-800 px-1 py-0.5 rounded border border-blue-400/50 text-blue-100">
+                      Alt+U
+                    </kbd>
+                  </label>
+                </>
+              )}
+
+              <CfdiDropzoneSecondaryActions
+                isReadOnlyClient={isReadOnlyClient}
+                isExportingZip={isExportingZip}
+                hasVisibleCfdis={hasVisibleCfdis}
+                onOpenSimulator={onOpenSimulator}
+                onExportCsv={onExportCsv}
+                onExportZip={onExportZip}
+              />
             </>
-          )}
-
-          <CfdiDropzoneSecondaryActions
-            isReadOnlyClient={isReadOnlyClient}
-            isExportingZip={isExportingZip}
-            hasVisibleCfdis={hasVisibleCfdis}
-            onOpenSimulator={onOpenSimulator}
-            onExportCsv={onExportCsv}
-            onExportZip={onExportZip}
-          />
-        </div>
+          }
+          tabs={
+            <TabBar
+              mode="group"
+              idPrefix="cfdi-tab-"
+              ariaLabel="Filtrar por dirección y estatus contable"
+              tabs={tabs}
+              activeId={tab}
+              onSelect={setTab}
+            />
+          }
+        />
       </div>
 
       {/* Banner de progreso y advertencia de permanencia */}
@@ -245,7 +282,7 @@ export function CfdiDropzoneBar({
             className="w-full bg-blue-200/80 rounded-full h-2 overflow-hidden"
           >
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-150 ease-out"
+              className="bg-blue-700 h-2 rounded-full transition-all duration-150 ease-out"
               style={{ width: `${Math.max(4, uploadPct)}%` }}
             />
           </div>
@@ -256,15 +293,16 @@ export function CfdiDropzoneBar({
         <div
           role="status"
           aria-live="polite"
-          className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 shadow-2xs space-y-2 animate-fadeIn"
+          className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 shadow-2xs space-y-2"
         >
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-emerald-950">
             <span className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-600 animate-spin shrink-0" aria-hidden="true" />
               <span>Contabilizando comprobantes en lote... Por favor mantén esta pestaña abierta.</span>
             </span>
-            <span className="font-mono bg-white px-2 py-0.5 rounded-lg border border-emerald-300 text-emerald-900 shadow-2xs">
-              {batchProgress.current} de {batchProgress.total} pólizas ({Math.round((batchProgress.current / batchProgress.total) * 100)}%)
+            <span className="font-mono bg-white px-2 py-0.5 rounded-lg border border-emerald-300 text-emerald-900 shadow-2xs tabular-nums">
+              {batchProgress.current} de {batchProgress.total} pólizas (
+              {Math.round((batchProgress.current / batchProgress.total) * 100)}%)
             </span>
           </div>
           <div
@@ -276,7 +314,7 @@ export function CfdiDropzoneBar({
             className="w-full bg-emerald-200/80 rounded-full h-2.5 overflow-hidden"
           >
             <div
-              className="bg-emerald-600 h-2.5 rounded-full transition-all duration-150 ease-out"
+              className="bg-emerald-700 h-2.5 rounded-full transition-all duration-150 ease-out"
               style={{
                 width: `${Math.max(3, Math.round((batchProgress.current / batchProgress.total) * 100))}%`
               }}

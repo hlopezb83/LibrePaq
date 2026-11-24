@@ -1,4 +1,3 @@
-import { Eye, Lock } from 'lucide-react';
 import { useUIModal } from '../context/UIModalContext';
 import { FiscalBancosTabBar } from './fiscal-bancos/FiscalBancosTabBar';
 import { ConciliacionBancosTab } from './fiscal-bancos/ConciliacionBancosTab';
@@ -71,35 +70,6 @@ export function DiotBancosView() {
 
   return (
     <div className="space-y-4">
-      {/* Alerta de Periodo Bloqueado o Modo Solo Lectura */}
-      {isPeriodLocked && (
-        <div role="status" className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs shadow-2xs">
-          <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-sm block text-amber-950">
-              Periodo Fiscal P{String(currentPeriod).padStart(2, '0')}/{currentYear} Bloqueado ante el SAT
-            </span>
-            <p className="text-amber-800 leading-relaxed">
-              El registro de movimientos bancarios, edición de parámetros Día 17, inventario y costo de ventas, provisión SUA/ISN, depreciación de activos y generación de pólizas contables se encuentran inhabilitados en este periodo cerrado.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {isReadOnlyClient && !isPeriodLocked && (
-        <div role="status" className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3 text-blue-950 text-xs shadow-2xs">
-          <Eye className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="space-y-0.5">
-            <span className="font-bold text-sm block text-blue-950">
-              Modo Solo Lectura Activado
-            </span>
-            <p className="text-blue-900 leading-relaxed">
-              Puedes consultar conciliaciones, DIOT, cédula Día 17, antigüedad de saldos CxC/CxP y cálculos fiscales. La edición de parámetros, guardado de inventarios y generación de pólizas están deshabilitados.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Encabezado del Módulo y Pestañas */}
       <div className="fb-tabbar-shell">
         <FiscalBancosTabBar activeTab={activeTab} setActiveTab={setActiveTab} />

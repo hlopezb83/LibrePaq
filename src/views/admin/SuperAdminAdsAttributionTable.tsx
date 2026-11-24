@@ -223,17 +223,17 @@ export function SuperAdminAdsAttributionTable({
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50 text-right">% Activación</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-800">
+          <tbody className="text-slate-800">
             {isLoading ? (
               [0, 1, 2].map((idx) => (
                 <tr key={idx} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-36 rounded bg-slate-200" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
-                  <td className="py-3 px-3.5"><div className="h-5 w-20 rounded-full bg-slate-200" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
-                  <td className="py-3 px-3.5"><div className="h-5 w-12 rounded-full bg-slate-200 ml-auto" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-36 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-5 w-20 rounded-full bg-slate-200" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-10 rounded bg-slate-200 ml-auto" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-5 w-12 rounded-full bg-slate-200 ml-auto" /></td>
                 </tr>
               ))
             ) : campaignRows.length === 0 ? (
@@ -244,18 +244,18 @@ export function SuperAdminAdsAttributionTable({
             ) : (
               campaignRows.map((row) => (
                 <tr key={row.key} className="hover:bg-slate-50/80 transition">
-                  <th scope="row" className="py-2.5 px-3.5 font-bold text-slate-900 text-left">{row.campaign}</th>
-                  <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-700">{row.term}</td>
-                  <td className="py-2.5 px-3.5">
+                  <th scope="row" className="py-2.5 px-3.5 font-bold text-slate-900 text-left border-b border-slate-200">{row.campaign}</th>
+                  <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-700 border-b border-slate-200">{row.term}</td>
+                  <td className="py-2.5 px-3.5 border-b border-slate-200">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${CHANNEL_META[row.channel].badgeClass}`}>
                       {CHANNEL_META[row.channel].label}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3.5 text-right font-semibold tabular-nums">{row.usersCount.toLocaleString('es-MX')}</td>
-                  <td className="py-2.5 px-3.5 text-right font-mono tabular-nums text-slate-700">{row.gclidCount.toLocaleString('es-MX')}</td>
-                  <td className="py-2.5 px-3.5 text-right font-semibold tabular-nums">{row.activatedCount.toLocaleString('es-MX')}</td>
-                  <td className="py-2.5 px-3.5 text-right">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums ${
+                  <td className="py-2.5 px-3.5 text-right font-semibold font-mono tabular-nums border-b border-slate-200">{row.usersCount.toLocaleString('es-MX')}</td>
+                  <td className="py-2.5 px-3.5 text-right font-mono tabular-nums text-slate-700 border-b border-slate-200">{row.gclidCount.toLocaleString('es-MX')}</td>
+                  <td className="py-2.5 px-3.5 text-right font-semibold font-mono tabular-nums border-b border-slate-200">{row.activatedCount.toLocaleString('es-MX')}</td>
+                  <td className="py-2.5 px-3.5 text-right border-b border-slate-200">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold font-mono tabular-nums ${
                       row.activationPct >= 50 ? 'bg-emerald-100 text-emerald-900' : row.activationPct > 0 ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'
                     }`}>
                       {row.activationPct}%

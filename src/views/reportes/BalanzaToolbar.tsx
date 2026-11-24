@@ -1,4 +1,5 @@
-import { AlertTriangle, CheckCircle2, Search, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ClearFiltersButton, SearchInput, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 
 export type BalanzaLevelScope = 'ALL' | 'MAYOR' | 'SUBCUENTAS' | 'AFECTABLES';
@@ -12,6 +13,7 @@ interface BalanzaToolbarProps {
   onLevelScopeChange: (scope: BalanzaLevelScope) => void;
   hideZeroBalances: boolean;
   onToggleHideZero: (hide: boolean) => void;
+  onClearFilters: () => void;
   zeroCount: number;
   filteredCount: number;
   totalCount: number;
@@ -33,60 +35,46 @@ export function BalanzaToolbar({
   onLevelScopeChange,
   hideZeroBalances,
   onToggleHideZero,
+  onClearFilters,
   zeroCount,
   filteredCount,
   totalCount
 }: BalanzaToolbarProps) {
+  const activeFilterCount =
+    (balanzaSearch.trim() ? 1 : 0) + (levelScope !== 'ALL' ? 1 : 0) + (hideZeroBalances ? 1 : 0);
+
   return (
     <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
       <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
         {isTrialBalanced ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+          <StatusBadge tone="emerald" icon={<CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}>
             Sumas Iguales Verificadas ✔
-          </span>
+          </StatusBadge>
         ) : (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-300">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
+          <StatusBadge tone="amber" icon={<AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}>
             Diferencia en Balanza: {formatCurrency(trialDiff)}
-          </span>
+          </StatusBadge>
         )}
-        <div className="relative w-full sm:w-64 no-print">
-          <label htmlFor="balanza-search-input" className="visually-hidden">
-            Buscar cuenta o agrupador SAT en la balanza
-          </label>
-          <Search
-            className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            aria-hidden="true"
-          />
-          <input
-            id="balanza-search-input"
-            type="search"
-            value={balanzaSearch}
-            onChange={(e) => onSearchChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape' && balanzaSearch) {
-                e.stopPropagation();
-                onSearchChange('');
-              }
-            }}
-            placeholder="Buscar cuenta o agrupador SAT..."
-            className="w-full pl-8 pr-8 py-1 text-xs rounded-xl border border-slate-300 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 bg-white"
-          />
-          {balanzaSearch && (
-            <button
-              type="button"
-              onClick={() => onSearchChange('')}
-              aria-label="Limpiar búsqueda en balanza"
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
-            >
-              <X className="w-3 h-3" aria-hidden="true" />
-            </button>
-          )}
-        </div>
-        <span aria-live="polite" className="text-[11px] font-mono text-slate-600 no-print">
+        <SearchInput
+          id="balanza-search-input"
+          size="sm"
+          value={balanzaSearch}
+          onChange={onSearchChange}
+          placeholder="Buscar cuenta o agrupador SAT..."
+          aria-label="Buscar cuenta o agrupador SAT en la balanza"
+          clearLabel="Limpiar búsqueda en balanza"
+          containerClassName="w-full sm:w-64 no-print"
+        />
+        <span aria-live="polite" className="text-[11px] font-mono text-slate-600 no-print whitespace-nowrap">
           Mostrando {filteredCount} de {totalCount} cuentas
         </span>
+        {activeFilterCount > 0 && (
+          <ClearFiltersButton
+            onClick={onClearFilters}
+            count={activeFilterCount}
+            className="no-print"
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 no-print max-w-full">
@@ -101,7 +89,7 @@ export function BalanzaToolbar({
               type="button"
               aria-pressed={levelScope === lvl.id}
               onClick={() => onLevelScopeChange(lvl.id)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition cursor-pointer ${
                 levelScope === lvl.id
                   ? 'bg-white text-blue-900 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -114,7 +102,7 @@ export function BalanzaToolbar({
 
         <label
           htmlFor="balanza-hide-zero"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
         >
           <input
             id="balanza-hide-zero"

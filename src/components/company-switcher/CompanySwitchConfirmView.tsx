@@ -20,10 +20,10 @@ export function CompanySwitchConfirmView({
   setHasAcknowledged
 }: CompanySwitchConfirmViewProps) {
   return (
-    <div className="flex-1 min-h-0 p-4 sm:p-5 overflow-y-auto overscroll-contain space-y-4">
+    <div className="space-y-4">
       {/* Comparativa Visual De -> A */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
           Cambio de Contexto Fiscal
         </div>
 
@@ -52,7 +52,7 @@ export function CompanySwitchConfirmView({
           )}
 
           {/* Destino */}
-          <div className="p-3 rounded-xl bg-blue-50/60 border-2 border-blue-600 shadow-xs space-y-1">
+          <div className="p-3 rounded-xl bg-blue-50/70 border-2 border-blue-600 shadow-xs space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">
               Nueva Empresa Activa:
             </span>
@@ -93,7 +93,6 @@ export function CompanySwitchConfirmView({
           </div>
         </div>
 
-        {/* Checkbox Obligatorio para Habilitar el Cambio */}
         <label htmlFor="switch-company-ack" className="flex items-start gap-2.5 pt-2 border-t border-amber-200 cursor-pointer select-none">
           <input
             id="switch-company-ack"

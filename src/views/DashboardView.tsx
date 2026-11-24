@@ -1,4 +1,5 @@
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button, EmptyState } from '../components/ui';
 import { DashboardHeaderBar } from './dashboard/DashboardHeaderBar';
 import { DashboardAuditBar } from './dashboard/DashboardAuditBar';
 import { DashboardKpisGrid } from './dashboard/DashboardKpisGrid';
@@ -34,28 +35,29 @@ export function DashboardView() {
 
   if (isError) {
     return (
-      <div
-        role="alert"
-        className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12"
-      >
-        <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-          <AlertCircle className="w-6 h-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 className="font-bold text-slate-900 text-base">Error al cargar el Tablero Financiero</h1>
-          <p className="text-xs text-slate-600 mt-1">
-            No pudimos consultar la información contable del periodo. Verifica tu conexión e intenta nuevamente.
-          </p>
-        </div>
-        <button
-          type="button"
-          disabled={isFetching}
-          onClick={() => void refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
-          <span>{isFetching ? 'Consultando...' : 'Reintentar consulta'}</span>
-        </button>
+      <div role="alert" className="max-w-lg mx-auto my-12">
+        <EmptyState
+          variant="card"
+          tone="red"
+          icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+          title="Error al cargar el Tablero Financiero"
+          description="No pudimos consultar la información contable del periodo. Verifica tu conexión e intenta nuevamente."
+          actions={
+            <Button
+              variant="primary"
+              loading={isFetching}
+              onClick={() => void refetch()}
+              leftIcon={
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+              }
+            >
+              {isFetching ? 'Consultando...' : 'Reintentar consulta'}
+            </Button>
+          }
+        />
       </div>
     );
   }

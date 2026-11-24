@@ -9,6 +9,7 @@ import {
   Sparkles,
   Upload
 } from 'lucide-react';
+import { AlertBanner, Button, FormField, Input } from '../../components/ui';
 import { formatShortDate } from '../../lib/formatters';
 import type { Company, FielCredentialStatus } from '../../shared/types';
 import { AjustesSoapHistoryCard, type SoapHistoryItem } from './AjustesSoapHistoryCard';
@@ -146,27 +147,23 @@ export function AjustesEfirmaTab({
                   </div>
                 )}
                 {fielStatus.rfcTitular && activeCompany.rfc && fielStatus.rfcTitular !== activeCompany.rfc && (
-                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-[11px] text-amber-900 flex items-start gap-2">
-                    <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
-                    <div>
-                      <span className="font-bold block">Aviso de RFC Titular:</span>
-                      El certificado cargado pertenece a <strong>{fielStatus.rfcTitular}</strong>, distinto a la empresa activa (<strong>{activeCompany.rfc}</strong>).
-                    </div>
-                  </div>
+                  <AlertBanner tone="warning" title="Aviso de RFC Titular:">
+                    El certificado cargado pertenece a <strong>{fielStatus.rfcTitular}</strong>, distinto a la empresa activa (<strong>{activeCompany.rfc}</strong>).
+                  </AlertBanner>
                 )}
               </div>
             )}
 
             {activeCompany.name.startsWith('[DEMO]') || activeCompany.rfc === 'CEJ2106158A0' || activeCompany.rfc === 'XAXX010101000' ? (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                className="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300"
                 disabled={isUploadingFiel || isReadOnly}
+                leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />}
                 onClick={handleGenerateTestFiel}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
                 Cargar e.firma de prueba (Solo Demo)
-              </button>
+              </Button>
             ) : (
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5">
@@ -199,9 +196,9 @@ export function AjustesEfirmaTab({
             </div>
 
             {isReadOnly && (
-              <div role="status" className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-950">
+              <AlertBanner tone="info">
                 Modo solo consulta: la carga o autorización de archivos e.firma (.cer y .key) está deshabilitada.
-              </div>
+              </AlertBanner>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -263,12 +260,9 @@ export function AjustesEfirmaTab({
                 </label>
               </div>
 
-              <div className="sm:col-span-2 space-y-1">
-                <label htmlFor="efirma-fiel-pass" className="text-xs font-bold text-slate-700 block">
-                  Contraseña de la Clave Privada *
-                </label>
+              <FormField htmlFor="efirma-fiel-pass" label="Contraseña de la Clave Privada" required className="sm:col-span-2">
                 <div className="relative">
-                  <input
+                  <Input
                     id="efirma-fiel-pass"
                     name="fielPassword"
                     type={showFielPass ? 'text' : 'password'}
@@ -277,7 +271,7 @@ export function AjustesEfirmaTab({
                     value={fielPass}
                     onChange={(e) => setFielPass(e.target.value)}
                     placeholder="Ingresa la contraseña de tu e.firma"
-                    className="w-full px-3 py-2.5 pr-20 rounded-xl border border-slate-300 text-xs font-mono text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    className="pr-20 font-mono"
                   />
                   <button
                     type="button"
@@ -289,7 +283,7 @@ export function AjustesEfirmaTab({
                     {showFielPass ? 'Ocultar' : 'Mostrar'}
                   </button>
                 </div>
-              </div>
+              </FormField>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
@@ -306,10 +300,11 @@ export function AjustesEfirmaTab({
                       : 'Credenciales listas para cifrar y validar'}
                 </span>
               )}
-              <button
+              <Button
                 type="submit"
+                variant="primary"
                 disabled={isReadOnly || isUploadingFiel || !fielPass || (!fielStatus?.hasCredentials && (!cerFile || !keyFile))}
-                aria-busy={isUploadingFiel}
+                loading={isUploadingFiel}
                 title={
                   isReadOnly
                     ? 'Solo un Contador o Socio puede modificar la e.firma'
@@ -319,19 +314,20 @@ export function AjustesEfirmaTab({
                         ? 'Ingresa la contraseña de tu clave privada .key'
                         : 'Cifrar y validar credenciales SAT'
                 }
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                leftIcon={
+                  isUploadingFiel ? (
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Save className="w-4 h-4" aria-hidden="true" />
+                  )
+                }
               >
-                {isUploadingFiel ? (
-                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Save className="w-4 h-4" aria-hidden="true" />
-                )}
                 {isUploadingFiel
                   ? 'Validando con SAT...'
                   : !cerFile && !keyFile && fielStatus?.hasCredentials
                     ? 'Autorizar Llave y Conectar SAT'
                     : 'Guardar y Validar e.firma'}
-              </button>
+              </Button>
             </div>
           </form>
 

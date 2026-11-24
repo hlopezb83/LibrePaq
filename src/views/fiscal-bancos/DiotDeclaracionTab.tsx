@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, Copy, Download, FileSpreadsheet, ShieldAlert, ShieldCheck, Upload } from 'lucide-react';
+import { Button, EmptyState, KpiCard, StatusBadge } from '../../components/ui';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
@@ -65,23 +66,21 @@ export function DiotDeclaracionTab({
 
   if (isErrorDiot) {
     return (
-      <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-4 max-w-lg mx-auto my-12">
-        <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-          <ShieldAlert className="w-6 h-6" aria-hidden="true" />
-        </div>
-        <div>
-          <h3 className="font-bold text-slate-900 text-base">Error al generar la Declaración DIOT</h3>
-          <p className="text-xs text-slate-600 mt-1">No se pudo cargar la información de operaciones con terceros.</p>
-        </div>
-        {onRetryDiot && (
-          <button
-            type="button"
-            onClick={onRetryDiot}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-          >
-            Reintentar cálculo
-          </button>
-        )}
+      <div role="alert" className="max-w-lg mx-auto my-12">
+        <EmptyState
+          variant="card"
+          tone="red"
+          icon={<ShieldAlert className="w-6 h-6" aria-hidden="true" />}
+          title="Error al generar la Declaración DIOT"
+          description="No se pudo cargar la información de operaciones con terceros."
+          actions={
+            onRetryDiot && (
+              <Button variant="primary" onClick={onRetryDiot}>
+                Reintentar cálculo
+              </Button>
+            )
+          }
+        />
       </div>
     );
   }
@@ -107,71 +106,44 @@ export function DiotDeclaracionTab({
 
   const rowsWithEfos = diotData.rows.map((r) => {
     const efosCheck = checkRfc69BStatus(r.rfc);
-    return {
-      ...r,
-      isEfos: efosCheck.isEfos,
-      efosStatus: efosCheck.status
-    };
+    return { ...r, isEfos: efosCheck.isEfos, efosStatus: efosCheck.status };
   });
   void cloudSyncTick;
   const efosCount = rowsWithEfos.filter((r) => r.isEfos).length;
   const hasRows = diotData.rows.length > 0;
   const noRowsTitle = 'No hay operaciones pagadas con terceros en este periodo para exportar';
+  const totalRetenciones = diotData.totals.isrRetenido + diotData.totals.ivaRetenido;
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs">
-          <div className="text-[11px] font-bold uppercase text-slate-500">
-            IVA Trasladado Cobrado
-          </div>
-          <div className="mt-1 text-lg font-bold font-mono tabular-nums text-slate-900">
-            {formatCurrency(diotData.totals.ivaTrasladadoCobrado)}
-          </div>
-          <div className="text-[11px] text-slate-600">Causado por cobros del mes</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs">
-          <div className="text-[11px] font-bold uppercase text-slate-500">
-            (-) IVA Acreditable Pagado DIOT
-          </div>
-          <div className="mt-1 text-lg font-bold font-mono tabular-nums text-emerald-800">
-            {formatCurrency(diotData.totals.ivaAcreditable16)}
-          </div>
-          <div className="text-[11px] text-slate-600">
-            Base pagada: {formatCurrency(diotData.totals.actosPagados16)}
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs">
-          <div className="text-[11px] font-bold uppercase text-slate-500">
-            (=) IVA Neto a Cargo / Favor
-          </div>
-          <div
-            className={`mt-1 text-lg font-bold font-mono tabular-nums ${
-              diotData.totals.ivaNetoCargoFavor >= 0 ? 'text-blue-800' : 'text-emerald-800'
-            }`}
-          >
-            {formatCurrency(diotData.totals.ivaNetoCargoFavor)}
-          </div>
-          <div className="text-[11px] text-slate-600">
-            {diotData.totals.ivaNetoCargoFavor >= 0
+        <KpiCard
+          label="IVA Trasladado Cobrado"
+          value={formatCurrency(diotData.totals.ivaTrasladadoCobrado)}
+          hint="Causado por cobros del mes"
+        />
+        <KpiCard
+          label="(-) IVA Acreditable Pagado DIOT"
+          value={formatCurrency(diotData.totals.ivaAcreditable16)}
+          valueClassName="text-emerald-800"
+          hint={`Base pagada: ${formatCurrency(diotData.totals.actosPagados16)}`}
+        />
+        <KpiCard
+          label="(=) IVA Neto a Cargo / Favor"
+          value={formatCurrency(diotData.totals.ivaNetoCargoFavor)}
+          valueClassName={diotData.totals.ivaNetoCargoFavor >= 0 ? 'text-blue-800' : 'text-emerald-800'}
+          hint={
+            diotData.totals.ivaNetoCargoFavor >= 0
               ? 'Impuesto a cargo en pago provisional'
-              : 'Saldo a favor del periodo'}
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-300 shadow-2xs">
-          <div className="text-[11px] font-bold uppercase text-slate-500">
-            Retenciones (ISR + IVA)
-          </div>
-          <div className="mt-1 text-lg font-bold font-mono tabular-nums text-red-700">
-            {formatCurrency(diotData.totals.isrRetenido + diotData.totals.ivaRetenido)}
-          </div>
-          <div className="text-[11px] text-slate-600">
-            ISR: {formatCurrency(diotData.totals.isrRetenido)} | IVA: {formatCurrency(diotData.totals.ivaRetenido)}
-          </div>
-        </div>
+              : 'Saldo a favor del periodo'
+          }
+        />
+        <KpiCard
+          label="Retenciones (ISR + IVA)"
+          value={formatCurrency(totalRetenciones)}
+          valueClassName={totalRetenciones > 0 ? 'text-red-700' : 'text-slate-900'}
+          hint={`ISR: ${formatCurrency(diotData.totals.isrRetenido)} | IVA: ${formatCurrency(diotData.totals.ivaRetenido)}`}
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
@@ -186,31 +158,31 @@ export function DiotDeclaracionTab({
                 <span
                   role="status"
                   title="Atención: Se detectaron proveedores con publicación presunta o definitiva en la lista negra del SAT"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-900 border border-red-300 shadow-2xs"
                 >
-                  <ShieldAlert className="w-3.5 h-3.5 text-red-700" aria-hidden="true" />
-                  <span>{efosCount} Proveedor(es) en Lista 69-B</span>
+                  <StatusBadge tone="red" icon={<ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />}>
+                    {efosCount} Proveedor(es) en Lista 69-B
+                  </StatusBadge>
                 </span>
               ) : isSampleOnly69B ? (
                 <div className="inline-flex flex-wrap items-center gap-2">
                   <span
                     role="status"
                     title="La lista oficial del SAT Art. 69-B aún no ha sido importada; solo están cargados 4 RFCs de muestra"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs"
                   >
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
-                    <span>Lista 69-B sin cargar (solo 4 muestra)</span>
+                    <StatusBadge tone="amber" icon={<AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}>
+                      Lista 69-B sin cargar (solo 4 muestra)
+                    </StatusBadge>
                   </span>
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     disabled={isReadOnly}
                     onClick={() => { if (!isReadOnly) setIs69BModalOpen(true); }}
                     title={isReadOnly ? 'Modo solo lectura' : 'Importar CSV oficial del SAT Art. 69-B'}
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    leftIcon={<Upload className="w-3 h-3" aria-hidden="true" />}
                   >
-                    <Upload className="w-3 h-3" aria-hidden="true" />
                     Importar CSV 69-B
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <span
@@ -219,10 +191,10 @@ export function DiotDeclaracionTab({
                       ? 'Todos los RFCs fueron verificados contra el padrón oficial Art. 69-B en la nube de LibrePaq'
                       : `Todos los RFCs fueron verificados contra ${db69BCount.toLocaleString()} registros del Art. 69-B del CFF`
                   }
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
-                  <span>0 EFOS 69-B</span>
+                  <StatusBadge tone="emerald" icon={<ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />}>
+                    0 EFOS 69-B
+                  </StatusBadge>
                 </span>
               )}
             </div>
@@ -232,26 +204,24 @@ export function DiotDeclaracionTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               disabled={!hasRows}
               title={!hasRows ? noRowsTitle : 'Exportar cédula DIOT a Excel (.CSV)'}
               onClick={onExportDiotCsv}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs"
+              leftIcon={<Download className="w-4 h-4 text-slate-500" aria-hidden="true" />}
             >
-              <Download className="w-4 h-4 text-slate-500" aria-hidden="true" />
-              <span>Exportar Excel (.CSV)</span>
-            </button>
-            <button
-              type="button"
+              Exportar Excel (.CSV)
+            </Button>
+            <Button
+              variant="primary"
               disabled={!hasRows}
               title={!hasRows ? noRowsTitle : `Descargar archivo batch ${diotData.filename}`}
               onClick={onDownloadDiotTxt}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
+              leftIcon={<Download className="w-4 h-4" aria-hidden="true" />}
             >
-              <Download className="w-4 h-4 text-blue-200" aria-hidden="true" />
-              <span>Descargar Carga Batch ({diotData.filename})</span>
-            </button>
+              Descargar Carga Batch ({diotData.filename})
+            </Button>
           </div>
         </div>
 
@@ -277,13 +247,14 @@ export function DiotDeclaracionTab({
           onClassifySupplier={onClassifySupplier}
         />
 
-        <div className="p-4 bg-[#0A1120] text-slate-200 border-t border-slate-800 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-mono text-slate-300">
+        <div className="p-4 bg-slate-50 text-slate-900 border-t border-slate-200 space-y-2">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-mono font-semibold text-slate-700">
               Vista Previa Carga Batch SAT ({diotData.filename})
             </span>
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="secondary"
               disabled={!hasRows || !diotData.batchTxtContent.trim()}
               title={!hasRows ? noRowsTitle : 'Copiar contenido del archivo batch .TXT al portapapeles'}
               onClick={() => {
@@ -294,25 +265,19 @@ export function DiotDeclaracionTab({
                   }
                 });
               }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#111C35] hover:bg-slate-800 text-emerald-300 border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs"
+              leftIcon={
+                isCopied
+                  ? <Check className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
+                  : <Copy className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+              }
             >
-              {isCopied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-                  <span>¡Copiado al Portapapeles!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-                  <span>Copiar Contenido .TXT</span>
-                </>
-              )}
-            </button>
+              {isCopied ? '¡Copiado al Portapapeles!' : 'Copiar Contenido .TXT'}
+            </Button>
           </div>
           <span className="visually-hidden" aria-live="polite">
             {isCopied ? 'Contenido DIOT copiado al portapapeles' : ''}
           </span>
-          <pre className="max-h-60 overflow-y-auto text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
+          <pre className="max-h-60 overflow-y-auto p-3 rounded-xl bg-white border border-slate-200 text-xs font-mono text-slate-800 overflow-x-auto leading-relaxed">
             <code>
               {diotData.batchTxtContent || 'Sin operaciones gravadas pagadas registradas en este periodo.'}
             </code>

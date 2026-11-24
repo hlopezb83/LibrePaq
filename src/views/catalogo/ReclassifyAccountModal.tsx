@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRightLeft, Loader2, X } from 'lucide-react';
+import { ArrowRightLeft } from 'lucide-react';
+import { AlertBanner, Button, FormField, ModalShell, Select } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
-import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { MESES_SAT } from '../../shared/sat-constants';
 import type { AccountWithBalance } from '../../shared/types';
@@ -44,8 +43,6 @@ export function ReclassifyAccountModal({
   const [periodTo, setPeriodTo] = useState<number>(currentPeriod);
   const [confirmImpact, setConfirmImpact] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  useDialogLightDismiss(dialogRef, onClose, { isOpen });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -156,72 +153,55 @@ export function ReclassifyAccountModal({
     { id: 'reclass-pto', label: `Periodo Final (${currentYear})`, value: periodTo, onChange: setPeriodTo }
   ];
 
-  return createPortal(
-    <dialog
-      ref={dialogRef}
-      closedby={reclassifyMutation.isPending ? 'none' : 'any'}
-      onCancel={(e) => {
-        e.preventDefault();
-        if (!reclassifyMutation.isPending) onClose();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape' && !reclassifyMutation.isPending) {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        }
-      }}
+  return (
+    <ModalShell
+      dialogRef={dialogRef}
+      isOpen={isOpen}
       onClose={onClose}
-      aria-labelledby="reclassify-modal-title"
-      className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-[calc(100vw-1rem)] sm:w-full max-w-lg max-h-[92dvh] open:flex open:flex-col overflow-hidden backdrop:bg-slate-900/60 p-0 m-auto"
+      busy={reclassifyMutation.isPending}
+      usePortal={true}
+      maxWidth="lg"
+      titleId="reclassify-modal-title"
+      title="Reclasificación Masiva de Cuentas"
+      subtitle={`Traslada movimientos entre cuentas afectables en ${currentYear} respetando candados SAT.`}
+      icon={<ArrowRightLeft className="w-5 h-5" aria-hidden="true" />}
+      iconTone="amber"
+      closeLabel="Cerrar modal de reclasificación"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            size="md"
+            disabled={reclassifyMutation.isPending}
+            onClick={onClose}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            loading={reclassifyMutation.isPending}
+            disabled={isSubmitDisabled}
+            title={disabledReason}
+            onClick={() => reclassifyMutation.mutate()}
+            leftIcon={<ArrowRightLeft className="w-4 h-4" aria-hidden="true" />}
+          >
+            {reclassifyMutation.isPending ? 'Reclasificando...' : 'Ejecutar Reclasificación'}
+          </Button>
+        </>
+      }
     >
-      <header className="p-4 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
-            <ArrowRightLeft className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <h2 id="reclassify-modal-title" className="text-sm font-bold text-slate-900">
-              Reclasificación Masiva de Cuentas
-            </h2>
-            <p className="text-xs text-slate-500">
-              Traslada movimientos entre cuentas afectables en {currentYear} respetando candados SAT.
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={reclassifyMutation.isPending}
-          aria-label="Cerrar modal de reclasificación"
-          className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer disabled:opacity-40"
-        >
-          <X className="w-5 h-5" aria-hidden="true" />
-        </button>
-      </header>
-
-      <div className="p-4 space-y-4 text-xs flex-1 min-h-0 overflow-y-auto overscroll-contain">
-        {formError && (
-          <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <span>{formError}</span>
-          </div>
-        )}
+      <div className="space-y-4 text-xs">
+        {formError && <AlertBanner tone="danger">{formError}</AlertBanner>}
 
         {overlapsLockedPeriod && (
-          <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
-            <span>
-              El rango seleccionado (P{String(minPeriod).padStart(2, '0')}–P{String(maxPeriod).padStart(2, '0')}) incluye el periodo bloqueado P{String(currentPeriod).padStart(2, '0')}/{currentYear}.
-            </span>
-          </div>
+          <AlertBanner tone="danger">
+            El rango seleccionado (P{String(minPeriod).padStart(2, '0')}–P{String(maxPeriod).padStart(2, '0')}) incluye el periodo bloqueado P{String(currentPeriod).padStart(2, '0')}/{currentYear}.
+          </AlertBanner>
         )}
 
-        <div className="space-y-1">
-          <label htmlFor="reclass-from" className="font-bold text-slate-800 block">
-            Cuenta Origen (afectable)
-          </label>
-          <select
+        <FormField label="Cuenta Origen (afectable)" htmlFor="reclass-from">
+          <Select
             id="reclass-from"
             value={fromAccountId}
             onChange={(e) => {
@@ -232,25 +212,22 @@ export function ReclassifyAccountModal({
                 setToAccountId(nextDistinct);
               }
             }}
-            className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 font-mono"
+            className="font-mono"
           >
             {affectableAccounts.map((acc) => (
               <option key={acc.id} value={acc.id}>
                 {acc.code} — {acc.name}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </FormField>
 
-        <div className="space-y-1">
-          <label htmlFor="reclass-to" className="font-bold text-slate-800 block">
-            Cuenta Destino (afectable)
-          </label>
-          <select
+        <FormField label="Cuenta Destino (afectable)" htmlFor="reclass-to">
+          <Select
             id="reclass-to"
             value={toAccountId}
             onChange={(e) => setToAccountId(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 font-mono"
+            className="font-mono"
           >
             {affectableAccounts
               .filter((acc) => acc.id !== fromAccountId)
@@ -259,28 +236,25 @@ export function ReclassifyAccountModal({
                   {acc.code} — {acc.name}
                 </option>
               ))}
-          </select>
-        </div>
+          </Select>
+        </FormField>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {periodSelectors.map((sel) => (
-            <div key={sel.id} className="space-y-1">
-              <label htmlFor={sel.id} className="font-bold text-slate-800 block">
-                {sel.label}
-              </label>
-              <select
+            <FormField key={sel.id} label={sel.label} htmlFor={sel.id}>
+              <Select
                 id={sel.id}
                 value={sel.value}
                 onChange={(e) => sel.onChange(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 font-mono"
+                className="font-mono"
               >
                 {MESES_SAT.map((m) => (
                   <option key={m.periodo} value={m.periodo}>
                     P{String(m.periodo).padStart(2, '0')} — {m.nombre}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
           ))}
         </div>
 
@@ -291,7 +265,7 @@ export function ReclassifyAccountModal({
               Se reasignarán todos los movimientos de{' '}
               <strong className="font-mono text-slate-900">{fromAccount.code}</strong> ({fromAccount.name}) hacia{' '}
               <strong className="font-mono text-slate-900">{toAccount.code}</strong> ({toAccount.name}) en{' '}
-              <strong className="font-mono">
+              <strong className="font-mono tabular-nums">
                 P{String(minPeriod).padStart(2, '0')}–P{String(maxPeriod).padStart(2, '0')}/{currentYear}
               </strong>.
             </p>
@@ -300,7 +274,7 @@ export function ReclassifyAccountModal({
                 type="checkbox"
                 checked={confirmImpact}
                 onChange={(e) => setConfirmImpact(e.target.checked)}
-                className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
+                className="mt-0.5 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
               />
               <span className="text-[11px] font-semibold text-slate-800">
                 Confirmo trasladar los movimientos del rango seleccionado (acción masiva sobre pólizas abiertas).
@@ -309,36 +283,10 @@ export function ReclassifyAccountModal({
           </div>
         )}
 
-        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-[11px] leading-relaxed">
-          <strong>Protección de Candado SAT:</strong> Si cualquiera de los periodos afectados tiene candado fiscal activo, la operación será rechazada automáticamente sin alterar las pólizas cerradas.
-        </div>
+        <AlertBanner tone="warning" title="Protección de Candado SAT:">
+          Si cualquiera de los periodos afectados tiene candado fiscal activo, la operación será rechazada automáticamente sin alterar las pólizas cerradas.
+        </AlertBanner>
       </div>
-
-      <footer className="p-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={reclassifyMutation.isPending}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-200/70 cursor-pointer"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          disabled={isSubmitDisabled}
-          title={disabledReason}
-          onClick={() => reclassifyMutation.mutate()}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
-        >
-          {reclassifyMutation.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <ArrowRightLeft className="w-4 h-4" aria-hidden="true" />
-          )}
-          <span>{reclassifyMutation.isPending ? 'Reclasificando...' : 'Ejecutar Reclasificación'}</span>
-        </button>
-      </footer>
-    </dialog>,
-    document.body
+    </ModalShell>
   );
 }

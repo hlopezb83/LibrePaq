@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
-import { AlertCircle, CheckCircle2, ClipboardCheck, Clock, Printer } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Printer } from 'lucide-react';
+import { Button, StatusBadge } from '../../components/ui';
 import { parseNavTarget } from '../../components/shell/parseNavTarget';
 
 export interface DashboardClosingCycleStep {
@@ -51,25 +52,27 @@ export function DashboardClosingCycle({
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${
-              completedChecks === 5
-                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                : 'bg-slate-100 text-slate-800 border-slate-300'
-            }`}
+          <StatusBadge
+            tone={completedChecks === 5 ? 'emerald' : 'slate'}
+            icon={
+              completedChecks === 5 ? (
+                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+              ) : undefined
+            }
+            className="font-mono tabular-nums"
           >
             {completedChecks === 5
-              ? '✓ 5 de 5 Etapas Cuadradas'
+              ? '5 de 5 Etapas Cuadradas'
               : `${completedChecks} de 5 etapas completadas`}
-          </span>
-          <button
-            type="button"
+          </StatusBadge>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onOpenDeliverables}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-semibold transition cursor-pointer"
+            leftIcon={<Printer className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />}
           >
-            <Printer className="w-3.5 h-3.5 text-blue-700" aria-hidden="true" />
             Generar Entregables
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -78,57 +81,57 @@ export function DashboardClosingCycle({
           const parsedTarget = parseNavTarget(check.to);
           const isUnstarted = !hasActivity && !check.done;
           return (
-          <Link
-            key={check.id}
-            to={parsedTarget.to}
-            search={parsedTarget.search as unknown as Record<string, string>}
-            className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2.5 group min-w-0 ${
-              check.done
-                ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-400 hover:shadow-xs'
-                : isUnstarted
-                ? 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:shadow-xs'
-                : 'bg-amber-50/70 border-amber-300 hover:border-amber-400 hover:shadow-xs'
-            }`}
-          >
-            <div className="flex items-start gap-2.5">
-              {check.done ? (
-                <CheckCircle2
-                  className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5"
-                  aria-hidden="true"
-                />
-              ) : isUnstarted ? (
-                <Clock
-                  className="w-4 h-4 text-slate-500 shrink-0 mt-0.5"
-                  aria-hidden="true"
-                />
-              ) : (
-                <AlertCircle
-                  className="w-4 h-4 text-amber-700 shrink-0 mt-0.5"
-                  aria-hidden="true"
-                />
-              )}
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-slate-900 line-clamp-2" title={check.label}>
-                  {check.label}
-                </div>
-                <div
-                  className="text-[11px] text-slate-600 line-clamp-2 mt-0.5"
-                  title={check.detail}
-                >
-                  {renderDetailWithAmounts(check.detail)}
+            <Link
+              key={check.id}
+              to={parsedTarget.to}
+              search={parsedTarget.search as unknown as Record<string, string>}
+              className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2.5 group min-w-0 ${
+                check.done
+                  ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-400 hover:shadow-xs'
+                  : isUnstarted
+                  ? 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:shadow-xs'
+                  : 'bg-amber-50/70 border-amber-300 hover:border-amber-400 hover:shadow-xs'
+              }`}
+            >
+              <div className="flex items-start gap-2.5">
+                {check.done ? (
+                  <CheckCircle2
+                    className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  />
+                ) : isUnstarted ? (
+                  <Clock className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" aria-hidden="true" />
+                ) : (
+                  <AlertCircle
+                    className="w-4 h-4 text-amber-700 shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  />
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 line-clamp-2" title={check.label}>
+                    {check.label}
+                  </div>
+                  <div
+                    className="text-[11px] text-slate-600 line-clamp-2 mt-0.5"
+                    title={check.detail}
+                  >
+                    {renderDetailWithAmounts(check.detail)}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold">
-              <span className={check.done ? 'text-emerald-700' : isUnstarted ? 'text-slate-600' : 'text-amber-800'}>
-                {check.done ? 'Completado ✔' : isUnstarted ? 'Por iniciar' : 'Pendiente revisión'}
-              </span>
-              <span className="text-blue-700 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5 shrink-0">
-                Ir al paso →
-              </span>
-            </div>
-          </Link>
+              <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold">
+                <StatusBadge
+                  tone={check.done ? 'emerald' : isUnstarted ? 'slate' : 'amber'}
+                >
+                  {check.done ? 'Completado' : isUnstarted ? 'Por iniciar' : 'Pendiente revisión'}
+                </StatusBadge>
+                <span className="text-blue-700 group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5 shrink-0">
+                  <span>Ir al paso</span>
+                  <ArrowRight className="w-3 h-3" aria-hidden="true" />
+                </span>
+              </div>
+            </Link>
           );
         })}
       </div>

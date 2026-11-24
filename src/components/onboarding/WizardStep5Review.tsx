@@ -1,5 +1,6 @@
 import { CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
+import { StatusBadge } from '../ui';
 
 interface WizardStep5ReviewProps {
   name: string;
@@ -34,21 +35,21 @@ export function WizardStep5Review({
 }: WizardStep5ReviewProps) {
   return (
     <div className="space-y-4">
-      <div className="dark-surface p-4 rounded-2xl bg-[#0A1120] text-white space-y-2">
+      <div className="p-4 rounded-2xl bg-white border border-slate-300/90 shadow-2xs space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">
             Resumen de Configuración
           </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          <StatusBadge tone="emerald" dot>
             Listo para inicializar
-          </span>
+          </StatusBadge>
         </div>
-        <div className="text-base font-bold text-white">{name}</div>
-        <div className="text-xs font-mono text-slate-300">
-          RFC: <strong className="text-white">{rfc}</strong> • {regimenFiscal} • CP {codigoPostal}
+        <div className="text-base font-bold text-slate-900">{name}</div>
+        <div className="text-xs font-mono text-slate-700">
+          RFC: <strong className="text-slate-900">{rfc}</strong> • {regimenFiscal} • CP {codigoPostal}
         </div>
-        <div className="text-xs text-slate-300">
-          Periodo de arranque: <strong>P{String(currentPeriod).padStart(2, '0')} - {currentYear}</strong>
+        <div className="text-xs text-slate-600">
+          Periodo de arranque: <strong className="text-slate-900">P{String(currentPeriod).padStart(2, '0')} - {currentYear}</strong>
         </div>
       </div>
 

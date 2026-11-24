@@ -7,6 +7,7 @@ import {
   Sparkles,
   Trash2
 } from 'lucide-react';
+import { Button, InlineConfirm } from '../../components/ui';
 import type { CfdiDocument } from '../../shared/types';
 
 interface CfdiActionsCellProps {
@@ -47,35 +48,16 @@ function CfdiActionsCellBase({
 
   if (isConfirmingDelete) {
     return (
-      <div
-        role="alertdialog"
-        aria-label={`Confirmar eliminación de ${row.serie}-${row.folio}`}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            setConfirmDeleteCfdiId(null);
-          }
-        }}
-        className="flex items-center justify-end gap-1"
-      >
-        <button
-          type="button"
-          disabled={isDeletePending}
-          title="Confirmar eliminación definitiva del CFDI"
-          onClick={() => onConfirmDelete(row.id)}
-          className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-700 hover:bg-red-800 text-white cursor-pointer"
-        >
-          Confirmar
-        </button>
-        <button
-          type="button"
-          autoFocus
-          title="Cancelar eliminación (Esc)"
-          onClick={() => setConfirmDeleteCfdiId(null)}
-          className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-        >
-          No
-        </button>
+      <div className="flex justify-end">
+        <InlineConfirm
+          tone="danger"
+          busy={isDeletePending}
+          confirmLabel={isDeletePending ? 'Eliminando...' : 'Confirmar'}
+          cancelLabel="No"
+          ariaLabel={`Confirmar eliminación de ${row.serie}-${row.folio}`}
+          onConfirm={() => onConfirmDelete(row.id)}
+          onCancel={() => setConfirmDeleteCfdiId(null)}
+        />
       </div>
     );
   }
@@ -83,8 +65,9 @@ function CfdiActionsCellBase({
   return (
     <div className="flex items-center justify-end gap-1 whitespace-nowrap">
       {!row.polizaId && (
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           disabled={isContabilizarDisabled}
           onClick={() => onOpenContabilizarModal(row)}
           aria-label={`Contabilizar ${row.serie}-${row.folio}`}
@@ -99,24 +82,22 @@ function CfdiActionsCellBase({
               ? 'CFDI de Traslado (T) — sin efectos contables de ingreso/gasto'
               : 'Contabilizar CFDI y generar póliza cuadrada'
           }
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-white shadow-2xs transition ${
-            isContabilizarDisabled
-              ? 'opacity-50 cursor-not-allowed bg-slate-500'
-              : 'bg-blue-700 hover:bg-blue-800 cursor-pointer'
-          }`}
+          leftIcon={
+            isWriteBlocked ? (
+              <Lock className="w-3 h-3" aria-hidden="true" />
+            ) : (
+              <Sparkles className="w-3 h-3" aria-hidden="true" />
+            )
+          }
         >
-          {isWriteBlocked ? (
-            <Lock className="w-3 h-3" aria-hidden="true" />
-          ) : (
-            <Sparkles className="w-3 h-3" aria-hidden="true" />
-          )}
           Contabilizar
-        </button>
+        </Button>
       )}
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
+        loading={isVerifyingThisRow}
         disabled={isVerifySatPending || isReadOnlyClient}
-        aria-busy={isVerifyingThisRow}
         onClick={() => onVerifySat(row.id)}
         title={
           isReadOnlyClient
@@ -124,34 +105,34 @@ function CfdiActionsCellBase({
             : 'Consultar vigencia fiscal y Lista 69-B directamente en el SAT'
         }
         aria-label={`Verificar estatus SAT de ${row.serie}-${row.folio}`}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        leftIcon={<ShieldCheck className="w-3 h-3 text-emerald-700" aria-hidden="true" />}
       >
-        <ShieldCheck className="w-3 h-3" aria-hidden="true" />
         {isVerifyingThisRow ? 'Consultando...' : 'SAT'}
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => onPreviewInvoice(row)}
         title="Ver Representación Impresa CFDI 4.0"
         aria-label={`Ver factura impresa ${row.serie}-${row.folio}`}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
+        leftIcon={<FileText className="w-3 h-3 text-blue-700" aria-hidden="true" />}
       >
-        <FileText className="w-3 h-3 text-blue-700" aria-hidden="true" />
         Factura
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => onOpenXmlViewer(row)}
         title="Ver estructura XML del CFDI"
         aria-label={`Ver XML de ${row.serie}-${row.folio}`}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 cursor-pointer"
+        leftIcon={<Code2 className="w-3 h-3" aria-hidden="true" />}
       >
-        <Code2 className="w-3 h-3" aria-hidden="true" />
         XML
-      </button>
+      </Button>
       {!row.polizaId && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           disabled={isWriteBlocked}
           onClick={() => {
             if (isWriteBlocked) return;
@@ -165,14 +146,14 @@ function CfdiActionsCellBase({
               : 'Eliminar CFDI no contabilizado del ADD'
           }
           aria-label={`Eliminar CFDI ${row.serie}-${row.folio}`}
-          className={`p-1.5 rounded-lg transition ${
+          className={
             isWriteBlocked
-              ? 'opacity-40 cursor-not-allowed text-slate-400'
-              : 'text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer'
-          }`}
+              ? 'p-1.5 text-slate-400'
+              : 'p-1.5 text-slate-500 hover:text-red-700 hover:bg-red-50'
+          }
         >
           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-        </button>
+        </Button>
       )}
     </div>
   );

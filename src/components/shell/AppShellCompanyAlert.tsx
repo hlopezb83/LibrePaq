@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Company } from '../../shared/types';
 import { getCompanyInitials } from '../company-switcher/companyThemes';
+import { StatusBadge } from '../ui';
 
 interface AppShellCompanyAlertProps {
   company: Company;
@@ -29,7 +30,7 @@ export function AppShellCompanyAlert({
       onMouseLeave={() => setIsPaused(false)}
       onFocusCapture={() => setIsPaused(true)}
       onBlurCapture={() => setIsPaused(false)}
-      className="dark-surface mb-3 px-3 py-2 rounded-xl bg-[#0A1120] border border-blue-500 text-white shadow-md flex items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top duration-300 no-print"
+      className="mb-3 px-3.5 py-2.5 rounded-2xl bg-white border border-blue-300 text-slate-900 shadow-2xs flex items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top duration-300 no-print"
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <div
@@ -38,23 +39,23 @@ export function AppShellCompanyAlert({
         >
           {getCompanyInitials(company.name)}
         </div>
-        <div className="text-xs flex items-center gap-2 min-w-0 flex-1">
-          <span className="font-bold truncate">
+        <div className="text-xs flex flex-wrap items-center gap-2 min-w-0 flex-1">
+          <span className="font-bold text-slate-900 truncate">
             Empresa activa: {company.name}
           </span>
-          <span className="font-mono bg-blue-950 px-1.5 py-0.5 rounded text-[11px] font-bold text-blue-200 border border-blue-500/50 shrink-0">
+          <StatusBadge tone="blue" shape="tag">
             {company.rfc}
-          </span>
-          <span className="hidden md:inline text-emerald-300 text-[11px] font-semibold shrink-0">
+          </StatusBadge>
+          <StatusBadge tone="emerald" dot className="hidden md:inline-flex">
             Contexto verificado
-          </span>
+          </StatusBadge>
         </div>
       </div>
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Descartar aviso de cambio de empresa"
-        className="dark-focus-ring p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer shrink-0"
+        className="min-w-[28px] min-h-[28px] inline-flex items-center justify-center p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer shrink-0 transition-colors"
       >
         <X className="w-4 h-4" aria-hidden="true" />
       </button>

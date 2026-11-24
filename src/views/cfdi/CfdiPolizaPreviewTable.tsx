@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react';
+import { StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import type { CfdiPreviewMovement } from './CfdiContabilizarModal';
 
@@ -26,18 +27,15 @@ export function CfdiPolizaPreviewTable({
           Vista Previa de la Póliza que se Registrará (Partida Doble)
         </span>
         {isBalanced ? (
-          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-emerald-800 font-semibold">
+          <StatusBadge tone="emerald" icon={<Check className="w-3 h-3" aria-hidden="true" />}>
             Sumas Iguales Verificadas
-            <Check className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
-          </span>
+          </StatusBadge>
         ) : hasMovements ? (
-          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 font-semibold">
+          <StatusBadge tone="amber" className="font-mono tabular-nums">
             Asiento Descuadrado ({formatCurrency(diffCents / 100)})
-          </span>
+          </StatusBadge>
         ) : (
-          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-red-900 bg-red-100 px-2 py-0.5 rounded-full border border-red-300 font-semibold">
-            Sin movimientos proyectados
-          </span>
+          <StatusBadge tone="red">Sin movimientos proyectados</StatusBadge>
         )}
       </div>
 
@@ -93,18 +91,18 @@ export function CfdiPolizaPreviewTable({
                 <div className="flex flex-wrap items-center gap-2">
                   <span>Sumas Iguales:</span>
                   {isBalanced ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-300">
+                    <StatusBadge
+                      tone="emerald"
+                      icon={<Check className="w-3 h-3" aria-hidden="true" />}
+                    >
                       Póliza Cuadrada
-                      <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" />
-                    </span>
+                    </StatusBadge>
                   ) : !hasMovements ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-900 bg-red-100 px-2 py-0.5 rounded-full border border-red-300">
-                      Sin movimientos
-                    </span>
+                    <StatusBadge tone="red">Sin movimientos</StatusBadge>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                    <StatusBadge tone="amber" className="tabular-nums">
                       Diferencia: {formatCurrency(diffCents / 100)}
-                    </span>
+                    </StatusBadge>
                   )}
                 </div>
               </td>

@@ -1,4 +1,5 @@
 import { AlertCircle, Calculator, Check, Copy, FileText, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertBanner, Button, EmptyState, StatusBadge } from '../../components/ui';
 import { useCompany } from '../../context/CompanyContext';
 import { calculateDia17Deadline } from '../../shared/date-utils';
 import {
@@ -57,18 +58,23 @@ export function PapelDia17Tab({
 
   if (isErrorWp) {
     return (
-      <div role="alert" className="p-8 text-center bg-white rounded-2xl border border-red-200 shadow-2xs space-y-3 max-w-lg mx-auto my-12">
-        <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-        <h3 className="font-bold text-slate-900 text-base">Error al calcular Papel de Trabajo Día 17</h3>
-        <p className="text-xs text-slate-600">{errorWp instanceof Error ? errorWp.message : 'Error de conexión'}</p>
-        <button
-          type="button"
-          onClick={() => void refetchWp()}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Reintentar cálculo</span>
-        </button>
+      <div role="alert" className="max-w-lg mx-auto my-12">
+        <EmptyState
+          variant="card"
+          tone="red"
+          icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+          title="Error al calcular Papel de Trabajo Día 17"
+          description={errorWp instanceof Error ? errorWp.message : 'Error de conexión'}
+          actions={
+            <Button
+              variant="primary"
+              onClick={() => void refetchWp()}
+              leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
+            >
+              Reintentar cálculo
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -101,9 +107,9 @@ export function PapelDia17Tab({
                 <h2 className="text-sm font-bold text-slate-900">
                   Papel de Trabajo Fiscal Día 17 — Parámetros de Cálculo ({workpaper.company.regimenFiscal})
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-blue-50 text-blue-900 border border-blue-200">
+                <StatusBadge tone="blue" className="font-mono">
                   {periodBadge}
-                </span>
+                </StatusBadge>
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
                 {isResicoPf
@@ -121,40 +127,45 @@ export function PapelDia17Tab({
             <span className="visually-hidden" role="status" aria-live="polite">
               {copiedSatDyp ? 'Datos estructurados para Declaraciones y Pagos SAT copiados al portapapeles' : ''}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               disabled={hasUnsavedParams}
               onClick={handleCopySatDyp}
               title={hasUnsavedParams ? unsavedTitle : 'Copiar datos estructurados para llenar el formulario de Declaraciones y Pagos (DyP) en el portal del SAT'}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+              leftIcon={copiedSatDyp ? <Check className="w-4 h-4 text-emerald-700" aria-hidden="true" /> : <Copy className="w-4 h-4 text-slate-600" aria-hidden="true" />}
             >
-              {copiedSatDyp ? <Check className="w-4 h-4 text-emerald-600" aria-hidden="true" /> : <Copy className="w-4 h-4 text-slate-600" aria-hidden="true" />}
-              <span className={copiedSatDyp ? 'text-emerald-700 font-bold' : ''}>{copiedSatDyp ? '¡Copiado para DyP!' : 'Copiar para DyP SAT'}</span>
-            </button>
+              <span className={copiedSatDyp ? 'text-emerald-700 font-bold' : ''}>
+                {copiedSatDyp ? '¡Copiado para DyP!' : 'Copiar para DyP SAT'}
+              </span>
+            </Button>
 
             {onOpenDeliverable && (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 disabled={hasUnsavedParams}
                 title={hasUnsavedParams ? unsavedTitle : 'Abrir Cédula y Firmas Día 17 para impresión PDF'}
                 onClick={() => onOpenDeliverable('DIA17')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-blue-900 border border-blue-300 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+                leftIcon={<FileText className="w-4 h-4 text-blue-700" aria-hidden="true" />}
+                className="border-blue-300 text-blue-900"
               >
-                <FileText className="w-4 h-4 text-blue-700" aria-hidden="true" />
                 Cédula y Firmas Día 17 (PDF)
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
+
+            <Button
+              variant="primary"
               disabled={genTaxProvisionMutation.isPending || isWriteLocked || hasUnsavedParams}
               aria-busy={genTaxProvisionMutation.isPending}
               title={isWriteLocked ? lockTitle : hasUnsavedParams ? unsavedTitle : 'Contabilizar provisión mensual de ISR e IVA'}
               onClick={() => genTaxProvisionMutation.mutate()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
+              leftIcon={
+                genTaxProvisionMutation.isPending
+                  ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  : <Sparkles className="w-4 h-4" aria-hidden="true" />
+              }
             >
-              {genTaxProvisionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Sparkles className="w-4 h-4" aria-hidden="true" />}
               {genTaxProvisionMutation.isPending ? 'Contabilizando Provisión...' : 'Generar Póliza de Provisión ISR + IVA'}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -174,9 +185,9 @@ export function PapelDia17Tab({
         />
 
         {hasUnsavedParams && (
-          <div role="status" aria-live="polite" className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-950 font-medium">
+          <AlertBanner tone="warning">
             Tienes parámetros modificados sin aplicar. Haz clic en <strong>Recalcular</strong> para actualizar el ISR, IVA y valuación cambiaria.
-          </div>
+          </AlertBanner>
         )}
       </div>
 

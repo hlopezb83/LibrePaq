@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle, ArrowLeft, Building2, ShieldCheck } from 'lucide-react';
 import type { Company } from '../../shared/types';
+import { Button } from '../ui';
 
 interface CommandPaletteCompanyConfirmProps {
   activeCompany: Company | null;
@@ -76,24 +77,22 @@ export function CommandPaletteCompanyConfirm({
       </label>
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          leftIcon={<ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />}
           onClick={onCancel}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 cursor-pointer"
         >
-          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
           Volver
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="primary"
           disabled={!confirmed}
           title={!confirmed ? 'Marca la casilla de confirmación para habilitar el cambio' : undefined}
+          leftIcon={<ShieldCheck className="w-4 h-4" aria-hidden="true" />}
           onClick={onConfirm}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs"
         >
-          <ShieldCheck className="w-4 h-4" aria-hidden="true" />
           Confirmar y Cambiar Empresa
-        </button>
+        </Button>
       </div>
     </div>
   );

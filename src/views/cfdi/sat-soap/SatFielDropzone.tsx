@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { CheckCircle2, FileKey, KeyRound, UploadCloud } from 'lucide-react';
+import { Button, StatusBadge } from '../../../components/ui';
 import type { ParsedCerInfo } from '../../../shared/sat-certificate-parser';
 
 export interface SatFielDropzoneProps {
@@ -159,18 +160,22 @@ export function SatFielDropzone({
               {hasCer && parsedCerInfo && (
                 <div className="flex items-center gap-1 flex-wrap pt-0.5">
                   {isRfcMatch ? (
-                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-200/70 px-1.5 py-0.5 rounded font-mono">
-                      ✓ RFC Coincide ({parsedCerInfo.rfcTitular})
-                    </span>
+                    <StatusBadge
+                      tone="emerald"
+                      shape="tag"
+                      icon={<CheckCircle2 className="w-3 h-3" aria-hidden="true" />}
+                    >
+                      RFC Coincide ({parsedCerInfo.rfcTitular})
+                    </StatusBadge>
                   ) : (
-                    <span className="text-[11px] font-bold text-amber-900 bg-amber-200 px-1.5 py-0.5 rounded font-mono">
+                    <StatusBadge tone="amber" shape="tag">
                       RFC: {parsedCerInfo.rfcTitular}
-                    </span>
+                    </StatusBadge>
                   )}
                   {parsedCerInfo.isExpired ? (
-                    <span className="text-[11px] font-bold text-red-800 bg-red-200 px-1.5 py-0.5 rounded">
+                    <StatusBadge tone="red" shape="tag">
                       Vencido
-                    </span>
+                    </StatusBadge>
                   ) : (
                     <span className="text-[11px] text-slate-600 font-mono">
                       Vence: {parsedCerInfo.validTo.slice(0, 10)}
@@ -180,16 +185,16 @@ export function SatFielDropzone({
               )}
             </div>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             disabled={isReadOnlyClient}
             aria-label={hasCer ? 'Cambiar archivo de certificado (.cer)' : 'Explorar y seleccionar certificado (.cer)'}
             title={isReadOnlyClient ? 'Modo solo lectura: carga deshabilitada' : undefined}
             onClick={() => cerInputRef.current?.click()}
-            className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 shrink-0 cursor-pointer transition shadow-2xs"
           >
             {hasCer ? 'Cambiar' : 'Explorar'}
-          </button>
+          </Button>
         </div>
 
         {/* Badge Clave Privada (.key) */}
@@ -210,22 +215,23 @@ export function SatFielDropzone({
                 {hasKey ? keyFileName : 'Pendiente de cargar'}
               </span>
               {hasKey && (
-                <span className="text-[11px] text-emerald-700 font-semibold block pt-0.5">
-                  ✓ Llave cargada en memoria
+                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-semibold pt-0.5">
+                  <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
+                  Llave cargada en memoria
                 </span>
               )}
             </div>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             disabled={isReadOnlyClient}
             aria-label={hasKey ? 'Cambiar archivo de clave privada (.key)' : 'Explorar y seleccionar clave privada (.key)'}
             title={isReadOnlyClient ? 'Modo solo lectura: carga deshabilitada' : undefined}
             onClick={() => keyInputRef.current?.click()}
-            className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 shrink-0 cursor-pointer transition shadow-2xs"
           >
             {hasKey ? 'Cambiar' : 'Explorar'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

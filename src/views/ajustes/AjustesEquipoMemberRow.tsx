@@ -1,4 +1,5 @@
-import { Ban, Building2, Check, Copy, HelpCircle, Loader2 } from 'lucide-react';
+import { Ban, Building2, Check, Copy, HelpCircle } from 'lucide-react';
+import { Button, InlineConfirm, Select, StatusBadge, type BadgeTone } from '../../components/ui';
 import type { Company } from '../../shared/types';
 import {
   DESPACHO_ROLE_LABELS,
@@ -7,10 +8,10 @@ import {
   type WorkspaceMemberRecord
 } from '../../shared/types/despacho-rbac.types';
 
-export const MEMBER_STATUS_BADGE: Record<WorkspaceMemberRecord['status'], string> = {
-  ACTIVO: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-  INVITADO: 'bg-amber-50 text-amber-800 border-amber-200',
-  REVOCADO: 'bg-rose-50 text-rose-800 border-rose-200'
+export const MEMBER_STATUS_TONE: Record<WorkspaceMemberRecord['status'], BadgeTone> = {
+  ACTIVO: 'emerald',
+  INVITADO: 'amber',
+  REVOCADO: 'red'
 };
 
 export const MEMBER_STATUS_LABEL: Record<WorkspaceMemberRecord['status'], string> = {
@@ -103,19 +104,21 @@ export function AjustesEquipoMemberRow({
   };
 
   const roleSelect = (
-    <select
+    <Select
+      size="sm"
       aria-label={`Rol de ${m.email}`}
       disabled={!canManageTeam || isRevoked || isChangingRole}
       value={m.role}
       onChange={(e) => onChangeRole(m.id, e.target.value as DespachoRole)}
-      className="w-full sm:w-auto max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+      containerClassName="w-full sm:w-auto max-w-full"
+      className="font-medium text-slate-800"
     >
       {DESPACHO_ROLES.map((r) => (
         <option key={r} value={r}>
           {DESPACHO_ROLE_LABELS[r]}
         </option>
       ))}
-    </select>
+    </Select>
   );
 
   const companiesControl = isEditing ? (
@@ -141,26 +144,29 @@ export function AjustesEquipoMemberRow({
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           disabled={!canManageTeam || isSavingCompanies || (m.role === 'CLIENTE_LECTURA' && editingCompanyIds.length === 0)}
+          loading={isSavingCompanies}
           title={
             m.role === 'CLIENTE_LECTURA' && editingCompanyIds.length === 0
               ? 'Selecciona al menos una empresa para Cliente Solo Lectura'
               : undefined
           }
           onClick={() => onSaveCompanies(m.id, editingCompanyIds)}
-          className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          className="text-[11px] font-bold"
         >
           {isSavingCompanies ? 'Guardando...' : 'Guardar'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onCancelEditCompanies}
-          className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold cursor-pointer"
+          className="text-[11px]"
         >
           Cancelar
-        </button>
+        </Button>
       </div>
       {m.role === 'CLIENTE_LECTURA' && editingCompanyIds.length === 0 && (
         <p className="text-[11px] text-amber-800 font-medium">
@@ -237,38 +243,19 @@ export function AjustesEquipoMemberRow({
       )}
 
       {confirmRevokeId === m.id ? (
-        <div
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation();
-              setConfirmRevokeId(null);
-            }
-          }}
-          className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 rounded-lg px-2 py-0.5"
-        >
-          <button
-            type="button"
-            disabled={!canManageTeam || isRevoking}
-            aria-busy={isRevoking}
-            onClick={() => onConfirmRevoke(m.id)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold text-rose-800 hover:bg-rose-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isRevoking && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
-            <span>{isRevoking ? 'Revocando...' : 'Confirmar'}</span>
-          </button>
-          <span className="text-rose-300" aria-hidden="true">|</span>
-          <button
-            type="button"
-            autoFocus
-            onClick={() => setConfirmRevokeId(null)}
-            className="px-2 py-1 rounded text-[11px] font-semibold text-slate-700 hover:bg-white cursor-pointer"
-          >
-            No
-          </button>
-        </div>
+        <InlineConfirm
+          tone="danger"
+          busy={!canManageTeam || isRevoking}
+          cancelLabel="Cancelar"
+          confirmLabel={isRevoking ? 'Revocando...' : 'Confirmar'}
+          ariaLabel={`Confirmar revocación de acceso de ${m.email}`}
+          onCancel={() => setConfirmRevokeId(null)}
+          onConfirm={() => onConfirmRevoke(m.id)}
+        />
       ) : (
-        <button
-          type="button"
+        <Button
+          variant="danger-outline"
+          size="sm"
           disabled={!canManageTeam || isRevoked || isRevoking}
           aria-label={`Revocar acceso de ${m.email}`}
           title={
@@ -278,12 +265,12 @@ export function AjustesEquipoMemberRow({
               ? 'Solo el Titular o un Socio puede revocar accesos'
               : `Revocar acceso de ${m.email}`
           }
+          leftIcon={<Ban className="w-3.5 h-3.5" aria-hidden="true" />}
           onClick={() => setConfirmRevokeId(m.id)}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="text-[11px] border-red-200 hover:bg-red-50"
         >
-          <Ban className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>Revocar</span>
-        </button>
+          Revocar
+        </Button>
       )}
     </div>
   );
@@ -293,9 +280,9 @@ export function AjustesEquipoMemberRow({
       <li className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-3 text-xs">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <span className="font-semibold text-slate-900 break-all">{m.email}</span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border shrink-0 ${MEMBER_STATUS_BADGE[m.status]}`}>
+          <StatusBadge tone={MEMBER_STATUS_TONE[m.status]}>
             {MEMBER_STATUS_LABEL[m.status]}
-          </span>
+          </StatusBadge>
         </div>
         <div className="space-y-1">
           <span className="block text-[11px] font-semibold text-slate-600">Rol</span>
@@ -314,9 +301,9 @@ export function AjustesEquipoMemberRow({
     <tr className="align-top">
       <td className="py-2.5 px-3 font-medium text-slate-900">{m.email}</td>
       <td className="py-2.5 px-3 whitespace-nowrap">
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${MEMBER_STATUS_BADGE[m.status]}`}>
+        <StatusBadge tone={MEMBER_STATUS_TONE[m.status]}>
           {MEMBER_STATUS_LABEL[m.status]}
-        </span>
+        </StatusBadge>
       </td>
       <td className="py-2.5 px-3">{roleSelect}</td>
       <td className="py-2.5 px-3">{companiesControl}</td>

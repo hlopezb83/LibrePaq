@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
+import { INPUT_SM_CLASS } from '../../components/ui';
 
 export interface AdminSearchInputProps {
   id: string;
@@ -82,7 +83,7 @@ export function AdminSearchInput({
         spellCheck={false}
         enterKeyHint="search"
         placeholder={placeholder}
-        className="w-full pl-9 pr-9 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-600 [&::-webkit-search-cancel-button]:appearance-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        className={`${INPUT_SM_CLASS} pl-9 pr-9 rounded-xl [&::-webkit-search-cancel-button]:appearance-none`}
       />
       {inputValue && (
         <button

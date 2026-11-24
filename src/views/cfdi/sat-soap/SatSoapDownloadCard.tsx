@@ -1,13 +1,23 @@
 import { useMemo, useState } from 'react';
-import { AlertCircle, CloudDownload, X } from 'lucide-react';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Clock,
+  CloudDownload,
+  FlaskConical,
+  Lightbulb,
+  Radio
+} from 'lucide-react';
+import { AlertBanner, Button, FormField, Input } from '../../../components/ui';
 import type { SatDownloadRequestRecord } from '../../../shared/types';
 import { getCurrentFiscalPeriod, getTodayLocalIso } from '../../../shared/date-utils';
 import { SatDatePresetBar } from './SatDatePresetBar';
 import { SatCelebrationSuccessCard } from './SatCelebrationSuccessCard';
 import { SatRequestsHistoryCard } from './SatRequestsHistoryCard';
 import { SatPendingStatusBanner } from './SatPendingStatusBanner';
-import { getSatDownloadDisabledReason, translateSatErrorCode } from './satErrorTranslator';
-import { SAT_TIPO_SOLICITUD_OPTS } from './satSoapHelpers';
+import { SatSoapErrorBanner } from './SatSoapErrorBanner';
+import { getSatDownloadDisabledReason } from './satErrorTranslator';
+import { SAT_TIPO_SOLICITUD_OPTS, summarizeSatRequestsForRange } from './satSoapHelpers';
 
 interface SatSoapDownloadCardProps {
   tipoSolicitud: 'RECIBIDOS' | 'EMITIDOS' | 'AMBOS';
@@ -59,47 +69,23 @@ export function SatSoapDownloadCard({
   const [dismissedErrorId, setDismissedErrorId] = useState<string | null>(null);
   const todayStr = useMemo(() => getTodayLocalIso(), []);
   const isDateRangeInvalid = Boolean(fechaInicial && fechaFinal && fechaInicial > fechaFinal);
-  const completedRequests = satRequests.filter((r) => r.estadoSolicitud === 'TERMINADA');
-  const periodCompletedRequests = completedRequests.filter((r) => r.fechaInicial === fechaInicial && r.fechaFinal === fechaFinal);
-  const periodHasCompleted = periodCompletedRequests.length > 0;
-  const periodDownloadedCount = periodCompletedRequests.reduce((acc, r) => acc + (r.cfdisDescargados || 0), 0);
-  const latestCompleted = periodCompletedRequests[0] || satRequests.find((r) => r.estadoSolicitud === 'TERMINADA' && r.fechaInicial === fechaInicial && r.fechaFinal === fechaFinal);
-  const totalDownloaded = periodDownloadedCount > 0 ? periodDownloadedCount : completedRequests.reduce((acc, r) => acc + (r.cfdisDescargados || 0), 0);
-  const pendingRequests = satRequests.filter((r) => r.estadoSolicitud === 'ACEPTADA' || r.estadoSolicitud === 'EN_PROCESO');
 
-  const activePendingInPeriod = pendingRequests.find(
-    (r) =>
-      r.fechaInicial === fechaInicial &&
-      r.fechaFinal === fechaFinal &&
-      (tipoSolicitud === 'AMBOS' || r.tipoSolicitud === tipoSolicitud)
-  );
+  const {
+    periodDownloadedCount,
+    latestCompleted,
+    totalDownloaded,
+    pendingRequests,
+    activePendingInPeriod,
+    existingCompletedInPeriod,
+    relevantError
+  } = summarizeSatRequestsForRange({
+    satRequests,
+    fechaInicial,
+    fechaFinal,
+    tipoSolicitud,
+    dismissedErrorId
+  });
 
-  const existingCompletedInPeriod = completedRequests.find(
-    (r) =>
-      r.fechaInicial === fechaInicial &&
-      r.fechaFinal === fechaFinal &&
-      (tipoSolicitud === 'AMBOS' || r.tipoSolicitud === tipoSolicitud)
-  );
-
-  const relevantError = satRequests.find(
-    (r) =>
-      (r.estadoSolicitud === 'ERROR' || r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE') &&
-      r.id !== dismissedErrorId &&
-      r.fechaInicial === fechaInicial &&
-      r.fechaFinal === fechaFinal &&
-      (!periodHasCompleted || r.estadoSolicitud === 'PARCIAL' || r.estadoSolicitud === 'ERROR_LIMITE')
-  );
-  const isPartialStatus = relevantError?.estadoSolicitud === 'PARCIAL' || relevantError?.estadoSolicitud === 'ERROR_LIMITE';
-  const translatedError = relevantError
-    ? isPartialStatus
-      ? {
-          code: relevantError.codigoEstadoSat || 'PARCIAL',
-          title: `Descarga SAT parcial (${relevantError.cfdisDescargados || 0} comprobantes integrados)`,
-          explanation: relevantError.mensajeSat || 'El SAT alcanzó el límite de descarga para este rango.',
-          hint: 'Divide el periodo en rangos de fechas más cortos (ej. por semana o quincena).'
-        }
-      : translateSatErrorCode(relevantError.codigoEstadoSat, relevantError.mensajeSat)
-    : null;
   const downloadDisabledReason = getSatDownloadDisabledReason({
     isReadOnlyClient,
     hasCredentials,
@@ -108,8 +94,33 @@ export function SatSoapDownloadCard({
     isPending: soapDownloadMutation.isPending
   });
 
+  const downloadLabel = soapDownloadMutation.isPending ? (
+    'Firmando con e.firma y descargando facturas del SAT...'
+  ) : !hasCredentials ? (
+    'Conecta la e.firma de tu empresa primero'
+  ) : activePendingInPeriod ? (
+    <span className="inline-flex items-center gap-1.5">
+      <Clock className="w-4 h-4" aria-hidden="true" />
+      <span>
+        Solicitud ya en proceso ante el SAT ({activePendingInPeriod.idSolicitudSat.slice(0, 8)}...)
+      </span>
+    </span>
+  ) : tipoSolicitud === 'AMBOS' ? (
+    `Descargar Gastos e Ingresos del SAT (${fechaInicial} al ${fechaFinal})`
+  ) : tipoSolicitud === 'EMITIDOS' ? (
+    <span className="inline-flex items-center gap-1.5">
+      <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+      <span>Descargar Facturas Emitidas (Ingresos) ({fechaInicial} al {fechaFinal})</span>
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1.5">
+      <ArrowDownLeft className="w-4 h-4" aria-hidden="true" />
+      <span>Descargar Facturas Recibidas (Gastos) ({fechaInicial} al {fechaFinal})</span>
+    </span>
+  );
+
   return (
-    <div className="w-full p-4 sm:p-5 rounded-2xl bg-white border border-slate-300/80 space-y-5 shadow-2xs">
+    <div className="w-full p-4 sm:p-5 rounded-2xl bg-white border border-slate-300/90 space-y-5 shadow-2xs">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
@@ -121,22 +132,36 @@ export function SatSoapDownloadCard({
         </div>
 
         {isDemoCompany && (
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0" role="group" aria-label="Modo de ejecución SAT">
+          <div
+            className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0"
+            role="group"
+            aria-label="Modo de ejecución SAT"
+          >
             <button
               type="button"
               aria-pressed={modoEjecucion === 'SAT_LIVE'}
               onClick={() => setModoEjecucion('SAT_LIVE')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${modoEjecucion === 'SAT_LIVE' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${
+                modoEjecucion === 'SAT_LIVE'
+                  ? 'bg-emerald-700 text-white shadow-2xs'
+                  : 'text-slate-600 hover:bg-white'
+              }`}
             >
-              <span aria-hidden="true">🟢 </span>SAT Live
+              <Radio className="w-3 h-3" aria-hidden="true" />
+              <span>SAT Live</span>
             </button>
             <button
               type="button"
               aria-pressed={modoEjecucion === 'SANDBOX_CRYPTO'}
               onClick={() => setModoEjecucion('SANDBOX_CRYPTO')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${modoEjecucion === 'SANDBOX_CRYPTO' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-600 hover:bg-white'}`}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition ${
+                modoEjecucion === 'SANDBOX_CRYPTO'
+                  ? 'bg-amber-700 text-white shadow-2xs'
+                  : 'text-slate-600 hover:bg-white'
+              }`}
             >
-              <span aria-hidden="true">🟡 </span>Sandbox Demo
+              <FlaskConical className="w-3 h-3" aria-hidden="true" />
+              <span>Sandbox Demo</span>
             </button>
           </div>
         )}
@@ -162,7 +187,9 @@ export function SatSoapDownloadCard({
                 aria-pressed={isSelected}
                 onClick={() => setTipoSolicitud(opt.id)}
                 className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between gap-1.5 ${
-                  isSelected ? opt.activeBorder : 'bg-slate-50/60 hover:bg-slate-100/70 border-slate-200'
+                  isSelected
+                    ? opt.activeBorder
+                    : 'bg-slate-50/60 hover:bg-slate-100/70 border-slate-200'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -170,11 +197,11 @@ export function SatSoapDownloadCard({
                     <Icon className={`w-4 h-4 ${opt.iconColor}`} aria-hidden="true" />
                     {opt.label}
                   </span>
-                  <span className={`w-2 h-2 rounded-full ${isSelected ? opt.dotColor : 'bg-slate-300'}`} />
+                  <span
+                    className={`w-2 h-2 rounded-full ${isSelected ? opt.dotColor : 'bg-slate-300'}`}
+                  />
                 </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  {opt.desc}
-                </p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">{opt.desc}</p>
               </button>
             );
           })}
@@ -201,44 +228,41 @@ export function SatSoapDownloadCard({
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          <div>
-            <label htmlFor="soap-inicio" className="block text-[11px] font-semibold text-slate-700 mb-1">
-              Fecha Inicial (Desde)
-            </label>
-            <input
+          <FormField label="Fecha Inicial (Desde)" htmlFor="soap-inicio">
+            <Input
               id="soap-inicio"
               type="date"
               max={todayStr}
               value={fechaInicial}
               onChange={(e) => setFechaInicial(e.target.value > todayStr ? todayStr : e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono"
+              className="font-mono"
             />
-          </div>
-          <div>
-            <label htmlFor="soap-fin" className="block text-[11px] font-semibold text-slate-700 mb-1">
-              Fecha Final (Hasta)
-            </label>
-            <input
+          </FormField>
+          <FormField label="Fecha Final (Hasta)" htmlFor="soap-fin">
+            <Input
               id="soap-fin"
               type="date"
               max={todayStr}
               value={fechaFinal}
               onChange={(e) => setFechaFinal(e.target.value > todayStr ? todayStr : e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono"
+              className="font-mono"
             />
-          </div>
+          </FormField>
         </div>
         {isDateRangeInvalid && (
-          <p role="alert" className="text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-            La fecha inicial ({fechaInicial}) no puede ser posterior a la fecha final ({fechaFinal}).
-          </p>
+          <AlertBanner tone="danger">
+            La fecha inicial ({fechaInicial}) no puede ser posterior a la fecha final ({fechaFinal}
+            ).
+          </AlertBanner>
         )}
       </div>
 
       {/* Botón Principal de Descarga y Prevención 5002 */}
       <div className="space-y-3 pt-1">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="lg"
+          loading={soapDownloadMutation.isPending}
           disabled={
             soapDownloadMutation.isPending ||
             !hasCredentials ||
@@ -248,29 +272,23 @@ export function SatSoapDownloadCard({
           }
           title={downloadDisabledReason}
           onClick={() => soapDownloadMutation.mutate()}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-xs transition"
+          leftIcon={<CloudDownload className="w-4 h-4" aria-hidden="true" />}
+          className="w-full py-3"
         >
-          <CloudDownload className="w-4 h-4 text-indigo-100" aria-hidden="true" />
-          {soapDownloadMutation.isPending
-            ? 'Firmando con e.firma y descargando facturas del SAT...'
-            : !hasCredentials
-            ? 'Conecta la e.firma de tu empresa primero'
-            : activePendingInPeriod
-            ? <><span aria-hidden="true">⏳ </span>Solicitud ya en proceso ante el SAT ({activePendingInPeriod.idSolicitudSat.slice(0, 8)}...)</>
-            : tipoSolicitud === 'AMBOS'
-            ? `Descargar Gastos e Ingresos del SAT (${fechaInicial} al ${fechaFinal})`
-            : tipoSolicitud === 'EMITIDOS'
-            ? <><span aria-hidden="true">📤 </span>Descargar Facturas Emitidas (Ingresos) ({fechaInicial} al ${fechaFinal})</>
-            : <><span aria-hidden="true">📥 </span>Descargar Facturas Recibidas (Gastos) ({fechaInicial} al ${fechaFinal})</>}
-        </button>
+          {downloadLabel}
+        </Button>
 
         {existingCompletedInPeriod && !activePendingInPeriod && (
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[11px]">
-            <span className="font-bold text-slate-700">
-              <span aria-hidden="true">💡 </span>Nota de periodo:
-            </span>
-            <span>Este periodo ya cuenta con descarga previa ({periodDownloadedCount || existingCompletedInPeriod.cfdisDescargados || 0} comprobantes). Puedes volver a solicitar si requieres actualizar facturas emitidas hoy.</span>
-          </div>
+          <AlertBanner
+            tone="info"
+            icon={<Lightbulb className="w-4 h-4" aria-hidden="true" />}
+            title="Nota de periodo:"
+          >
+            Este periodo ya cuenta con descarga previa (
+            {periodDownloadedCount || existingCompletedInPeriod.cfdisDescargados || 0}{' '}
+            comprobantes). Puedes volver a solicitar si requieres actualizar facturas emitidas
+            hoy.
+          </AlertBanner>
         )}
 
         {latestCompleted && (
@@ -294,49 +312,13 @@ export function SatSoapDownloadCard({
           />
         )}
 
-        {!isDemoCompany && pendingRequests.length === 0 && relevantError && translatedError && (
-          <div
-            role="alert"
-            className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-xs text-amber-950 space-y-2.5 shadow-2xs"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="font-bold flex items-center gap-2 text-amber-900 text-xs sm:text-sm">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
-                <span>{translatedError.title}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono">
-                  SAT {translatedError.code}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setDismissedErrorId(relevantError.id)}
-                  className="min-w-[28px] min-h-[28px] inline-flex items-center justify-center p-1 rounded-lg text-amber-800 hover:bg-amber-200/80 transition cursor-pointer"
-                  title="Descartar aviso"
-                  aria-label="Descartar aviso"
-                >
-                  <X className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-amber-900 leading-relaxed">
-              {relevantError.mensajeSat || translatedError.explanation}
-            </p>
-
-            <div className="bg-white/80 p-2 rounded-lg border border-amber-200 font-mono text-[11px] text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span>Folio SAT: <strong className="select-all underline text-slate-900">{relevantError.idSolicitudSat}</strong></span>
-              <span className="text-slate-600 text-[11px]">({relevantError.fechaInicial} al {relevantError.fechaFinal})</span>
-            </div>
-
-            <p className="text-[11px] text-slate-700">
-              <span aria-hidden="true">💡 </span>
-              <em>¿Qué puedes hacer?</em> {translatedError.hint}
-            </p>
-          </div>
+        {!isDemoCompany && pendingRequests.length === 0 && relevantError && (
+          <SatSoapErrorBanner
+            relevantError={relevantError}
+            onDismiss={() => setDismissedErrorId(relevantError.id)}
+          />
         )}
 
-        {/* Bitácora / Historial de Solicitudes SAT */}
         <SatRequestsHistoryCard
           satRequests={satRequests}
           onVerifyPending={onVerifyPending}

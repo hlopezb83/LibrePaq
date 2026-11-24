@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { AlertCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertCircle, AlertTriangle, FileCheck2, RefreshCw } from 'lucide-react';
 import type { Company } from '../../shared/types';
+import { AlertBanner, Button, EmptyState, ModalShell, StatusBadge } from '../ui';
 import { DeliverableConfigTab } from './DeliverableConfigTab';
 import { DeliverableCoverAndRatiosDoc } from './DeliverableCoverAndRatiosDoc';
 import { DeliverableBalanzaDoc } from './DeliverableBalanzaDoc';
@@ -9,7 +9,7 @@ import { DeliverableResultadosDoc } from './DeliverableResultadosDoc';
 import { DeliverableBalanceDoc } from './DeliverableBalanceDoc';
 import { DeliverableNifSummaryDoc } from './DeliverableNifSummaryDoc';
 import { DeliverableDia17Doc } from './DeliverableDia17Doc';
-import { DeliverableModalHeader } from './DeliverableModalHeader';
+import { DeliverableHeaderActions, DeliverableModalHeader } from './DeliverableModalHeader';
 import { DEFAULT_DELIVERABLE_CONFIG, useExecutiveDeliverables } from './useExecutiveDeliverables';
 
 export interface ExecutiveDeliverablePackageModalProps {
@@ -27,16 +27,11 @@ export function ExecutiveDeliverablePackageModal({
   const d = useExecutiveDeliverables({ company, year, period, isOpen, onClose, initialTab });
 
   useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
+    const dialog = d.dialogRef.current;
+    if (!dialog) return;
+    dialog.id = 'executive-deliverable-modal';
+    dialog.querySelector(':scope > header')?.classList.add('no-print');
+  }, [isOpen, d.dialogRef]);
 
   if (!isOpen) return null;
 
@@ -67,73 +62,97 @@ export function ExecutiveDeliverablePackageModal({
     { id: 'quick-dia17', label: 'Día 17', checked: d.includeDia17, set: d.setIncludeDia17 }
   ];
 
-  return createPortal(
-    <dialog
-      ref={d.dialogRef}
-      id="executive-deliverable-modal"
-      closedby="any"
-      onCancel={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
+  return (
+    <ModalShell
+      dialogRef={d.dialogRef}
+      isOpen={isOpen}
       onClose={onClose}
-      aria-labelledby="executive-deliverables-title"
-      className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-6xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/75 p-0 inset-0 mx-auto my-auto printable-modal-dialog"
+      usePortal
+      maxWidth="6xl"
+      titleId="executive-deliverables-title"
+      closeLabel="Cerrar ventana de entregables"
+      dialogClassName="printable-modal-dialog"
+      bodyClassName="bg-slate-100/60 scrollable-panel printable-dossier sm:p-6"
+      icon={<FileCheck2 className="w-5 h-5" aria-hidden="true" />}
+      iconTone="blue"
+      title={
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <span>Centro de Entregables Contables y Fiscales</span>
+          <StatusBadge tone="blue" shape="tag">
+            Dossier ({d.selectedDocsCount}/6)
+          </StatusBadge>
+        </span>
+      }
+      subtitle={
+        <>
+          {company.name} • RFC: <span className="font-mono font-semibold text-slate-800">{company.rfc}</span> • {d.mesNombre} {year}
+        </>
+      }
+      headerExtra={
+        <DeliverableHeaderActions
+          copiedSummary={d.copiedSummary}
+          isDataReady={Boolean(d.reportsData)}
+          selectedDocsCount={d.selectedDocsCount}
+          onCopySummary={d.handleCopyExecutiveSummary}
+          onExportXlsx={d.handleExportAllXlsx}
+          isExporting={d.isExporting}
+          onExportCsv={d.handleExportAllCsv}
+          onPrint={d.handlePrint}
+          activeTab={d.activeTab}
+        />
+      }
+      headerTabs={
+        <DeliverableModalHeader
+          selectedDocsCount={d.selectedDocsCount}
+          activeTab={d.activeTab}
+          setActiveTab={d.setActiveTab}
+        />
+      }
     >
-      <DeliverableModalHeader
-        company={company}
-        mesNombre={d.mesNombre}
-        year={year}
-        copiedSummary={d.copiedSummary}
-        isDataReady={Boolean(d.reportsData)}
-        selectedDocsCount={d.selectedDocsCount}
-        onCopySummary={d.handleCopyExecutiveSummary}
-        onExportXlsx={d.handleExportAllXlsx}
-        isExporting={d.isExporting}
-        onExportCsv={d.handleExportAllCsv}
-        onPrint={d.handlePrint}
-        onClose={onClose}
-        activeTab={d.activeTab}
-        setActiveTab={d.setActiveTab}
-      />
-
       <div
         role="tabpanel"
         id={`deliv-panel-${d.activeTab}`}
         aria-labelledby={`deliv-tab-${d.activeTab}`}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 bg-slate-100/60 scrollable-panel printable-dossier"
       >
         {d.isUsingDefaultSignatures && d.activeTab !== 'CONFIG' && (
-          <div role="status" className="max-w-5xl mx-auto mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-950 shadow-2xs no-print">
-            <div className="flex items-center gap-2 min-w-0">
-              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-              <span>
-                Los entregables aún usan valores de ejemplo en:{' '}
-                <strong>{defaultFields.length > 0 ? defaultFields.join(', ') : d.auditorName}</strong>.
-                {!d.isReadOnly && ' Personalízalos antes de imprimir o enviar al cliente.'}
-              </span>
-            </div>
-            {!d.isReadOnly && (
-              <button type="button" onClick={() => d.setActiveTab('CONFIG')} className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold transition cursor-pointer shrink-0">
-                Personalizar firmas
-              </button>
-            )}
+          <div className="max-w-5xl mx-auto mb-4 no-print">
+            <AlertBanner
+              tone="warning"
+              icon={<AlertTriangle className="w-4 h-4" aria-hidden="true" />}
+              action={
+                !d.isReadOnly ? (
+                  <Button variant="secondary" size="sm" onClick={() => d.setActiveTab('CONFIG')}>
+                    Personalizar firmas
+                  </Button>
+                ) : undefined
+              }
+            >
+              Los entregables aún usan valores de ejemplo en:{' '}
+              <strong>{defaultFields.length > 0 ? defaultFields.join(', ') : d.auditorName}</strong>.
+              {!d.isReadOnly && ' Personalízalos antes de imprimir o enviar al cliente.'}
+            </AlertBanner>
           </div>
         )}
 
         {d.isErrorData && d.activeTab !== 'CONFIG' && (
-          <div role="alert" className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-red-200 text-center space-y-3 shadow-xs">
-            <AlertCircle className="w-8 h-8 text-red-600 mx-auto" aria-hidden="true" />
-            <h2 className="text-sm font-bold text-slate-900">No se pudieron calcular los entregables del periodo</h2>
-            <p className="text-xs text-slate-600">{d.dataError instanceof Error ? d.dataError.message : 'Error de conexión al servidor contable.'}</p>
-            <button type="button" onClick={d.refetchData} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer">
-              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" /> Reintentar
-            </button>
+          <div role="alert" className="max-w-lg mx-auto my-8">
+            <EmptyState
+              variant="card"
+              tone="red"
+              icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
+              title="No se pudieron calcular los entregables del periodo"
+              description={d.dataError instanceof Error ? d.dataError.message : 'Error de conexión al servidor contable.'}
+              actions={
+                <Button variant="primary" leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />} onClick={d.refetchData}>
+                  Reintentar
+                </Button>
+              }
+            />
           </div>
         )}
 
         {!d.isErrorData && d.isLoadingData && d.activeTab !== 'CONFIG' && (
-          <div role="status" aria-live="polite" aria-busy="true" className="max-w-lg mx-auto my-8 p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500 shadow-xs">
+          <div role="status" aria-live="polite" aria-busy="true" className="max-w-lg mx-auto my-8 p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-600 shadow-2xs">
             Calculando estados financieros y cédula Día 17 para impresión...
           </div>
         )}
@@ -157,11 +176,18 @@ export function ExecutiveDeliverablePackageModal({
         )}
 
         {d.activeTab === 'DOSSIER' && !d.isErrorData && !d.isLoadingData && d.selectedDocsCount === 0 && (
-          <div className="max-w-lg mx-auto my-8 p-6 bg-white rounded-2xl border border-slate-200 text-center space-y-3 shadow-xs">
-            <p className="text-xs text-slate-600">No hay documentos seleccionados para el dossier de cierre.</p>
-            <button type="button" onClick={() => d.setActiveTab('CONFIG')} className="inline-flex items-center px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer">
-              Ir a Firmas y Membrete
-            </button>
+          <div className="max-w-lg mx-auto my-8">
+            <EmptyState
+              variant="card"
+              tone="blue"
+              title="Sin documentos seleccionados"
+              description="No hay documentos seleccionados para el dossier de cierre."
+              actions={
+                <Button variant="primary" onClick={() => d.setActiveTab('CONFIG')}>
+                  Ir a Firmas y Membrete
+                </Button>
+              }
+            />
           </div>
         )}
 
@@ -243,7 +269,6 @@ export function ExecutiveDeliverablePackageModal({
           />
         )}
       </div>
-    </dialog>,
-    document.body
+    </ModalShell>
   );
 }

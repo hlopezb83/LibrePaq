@@ -1,4 +1,5 @@
 import { RotateCcw, Save } from 'lucide-react';
+import { Button, FormField, Input } from '../../components/ui';
 
 export interface PapelDia17DraftParams {
   coefUtilidad: string;
@@ -49,12 +50,14 @@ export function PapelDia17ParamsForm({
       } items-end gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs`}
     >
       {!isPfGeneral && !isResicoPf && (
-        <div>
-          <label htmlFor="dia17-coef-utilidad" className="block text-[11px] font-bold text-slate-700 mb-1">
-            Coeficiente Utilidad (C.U.)
-          </label>
-          <input
+        <FormField
+          label="Coeficiente Utilidad (C.U.)"
+          htmlFor="dia17-coef-utilidad"
+          hint={isResico ? 'No aplica en RESICO' : undefined}
+        >
+          <Input
             id="dia17-coef-utilidad"
+            size="sm"
             type="text"
             inputMode="decimal"
             disabled={isWriteLocked || isResico}
@@ -68,19 +71,17 @@ export function PapelDia17ParamsForm({
             value={draftParams.coefUtilidad}
             onChange={(e) => updateDraftField('coefUtilidad', e.target.value)}
             onBlur={() => normalizeDraftField('coefUtilidad', 1)}
-            className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            className="font-mono tabular-nums"
           />
-          {isResico && <p className="mt-1 text-[11px] text-slate-600">No aplica en RESICO</p>}
-        </div>
+        </FormField>
       )}
+
       {!isResicoPf && (
         <>
-          <div>
-            <label htmlFor="dia17-perdidas-amortizar" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Pérdidas x Amortizar ($)
-            </label>
-            <input
+          <FormField label="Pérdidas x Amortizar ($)" htmlFor="dia17-perdidas-amortizar">
+            <Input
               id="dia17-perdidas-amortizar"
+              size="sm"
               type="text"
               inputMode="decimal"
               disabled={isWriteLocked}
@@ -88,15 +89,14 @@ export function PapelDia17ParamsForm({
               value={draftParams.perdidasAmortizar}
               onChange={(e) => updateDraftField('perdidasAmortizar', e.target.value)}
               onBlur={() => normalizeDraftField('perdidasAmortizar')}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="font-mono tabular-nums"
             />
-          </div>
-          <div>
-            <label htmlFor="dia17-pagos-previos" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Pagos Prov. Anteriores ($)
-            </label>
-            <input
+          </FormField>
+
+          <FormField label="Pagos Prov. Anteriores ($)" htmlFor="dia17-pagos-previos">
+            <Input
               id="dia17-pagos-previos"
+              size="sm"
               type="text"
               inputMode="decimal"
               disabled={isWriteLocked}
@@ -104,15 +104,14 @@ export function PapelDia17ParamsForm({
               value={draftParams.pagosPrevios}
               onChange={(e) => updateDraftField('pagosPrevios', e.target.value)}
               onBlur={() => normalizeDraftField('pagosPrevios')}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="font-mono tabular-nums"
             />
-          </div>
-          <div>
-            <label htmlFor="dia17-ptu-pagada" className="block text-[11px] font-bold text-slate-700 mb-1">
-              PTU Pagada Ejercicio ($)
-            </label>
-            <input
+          </FormField>
+
+          <FormField label="PTU Pagada Ejercicio ($)" htmlFor="dia17-ptu-pagada">
+            <Input
               id="dia17-ptu-pagada"
+              size="sm"
               type="text"
               inputMode="decimal"
               disabled={isWriteLocked}
@@ -120,17 +119,16 @@ export function PapelDia17ParamsForm({
               value={draftParams.ptuPagadaEjercicio}
               onChange={(e) => updateDraftField('ptuPagadaEjercicio', e.target.value)}
               onBlur={() => normalizeDraftField('ptuPagadaEjercicio')}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="font-mono tabular-nums"
             />
-          </div>
+          </FormField>
         </>
       )}
-      <div>
-        <label htmlFor="dia17-iva-saldo-favor" className="block text-[11px] font-bold text-slate-700 mb-1">
-          Saldo a Favor IVA Ant. ($)
-        </label>
-        <input
+
+      <FormField label="Saldo a Favor IVA Ant. ($)" htmlFor="dia17-iva-saldo-favor">
+        <Input
           id="dia17-iva-saldo-favor"
+          size="sm"
           type="text"
           inputMode="decimal"
           disabled={isWriteLocked}
@@ -138,15 +136,14 @@ export function PapelDia17ParamsForm({
           value={draftParams.ivaSaldoFavor}
           onChange={(e) => updateDraftField('ivaSaldoFavor', e.target.value)}
           onBlur={() => normalizeDraftField('ivaSaldoFavor')}
-          className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+          className="font-mono tabular-nums"
         />
-      </div>
-      <div>
-        <label htmlFor="dia17-tc-cierre-usd" className="block text-[11px] font-bold text-slate-700 mb-1">
-          TC Cierre USD (DOF)
-        </label>
-        <input
+      </FormField>
+
+      <FormField label="TC Cierre USD (DOF)" htmlFor="dia17-tc-cierre-usd">
+        <Input
           id="dia17-tc-cierre-usd"
+          size="sm"
           type="text"
           inputMode="decimal"
           disabled={isWriteLocked}
@@ -154,9 +151,10 @@ export function PapelDia17ParamsForm({
           value={draftParams.tcCierreUsd}
           onChange={(e) => updateDraftField('tcCierreUsd', e.target.value)}
           onBlur={() => normalizeDraftField('tcCierreUsd')}
-          className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+          className="font-mono tabular-nums"
         />
-      </div>
+      </FormField>
+
       <div
         className={`flex items-end justify-end gap-1.5 ${
           isResicoPf
@@ -166,9 +164,12 @@ export function PapelDia17ParamsForm({
               : 'sm:col-span-2 lg:col-span-3 xl:col-span-1'
         }`}
       >
-        <button
+        <Button
           type="submit"
-          disabled={isSaving || isWriteLocked || !hasUnsavedParams}
+          variant="primary"
+          size="sm"
+          loading={isSaving}
+          disabled={isWriteLocked || !hasUnsavedParams}
           title={
             isWriteLocked
               ? lockTitle
@@ -176,22 +177,23 @@ export function PapelDia17ParamsForm({
                 ? 'Modifica al menos un parámetro para recalcular'
                 : 'Aplicar parámetros y recalcular cédula Día 17'
           }
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0A1120] hover:bg-slate-800 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs"
+          leftIcon={<Save className="w-3.5 h-3.5" aria-hidden="true" />}
+          className="flex-1"
         >
-          <Save className="w-3.5 h-3.5" aria-hidden="true" />
           <span>{isSaving ? 'Aplicando...' : 'Recalcular'}</span>
-        </button>
+        </Button>
         {hasUnsavedParams && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             disabled={isWriteLocked}
             onClick={onReset}
             title={isWriteLocked ? lockTitle : 'Descartar cambios sin guardar'}
             aria-label="Descartar cambios de parámetros fiscales"
-            className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
+          </Button>
         )}
       </div>
     </form>

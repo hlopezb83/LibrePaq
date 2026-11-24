@@ -63,8 +63,8 @@ export function WizardXmlAutofillBox({
           <div
             className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
               candidates.length > 0
-                ? 'bg-emerald-600 text-white'
-                : 'bg-blue-600/15 text-blue-700 border border-blue-200'
+                ? 'bg-emerald-700 text-white'
+                : 'bg-blue-50 text-blue-700 border border-blue-200'
             }`}
           >
             {candidates.length > 0 ? (

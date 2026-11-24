@@ -6,6 +6,7 @@ import {
   tableFeatures
 } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
+import { StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import type { AccountWithBalance } from '../../shared/types';
 
@@ -46,7 +47,7 @@ export function useBalanzaColumns(onSelectAccount: (accountId: string) => void) 
               type="button"
               tabIndex={-1}
               onClick={() => onSelectAccount(row.id)}
-              className={`text-left hover:text-blue-800 cursor-pointer ${
+              className={`text-left hover:text-blue-800 cursor-pointer whitespace-nowrap ${
                 row.level === 1
                   ? 'font-bold text-slate-900 uppercase'
                   : row.level === 2
@@ -62,56 +63,53 @@ export function useBalanzaColumns(onSelectAccount: (accountId: string) => void) 
       columnHelper.accessor('satGroupCode', {
         header: 'SAT',
         cell: (info) => (
-          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+          <StatusBadge tone="slate" shape="tag">
             {info.getValue()}
-          </span>
+          </StatusBadge>
         )
       }),
       columnHelper.accessor('nature', {
         header: 'Nat.',
         cell: (info) => (
-          <span
-            className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-              info.getValue() === 'DEUDORA'
-                ? 'bg-blue-50 text-blue-800 border-blue-200'
-                : 'bg-slate-100 text-slate-800 border-slate-300'
-            }`}
+          <StatusBadge
+            tone={info.getValue() === 'DEUDORA' ? 'blue' : 'slate'}
+            shape="tag"
           >
             {info.getValue() === 'DEUDORA' ? 'D' : 'A'}
-          </span>
+          </StatusBadge>
         )
       }),
       columnHelper.accessor('initialBalanceComputed', {
-        header: () => <div className="text-right">Saldo Inicial</div>,
+        header: () => <div className="text-right whitespace-nowrap">Saldo Inicial</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-slate-700">
+          <div className="text-right font-mono tabular-nums whitespace-nowrap text-slate-700">
             {formatCurrency(info.getValue())}
           </div>
         )
       }),
       columnHelper.accessor('periodCharges', {
-        header: () => <div className="text-right">Cargos (Debe)</div>,
+        header: () => <div className="text-right whitespace-nowrap">Cargos (Debe)</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-slate-900">
+          <div className="text-right font-mono tabular-nums whitespace-nowrap text-slate-900">
             {info.getValue() > 0 ? formatCurrency(info.getValue()) : '$0.00'}
           </div>
         )
       }),
       columnHelper.accessor('periodCredits', {
-        header: () => <div className="text-right">Abonos (Haber)</div>,
+        header: () => <div className="text-right whitespace-nowrap">Abonos (Haber)</div>,
         cell: (info) => (
-          <div className="text-right font-mono text-slate-900">
+          <div className="text-right font-mono tabular-nums whitespace-nowrap text-slate-900">
             {info.getValue() > 0 ? formatCurrency(info.getValue()) : '$0.00'}
           </div>
         )
       }),
       columnHelper.accessor('finalBalance', {
-        header: () => <div className="text-right">Saldo Final</div>,
+        header: () => <div className="text-right whitespace-nowrap">Saldo Final</div>,
         cell: (info) => {
           const row = info.row.original;
           return (
             <div
-              className={`text-right font-mono ${
+              className={`text-right font-mono tabular-nums whitespace-nowrap ${
                 row.level < 3 ? 'font-bold text-slate-900' : 'font-semibold text-blue-900'
               }`}
             >
@@ -122,14 +120,14 @@ export function useBalanzaColumns(onSelectAccount: (accountId: string) => void) 
       }),
       columnHelper.display({
         id: 'drilldown',
-        header: () => <div className="text-right no-print">Auxiliar</div>,
+        header: () => <div className="text-right no-print whitespace-nowrap">Auxiliar</div>,
         cell: (info) => (
-          <div className="text-right no-print">
+          <div className="text-right no-print whitespace-nowrap">
             <button
               type="button"
               tabIndex={-1}
               onClick={() => onSelectAccount(info.row.original.id)}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 whitespace-nowrap cursor-pointer"
             >
               <BookOpen className="w-3 h-3" aria-hidden="true" />
               Mayor

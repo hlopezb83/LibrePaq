@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, ClipboardList, Copy, RefreshCw } from 'lucide-react';
+import { Button, Select } from '../../components/ui';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import type { AdminAuditLogEntry, AdminAuditLogsPageQuery } from '../../shared/admin-types';
 import { AdminErrorBanner } from './AdminErrorBanner';
@@ -130,14 +131,15 @@ export function SuperAdminAuditTab({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          <span role="status" aria-live="polite" className="text-[11px] font-mono text-slate-700">{total.toLocaleString('es-MX')} eventos</span>
+          <span role="status" aria-live="polite" className="text-[11px] font-mono tabular-nums text-slate-700">{total.toLocaleString('es-MX')} eventos</span>
 
           <label htmlFor="admin-audit-target-filter" className="visually-hidden">Filtrar por tipo de objetivo</label>
-          <select
+          <Select
+            size="sm"
             id="admin-audit-target-filter"
             value={query.targetType || ''}
             onChange={(e) => onQueryChange({ ...query, page: 1, targetType: e.target.value })}
-            className="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+            className="font-semibold text-slate-700"
           >
             <option value="">Todos los objetivos</option>
             <option value="company">Empresas</option>
@@ -146,7 +148,7 @@ export function SuperAdminAuditTab({
             <option value="broadcast">Comunicados</option>
             <option value="platform_alert">Alertas</option>
             <option value="platform">Plataforma</option>
-          </select>
+          </Select>
 
           <AdminSearchInput
             id="admin-audit-search"
@@ -159,17 +161,18 @@ export function SuperAdminAuditTab({
           />
 
           {onRetry && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onRetry}
               disabled={isLoading || isFetching}
-              aria-busy={isLoading || isFetching}
+              loading={isLoading || isFetching}
               title={isLoading || isFetching ? 'Actualizando bitácora...' : 'Actualizar bitácora de auditoría'}
               aria-label="Actualizar bitácora de auditoría"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isLoading || isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading || isFetching ? 'animate-spin' : ''}`} aria-hidden="true" /> Actualizar
-            </button>
+              Actualizar
+            </Button>
           )}
         </div>
       </div>
@@ -191,16 +194,16 @@ export function SuperAdminAuditTab({
               <th scope="col" className="py-2.5 px-3.5 border-b border-slate-200 bg-slate-50">Resumen</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-800">
+          <tbody className="text-slate-800">
             {isLoading && logs.length === 0 ? (
               [0, 1, 2, 3].map((idx) => (
                 <tr key={idx} aria-hidden="true" className="animate-pulse motion-reduce:animate-none">
-                  <td className="py-3 px-2.5"><div className="h-5 w-5 rounded bg-slate-200 mx-auto" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-28 rounded bg-slate-200" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-36 rounded bg-slate-200" /></td>
-                  <td className="py-3 px-3.5"><div className="h-5 w-28 rounded-full bg-slate-200" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
-                  <td className="py-3 px-3.5"><div className="h-3.5 w-48 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-2.5 border-b border-slate-200"><div className="h-5 w-5 rounded bg-slate-200 mx-auto" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-28 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-36 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-5 w-28 rounded-full bg-slate-200" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-20 rounded bg-slate-200" /></td>
+                  <td className="py-3 px-3.5 border-b border-slate-200"><div className="h-3.5 w-48 rounded bg-slate-200" /></td>
                 </tr>
               ))
             ) : logs.length === 0 ? (
@@ -219,7 +222,7 @@ export function SuperAdminAuditTab({
                 return (
                   <Fragment key={entry.id}>
                     <tr className="hover:bg-slate-50/80 transition">
-                      <td className="py-2 px-2 text-center">
+                      <td className="py-2 px-2 text-center border-b border-slate-200">
                         <button
                           type="button"
                           aria-expanded={isExpanded}
@@ -231,23 +234,23 @@ export function SuperAdminAuditTab({
                           {isExpanded ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronRight className="w-4 h-4" aria-hidden="true" />}
                         </button>
                       </td>
-                      <th scope="row" className="py-2.5 px-3.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap text-left">{formatAdminDateTime(entry.createdAt, true)}</th>
-                      <td className="py-2.5 px-3.5">
+                      <th scope="row" className="py-2.5 px-3.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap text-left border-b border-slate-200">{formatAdminDateTime(entry.createdAt, true)}</th>
+                      <td className="py-2.5 px-3.5 border-b border-slate-200">
                         <p className="font-semibold text-slate-900">{entry.actorEmail}</p>
                         {entry.actorUserId && <p className="font-mono text-[10px] text-slate-600">{entry.actorUserId}</p>}
                       </td>
-                      <td className="py-2.5 px-3.5 whitespace-nowrap">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap border-b border-slate-200">
                         <span title={entry.action} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.className}`}>{badge.label}</span>
                       </td>
-                      <td className="py-2.5 px-3.5">
+                      <td className="py-2.5 px-3.5 border-b border-slate-200">
                         <span className="font-semibold text-slate-800">{TARGET_TYPE_LABELS[entry.targetType] ?? entry.targetType}</span>
                         {entry.targetId && <p className="font-mono text-[10px] text-slate-600">{entry.targetId}</p>}
                       </td>
-                      <td className="py-2.5 px-3.5 max-w-md"><p className="text-[11px] text-slate-700 line-clamp-2" title={summary}>{summary}</p></td>
+                      <td className="py-2.5 px-3.5 max-w-md border-b border-slate-200"><p className="text-[11px] text-slate-700 line-clamp-2" title={summary}>{summary}</p></td>
                     </tr>
                     {isExpanded && (
                       <tr id={`audit-meta-${entry.id}`} className="bg-slate-50/90">
-                        <td colSpan={6} className="px-4 py-3 border-t border-slate-200/80">
+                        <td colSpan={6} className="px-4 py-3 border-b border-slate-200">
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                             <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Metadatos completos ({entry.action})</span>
                             {entry.targetId && (

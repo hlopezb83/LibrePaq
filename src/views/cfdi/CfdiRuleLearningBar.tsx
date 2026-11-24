@@ -1,4 +1,5 @@
 import { Sparkles } from 'lucide-react';
+import { Select, StatusBadge } from '../../components/ui';
 import type { AccountingRuleRecord } from '../../shared/types/accounting-rules.types';
 
 const DEDUCTIBLE_PRESETS = [100, 50, 25, 10, 0] as const;
@@ -32,10 +33,12 @@ export function CfdiRuleLearningBar({
     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
       {matchedRule && (
         <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />
+          <StatusBadge
+            tone="emerald"
+            icon={<Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
+          >
             Regla automática aplicada
-          </span>
+          </StatusBadge>
           <span className="text-[11px] text-slate-600 font-medium break-words">
             {matchedRule.name || matchedRule.matchRfc || matchedRule.matchClaveProdServ} · Cta{' '}
             <span className="font-mono font-bold text-slate-800">
@@ -78,12 +81,14 @@ export function CfdiRuleLearningBar({
             >
               % Deducible:
             </label>
-            <select
+            <Select
               id="cfdi-deductible-pct"
+              size="sm"
               value={deductiblePct}
               disabled={disabled}
               onChange={(e) => setDeductiblePct(Number(e.target.value))}
-              className="w-full sm:w-auto min-w-0 max-w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono bg-white text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              containerClassName="w-full sm:w-auto min-w-0 max-w-full"
+              className="font-mono"
             >
               {hasCustomPreset && (
                 <option value={deductiblePct}>{deductiblePct}% (Regla)</option>
@@ -93,7 +98,7 @@ export function CfdiRuleLearningBar({
               <option value={25}>25% (Parcial · 75% a No Deducibles 801)</option>
               <option value={10}>10% (Parcial · 90% a No Deducibles 801)</option>
               <option value={0}>0% (No deducible · 100% a No Deducibles 801)</option>
-            </select>
+            </Select>
           </div>
         )}
       </div>

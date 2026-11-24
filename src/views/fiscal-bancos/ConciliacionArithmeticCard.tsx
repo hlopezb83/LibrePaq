@@ -1,4 +1,5 @@
 import { AlertTriangle, Calculator, CheckCircle2, Clock, Info } from 'lucide-react';
+import { Input, KpiCard, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import type { BankReconciliationResponse, ReconciliationFormulaData } from '../../shared/types';
 import { computeBankReconciliationProof } from './BankReconciliationExport';
@@ -33,86 +34,73 @@ export function ConciliacionArithmeticCard({
     : null;
 
   return (
-    <div className="bg-[#0A1120] text-white rounded-2xl border border-[#1E293B] p-4 sm:p-5 shadow-xs space-y-3.5">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-        <div className="flex items-center gap-2 text-xs font-bold text-blue-300 uppercase tracking-wider">
-          <Calculator className="w-4 h-4" aria-hidden="true" />
-          Cédula Aritmética de Conciliación Bancaria ({reconData.account.code})
+    <div className="bg-white text-slate-900 rounded-2xl border border-slate-300/90 p-4 sm:p-5 shadow-2xs space-y-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+        <div className="flex items-center gap-2 text-xs font-bold text-blue-800 uppercase tracking-wider">
+          <Calculator className="w-4 h-4 text-blue-700" aria-hidden="true" />
+          <span>Cédula Aritmética de Conciliación Bancaria ({reconData.account.code})</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {isFullyReconciled ? (
-            <span
-              title="Todas las partidas del estado de cuenta y libros contables están debidamente emparejadas"
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-2xs"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-              <span>Conciliación Cuadrada (0 pendientes)</span>
+            <span title="Todas las partidas del estado de cuenta y libros contables están debidamente emparejadas">
+              <StatusBadge tone="emerald" icon={<CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}>
+                Conciliación Cuadrada (0 pendientes)
+              </StatusBadge>
             </span>
           ) : (
-            <span
-              title="Existen movimientos bancarios o partidas en tránsito pendientes de conciliar"
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-2xs"
-            >
-              <Clock className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
-              <span>
+            <span title="Existen movimientos bancarios o partidas en tránsito pendientes de conciliar">
+              <StatusBadge tone="amber" icon={<Clock className="w-3.5 h-3.5" aria-hidden="true" />}>
                 {reconData.summary.movimientosPendientesBanco} banco / {reconData.summary.movimientosPendientesLibros} libros pendientes
-              </span>
+              </StatusBadge>
             </span>
           )}
 
-          <span className="text-[11px] font-mono text-slate-300">
+          <span className="text-[11px] font-mono text-slate-600 tabular-nums">
             {reconData.summary.movimientosConciliados} de {reconData.statementLines.length} conciliadas
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
-        <div className="p-3 rounded-xl bg-[#111C35] border border-slate-800">
-          <div className="text-[10px] text-slate-300 uppercase font-sans font-semibold">
-            1. Saldo Final en Libros
-          </div>
-          <div className="mt-1 text-base font-bold text-white">
-            {formatCurrency(reconData.summary.saldoFinalLibros)}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[#111C35] border border-slate-800">
-          <div className="text-[10px] text-slate-300 uppercase font-sans font-semibold">
-            2. (+) Depósitos Banco No Reg.
-          </div>
-          <div className="mt-1 text-base font-bold text-emerald-300">
-            +{formatCurrency(reconFormula?.depositosBancoNoRegistrados ?? 0)}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-[#111C35] border border-slate-800">
-          <div className="text-[10px] text-slate-300 uppercase font-sans font-semibold">
-            3. (-) Cargos Banco No Reg.
-          </div>
-          <div className="mt-1 text-base font-bold text-red-300">
-            -{formatCurrency(reconFormula?.cargosBancoNoRegistrados ?? 0)}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-blue-950/70 border border-blue-700/60">
-          <div className="text-[10px] text-blue-200 uppercase font-sans font-bold">
-            4. (=) Saldo Conciliado Libros
-          </div>
-          <div className="mt-1 text-base font-bold text-blue-200">
-            {formatCurrency(reconFormula?.saldoConciliadoEstimado ?? 0)}
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard
+          label="1. Saldo Final en Libros"
+          value={formatCurrency(reconData.summary.saldoFinalLibros)}
+          className="p-3.5 sm:p-4"
+        />
+        <KpiCard
+          label="2. (+) Depósitos Banco No Reg."
+          value={`+${formatCurrency(reconFormula?.depositosBancoNoRegistrados ?? 0)}`}
+          valueClassName="text-emerald-800"
+          className="p-3.5 sm:p-4"
+        />
+        <KpiCard
+          label="3. (-) Cargos Banco No Reg."
+          value={`-${formatCurrency(reconFormula?.cargosBancoNoRegistrados ?? 0)}`}
+          valueClassName="text-red-700"
+          className="p-3.5 sm:p-4"
+        />
+        <KpiCard
+          tone="blue"
+          label="4. (=) Saldo Conciliado Libros"
+          value={formatCurrency(reconFormula?.saldoConciliadoEstimado ?? 0)}
+          valueClassName="text-blue-900"
+          className="p-3.5 sm:p-4"
+        />
       </div>
 
       {proof && (
-        <div className="pt-2.5 border-t border-slate-800/90 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+        <div className="pt-3 border-t border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="bank-statement-final-balance" className="font-sans text-[11px] font-semibold text-slate-300 whitespace-nowrap">
+            <label
+              htmlFor="bank-statement-final-balance"
+              className="font-sans text-xs font-semibold text-slate-700 whitespace-nowrap"
+            >
               Saldo Final Edo. Cuenta ($):
             </label>
-            <input
+            <Input
               id="bank-statement-final-balance"
+              size="sm"
               type="text"
               inputMode="decimal"
               placeholder="Captura saldo banco"
@@ -122,40 +110,40 @@ export function ConciliacionArithmeticCard({
                 const cleaned = e.target.value.replace(/[^0-9.-]/g, '');
                 onBankBalanceDraftChange?.(cleaned);
               }}
-              className="w-full max-w-[180px] px-2.5 py-1.5 rounded-lg bg-[#111C35] border border-slate-600 text-white placeholder:text-slate-300 font-mono tabular-nums text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+              className="max-w-[180px] font-mono tabular-nums"
             />
             <span
               aria-live="polite"
               className={`text-[11px] font-sans ${
                 closureSaveStatus === 'error'
-                  ? 'text-red-300 font-semibold'
+                  ? 'text-red-700 font-semibold'
                   : closureSaveStatus === 'saved'
-                  ? 'text-emerald-300'
-                  : 'text-slate-300'
+                    ? 'text-emerald-800 font-semibold'
+                    : 'text-slate-600'
               }`}
             >
               {closureSaveStatus === 'saving'
                 ? 'Guardando...'
                 : closureSaveStatus === 'saved'
-                ? 'Guardado'
-                : closureSaveStatus === 'error'
-                ? 'Error al guardar'
-                : !hasCapturedBankBalance
-                ? 'Captura el saldo real de tu estado de cuenta bancario'
-                : ''}
+                  ? 'Guardado'
+                  : closureSaveStatus === 'error'
+                    ? 'Error al guardar'
+                    : !hasCapturedBankBalance
+                      ? 'Captura el saldo real de tu estado de cuenta bancario'
+                      : ''}
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-slate-300">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-slate-700">
             <span>
-              (+) Dep. Tránsito: <strong className="text-emerald-300">+{formatCurrency(proof.cargosContablesEnTransito)}</strong>
+              (+) Dep. Tránsito: <strong className="text-emerald-800">+{formatCurrency(proof.cargosContablesEnTransito)}</strong>
             </span>
             <span>
-              (-) Pagos Tránsito: <strong className="text-amber-300">-{formatCurrency(proof.abonosContablesEnTransito)}</strong>
+              (-) Pagos Tránsito: <strong className="text-amber-800">-{formatCurrency(proof.abonosContablesEnTransito)}</strong>
             </span>
             <span>
               (=) Conciliado Banco:{' '}
-              <strong className="text-blue-200">
+              <strong className="text-blue-800">
                 {hasCapturedBankBalance ? formatCurrency(proof.saldoConciliadoBanco) : 'Pendiente'}
               </strong>
             </span>
@@ -167,25 +155,25 @@ export function ConciliacionArithmeticCard({
               aria-live="polite"
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-mono text-xs font-bold border ${
                 !hasCapturedBankBalance
-                  ? 'bg-slate-800 text-slate-200 border-slate-600'
+                  ? 'bg-slate-100 text-slate-800 border-slate-300'
                   : proof.isCuadrada
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-amber-500/20 text-amber-200 border-amber-500/40'
+                    ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                    : 'bg-amber-50 text-amber-950 border-amber-300'
               }`}
             >
               {!hasCapturedBankBalance ? (
                 <>
-                  <Info className="w-3.5 h-3.5 text-blue-300 shrink-0" aria-hidden="true" />
+                  <Info className="w-3.5 h-3.5 text-blue-700 shrink-0" aria-hidden="true" />
                   <span>Diferencia: Por capturar</span>
                 </>
               ) : proof.isCuadrada ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" aria-hidden="true" />
                   <span>Diferencia: {formatCurrency(proof.diferenciaCuadre)}</span>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-300 shrink-0" aria-hidden="true" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" aria-hidden="true" />
                   <span>Diferencia: {formatCurrency(proof.diferenciaCuadre)}</span>
                 </>
               )}

@@ -8,8 +8,10 @@ import {
 import {
   ArrowDown,
   ArrowUp,
-  ArrowUpDown
+  ArrowUpDown,
+  Search
 } from 'lucide-react';
+import { ClearFiltersButton, EmptyState } from '../../components/ui';
 import { toCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import { balanzaTableFeatures, useBalanzaColumns } from './useBalanzaColumns';
@@ -162,6 +164,12 @@ export function BalanzaTab({
       ? rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end ?? 0)
       : 0;
 
+  const handleClearFilters = () => {
+    setLevelScope('ALL');
+    setHideZeroBalances(false);
+    setBalanzaSearch('');
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
       <BalanzaToolbar
@@ -173,6 +181,7 @@ export function BalanzaTab({
         onLevelScopeChange={setLevelScope}
         hideZeroBalances={hideZeroBalances}
         onToggleHideZero={setHideZeroBalances}
+        onClearFilters={handleClearFilters}
         zeroCount={zeroCount}
         filteredCount={rows.length}
         totalCount={trialBalance.length}
@@ -211,7 +220,7 @@ export function BalanzaTab({
                             : 'none'
                           : undefined
                       }
-                      className="py-3 px-4"
+                      className="py-3 px-4 whitespace-nowrap"
                     >
                       {isSortable ? (
                         <button
@@ -252,28 +261,22 @@ export function BalanzaTab({
           <tbody className="divide-y divide-slate-200 text-xs">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={table.getAllLeafColumns().length} className="py-10 px-4 text-center">
-                  <p className="text-xs text-slate-500">
-                    No se encontraron cuentas con los filtros actuales.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLevelScope('ALL');
-                      setHideZeroBalances(false);
-                      setBalanzaSearch('');
-                    }}
-                    className="mt-2 inline-flex items-center px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-blue-800 transition cursor-pointer"
-                  >
-                    Limpiar filtros
-                  </button>
+                <td colSpan={table.getAllLeafColumns().length} className="py-6 px-4">
+                  <EmptyState
+                    icon={<Search className="w-5 h-5" aria-hidden="true" />}
+                    tone="slate"
+                    title="Sin cuentas en la balanza"
+                    description="No se encontraron cuentas con los filtros actuales."
+                    actions={<ClearFiltersButton onClick={handleClearFilters} />}
+                  />
                 </td>
               </tr>
             ) : (
               <>
                 {paddingTop > 0 && (
-                  <tr aria-hidden="true">
+                  <tr aria-hidden="true" data-spacer="true">
                     <td
+                      data-spacer="true"
                       colSpan={table.getAllLeafColumns().length}
                       style={{ height: `${paddingTop}px` }}
                     />
@@ -297,7 +300,7 @@ export function BalanzaTab({
                       }
                     >
                       {row.getAllCells().map((cell) => (
-                        <td key={cell.id} className="py-2.5 px-4">
+                        <td key={cell.id} className="py-2.5 px-4 whitespace-nowrap">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}
@@ -305,8 +308,9 @@ export function BalanzaTab({
                   );
                 })}
                 {paddingBottom > 0 && (
-                  <tr aria-hidden="true">
+                  <tr aria-hidden="true" data-spacer="true">
                     <td
+                      data-spacer="true"
                       colSpan={table.getAllLeafColumns().length}
                       style={{ height: `${paddingBottom}px` }}
                     />

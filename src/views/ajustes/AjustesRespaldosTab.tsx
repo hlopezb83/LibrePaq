@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react';
 import { AlertTriangle, Download, FileSpreadsheet, FolderTree, Loader2, Upload } from 'lucide-react';
+import { AlertBanner, Button, FormField, Input, ModalShell } from '../../components/ui';
 import { downloadCsvFile } from '../../lib/formatters';
 import type { Company, CompanyBackupBundle } from '../../shared/types';
 import { AjustesRespaldosMetricsCard } from './AjustesRespaldosMetricsCard';
@@ -96,16 +97,17 @@ export function AjustesRespaldosTab({
             </div>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full"
             disabled={isExportingBackup}
-            aria-busy={isExportingBackup}
+            loading={isExportingBackup}
+            leftIcon={<Download className="w-4 h-4 shrink-0" aria-hidden="true" />}
             onClick={handleExportBackup}
-            className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition shadow-xs cursor-pointer disabled:opacity-50"
           >
-            <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
             {isExportingBackup ? 'Generando archivo...' : 'Descargar Respaldo Completo'}
-          </button>
+          </Button>
         </div>
 
         {/* Tarjeta 2: Restaurar Respaldo */}
@@ -191,8 +193,11 @@ export function AjustesRespaldosTab({
               )}
               <span>{isImportingCsv ? 'Importando catálogo...' : 'Importar CSV / TXT / XML'}</span>
             </label>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-slate-600 hover:text-blue-900 hover:bg-blue-50/50"
+              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-blue-700 shrink-0" aria-hidden="true" />}
               onClick={() => {
                 downloadCsvFile(
                   'plantilla_catalogo_cuentas_contpaqi.csv',
@@ -210,98 +215,93 @@ export function AjustesRespaldosTab({
                   ]
                 );
               }}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold text-slate-600 hover:text-purple-900 hover:bg-purple-50/50 transition cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-purple-600 shrink-0" aria-hidden="true" />
               Descargar Plantilla CSV Ejemplo
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
-      <dialog
-        ref={restoreDialogRef}
-        closedby={isRestoringBackup ? 'none' : 'any'}
-        aria-labelledby="confirm-restore-backup-title"
-        onCancel={(e) => {
-          if (isRestoringBackup) {
-            e.preventDefault();
-            return;
-          }
-          cancelRestoreBackup();
-        }}
-        className="m-auto w-full max-w-lg rounded-2xl border border-slate-300 bg-white p-0 shadow-2xl backdrop:bg-slate-900/50"
+      <ModalShell
+        dialogRef={restoreDialogRef}
+        isOpen={Boolean(pendingRestore)}
+        onClose={cancelRestoreBackup}
+        busy={isRestoringBackup}
+        role="alertdialog"
+        maxWidth="lg"
+        icon={<AlertTriangle className="w-5 h-5" aria-hidden="true" />}
+        iconTone={isRfcMismatch ? 'red' : 'amber'}
+        titleId="confirm-restore-backup-title"
+        title="Confirmar restauración de respaldo"
+        subtitle={
+          pendingRestore ? (
+            <>
+              Archivo de <strong className="text-slate-900">{pendingRestore.backupName}</strong> (
+              <span className="font-mono font-semibold">{pendingRestore.backupRfc}</span>)
+            </>
+          ) : undefined
+        }
+        closeLabel="Cerrar confirmación de restauración"
+        bodyClassName="space-y-4 text-xs"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              autoFocus
+              disabled={isRestoringBackup}
+              onClick={cancelRestoreBackup}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant={isRfcMismatch ? 'danger' : 'primary'}
+              disabled={isRestoringBackup || !canRestoreBackup || !isRfcConfirmMatched}
+              loading={isRestoringBackup}
+              leftIcon={isRestoringBackup ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : undefined}
+              onClick={confirmRestoreBackup}
+            >
+              {isRestoringBackup ? 'Restaurando empresa...' : 'Confirmar y restaurar respaldo'}
+            </Button>
+          </>
+        }
       >
         {pendingRestore && (
-          <div className="p-5 sm:p-6 space-y-4 text-xs">
-            <div className="flex items-start gap-2.5">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isRfcMismatch ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>
-                <AlertTriangle className="w-5 h-5" aria-hidden="true" />
-              </div>
-              <div className="space-y-1">
-                <h3 id="confirm-restore-backup-title" className="text-sm font-bold text-slate-900">
-                  Confirmar restauración de respaldo
-                </h3>
-                <p className="text-slate-600">
-                  Archivo de <strong className="text-slate-900">{pendingRestore.backupName}</strong> (<span className="font-mono font-semibold">{pendingRestore.backupRfc}</span>)
-                </p>
-              </div>
-            </div>
-
+          <>
             {isRfcMismatch && (
-              <div role="alert" className="p-3 rounded-xl border border-red-300 bg-red-50 text-red-950 space-y-2">
-                <p className="font-bold">Alerta: El RFC del respaldo no coincide con la empresa activa</p>
-                <p>
+              <AlertBanner
+                tone="danger"
+                title="Alerta: El RFC del respaldo no coincide con la empresa activa"
+              >
+                <p className="mt-0.5">
                   Respaldo: <span className="font-mono font-bold">{pendingRestore.backupRfc}</span> · Empresa activa:{' '}
                   <span className="font-mono font-bold">{activeCompany.rfc}</span>. Se restaurará la empresa destino indicada en el respaldo.
                 </p>
-                <div className="space-y-1 pt-1">
-                  <label htmlFor="confirm-restore-rfc-input" className="block font-bold text-[11px] text-red-950">
-                    Para continuar, escribe el RFC del respaldo ({pendingRestore.backupRfc}):
-                  </label>
-                  <input
-                    id="confirm-restore-rfc-input"
-                    type="text"
-                    value={confirmRfcText}
-                    onChange={(e) => setConfirmRfcText(e.target.value.toUpperCase())}
-                    placeholder={pendingRestore.backupRfc}
-                    className="w-full px-3 py-1.5 rounded-lg border border-red-300 bg-white font-mono uppercase text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600"
-                  />
+                <div className="mt-2.5">
+                  <FormField
+                    htmlFor="confirm-restore-rfc-input"
+                    label={`Para continuar, escribe el RFC del respaldo (${pendingRestore.backupRfc}):`}
+                  >
+                    <Input
+                      id="confirm-restore-rfc-input"
+                      size="sm"
+                      type="text"
+                      value={confirmRfcText}
+                      onChange={(e) => setConfirmRfcText(e.target.value.toUpperCase())}
+                      placeholder={pendingRestore.backupRfc}
+                      className="font-mono uppercase border-red-300 focus:border-red-600 focus:ring-red-600/20"
+                    />
+                  </FormField>
                 </div>
-              </div>
+              </AlertBanner>
             )}
 
             <p className="text-slate-700 leading-relaxed">
-              Se cargarán <strong className="tabular-nums">{pendingRestore.polCount} pólizas</strong> y{' '}
-              <strong className="tabular-nums">{pendingRestore.accCount} cuentas</strong>. Los registros actuales de esa empresa serán reemplazados por el estado del respaldo.
+              Se cargarán <strong className="font-mono tabular-nums">{pendingRestore.polCount} pólizas</strong> y{' '}
+              <strong className="font-mono tabular-nums">{pendingRestore.accCount} cuentas</strong>. Los registros actuales de esa empresa serán reemplazados por el estado del respaldo.
             </p>
-
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200">
-              <button
-                type="button"
-                autoFocus
-                disabled={isRestoringBackup}
-                onClick={cancelRestoreBackup}
-                className="px-3.5 py-2 rounded-xl font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isRestoringBackup || !canRestoreBackup || !isRfcConfirmMatched}
-                aria-busy={isRestoringBackup}
-                onClick={confirmRestoreBackup}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isRfcMismatch ? 'bg-red-700 hover:bg-red-800' : 'bg-amber-700 hover:bg-amber-800'
-                }`}
-              >
-                {isRestoringBackup && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
-                <span>{isRestoringBackup ? 'Restaurando empresa...' : 'Confirmar y restaurar respaldo'}</span>
-              </button>
-            </div>
-          </div>
+          </>
         )}
-      </dialog>
+      </ModalShell>
 
       <AjustesRespaldosMetricsCard
         companyRfc={activeCompany.rfc}

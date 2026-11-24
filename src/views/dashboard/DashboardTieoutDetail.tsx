@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, CheckCircle2, Scale } from 'lucide-react';
+import { AlertBanner, getButtonClasses } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import type { ThreeWayTieoutResult } from '../../shared/engine/three-way-tieout.engine';
 
@@ -107,7 +108,7 @@ export function DashboardTieoutDetail({ tieout, hasTieoutActivity }: DashboardTi
                       ? ({ tab: 'DIOT' } as unknown as Record<string, string>)
                       : undefined
                   }
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-[11px] font-bold text-slate-800 hover:bg-slate-100 shrink-0"
+                  className={getButtonClasses('secondary', 'sm')}
                 >
                   <span>Revisar</span>
                   <ArrowRight className="w-3 h-3" aria-hidden="true" />
@@ -117,15 +118,13 @@ export function DashboardTieoutDetail({ tieout, hasTieoutActivity }: DashboardTi
           </div>
         </div>
       ) : !hasTieoutActivity ? (
-        <div className="rounded-xl bg-slate-100 border border-slate-200 p-3 text-xs text-slate-700 font-medium flex items-center gap-2">
-          <Scale className="w-4 h-4 text-slate-500 shrink-0" aria-hidden="true" />
-          <span>Sin movimientos fiscales ni contables registrados en este periodo.</span>
-        </div>
+        <AlertBanner tone="info" icon={<Scale className="w-4 h-4" aria-hidden="true" />}>
+          Sin movimientos fiscales ni contables registrados en este periodo.
+        </AlertBanner>
       ) : (
-        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-900 font-medium flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
-          <span>Sin discrepancias entre SAT ADD, Contabilidad y DIOT para el periodo activo.</span>
-        </div>
+        <AlertBanner tone="success" icon={<CheckCircle2 className="w-4 h-4" aria-hidden="true" />}>
+          Sin discrepancias entre SAT ADD, Contabilidad y DIOT para el periodo activo.
+        </AlertBanner>
       )}
     </div>
   );

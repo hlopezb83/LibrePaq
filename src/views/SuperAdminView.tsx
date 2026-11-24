@@ -1,10 +1,19 @@
-import { useEffect, type ComponentType } from 'react';
+import { useEffect } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
-  Activity, AlertTriangle, Building2, ClipboardList, Crown, LayoutDashboard,
+  Activity, Building2, ClipboardList, Crown, LayoutDashboard,
   Loader2, Megaphone, RefreshCw, ShieldAlert, ShieldCheck, Target, Users
 } from 'lucide-react';
-import { handleTablistKeyDown } from '../hooks/useTablistKeyboard';
+import {
+  AlertBanner,
+  Button,
+  PageHeader,
+  StatusBadge,
+  TabBar,
+  getButtonClasses,
+  type BadgeTone,
+  type TabBarItem
+} from '../components/ui';
 import {
   canDeletePlatformTenants, canManageBillingAndQuotas,
   canManagePlatformRoles, canPublishPlatformBroadcast
@@ -19,10 +28,10 @@ import { SuperAdminBroadcastTab } from './admin/SuperAdminBroadcastTab';
 import { SuperAdminAuditTab } from './admin/SuperAdminAuditTab';
 import { useSuperAdminManager, type SuperAdminTab } from './admin/useSuperAdminManager';
 
-function getRoleBadgeMeta(role: PlatformRole): { label: string; className: string } {
-  if (role === 'SUPERADMIN') return { label: 'Dueño de Plataforma', className: 'bg-amber-100 text-amber-900 border-amber-300' };
-  if (role === 'BILLING_OPS') return { label: 'Operaciones y Cuotas', className: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
-  return { label: 'Soporte Solo Lectura', className: 'bg-blue-100 text-blue-900 border-blue-300' };
+function getRoleBadgeMeta(role: PlatformRole): { label: string; tone: BadgeTone } {
+  if (role === 'SUPERADMIN') return { label: 'Dueño de Plataforma', tone: 'amber' };
+  if (role === 'BILLING_OPS') return { label: 'Operaciones y Cuotas', tone: 'emerald' };
+  return { label: 'Soporte Solo Lectura', tone: 'blue' };
 }
 
 export function SuperAdminView() {
@@ -79,7 +88,7 @@ export function SuperAdminView() {
         <p className="text-xs text-slate-600 max-w-md mb-5 leading-relaxed">
           Esta vista es de uso exclusivo para el equipo autorizado de LibrePaq Pro. Tu cuenta actual ({m.user?.email || 'Visitante'}) no cuenta con un rol administrativo.
         </p>
-        <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition">
+        <Link to="/" className={getButtonClasses('primary', 'md')}>
           Volver al Tablero Contable
         </Link>
       </div>
@@ -91,14 +100,19 @@ export function SuperAdminView() {
   const openAlertsCount = m.openAlertsCount;
   const roleBadge = getRoleBadgeMeta(m.platformRole);
 
-  const adminTabs: Array<{ id: SuperAdminTab; label: string; icon: ComponentType<{ className?: string }> }> = [
-    { id: 'metrics', label: 'Métricas SaaS', icon: LayoutDashboard },
-    { id: 'users', label: `Usuarios (${usersCount})`, icon: Users },
-    { id: 'companies', label: `Empresas (${companiesCount})`, icon: Building2 },
-    { id: 'ads', label: 'Google Ads', icon: Target },
-    { id: 'sat', label: openAlertsCount > 0 ? `Salud SAT (${openAlertsCount})` : 'Salud SAT', icon: Activity },
-    { id: 'broadcast', label: 'Comunicados', icon: Megaphone },
-    { id: 'audit', label: 'Auditoría', icon: ClipboardList }
+  const adminTabs: Array<TabBarItem<SuperAdminTab>> = [
+    { id: 'metrics', label: 'Métricas SaaS', icon: <LayoutDashboard className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> },
+    { id: 'users', label: 'Usuarios', count: usersCount, icon: <Users className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> },
+    { id: 'companies', label: 'Empresas', count: companiesCount, icon: <Building2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> },
+    { id: 'ads', label: 'Google Ads', icon: <Target className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> },
+    {
+      id: 'sat',
+      label: 'Salud SAT',
+      count: openAlertsCount > 0 ? openAlertsCount : undefined,
+      icon: <Activity className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+    },
+    { id: 'broadcast', label: 'Comunicados', icon: <Megaphone className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> },
+    { id: 'audit', label: 'Auditoría', icon: <ClipboardList className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> }
   ];
 
   const mutatingUserId = m.updateUserStatusMutation.isPending
@@ -115,82 +129,69 @@ export function SuperAdminView() {
 
   return (
     <div className="space-y-4">
-      <header className="bg-white border border-slate-300/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-3.5 min-w-0">
-            <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-300 flex items-center justify-center shrink-0 shadow-2xs">
-              {m.platformRole === 'SUPERADMIN' ? <Crown className="w-6 h-6 text-amber-600" aria-hidden="true" /> : <ShieldCheck className="w-6 h-6 text-blue-600" aria-hidden="true" />}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base sm:text-lg font-bold text-slate-900">
-                  {m.platformRole === 'SUPERADMIN'
-                    ? 'Panel de SuperAdmin LibrePaq Pro'
-                    : 'Consola Administrativa LibrePaq Pro'}
-                </h1>
-                <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${roleBadge.className}`}>
-                  {m.platformRole === 'SUPERADMIN' && <Crown className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />}
-                  {roleBadge.label}
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span>
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled={m.isRefreshing}
-            aria-busy={m.isRefreshing}
-            title={m.isRefreshing ? 'Actualizando datos administrativos...' : 'Actualizar datos de la consola'}
-            onClick={() => void m.refetchAll()}
-            className="inline-flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+      <PageHeader
+        icon={
+          m.platformRole === 'SUPERADMIN' ? (
+            <Crown className="w-5 h-5" aria-hidden="true" />
+          ) : (
+            <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+          )
+        }
+        iconTone={m.platformRole === 'SUPERADMIN' ? 'amber' : 'blue'}
+        title={
+          m.platformRole === 'SUPERADMIN'
+            ? 'Panel de SuperAdmin LibrePaq Pro'
+            : 'Consola Administrativa LibrePaq Pro'
+        }
+        titleBadge={
+          <StatusBadge
+            tone={roleBadge.tone}
+            icon={m.platformRole === 'SUPERADMIN' ? <Crown className="w-3 h-3" aria-hidden="true" /> : undefined}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${m.isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span>{m.isRefreshing ? 'Actualizando...' : 'Actualizar'}</span>
-          </button>
-        </div>
-
-        <div role="tablist" aria-label="Secciones de administración de plataforma" className="flex items-center gap-1.5 overflow-x-auto md:flex-wrap md:overflow-visible erp-tab-scroller max-w-full py-0.5 border-t border-slate-100 pt-3">
-          {adminTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isSelected = m.activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                id={`admin-tab-${tab.id}`}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                aria-controls={isSelected ? `admin-panel-${tab.id}` : undefined}
-                tabIndex={isSelected ? 0 : -1}
-                onClick={() => m.setActiveTab(tab.id)}
-                onKeyDown={(e) => handleTablistKeyDown(e, adminTabs, m.activeTab, m.setActiveTab, 'admin-tab-')}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                  isSelected
-                    ? 'bg-blue-600 text-white border-blue-900 shadow-xs'
-                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </header>
+            {roleBadge.label}
+          </StatusBadge>
+        }
+        subtitle={
+          <>
+            Sesión activa: <span className="font-semibold text-slate-800">{m.user?.email || 'Admin'}</span>
+          </>
+        }
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={m.isRefreshing}
+            loading={m.isRefreshing}
+            title={m.isRefreshing ? 'Actualizando datos administrativos...' : 'Actualizar datos de la consola'}
+            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${m.isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />}
+            onClick={() => void m.refetchAll()}
+          >
+            {m.isRefreshing ? 'Actualizando...' : 'Actualizar'}
+          </Button>
+        }
+        tabs={
+          <TabBar
+            tabs={adminTabs}
+            activeId={m.activeTab}
+            onSelect={(id) => m.setActiveTab(id)}
+            idPrefix="admin-tab-"
+            panelId={`admin-panel-${m.activeTab}`}
+            ariaLabel="Secciones de administración de plataforma"
+          />
+        }
+      />
 
       {m.hasError && !tabShowsOwnError && (
-        <div role="alert" className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-900 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 font-semibold">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" aria-hidden="true" />
-            <span>Ocurrió un error al consultar algunos datos administrativos. Verifica la conexión e intenta de nuevo.</span>
-          </div>
-          <button type="button" onClick={() => void m.refetchAll()} className="px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-800 text-white font-bold cursor-pointer shrink-0">
-            Reintentar
-          </button>
-        </div>
+        <AlertBanner
+          tone="danger"
+          action={
+            <Button variant="danger" size="sm" onClick={() => void m.refetchAll()}>
+              Reintentar
+            </Button>
+          }
+        >
+          Ocurrió un error al consultar algunos datos administrativos. Verifica la conexión e intenta de nuevo.
+        </AlertBanner>
       )}
 
       <div role="tabpanel" id={`admin-panel-${m.activeTab}`} aria-labelledby={`admin-tab-${m.activeTab}`}>

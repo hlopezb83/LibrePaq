@@ -1,4 +1,5 @@
-import { BookOpen, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Pencil, Plus, Trash2 } from 'lucide-react';
+import { InlineConfirm } from '../../components/ui';
 import { toCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance } from '../../shared/types';
 
@@ -94,42 +95,16 @@ export function CatalogoActionsCell({
       </button>
 
       {canDelete && confirmDeleteId === row.id ? (
-        <div
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation();
-              setConfirmDeleteId(null);
-            }
-          }}
-          className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5"
-        >
-          <button
-            type="button"
-            disabled={isWriteBlocked || isDeleting}
-            aria-label={`Confirmar eliminación de cuenta ${row.code}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onConfirmDelete(row.id);
-            }}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold text-red-800 hover:bg-red-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isDeleting && <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />}
-            <span>{isDeleting ? 'Borrando...' : 'Confirmar'}</span>
-          </button>
-          <span className="text-slate-400" aria-hidden="true">/</span>
-          <button
-            type="button"
-            autoFocus
-            disabled={isDeleting}
-            aria-label={`Cancelar eliminación de cuenta ${row.code}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setConfirmDeleteId(null);
-            }}
-            className="px-2 py-1 rounded text-[10px] font-bold text-slate-700 hover:bg-white cursor-pointer disabled:opacity-50"
-          >
-            No
-          </button>
+        <div onClick={(e) => e.stopPropagation()} className="inline-flex">
+          <InlineConfirm
+            tone="danger"
+            confirmLabel={isDeleting ? 'Borrando...' : 'Confirmar'}
+            cancelLabel="No"
+            busy={isWriteBlocked || isDeleting}
+            ariaLabel={`Confirmar eliminación de cuenta ${row.code}`}
+            onConfirm={() => onConfirmDelete(row.id)}
+            onCancel={() => setConfirmDeleteId(null)}
+          />
         </div>
       ) : (
         <button

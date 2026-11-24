@@ -150,7 +150,7 @@ export function AppShellTopHeader({
                 onClick={onOpenNewCompany}
                 aria-label="Dar de alta nueva empresa"
                 title="Dar de alta nueva empresa"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition shadow-2xs cursor-pointer shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                 <span className="hidden @[440px]:inline">Nueva Empresa</span>

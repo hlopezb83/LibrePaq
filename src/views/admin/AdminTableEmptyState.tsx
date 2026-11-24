@@ -1,3 +1,6 @@
+import { Search } from 'lucide-react';
+import { ClearFiltersButton, EmptyState } from '../../components/ui';
+
 export interface AdminTableEmptyStateProps {
   colSpan: number;
   message: string;
@@ -13,19 +16,17 @@ export function AdminTableEmptyState({
 }: AdminTableEmptyStateProps) {
   return (
     <tr>
-      <td colSpan={colSpan} className="py-8 text-center text-slate-600">
-        <div className="flex flex-col items-center gap-2">
-          <span>{message}</span>
-          {hasActiveFilters && onResetFilters && (
-            <button
-              type="button"
-              onClick={onResetFilters}
-              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-            >
-              Restablecer filtros
-            </button>
-          )}
-        </div>
+      <td colSpan={colSpan} className="border-b border-slate-200">
+        <EmptyState
+          tone={hasActiveFilters ? 'slate' : 'blue'}
+          icon={<Search className="w-5 h-5" aria-hidden="true" />}
+          title={message}
+          actions={
+            hasActiveFilters && onResetFilters ? (
+              <ClearFiltersButton label="Restablecer filtros" onClick={onResetFilters} />
+            ) : undefined
+          }
+        />
       </td>
     </tr>
   );

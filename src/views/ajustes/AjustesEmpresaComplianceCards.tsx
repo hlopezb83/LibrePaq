@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FolderTree, Loader2, Lock, LockOpen, ShieldCheck } from 'lucide-react';
+import { Calculator, FileCheck2, FileCode2, FolderTree, Loader2, Lock, LockOpen, ShieldCheck } from 'lucide-react';
+import { AlertBanner, Button, InlineConfirm, KpiCard, StatusBadge } from '../../components/ui';
 import type { Company } from '../../shared/types';
 
 export interface AjustesEmpresaComplianceCardsProps {
@@ -28,9 +29,9 @@ export function AjustesEmpresaComplianceCards({
             <Lock className="w-4 h-4 text-blue-700" aria-hidden="true" />
             <span>Control y Candado Fiscal</span>
           </div>
-          <span className="text-[11px] font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+          <StatusBadge tone="slate" shape="tag">
             P{String(activeCompany.currentPeriod).padStart(2, '0')}/{activeCompany.currentYear}
-          </span>
+          </StatusBadge>
         </div>
 
         <div className="p-5 space-y-4 text-xs">
@@ -38,107 +39,73 @@ export function AjustesEmpresaComplianceCards({
             Protege los registros contables contra modificaciones accidentales una vez presentada la declaración del mes ante el SAT.
           </p>
 
-          <div
-            className={`p-4 rounded-xl border ${
-              periodLock?.isLocked
-                ? 'bg-amber-50 border-amber-200 text-amber-950'
-                : 'bg-emerald-50 border-emerald-200 text-emerald-950'
-            }`}
-          >
-            <div className="flex items-center gap-2 font-bold text-xs">
-              {periodLock?.isLocked ? (
-                <>
-                  <Lock className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
-                  <span>PERIODO BLOQUEADO (SOLO LECTURA)</span>
-                </>
+          <AlertBanner
+            tone={periodLock?.isLocked ? 'warning' : 'success'}
+            icon={
+              periodLock?.isLocked ? (
+                <Lock className="w-4 h-4" aria-hidden="true" />
               ) : (
-                <>
-                  <LockOpen className="w-4 h-4 text-emerald-700 shrink-0" aria-hidden="true" />
-                  <span>PERIODO ABIERTO PARA CAPTURA</span>
-                </>
-              )}
-            </div>
-            <p className="text-[11px] mt-1 text-slate-700">
+                <LockOpen className="w-4 h-4" aria-hidden="true" />
+              )
+            }
+            title={periodLock?.isLocked ? 'PERIODO BLOQUEADO (SOLO LECTURA)' : 'PERIODO ABIERTO PARA CAPTURA'}
+          >
+            <p className="mt-0.5 text-[11px]">
               {periodLock?.isLocked
                 ? `El periodo ${activeCompany.currentPeriod}/${activeCompany.currentYear} se encuentra protegido contra altas, bajas o modificaciones.`
                 : 'Permite registrar pólizas, importar CFDIs y conciliar movimientos bancarios libremente.'}
             </p>
-          </div>
+          </AlertBanner>
 
           {confirmLockToggle ? (
-            <div
-              role="alertdialog"
-              aria-modal="false"
-              aria-label="Confirmar cambio de candado fiscal"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setConfirmLockToggle(false);
-                }
+            <InlineConfirm
+              tone="warning"
+              busy={togglePeriodLockMutation.isPending}
+              ariaLabel="Confirmar cambio de candado fiscal"
+              message={
+                periodLock?.isLocked
+                  ? `¿Reabrir P${String(activeCompany.currentPeriod).padStart(2, '0')}/${activeCompany.currentYear}?`
+                  : `¿Bloquear P${String(activeCompany.currentPeriod).padStart(2, '0')}/${activeCompany.currentYear}?`
+              }
+              confirmLabel={periodLock?.isLocked ? 'Sí, reabrir periodo' : 'Sí, bloquear periodo'}
+              onCancel={() => setConfirmLockToggle(false)}
+              onConfirm={() => {
+                togglePeriodLockMutation.mutate(!(periodLock?.isLocked ?? false));
+                setConfirmLockToggle(false);
               }}
-              className="p-3 rounded-xl bg-amber-50 border border-amber-300 space-y-2"
-            >
-              <p className="font-bold text-amber-950">
-                {periodLock?.isLocked
-                  ? `¿Confirmas reabrir el periodo P${String(activeCompany.currentPeriod).padStart(2, '0')}/${activeCompany.currentYear} para captura?`
-                  : `¿Confirmas bloquear el periodo P${String(activeCompany.currentPeriod).padStart(2, '0')}/${activeCompany.currentYear} contra cambios?`}
-              </p>
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  autoFocus
-                  onClick={() => setConfirmLockToggle(false)}
-                  className="px-3 py-1.5 rounded-lg font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={togglePeriodLockMutation.isPending}
-                  onClick={() => {
-                    togglePeriodLockMutation.mutate(!(periodLock?.isLocked ?? false));
-                    setConfirmLockToggle(false);
-                  }}
-                  className="px-3 py-1.5 rounded-lg font-bold bg-amber-700 hover:bg-amber-800 text-white cursor-pointer disabled:opacity-50"
-                >
-                  {periodLock?.isLocked ? 'Sí, reabrir periodo' : 'Sí, bloquear periodo'}
-                </button>
-              </div>
-            </div>
+              className="w-full justify-between"
+            />
           ) : (
-            <button
-              type="button"
+            <Button
+              variant={periodLock?.isLocked ? 'secondary' : 'primary'}
+              size="lg"
+              className="w-full"
               disabled={isReadOnly || togglePeriodLockMutation.isPending}
-              aria-busy={togglePeriodLockMutation.isPending}
+              loading={togglePeriodLockMutation.isPending}
               title={
                 isReadOnly
                   ? 'Modo solo lectura: no tienes permisos para bloquear o reabrir periodos'
                   : undefined
               }
+              leftIcon={
+                togglePeriodLockMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : periodLock?.isLocked ? (
+                  <LockOpen className="w-4 h-4" aria-hidden="true" />
+                ) : (
+                  <Lock className="w-4 h-4" aria-hidden="true" />
+                )
+              }
               onClick={() => {
                 if (!isReadOnly) setConfirmLockToggle(true);
               }}
-              className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                periodLock?.isLocked
-                  ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-2xs'
-                  : 'bg-amber-600 hover:bg-amber-700 text-white border-transparent shadow-xs'
-              }`}
             >
-              {togglePeriodLockMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-              ) : periodLock?.isLocked ? (
-                <LockOpen className="w-4 h-4" aria-hidden="true" />
-              ) : (
-                <Lock className="w-4 h-4" aria-hidden="true" />
-              )}
-              <span>
-                {togglePeriodLockMutation.isPending
-                  ? 'Actualizando candado...'
-                  : periodLock?.isLocked
-                    ? 'Reabrir Periodo para Captura'
-                    : 'Bloquear Periodo Fiscal'}
-              </span>
-            </button>
+              {togglePeriodLockMutation.isPending
+                ? 'Actualizando candado...'
+                : periodLock?.isLocked
+                  ? 'Reabrir Periodo para Captura'
+                  : 'Bloquear Periodo Fiscal'}
+            </Button>
           )}
         </div>
       </div>
@@ -146,7 +113,7 @@ export function AjustesEmpresaComplianceCards({
       {/* Tarjeta: Estructura y Máscara de Cuentas */}
       <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3">
         <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-          <FolderTree className="w-4 h-4 text-purple-700" aria-hidden="true" />
+          <FolderTree className="w-4 h-4 text-blue-700" aria-hidden="true" />
           <span>Estructura y Catálogo Contable</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
@@ -169,33 +136,52 @@ export function AjustesEmpresaComplianceCards({
         </div>
       </div>
 
-      {/* Tarjeta: Estándares Fiscales SAT */}
-      <div className="bg-[#0A1120] text-white rounded-2xl p-5 shadow-sm border border-slate-800 space-y-3.5 text-xs">
-        <div className="flex items-center gap-2 text-blue-300 font-bold">
-          <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-          <span className="uppercase tracking-wider text-[11px]">Garantía de Conformidad Fiscal</span>
+      {/* Tarjeta: Estándares Fiscales SAT (KPIs blancas limpias) */}
+      <div className="bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-3.5 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+            <ShieldCheck className="w-4 h-4 text-blue-700" aria-hidden="true" />
+            <span>Garantía de Conformidad Fiscal</span>
+          </div>
+          <StatusBadge tone="emerald">Normativa SAT</StatusBadge>
         </div>
-        <p className="text-slate-200 text-[11px] leading-relaxed">
+        <p className="text-slate-600 text-xs leading-relaxed">
           LibrePaq Pro opera bajo las especificaciones técnicas obligatorias del Servicio de Administración Tributaria.
         </p>
 
-        <div className="space-y-2 pt-2 border-t border-slate-800 text-[11px]">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-300">Contabilidad Electrónica</span>
-            <span className="font-mono font-bold text-white">Anexo 24 RMF (XML 1.3)</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-300">Comprobantes Fiscales</span>
-            <span className="font-mono font-bold text-white">CFDI Versión 4.0</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-300">Aritmética Monetaria</span>
-            <span className="font-mono font-bold text-emerald-300">Exactitud al Centavo</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-300">Validación de RFC</span>
-            <span className="font-mono font-bold text-emerald-300">SAT Módulo 11 Oficial</span>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <KpiCard
+            label="Contabilidad Electrónica"
+            value="Anexo 24 RMF"
+            valueClassName="text-sm sm:text-base text-slate-900 font-mono tabular-nums"
+            hint="XML 1.3 oficial"
+            icon={<FileCode2 className="w-4 h-4" aria-hidden="true" />}
+            iconTone="blue"
+          />
+          <KpiCard
+            label="Comprobantes Fiscales"
+            value="CFDI 4.0"
+            valueClassName="text-sm sm:text-base text-slate-900 font-mono tabular-nums"
+            hint="Timbrado y validación"
+            icon={<FileCheck2 className="w-4 h-4" aria-hidden="true" />}
+            iconTone="blue"
+          />
+          <KpiCard
+            label="Aritmética Monetaria"
+            value="Al Centavo"
+            valueClassName="text-sm sm:text-base text-emerald-700 font-mono tabular-nums"
+            hint="Exactitud entera"
+            icon={<Calculator className="w-4 h-4" aria-hidden="true" />}
+            iconTone="emerald"
+          />
+          <KpiCard
+            label="Validación de RFC"
+            value="Módulo 11"
+            valueClassName="text-sm sm:text-base text-emerald-700 font-mono tabular-nums"
+            hint="Algoritmo SAT oficial"
+            icon={<ShieldCheck className="w-4 h-4" aria-hidden="true" />}
+            iconTone="emerald"
+          />
         </div>
       </div>
     </div>

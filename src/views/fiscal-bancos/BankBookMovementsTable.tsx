@@ -1,4 +1,5 @@
 import { CheckCircle2, ReceiptText } from 'lucide-react';
+import { EmptyState, StatusBadge } from '../../components/ui';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { BankReconciliationResponse } from '../../shared/types';
 
@@ -63,20 +64,21 @@ export function BankBookMovementsTable({
           <tbody className="divide-y divide-slate-200 text-xs">
             {visibleMovements.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-600">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto shadow-2xs mb-2">
-                    <ReceiptText className="w-6 h-6" aria-hidden="true" />
-                  </div>
-                  <p className="font-bold text-slate-800 text-sm">
-                    {showOnlyPending && reconData.bookMovements.length > 0
-                      ? 'Sin partidas contables pendientes en libros'
-                      : 'No se encontraron pólizas en esta cuenta bancaria'}
-                  </p>
-                  <p className="text-xs text-slate-600 max-w-sm mx-auto mt-1">
-                    {showOnlyPending && reconData.bookMovements.length > 0
-                      ? 'Todas las partidas contables coinciden con movimientos bancarios.'
-                      : 'Las pólizas registradas con afectación a esta cuenta contable aparecerán aquí automáticamente.'}
-                  </p>
+                <td colSpan={7}>
+                  <EmptyState
+                    icon={<ReceiptText className="w-6 h-6" aria-hidden="true" />}
+                    tone="blue"
+                    title={
+                      showOnlyPending && reconData.bookMovements.length > 0
+                        ? 'Sin partidas contables pendientes en libros'
+                        : 'No se encontraron pólizas en esta cuenta bancaria'
+                    }
+                    description={
+                      showOnlyPending && reconData.bookMovements.length > 0
+                        ? 'Todas las partidas contables coinciden con movimientos bancarios.'
+                        : 'Las pólizas registradas con afectación a esta cuenta contable aparecerán aquí automáticamente.'
+                    }
+                  />
                 </td>
               </tr>
             ) : (
@@ -90,7 +92,11 @@ export function BankBookMovementsTable({
                     key={bm.movementId}
                     tabIndex={!bm.isMatched && onSelectBookMovement ? 0 : undefined}
                     aria-selected={!bm.isMatched && onSelectBookMovement ? isSelected : undefined}
-                    aria-label={!bm.isMatched && onSelectBookMovement ? `${isSelected ? 'Deseleccionar' : 'Seleccionar'} partida contable ${bm.polizaFolio} por ${formatCurrency(amount)} para cruce manual` : undefined}
+                    aria-label={
+                      !bm.isMatched && onSelectBookMovement
+                        ? `${isSelected ? 'Deseleccionar' : 'Seleccionar'} partida contable ${bm.polizaFolio} por ${formatCurrency(amount)} para cruce manual`
+                        : undefined
+                    }
                     onClick={() => {
                       if (!bm.isMatched && onSelectBookMovement) onSelectBookMovement(bm.movementId);
                     }}
@@ -111,39 +117,34 @@ export function BankBookMovementsTable({
                             : 'hover:bg-blue-50/30'
                     }
                   >
-                <td className="py-2.5 px-4 font-mono text-slate-600 w-[110px] whitespace-nowrap">
-                  {formatShortDate(bm.fecha)}
-                </td>
-                <td className="py-2.5 px-4 font-mono font-bold text-blue-800 w-[130px] whitespace-nowrap">
-                  {bm.polizaFolio}
-                </td>
-                <td className="py-2.5 px-4 font-mono text-slate-600 w-[130px] whitespace-nowrap">
-                  {bm.referencia}
-                </td>
-                <td className="py-2.5 px-4 text-slate-800">{bm.concepto}</td>
-                <td className="py-2.5 px-4 text-right font-mono text-slate-900 font-semibold w-[130px] whitespace-nowrap tabular-nums">
-                  {bm.cargoContable > 0 ? formatCurrency(bm.cargoContable) : '—'}
-                </td>
-                <td className="py-2.5 px-4 text-right font-mono text-slate-900 font-semibold w-[130px] whitespace-nowrap tabular-nums">
-                  {bm.abonoContable > 0 ? formatCurrency(bm.abonoContable) : '—'}
-                </td>
-                <td className="py-2.5 px-4 text-center w-[170px] whitespace-nowrap">
-                  {bm.isMatched ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
-                      Cruzado con Banco
-                    </span>
-                  ) : isCandidateMatch ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
-                      Posible cruce
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200/80 text-slate-800 border border-slate-300">
-                      En Tránsito
-                    </span>
-                  )}
-                </td>
-              </tr>
+                    <td className="py-2.5 px-4 font-mono text-slate-600 w-[110px] whitespace-nowrap">
+                      {formatShortDate(bm.fecha)}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono font-bold text-blue-800 w-[130px] whitespace-nowrap">
+                      {bm.polizaFolio}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-600 w-[130px] whitespace-nowrap">
+                      {bm.referencia}
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-800">{bm.concepto}</td>
+                    <td className="py-2.5 px-4 text-right font-mono text-slate-900 font-semibold w-[130px] whitespace-nowrap tabular-nums">
+                      {bm.cargoContable > 0 ? formatCurrency(bm.cargoContable) : '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono text-slate-900 font-semibold w-[130px] whitespace-nowrap tabular-nums">
+                      {bm.abonoContable > 0 ? formatCurrency(bm.abonoContable) : '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-center w-[170px] whitespace-nowrap">
+                      {bm.isMatched ? (
+                        <StatusBadge tone="emerald" icon={<CheckCircle2 className="w-3 h-3" aria-hidden="true" />}>
+                          Cruzado con Banco
+                        </StatusBadge>
+                      ) : isCandidateMatch ? (
+                        <StatusBadge tone="blue">Posible cruce</StatusBadge>
+                      ) : (
+                        <StatusBadge tone="slate">En Tránsito</StatusBadge>
+                      )}
+                    </td>
+                  </tr>
                 );
               })
             )}

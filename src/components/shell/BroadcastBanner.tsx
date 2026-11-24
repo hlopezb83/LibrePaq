@@ -48,7 +48,7 @@ export function BroadcastBanner() {
     <div
       role="region"
       aria-label="Aviso oficial de la plataforma"
-      className={`no-print px-4 py-2.5 border-b text-xs flex items-center justify-between gap-3 transition-colors ${
+      className={`no-print px-3 sm:px-5 py-2.5 border-b text-xs transition-colors ${
         broadcast.type === 'warning'
           ? 'bg-amber-400 text-slate-950 border-amber-600 font-semibold'
           : broadcast.type === 'success'
@@ -56,6 +56,7 @@ export function BroadcastBanner() {
           : 'bg-blue-700 text-white border-blue-800'
       }`}
     >
+      <div className="max-w-[1800px] mx-auto flex items-center justify-between gap-3">
       <div className="flex items-center gap-2 min-w-0">
         {broadcast.type === 'warning' ? (
           <AlertCircle className="w-4 h-4 shrink-0 text-slate-950" aria-hidden="true" />
@@ -78,6 +79,7 @@ export function BroadcastBanner() {
       >
         <X className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
+      </div>
     </div>
   );
 }

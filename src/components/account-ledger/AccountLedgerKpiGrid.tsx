@@ -1,5 +1,7 @@
+import { ArrowDownLeft, ArrowUpRight, Scale, Wallet } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import type { AccountLedgerResponse, AccountNature } from '../../shared/types';
+import { KpiCard } from '../ui';
 
 export function getLedgerNatureLabels(nature: AccountNature): {
   chargesLabel: string;
@@ -29,73 +31,40 @@ export function AccountLedgerKpiGrid({ data, mesNombre }: AccountLedgerKpiGridPr
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 min-w-0">
-        <div className="text-[11px] font-bold text-slate-600 uppercase truncate">
-          Saldo Inicial ({mesNombre})
-        </div>
-        <div
-          className={`mt-1 text-sm sm:text-base font-bold font-mono tabular-nums truncate ${
-            isNegativeInitial ? 'text-red-700' : 'text-slate-900'
-          }`}
-          title={formatCurrency(data.initialBalance)}
-        >
-          {formatCurrency(data.initialBalance)}
-        </div>
-        <div className="text-[10px] text-slate-600">
-          Incluye arrastre de meses previos
-        </div>
-      </div>
+      <KpiCard
+        label={`Saldo Inicial (${mesNombre})`}
+        value={formatCurrency(data.initialBalance)}
+        valueClassName={isNegativeInitial ? 'text-red-700' : 'text-slate-900'}
+        icon={<Wallet className="w-4 h-4" aria-hidden="true" />}
+        iconTone="default"
+        hint="Incluye arrastre de meses previos"
+      />
 
-      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 min-w-0">
-        <div className="text-[11px] font-bold text-slate-600 uppercase truncate">
-          {chargesLabel}
-        </div>
-        <div
-          className="mt-1 text-sm sm:text-base font-bold font-mono tabular-nums text-slate-900 truncate"
-          title={formatCurrency(data.totalCharges)}
-        >
-          {formatCurrency(data.totalCharges)}
-        </div>
-        <div className="text-[10px] text-slate-600">Movimientos en el Debe</div>
-      </div>
+      <KpiCard
+        label={chargesLabel}
+        value={formatCurrency(data.totalCharges)}
+        icon={<ArrowUpRight className="w-4 h-4" aria-hidden="true" />}
+        iconTone="emerald"
+        hint="Movimientos en el Debe"
+      />
 
-      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 min-w-0">
-        <div className="text-[11px] font-bold text-slate-600 uppercase truncate">
-          {creditsLabel}
-        </div>
-        <div
-          className="mt-1 text-sm sm:text-base font-bold font-mono tabular-nums text-slate-900 truncate"
-          title={formatCurrency(data.totalCredits)}
-        >
-          {formatCurrency(data.totalCredits)}
-        </div>
-        <div className="text-[10px] text-slate-600">Movimientos en el Haber</div>
-      </div>
+      <KpiCard
+        label={creditsLabel}
+        value={formatCurrency(data.totalCredits)}
+        icon={<ArrowDownLeft className="w-4 h-4" aria-hidden="true" />}
+        iconTone="amber"
+        hint="Movimientos en el Haber"
+      />
 
-      <div
-        className={`p-3.5 rounded-xl border min-w-0 ${
-          isNegativeFinal ? 'bg-red-50/80 border-red-200' : 'bg-blue-50/80 border-blue-200'
-        }`}
-      >
-        <div
-          className={`text-[11px] font-bold uppercase truncate ${
-            isNegativeFinal ? 'text-red-900' : 'text-blue-900'
-          }`}
-        >
-          (=) Saldo Final Acumulado
-        </div>
-        <div
-          className={`mt-1 text-sm sm:text-base font-bold font-mono tabular-nums truncate ${
-            isNegativeFinal ? 'text-red-700' : 'text-blue-950'
-          }`}
-          title={formatCurrency(data.finalBalance)}
-        >
-          {formatCurrency(data.finalBalance)}
-        </div>
-        <div className={`text-[10px] ${isNegativeFinal ? 'text-red-800' : 'text-blue-800'}`}>
-          Naturaleza {data.account.nature}
-        </div>
-      </div>
+      <KpiCard
+        label="(=) Saldo Final Acumulado"
+        value={formatCurrency(data.finalBalance)}
+        tone={isNegativeFinal ? 'red' : 'blue'}
+        iconTone={isNegativeFinal ? 'red' : 'blue'}
+        valueClassName={isNegativeFinal ? 'text-red-700' : 'text-blue-950'}
+        icon={<Scale className="w-4 h-4" aria-hidden="true" />}
+        hint={`Naturaleza ${data.account.nature}`}
+      />
     </div>
   );
 }
