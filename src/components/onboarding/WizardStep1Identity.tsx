@@ -10,6 +10,16 @@ import type { RfcModulo11Result } from '../../shared/accounting-engine';
 import type { CfdiCompanyCandidate } from '../../shared/cfdi-company-extractor';
 import { WizardXmlAutofillBox } from './WizardXmlAutofillBox';
 
+const MORAL_REGIMEN_CODES = new Set(['601', '603', '610', '620', '622', '623', '624', '626']);
+const FISICA_REGIMEN_CODES = new Set([
+  '605', '606', '607', '608', '610', '611', '612', '614', '615', '616', '621', '622', '625', '626'
+]);
+
+export function filterRegimenesByPersonType(personType: 'MORAL' | 'FISICA'): string[] {
+  const allowed = personType === 'MORAL' ? MORAL_REGIMEN_CODES : FISICA_REGIMEN_CODES;
+  return REGIMENES_FISCALES_SAT.filter((reg) => allowed.has(reg.slice(0, 3)));
+}
+
 interface WizardStep1IdentityProps {
   personType: 'MORAL' | 'FISICA';
   setPersonType: (type: 'MORAL' | 'FISICA') => void;
@@ -65,6 +75,13 @@ export function WizardStep1Identity({
   onFileLoaded,
   onSelectXmlCandidate
 }: WizardStep1IdentityProps) {
+  const regimenesDisponibles = filterRegimenesByPersonType(personType);
+  const selectRegimenes = regimenesDisponibles.includes(regimenFiscal)
+    ? regimenesDisponibles
+    : regimenFiscal
+      ? [regimenFiscal, ...regimenesDisponibles]
+      : regimenesDisponibles;
+
   return (
     <div className="space-y-4">
       <WizardXmlAutofillBox
@@ -147,7 +164,7 @@ export function WizardStep1Identity({
             <label htmlFor="wizard-comp-rfc" className="block text-xs font-bold text-slate-700">
               RFC {personType === 'MORAL' ? '(12 caracteres)' : '(13 caracteres)'} *
             </label>
-            {isRfcValid && rfcModulo11 && (
+            {isRfcValid && rfcModulo11 && (rfcModulo11.isValidCheckDigit || rfcModulo11.expectedCheckDigit) && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 {rfcModulo11.isValidCheckDigit ? (
                   <span
@@ -181,14 +198,16 @@ export function WizardStep1Identity({
                     )}
                   </>
                 )}
-                <button
-                  type="button"
-                  aria-expanded={showModulo11Breakdown}
-                  onClick={() => setShowModulo11Breakdown(!showModulo11Breakdown)}
-                  className="text-[11px] font-medium text-slate-600 hover:text-slate-800 underline ml-0.5 cursor-pointer"
-                >
-                  {showModulo11Breakdown ? 'Ocultar M11' : 'Ver M11'}
-                </button>
+                {rfcModulo11.steps.length > 0 && (
+                  <button
+                    type="button"
+                    aria-expanded={showModulo11Breakdown}
+                    onClick={() => setShowModulo11Breakdown(!showModulo11Breakdown)}
+                    className="text-[11px] font-medium text-slate-600 hover:text-slate-800 underline ml-0.5 cursor-pointer"
+                  >
+                    {showModulo11Breakdown ? 'Ocultar M11' : 'Ver M11'}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -262,19 +281,25 @@ export function WizardStep1Identity({
         </label>
         <select
           id="wizard-comp-regimen"
+          title={regimenFiscal}
           value={regimenFiscal}
           onChange={(e) => setRegimenFiscal(e.target.value)}
           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm bg-white focus:border-blue-700 cursor-pointer"
         >
-          {REGIMENES_FISCALES_SAT.map((reg) => (
+          {selectRegimenes.map((reg) => (
             <option key={reg} value={reg}>
               {reg}
             </option>
           ))}
         </select>
+        {regimenFiscal && (
+          <p className="mt-1 text-[11px] text-slate-600 leading-snug break-words">
+            Seleccionado: <span className="font-medium text-slate-800">{regimenFiscal}</span>
+          </p>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5 pt-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 pb-2">
         <div>
           <label htmlFor="wizard-comp-year" className="block text-xs font-bold text-slate-700 mb-1">
             Ejercicio Fiscal de Arranque

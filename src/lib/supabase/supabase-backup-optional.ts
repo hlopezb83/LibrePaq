@@ -7,6 +7,31 @@ import type { BankN1MatchRecord } from '../../shared/types/bank-n1.types';
 import type { InventoryMethod, InventoryPeriodRecord } from '../../shared/types/cost-of-sales.types';
 import { chunkArray } from './supabase-pagination';
 
+export interface BackupPayrollPeriodSetting {
+  companyId: string;
+  ejercicio: number;
+  periodo: number;
+  stateCode: string;
+  isnRate: number;
+  imssPatronal: number;
+  rcv: number;
+  infonavit: number;
+  updatedAt?: string;
+}
+
+export interface BackupPolizaCfdi {
+  id: string;
+  companyId: string;
+  polizaId: string;
+  cfdiUuid: string;
+  createdAt?: string;
+}
+
+export type ExtendedBackupBundle = CompanyBackupBundle & {
+  payrollPeriodSettings?: BackupPayrollPeriodSetting[];
+  polizaCfdis?: BackupPolizaCfdi[];
+};
+
 type UpsertRow = Record<string, unknown>;
 
 export function isMissingTableError(error: { code?: string; message?: string } | null | undefined): boolean {
@@ -25,18 +50,18 @@ export function isMissingTableError(error: { code?: string; message?: string } |
 async function fetchOptionalTableRows(
   client: SupabaseClient,
   table: string,
-  companyId: string
+  companyId: string,
+  orderColumns: readonly string[] = ['id']
 ): Promise<Array<Record<string, unknown>>> {
   const rows: Array<Record<string, unknown>> = [];
   let from = 0;
   const pageSize = 1000;
   while (true) {
-    const { data, error } = await client
-      .from(table)
-      .select('*')
-      .eq('company_id', companyId)
-      .order('id')
-      .range(from, from + pageSize - 1);
+    let query = client.from(table).select('*').eq('company_id', companyId);
+    for (const col of orderColumns) {
+      query = query.order(col);
+    }
+    const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) {
       if (isMissingTableError(error)) return [];
       throw new Error(`[Export ${table}] ${error.message}`);
@@ -68,6 +93,8 @@ export async function clearOptionalBackupTables(client: SupabaseClient, companyI
   // Orden FK: bank_statement_matches referencia bank_statement_lines
   const optionalTables = [
     'bank_statement_matches',
+    'poliza_cfdis',
+    'payroll_period_settings',
     'accounting_rules',
     'annual_tax_snapshots',
     'inventory_periods'
@@ -88,12 +115,16 @@ export async function exportOptionalBackupTables(
   annualTaxSnapshots: AnnualTaxInputs[];
   inventoryPeriods: InventoryPeriodRecord[];
   bankStatementMatches: BankN1MatchRecord[];
+  payrollPeriodSettings: BackupPayrollPeriodSetting[];
+  polizaCfdis: BackupPolizaCfdi[];
 }> {
-  const [rawRules, rawSnapshots, rawInventory, rawMatches] = await Promise.all([
+  const [rawRules, rawSnapshots, rawInventory, rawMatches, rawPayroll, rawPolizaCfdis] = await Promise.all([
     fetchOptionalTableRows(client, 'accounting_rules', companyId),
     fetchOptionalTableRows(client, 'annual_tax_snapshots', companyId),
     fetchOptionalTableRows(client, 'inventory_periods', companyId),
-    fetchOptionalTableRows(client, 'bank_statement_matches', companyId)
+    fetchOptionalTableRows(client, 'bank_statement_matches', companyId),
+    fetchOptionalTableRows(client, 'payroll_period_settings', companyId, ['ejercicio', 'periodo']),
+    fetchOptionalTableRows(client, 'poliza_cfdis', companyId)
   ]);
 
   const accountingRules: AccountingRuleRecord[] = rawRules.map((r) => ({
@@ -165,13 +196,40 @@ export async function exportOptionalBackupTables(
     createdAt: String(r.created_at ?? new Date().toISOString())
   }));
 
-  return { accountingRules, annualTaxSnapshots, inventoryPeriods, bankStatementMatches };
+  const payrollPeriodSettings: BackupPayrollPeriodSetting[] = rawPayroll.map((r) => ({
+    companyId: String(r.company_id ?? companyId),
+    ejercicio: Number(r.ejercicio),
+    periodo: Number(r.periodo),
+    stateCode: String(r.state_code ?? 'CMX'),
+    isnRate: Number(r.isn_rate ?? 4.0),
+    imssPatronal: Number(r.imss_patronal ?? 0),
+    rcv: Number(r.rcv ?? 0),
+    infonavit: Number(r.infonavit ?? 0),
+    updatedAt: r.updated_at ? String(r.updated_at) : undefined
+  }));
+
+  const polizaCfdis: BackupPolizaCfdi[] = rawPolizaCfdis.map((r) => ({
+    id: String(r.id),
+    companyId: String(r.company_id ?? companyId),
+    polizaId: String(r.poliza_id),
+    cfdiUuid: String(r.cfdi_uuid),
+    createdAt: r.created_at ? String(r.created_at) : undefined
+  }));
+
+  return {
+    accountingRules,
+    annualTaxSnapshots,
+    inventoryPeriods,
+    bankStatementMatches,
+    payrollPeriodSettings,
+    polizaCfdis
+  };
 }
 
 export async function restoreOptionalBackupTables(
   client: SupabaseClient,
   companyId: string,
-  bundle: CompanyBackupBundle
+  bundle: ExtendedBackupBundle
 ): Promise<void> {
   if (Array.isArray(bundle.accountingRules) && bundle.accountingRules.length > 0) {
     const rows = bundle.accountingRules.map((r) => ({
@@ -239,5 +297,36 @@ export async function restoreOptionalBackupTables(
       created_at: m.createdAt || new Date().toISOString()
     }));
     await upsertOptionalChunks(client, 'bank_statement_matches', rows, 'id');
+  }
+
+  if (Array.isArray(bundle.payrollPeriodSettings) && bundle.payrollPeriodSettings.length > 0) {
+    const rows = bundle.payrollPeriodSettings.map((ps) => ({
+      company_id: companyId,
+      ejercicio: Number(ps.ejercicio),
+      periodo: Number(ps.periodo),
+      state_code: ps.stateCode || 'CMX',
+      isn_rate: Number(ps.isnRate ?? 4.0),
+      imss_patronal: Number(ps.imssPatronal ?? 0),
+      rcv: Number(ps.rcv ?? 0),
+      infonavit: Number(ps.infonavit ?? 0),
+      updated_at: ps.updatedAt || new Date().toISOString()
+    }));
+    await upsertOptionalChunks(client, 'payroll_period_settings', rows, 'company_id,ejercicio,periodo');
+  }
+
+  if (Array.isArray(bundle.polizaCfdis) && bundle.polizaCfdis.length > 0) {
+    const polIds = new Set((bundle.polizas || []).map((p) => p.id));
+    const rows = bundle.polizaCfdis
+      .filter((pc) => pc.polizaId && pc.cfdiUuid && (polIds.size === 0 || polIds.has(pc.polizaId)))
+      .map((pc) => ({
+        id: pc.id,
+        company_id: companyId,
+        poliza_id: pc.polizaId,
+        cfdi_uuid: pc.cfdiUuid.trim().toUpperCase(),
+        created_at: pc.createdAt || new Date().toISOString()
+      }));
+    if (rows.length > 0) {
+      await upsertOptionalChunks(client, 'poliza_cfdis', rows, 'poliza_id,cfdi_uuid');
+    }
   }
 }

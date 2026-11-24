@@ -113,9 +113,13 @@ export function parseCfdiXmlString(
   let moneda = rawMonedaHeader && rawMonedaHeader !== 'XXX' ? rawMonedaHeader : 'MXN';
   let tipoCambio = parseFloat(getAttr(comprobante, 'TipoCambio') || '1') || 1;
 
-  const cfdiRel = findNode(comprobante, 'CfdiRelacionado');
-  let uuidRelacionado: string | null = cfdiRel ? getAttr(cfdiRel, 'UUID').toUpperCase() || null : null;
-  let uuidsRelacionados: string[] | undefined;
+  const cfdiRelNodes = findNodes(comprobante, 'CfdiRelacionado');
+  const headerUuidsRel = cfdiRelNodes
+    .map((n) => getAttr(n, 'UUID').toUpperCase())
+    .filter(Boolean);
+  let uuidRelacionado: string | null = headerUuidsRel[0] || null;
+  let uuidsRelacionados: string[] | undefined =
+    headerUuidsRel.length > 0 ? headerUuidsRel : undefined;
   let taxBreakdown: CfdiTaxBreakdown | null = null;
   let relatedDocs: CfdiRelatedDoc[] | null = null;
 
@@ -130,12 +134,12 @@ export function parseCfdiXmlString(
     moneda = pago.moneda;
     tipoCambio = pago.tipoCambio;
     uuidRelacionado = pago.uuidRelacionado;
-    uuidsRelacionados = pago.uuidsRelacionados;
+    uuidsRelacionados = pago.uuidsRelacionados.length > 0 ? pago.uuidsRelacionados : uuidsRelacionados;
     taxBreakdown = pago.taxBreakdown;
     relatedDocs = pago.relatedDocs;
     rawMetodo = 'PUE';
   } else if (tipoComprobante === 'N') {
-    const nom = parseNomina12Complement(comprobante, subtotal);
+    const nom = parseNomina12Complement(comprobante, subtotal, descuento);
     subtotal = nom.subtotal;
     isrRetenido = nom.isrRetenido;
     descuento = nom.descuento;
@@ -165,10 +169,8 @@ export function parseCfdiXmlString(
     uuid,
     fecha,
     tipoComprobante,
-    serie:
-      getAttr(comprobante, 'Serie') ||
-      (tipoComprobante === 'P' ? 'REP' : tipoComprobante === 'T' ? 'CP' : 'A'),
-    folio: getAttr(comprobante, 'Folio') || '100',
+    serie: getAttr(comprobante, 'Serie'),
+    folio: getAttr(comprobante, 'Folio'),
     emisorRfc: getAttr(emisor, 'Rfc').toUpperCase() || 'XAXX010101000',
     emisorNombre: getAttr(emisor, 'Nombre') || 'Emisor CFDI',
     receptorRfc: getAttr(receptor, 'Rfc').toUpperCase() || 'XAXX010101000',

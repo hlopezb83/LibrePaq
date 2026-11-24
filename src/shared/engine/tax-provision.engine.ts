@@ -20,11 +20,25 @@ export function buildTaxProvisionMovements(
   ejercicio: number
 ): AutoPolizaMovementDraft[] {
   const isrNetoCents = toCents(wp.isrProvisional.isrNetoAPagar);
+  const isrCausadoCents = toCents(wp.isrProvisional.isrCausado);
+  const pagosPreviosCents = toCents(wp.isrProvisional.pagosProvisionalesPrevios);
+  const isrRetFavorCents = toCents(wp.isrProvisional.isrRetenidoPeriodo);
+  const isrAntesRetCents =
+    isrCausadoCents > 0
+      ? Math.max(0, isrCausadoCents - pagosPreviosCents)
+      : isrNetoCents + isrRetFavorCents;
+  const isrRetAplicadoCents = isrRetFavorCents > 0 ? Math.min(isrAntesRetCents, isrRetFavorCents) : 0;
+  const isrGastoCents = isrNetoCents + isrRetAplicadoCents;
+
   const ivaCobradoCents = toCents(wp.ivaDefinitivo.ivaTrasladadoCobrado);
   const ivaPagadoCents = toCents(wp.ivaDefinitivo.ivaAcreditablePagado);
+  const ivaSinProrrateoCents = wp.ivaBreakdown
+    ? toCents(wp.ivaBreakdown.ivaAcreditableSinProrrateo)
+    : ivaPagadoCents;
+  const ivaNoAcreditableCents = Math.max(0, ivaSinProrrateoCents - ivaPagadoCents);
 
   assertAccountingInvariant(
-    isrNetoCents > 0 || ivaCobradoCents > 0 || ivaPagadoCents > 0,
+    isrGastoCents > 0 || ivaCobradoCents > 0 || ivaPagadoCents > 0 || ivaNoAcreditableCents > 0,
     'NO_TAXES_TO_PROVISION',
     'No existen importes de ISR Provisional ni de IVA por provisionar en este periodo.'
   );
@@ -39,18 +53,30 @@ export function buildTaxProvisionMovements(
   const movements: AutoPolizaMovementDraft[] = [];
 
   // 1. Provisión de ISR Provisional (No deducible Art. 28 Fracc. I LISR / NIF D-4)
-  if (isrNetoCents > 0) {
-    movements.push(
-      {
-        accountId: accGastoFiscal.id,
-        accountCode: accGastoFiscal.code,
-        accountName: accGastoFiscal.name,
+  if (isrGastoCents > 0) {
+    movements.push({
+      accountId: accGastoFiscal.id,
+      accountCode: accGastoFiscal.code,
+      accountName: accGastoFiscal.name,
+      referencia: `ISR-M${periodo}`,
+      concepto: `Provisión de Pago Provisional de ISR (No Deducible Art. 28 LISR) ${periodo}/${ejercicio}`,
+      cargo: fromCents(isrGastoCents),
+      abono: 0
+    });
+    if (isrRetAplicadoCents > 0) {
+      const accIsrRetFavor = resolveFiscalAccount(accounts, 'ISR_ACREDITABLE_RETENIDO');
+      movements.push({
+        accountId: accIsrRetFavor.id,
+        accountCode: accIsrRetFavor.code,
+        accountName: accIsrRetFavor.name,
         referencia: `ISR-M${periodo}`,
-        concepto: `Provisión de Pago Provisional de ISR (No Deducible Art. 28 LISR) ${periodo}/${ejercicio}`,
-        cargo: fromCents(isrNetoCents),
-        abono: 0
-      },
-      {
+        concepto: `Acreditamiento de ISR Retenido por Clientes contra ISR (${periodo}/${ejercicio})`,
+        cargo: 0,
+        abono: fromCents(isrRetAplicadoCents)
+      });
+    }
+    if (isrNetoCents > 0) {
+      movements.push({
         accountId: accIsrPorPagar.id,
         accountCode: accIsrPorPagar.code,
         accountName: accIsrPorPagar.name,
@@ -58,12 +84,12 @@ export function buildTaxProvisionMovements(
         concepto: `ISR Provisional por pagar SAT Día 17 (${periodo}/${ejercicio})`,
         cargo: 0,
         abono: fromCents(isrNetoCents)
-      }
-    );
+      });
+    }
   }
 
   // 2. Liquidación y cancelación mensual de IVA Trasladado Cobrado y Acreditable Pagado
-  if (ivaCobradoCents > 0 || ivaPagadoCents > 0) {
+  if (ivaCobradoCents > 0 || ivaPagadoCents > 0 || ivaNoAcreditableCents > 0) {
     if (ivaCobradoCents >= ivaPagadoCents) {
       // Caso A: IVA Neto por Pagar al SAT
       if (ivaCobradoCents > 0) {
@@ -190,6 +216,31 @@ export function buildTaxProvisionMovements(
           abono: fromCents(retFavorCents)
         });
       }
+    }
+    if (ivaNoAcreditableCents > 0) {
+      const accGastoIvaNoAcred =
+        accounts.find((a) => a.isAffectable && /iva\s*no\s*acreditable/i.test(a.name)) ??
+        resolveFiscalAccount(accounts, 'HONORARIOS_SERVICIOS');
+      movements.push(
+        {
+          accountId: accGastoIvaNoAcred.id,
+          accountCode: accGastoIvaNoAcred.code,
+          accountName: accGastoIvaNoAcred.name,
+          referencia: `IVA-M${periodo}`,
+          concepto: 'IVA no acreditable por prorrateo Art. 5 LIVA (Gasto deducible Art. 28 LISR)',
+          cargo: fromCents(ivaNoAcreditableCents),
+          abono: 0
+        },
+        {
+          accountId: accIvaPagado.id,
+          accountCode: accIvaPagado.code,
+          accountName: accIvaPagado.name,
+          referencia: `IVA-M${periodo}`,
+          concepto: 'Cancelación de IVA no acreditable por prorrateo Art. 5 LIVA',
+          cargo: 0,
+          abono: fromCents(ivaNoAcreditableCents)
+        }
+      );
     }
   }
 

@@ -70,10 +70,7 @@ function resolveDrPaymentInfo(
   } else if (singleRelatedDoc && paymentDoc.total > 0 && pCurrency === 'MXN') {
     paidMxn = paymentDoc.total;
   } else if (dr.equivalenciaDr && dr.equivalenciaDr > 0) {
-    paidMxn =
-      dr.equivalenciaDr < 1
-        ? (dr.impPagado / dr.equivalenciaDr) * pTc
-        : dr.impPagado * dr.equivalenciaDr * pTc;
+    paidMxn = (dr.impPagado / dr.equivalenciaDr) * pTc;
   } else {
     paidMxn = dr.impPagado * invTc;
   }
@@ -82,8 +79,8 @@ function resolveDrPaymentInfo(
   if (invCurrency !== 'MXN') {
     if (drCurrency === invCurrency) {
       paidOrig = dr.impPagado;
-    } else if (drCurrency === 'MXN' && dr.equivalenciaDr && dr.equivalenciaDr > 0) {
-      paidOrig = dr.equivalenciaDr >= 1 ? dr.impPagado / dr.equivalenciaDr : dr.impPagado * dr.equivalenciaDr;
+    } else if (drCurrency === 'MXN' && pCurrency === invCurrency && dr.equivalenciaDr && dr.equivalenciaDr > 0) {
+      paidOrig = dr.impPagado / dr.equivalenciaDr;
     } else {
       paidOrig = invTc > 0 ? paidMxn / invTc : 0;
     }
@@ -198,7 +195,10 @@ export function computeCxcCxpAging(params: {
     const invCurrency = (inv.moneda || 'MXN').toUpperCase();
     const tc = resolveCurrencyRate(inv);
     const totalOriginalCents = toCents(inv.total * tc);
-    const entries = parcialidadesByUuid.get(uuidUpper) ?? [];
+    const entries = [...(parcialidadesByUuid.get(uuidUpper) ?? [])].sort((a, b) => {
+      const dateCmp = a.fechaPago.localeCompare(b.fechaPago);
+      return dateCmp !== 0 ? dateCmp : a.numParcialidad - b.numParcialidad;
+    });
     const totalPagadoCents = sumCents(entries.map((e) => e.impPagadoMxn));
 
     let saldoInsolutoCents: number;
@@ -230,7 +230,7 @@ export function computeCxcCxpAging(params: {
       saldoInsolutoCents = Math.max(0, totalOriginalCents - totalPagadoCents);
     }
 
-    if (saldoInsolutoCents <= 0) continue;
+    if (saldoInsolutoCents <= 1) continue;
 
     const invDate = parseCalendarDate(inv.fecha).isoDate;
     const daysPast = diffCalendarDays(invDate, asOfDate);

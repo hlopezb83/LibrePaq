@@ -36,6 +36,9 @@ export function useNominaPayrollSettings(params: {
 
   useEffect(() => {
     setBaseInput(null);
+  }, [companyId, year, period]);
+
+  useEffect(() => {
     if (savedSettings) {
       setStateCode(savedSettings.stateCode);
       setIsnRateInput(String(savedSettings.isnRate));

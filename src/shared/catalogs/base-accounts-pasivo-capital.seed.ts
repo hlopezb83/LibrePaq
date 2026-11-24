@@ -56,5 +56,7 @@ export const BASE_ACCOUNTS_PASIVO_CAPITAL: ReadonlyArray<SeedAccount> = [
   acc('CAPITAL', '300-00-000', 'CAPITAL CONTABLE', null, 1, false, '300'),
   acc('CAPITAL', '301-00-000', 'Capital Social y Resultados Acumulados', '300-00-000', 2, false, '301'),
   acc('CAPITAL', '301-01-001', 'Capital Social Fijo', '301-00-000', 3, true, '301.01', 1500000),
-  acc('CAPITAL', '301-02-001', 'Utilidades Acumuladas de Ejercicios Anteriores', '301-00-000', 3, true, '304.01', 875000)
+  acc('CAPITAL', '301-02-001', 'Utilidades Acumuladas de Ejercicios Anteriores', '301-00-000', 3, true, '304.01', 875000),
+  acc('CAPITAL', '305-00-000', 'Resultado del Ejercicio', '300-00-000', 2, false, '305'),
+  acc('CAPITAL', '305-01-001', 'Resultado del Ejercicio', '305-00-000', 3, true, '305.01')
 ];

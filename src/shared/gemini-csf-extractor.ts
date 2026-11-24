@@ -48,6 +48,23 @@ Debes devolver ÚNICAMENTE un objeto JSON estrictamente válido con los siguient
 No agregues formato markdown, comillas triples ni texto explicativo. Solo el objeto JSON crudo.
 `;
 
+export function normalizeSatRegimenFiscal(
+  rawRegimen: string | undefined,
+  personType: 'MORAL' | 'FISICA'
+): string {
+  const trimmed = (rawRegimen || '').trim();
+  const codeMatch = trimmed.match(/\b(6\d{2})\b/);
+  const satCode = codeMatch?.[1];
+  if (satCode) {
+    const found = REGIMENES_FISCALES_SAT.find((r) => r.startsWith(satCode));
+    if (found) return found;
+  }
+  if (trimmed) return trimmed;
+  return personType === 'MORAL'
+    ? (REGIMENES_FISCALES_SAT[0] ?? '601 - General de Ley Personas Morales')
+    : '612 - Personas Físicas con Actividades Empresariales y Profesionales';
+}
+
 export type CsfEdgeFunctionInvoker = <T>(
   name: string,
   options?: { body: Record<string, unknown> }
@@ -96,7 +113,7 @@ export async function extractCsfWithGemini(
           name: personType === 'MORAL' ? sanitizeSatCompanyName(d.name || `Contribuyente ${rfc}`) : String(d.name || `Contribuyente ${rfc}`).trim(),
           personType,
           codigoPostal: String(d.codigoPostal || '00000').trim(),
-          regimenFiscal: String(d.regimenFiscal || (personType === 'MORAL' ? (REGIMENES_FISCALES_SAT[0] ?? '601 - General de Ley Personas Morales') : '612 - Personas Físicas con Actividades Empresariales y Profesionales')),
+          regimenFiscal: normalizeSatRegimenFiscal(d.regimenFiscal, personType),
           curp: d.curp ? String(d.curp).trim() : undefined
         };
       }
@@ -194,19 +211,7 @@ export async function extractCsfWithGemini(
     const codigoPostal = String(parsed.codigoPostal || '00000').trim();
 
     // Normalizar clave de régimen fiscal
-    let regimenFiscal = parsed.regimenFiscal || '';
-    const codeMatch = regimenFiscal.match(/\b(6\d{2})\b/);
-    const satCode = codeMatch?.[1];
-    if (satCode) {
-      const found = REGIMENES_FISCALES_SAT.find((r) => r.startsWith(satCode));
-      if (found) regimenFiscal = found;
-    }
-    if (!regimenFiscal) {
-      regimenFiscal =
-        personType === 'MORAL'
-          ? (REGIMENES_FISCALES_SAT[0] ?? '601 - General de Ley Personas Morales')
-          : '612 - Personas Físicas con Actividades Empresariales y Profesionales';
-    }
+    const regimenFiscal = normalizeSatRegimenFiscal(parsed.regimenFiscal, personType);
 
     const rawName = String(parsed.name || `Contribuyente ${rfc}`).trim();
     const name = personType === 'MORAL' ? sanitizeSatCompanyName(rawName) : rawName;

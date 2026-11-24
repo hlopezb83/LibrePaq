@@ -230,10 +230,42 @@ export function generateAutoPolizaFromCfdiId(
   const thirdParty = getThirdPartyByRfc(company.id, counterpartyRfc);
   const rules = overrides?.rules ?? listAccountingRulesRepo(company.id);
 
+  let relatedOriginalTipoCambioByUuid = overrides?.relatedOriginalTipoCambioByUuid;
+  let relatedOriginalTipoCambio = overrides?.relatedOriginalTipoCambio;
+  if (cfdi.tipoComprobante === 'P' && !relatedOriginalTipoCambioByUuid) {
+    const relUuids = Array.from(
+      new Set(
+        [
+          ...(cfdi.relatedDocs?.map((d) => d.idDocumento) ?? []),
+          ...(cfdi.uuidRelacionado ? [cfdi.uuidRelacionado] : [])
+        ]
+          .map((u) => u.trim().toUpperCase())
+          .filter(Boolean)
+      )
+    );
+    if (relUuids.length > 0) {
+      const ph = relUuids.map(() => '?').join(',');
+      const relRows = db
+        .query(`SELECT uuid, moneda, tipo_cambio FROM cfdi_documents WHERE company_id = ? AND UPPER(uuid) IN (${ph})`)
+        .all(company.id, ...relUuids) as Array<{ uuid: string; moneda: string; tipo_cambio: number }>;
+      const tcMap: Record<string, number> = {};
+      for (const r of relRows) {
+        const key = String(r.uuid ?? '').trim().toUpperCase();
+        if (key && String(r.moneda || 'MXN').toUpperCase() !== 'MXN' && Number(r.tipo_cambio) > 0) {
+          tcMap[key] = Number(r.tipo_cambio);
+          if (relatedOriginalTipoCambio === undefined) relatedOriginalTipoCambio = Number(r.tipo_cambio);
+        }
+      }
+      if (Object.keys(tcMap).length > 0) relatedOriginalTipoCambioByUuid = tcMap;
+    }
+  }
+
   const plan = buildAutoPolizaPlan(cfdi, accounts, {
     ...overrides,
     rules,
-    thirdParty: overrides?.thirdParty ?? thirdParty
+    thirdParty: overrides?.thirdParty ?? thirdParty,
+    ...(relatedOriginalTipoCambio !== undefined ? { relatedOriginalTipoCambio } : {}),
+    ...(relatedOriginalTipoCambioByUuid ? { relatedOriginalTipoCambioByUuid } : {})
   });
   validateDoubleEntryMovements(plan.movements, accById);
 

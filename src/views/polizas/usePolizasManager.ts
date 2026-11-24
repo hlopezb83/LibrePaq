@@ -13,7 +13,9 @@ import {
   collectPolizaUniqueUuids,
   computePolizasTotals,
   filterPolizas,
-  formatPolizaCopyText
+  formatPolizaCopyText,
+  isPolizaDateInDifferentPeriod,
+  parsePolizasUrlSearch
 } from './filterPolizas';
 import { useDraftPolizaMovements } from './useDraftPolizaMovements';
 import { usePolizasMutations } from './usePolizasMutations';
@@ -30,17 +32,10 @@ export function usePolizasManager() {
   const currentPeriod = activeCompany?.currentPeriod;
   const defaultPeriodDate = getDefaultDateForPeriod(currentYear, currentPeriod);
 
-  const { urlSearchParam, isNewRequested } = useMemo(() => {
-    try {
-      const sp = new URLSearchParams((routerState.location.search || {}) as Record<string, string>);
-      return {
-        urlSearchParam: sp.get('search') || sp.get('folio') || '',
-        isNewRequested: sp.get('nueva') === 'true' || sp.get('action') === 'new'
-      };
-    } catch {
-      return { urlSearchParam: '', isNewRequested: false };
-    }
-  }, [routerState.location.search]);
+  const { urlSearchParam, isNewRequested } = useMemo(
+    () => parsePolizasUrlSearch(routerState.location.search),
+    [routerState.location.search]
+  );
 
   const [filterTipo, setFilterTipo] = useState<'ALL' | PolizaType>('ALL');
   const [originFilter, setOriginFilter] = useState<'ALL' | 'WITH_CFDI' | 'MANUAL'>('ALL');
@@ -106,7 +101,13 @@ export function usePolizasManager() {
     queryFn: () => apiClient.getPeriodLock(activeCompanyId, currentYear ?? 2026, currentPeriod ?? 10),
     enabled: Boolean(activeCompanyId && currentYear && currentPeriod)
   });
+  const { data: period13Lock } = useQuery({
+    queryKey: ['period-lock', activeCompanyId, currentYear, 13],
+    queryFn: () => apiClient.getPeriodLock(activeCompanyId, currentYear ?? 2026, 13),
+    enabled: Boolean(activeCompanyId && currentYear)
+  });
   const isPeriodLocked = Boolean(periodLock?.isLocked);
+  const isPeriod13Locked = currentPeriod === 13 ? isPeriodLocked : Boolean(period13Lock?.isLocked);
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
   const affectableAccounts = useMemo(() => accounts.filter((a) => a.isAffectable), [accounts]);
@@ -140,6 +141,7 @@ export function usePolizasManager() {
     currentYear,
     currentPeriod,
     isPeriodLocked,
+    isPeriod13Locked,
     isReadOnlyClient,
     editingPolizaId,
     tipo,
@@ -292,14 +294,10 @@ export function usePolizasManager() {
     toast.success('Pólizas exportadas en CSV');
   };
 
-  const isDateDifferentPeriod = useMemo(() => {
-    if (!fecha || !currentYear || !currentPeriod) return false;
-    const parts = fecha.split('-');
-    if (parts.length < 2) return false;
-    const y = Number(parts[0]);
-    const p = Number(parts[1]);
-    return y !== currentYear || p !== currentPeriod;
-  }, [fecha, currentYear, currentPeriod]);
+  const isDateDifferentPeriod = useMemo(
+    () => isPolizaDateInDifferentPeriod(fecha, currentYear, currentPeriod),
+    [fecha, currentYear, currentPeriod]
+  );
 
   useEffect(() => {
     if (!isNewRequested) {
@@ -329,7 +327,7 @@ export function usePolizasManager() {
 
   return {
     activeCompany, activeCompanyId, currentYear, currentPeriod,
-    isPeriodLocked, isReadOnlyClient, isWriteBlocked, dialogRef,
+    isPeriodLocked, isPeriod13Locked, isReadOnlyClient, isWriteBlocked, dialogRef,
     polizas, filteredPolizas, filteredPolizasTotals, isLoading, isError, error, refetch,
     filterTipo, setFilterTipo, originFilter, setOriginFilter,
     searchQuery, setSearchQuery, compactMode, setCompactMode,

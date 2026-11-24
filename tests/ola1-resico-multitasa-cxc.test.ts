@@ -455,10 +455,12 @@ describe('Ola 1 Bloque 1A — Multi-tasa, Flujo RESICO, Prorrateo IVA, CxC/CxP y
     expect(cols[0]).toBe('05');
     expect(cols[1]).toBe('03');
     expect(cols[4]).toBe('AWS CLOUD CORP');
-    expect(cols[7]).toBe('1000');
-    expect(cols[9]).toBe('1000');
-    expect(cols[29]).toBe('500');
-    expect(cols[30]).toBe('250');
+    expect(cols[7]).toBe('1000'); // Base 8% Región Fronteriza
+    expect(cols[11]).toBe('1000'); // Base 16%
+    expect(cols[17]).toBe('80'); // IVA acreditable 8%
+    expect(cols[21]).toBe('160'); // IVA acreditable 16%
+    expect(cols[49]).toBe('250'); // Actos exentos (campo 50)
+    expect(cols[50]).toBe('500'); // Actos pagados 0% (campo 51)
     expect(cols[53]).toBe('01');
   });
 });

@@ -8,6 +8,7 @@ export interface Anexo24AuxCfdiMeta {
   rfcContraparte: string;
   moneda?: string;
   tipoCambio?: number;
+  formaPago?: string;
 }
 
 export interface Anexo24AuxOptions {
@@ -35,21 +36,27 @@ export function truncXml(value: string | null | undefined, maxChars: number): st
   return escapeXmlAttr(sliced);
 }
 
-/** Construye los atributos TipoSolicitud + NumOrden / NumTramite exigidos por el XSD v1.3. */
+/** Construye los atributos TipoSolicitud + NumOrden / NumTramite exigidos por el XSD v1.3 (sin inyectar valores ficticios). */
 export function buildAnexo24SolicitudAttrs(options?: {
   tipoSolicitud?: SatSolicitudTipo;
   numOrden?: string;
   numTramite?: string;
-}): { tipoSolicitud: SatSolicitudTipo; reqSolicitudAttr: string } {
+}): { tipoSolicitud: SatSolicitudTipo; reqSolicitudAttr: string; missingRequiredAttr: boolean } {
   const tipoSolicitud: SatSolicitudTipo = options?.tipoSolicitud || 'AF';
   if (tipoSolicitud === 'AF' || tipoSolicitud === 'FC') {
     const captured = options?.numOrden?.trim().toUpperCase();
-    const numOrden = truncXml(captured || 'ABC1234567/01', 13);
-    return { tipoSolicitud, reqSolicitudAttr: ` NumOrden="${numOrden}"` };
+    if (!captured) {
+      return { tipoSolicitud, reqSolicitudAttr: '', missingRequiredAttr: true };
+    }
+    const numOrden = truncXml(captured, 13);
+    return { tipoSolicitud, reqSolicitudAttr: ` NumOrden="${numOrden}"`, missingRequiredAttr: false };
   }
   const captured = options?.numTramite?.trim().toUpperCase();
-  const numTramite = truncXml(captured || 'DE000000000001', 14);
-  return { tipoSolicitud, reqSolicitudAttr: ` NumTramite="${numTramite}"` };
+  if (!captured) {
+    return { tipoSolicitud, reqSolicitudAttr: '', missingRequiredAttr: true };
+  }
+  const numTramite = truncXml(captured, 14);
+  return { tipoSolicitud, reqSolicitudAttr: ` NumTramite="${numTramite}"`, missingRequiredAttr: false };
 }
 
 const UUID_V4_LIKE_REGEX = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
@@ -68,7 +75,8 @@ export function buildAuxiliarFoliosXml(
 ): { filename: string; type: string; xml: string } {
   const mes = Math.max(1, Math.min(12, period));
   const mesStr = String(mes).padStart(2, '0');
-  const safeRfc = truncXml(company.rfc.toUpperCase(), 13);
+  const cleanRfc = (company.rfc || '').trim().toUpperCase();
+  const safeRfc = truncXml(cleanRfc, 13);
   const { tipoSolicitud, reqSolicitudAttr } = buildAnexo24SolicitudAttrs(options);
 
   const detNodes: string[] = [];
@@ -115,8 +123,10 @@ export function buildAuxiliarFoliosXml(
       const monto = (Number.isFinite(montoReal) ? montoReal : 0).toFixed(2);
 
       if (UUID_V4_LIKE_REGEX.test(upperUuid)) {
+        const realFormaPago = (cfdiInfo?.formaPago || '').trim();
+        const metPagoAttr = realFormaPago ? ` MetPagoAux="${truncXml(realFormaPago, 2)}"` : '';
         compNodes.push(
-          `    <RepAux:ComprNal UUID_CFDI="${truncXml(upperUuid, 36)}" MontoTotal="${monto}" RFC="${thirdPartyRfc}" MetPagoAux="03"${fxAttrs}/>`
+          `    <RepAux:ComprNal UUID_CFDI="${truncXml(upperUuid, 36)}" MontoTotal="${monto}" RFC="${thirdPartyRfc}"${metPagoAttr}${fxAttrs}/>`
         );
       } else {
         const extMoneda = monedaRaw !== 'MXN' && monedaRaw !== 'XXX' ? truncXml(monedaRaw, 3) : 'USD';
@@ -139,7 +149,7 @@ ${detNodes.join('\n')}
 </RepAux:RepAuxFol>`;
 
   return {
-    filename: `${company.rfc}${year}${mesStr}XF.xml`,
+    filename: `${cleanRfc}${year}${mesStr}XF.xml`,
     type: 'Auxiliar de Folios Anexo 24 (1.3)',
     xml
   };
@@ -147,7 +157,7 @@ ${detNodes.join('\n')}
 
 /**
  * Generador XSD v1.3 para Auxiliar de Cuentas y Subcuentas (XC.xml):
- * AuxiliarCuentas_1_3.xsd
+ * AuxiliarCtas_1_3.xsd
  */
 export function buildAuxiliarCuentasXml(
   company: Company,
@@ -159,7 +169,8 @@ export function buildAuxiliarCuentasXml(
 ): { filename: string; type: string; xml: string } {
   const mes = Math.max(1, Math.min(12, period));
   const mesStr = String(mes).padStart(2, '0');
-  const safeRfc = truncXml(company.rfc.toUpperCase(), 13);
+  const cleanRfc = (company.rfc || '').trim().toUpperCase();
+  const safeRfc = truncXml(cleanRfc, 13);
   const { tipoSolicitud, reqSolicitudAttr } = buildAnexo24SolicitudAttrs(options);
 
   const movsByAccount = new Map<
@@ -186,16 +197,7 @@ export function buildAuxiliarCuentasXml(
   }
 
   const cuentasXml = trialBalance
-    .filter((acc) => {
-      const hasMovs = (movsByAccount.get(acc.code)?.length ?? 0) > 0;
-      return (
-        hasMovs ||
-        acc.initialBalanceComputed !== 0 ||
-        acc.periodCharges !== 0 ||
-        acc.periodCredits !== 0 ||
-        acc.finalBalance !== 0
-      );
-    })
+    .filter((acc) => acc.isAffectable && (movsByAccount.get(acc.code)?.length ?? 0) > 0)
     .map((acc) => {
       const numCta = truncXml(acc.code, 100);
       const desCta = truncXml(acc.name, 200);
@@ -207,19 +209,17 @@ export function buildAuxiliarCuentasXml(
             `    <AuxiliarCtas:DetalleAux Fecha="${d.fecha}" NumUnIdenPol="${d.polId}" Concepto="${d.concepto}" Debe="${d.debe}" Haber="${d.haber}"/>`
         )
         .join('\n');
-      return detalles
-        ? `  <AuxiliarCtas:Cuenta NumCta="${numCta}" DesCta="${desCta}" SaldoIni="${saldoIni}" SaldoFin="${saldoFin}">\n${detalles}\n  </AuxiliarCtas:Cuenta>`
-        : `  <AuxiliarCtas:Cuenta NumCta="${numCta}" DesCta="${desCta}" SaldoIni="${saldoIni}" SaldoFin="${saldoFin}"/>`;
+      return `  <AuxiliarCtas:Cuenta NumCta="${numCta}" DesCta="${desCta}" SaldoIni="${saldoIni}" SaldoFin="${saldoFin}">\n${detalles}\n  </AuxiliarCtas:Cuenta>`;
     })
     .join('\n');
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<AuxiliarCtas:AuxiliarCtas xmlns:AuxiliarCtas="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/AuxiliarCuentas" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/AuxiliarCuentas http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/AuxiliarCuentas/AuxiliarCuentas_1_3.xsd" Version="1.3" RFC="${safeRfc}" Mes="${mesStr}" Anio="${year}" TipoSolicitud="${tipoSolicitud}"${reqSolicitudAttr}>
+<AuxiliarCtas:AuxiliarCtas xmlns:AuxiliarCtas="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/AuxiliarCtas" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/AuxiliarCtas http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/AuxiliarCtas/AuxiliarCtas_1_3.xsd" Version="1.3" RFC="${safeRfc}" Mes="${mesStr}" Anio="${year}" TipoSolicitud="${tipoSolicitud}"${reqSolicitudAttr}>
 ${cuentasXml}
 </AuxiliarCtas:AuxiliarCtas>`;
 
   return {
-    filename: `${company.rfc}${year}${mesStr}XC.xml`,
+    filename: `${cleanRfc}${year}${mesStr}XC.xml`,
     type: 'Auxiliar de Cuentas Anexo 24 (1.3)',
     xml
   };

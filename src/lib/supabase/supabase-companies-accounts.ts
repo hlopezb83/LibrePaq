@@ -1,5 +1,5 @@
 import { getRequiredSupabase, supabase } from '../supabase';
-import { assertAccountingInvariant, validateAccountHierarchy } from '../../shared/accounting-engine';
+import { assertAccountingInvariant, toCents, validateAccountHierarchy } from '../../shared/accounting-engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import { mapSupabaseCompany, mapSupabaseAccount } from './supabase-mappers';
 import { fetchAllRows } from './supabase-pagination';
@@ -241,6 +241,22 @@ export const supabaseCompaniesAndAccounts = {
     const hierarchy = validateAccountHierarchy(existingAccounts, cleanParent, cleanCode);
     const resolvedLevel = cleanParent ? hierarchy.level : payload.level;
 
+    if (cleanParent) {
+      const parentAccount = existingAccounts.find((a) => a.code === cleanParent);
+      if (parentAccount && parentAccount.isAffectable) {
+        const { count: parentMovCount, error: parentMovErr } = await supabase
+          .from('poliza_movements')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', parentAccount.id);
+        if (parentMovErr) throw new Error(parentMovErr.message);
+        if (parentMovCount && parentMovCount > 0) {
+          throw new Error(
+            `No se pueden crear subcuentas bajo la cuenta afectable ${parentAccount.code} porque ya tiene movimientos contables registrados.`
+          );
+        }
+      }
+    }
+
     const id = `${payload.companyId}_${cleanCode}`;
     const { error } = await supabase.from('accounts').insert({
       id,
@@ -289,10 +305,25 @@ export const supabaseCompaniesAndAccounts = {
     const { count: movCount } = await supabase.from('poliza_movements').select('id', { count: 'exact', head: true }).eq('account_id', accountId);
     if (movCount && movCount > 0) return { deleted: false, hasMovements: true };
 
-    const { data: acc } = await supabase.from('accounts').select('code, company_id').eq('id', accountId).maybeSingle();
+    const { data: acc } = await supabase
+      .from('accounts')
+      .select('code, company_id, initial_balance')
+      .eq('id', accountId)
+      .maybeSingle();
     if (acc) {
-      const { count: childCount } = await supabase.from('accounts').select('id', { count: 'exact', head: true }).eq('company_id', acc.company_id).eq('parent_code', acc.code);
-      if (childCount && childCount > 0) throw new Error('No se puede eliminar una cuenta que contiene subcuentas dependientes.');
+      if (toCents(Number(acc.initial_balance ?? 0)) !== 0) {
+        throw new Error(
+          `No se puede eliminar la cuenta ${acc.code} porque tiene saldo inicial distinto de cero.`
+        );
+      }
+      const { count: childCount } = await supabase
+        .from('accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', acc.company_id)
+        .eq('parent_code', acc.code);
+      if (childCount && childCount > 0) {
+        throw new Error('No se puede eliminar una cuenta que contiene subcuentas dependientes.');
+      }
     }
     const { error } = await supabase.from('accounts').delete().eq('id', accountId);
     if (error) throw new Error(error.message);

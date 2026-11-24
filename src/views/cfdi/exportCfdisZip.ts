@@ -1,6 +1,8 @@
 import { strToU8, zipSync } from 'fflate';
 import { apiClient } from '../../lib/api-client';
 import { downloadBlobFile } from '../../lib/formatters';
+import { isGuestDemoMode } from '../../lib/sandbox/guest-demo-mode';
+import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { chunkArray } from '../../shared/array-utils';
 import type { CfdiDocument } from '../../shared/types';
 
@@ -27,19 +29,39 @@ export async function exportCfdisZip(
   }
 
   if (missing.length > 0) {
-    for (const batch of chunkArray(missing, 8)) {
-      const fetched = await Promise.all(
-        batch.map(async (cfdi) => {
-          try {
-            const xml = await apiClient.getCfdiXml(cfdi.id);
-            return xml && xml.trim().length > 0 ? { cfdi, xml } : null;
-          } catch {
-            return null;
+    if (isSupabaseConfigured && supabase && !isGuestDemoMode()) {
+      const missingById = new Map(missing.map((c) => [c.id, c]));
+      for (const idChunk of chunkArray(missing.map((c) => c.id), 100)) {
+        try {
+          const { data: rows } = await supabase
+            .from('cfdi_documents')
+            .select('id, xml_raw')
+            .in('id', idChunk);
+          for (const row of (rows || []) as Array<{ id: string; xml_raw?: string | null }>) {
+            const cfdi = missingById.get(String(row.id));
+            if (cfdi && row.xml_raw && row.xml_raw.trim().length > 0) {
+              resolvedXmls.push({ cfdi, xml: row.xml_raw });
+            }
           }
-        })
-      );
-      for (const item of fetched) {
-        if (item) resolvedXmls.push(item);
+        } catch {
+          // Omitir bloque con error; se reportará en el conteo de XMLs faltantes
+        }
+      }
+    } else {
+      for (const batch of chunkArray(missing, 8)) {
+        const fetched = await Promise.all(
+          batch.map(async (cfdi) => {
+            try {
+              const xml = await apiClient.getCfdiXml(cfdi.id);
+              return xml && xml.trim().length > 0 ? { cfdi, xml } : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        for (const item of fetched) {
+          if (item) resolvedXmls.push(item);
+        }
       }
     }
   }
@@ -70,5 +92,10 @@ export async function exportCfdisZip(
   ) as ArrayBuffer;
   const zipName = `XML_ADD_${rfcOrId}_${year}_P${String(period).padStart(2, '0')}.zip`;
   downloadBlobFile(zipName, zipBuffer, 'application/zip');
-  toast.success(`Descargado paquete .ZIP con ${resolvedXmls.length} XML(s).`);
+  const omittedCount = cfdis.length - resolvedXmls.length;
+  toast.success(
+    omittedCount > 0
+      ? `Descargado paquete .ZIP con ${resolvedXmls.length} XML(s) (${omittedCount} comprobante(s) sin XML en bóveda).`
+      : `Descargado paquete .ZIP con ${resolvedXmls.length} XML(s).`
+  );
 }

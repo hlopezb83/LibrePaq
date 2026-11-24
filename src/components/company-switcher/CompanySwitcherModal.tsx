@@ -13,6 +13,7 @@ import { MESES_SAT } from '../../shared/sat-constants';
 import { getCompanyTheme, type CompanyTheme } from './companyThemes';
 import { CompanySwitchConfirmView } from './CompanySwitchConfirmView';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
+import { useUIModal } from '../../context/UIModalContext';
 
 export { getCompanyTheme, type CompanyTheme };
 
@@ -31,6 +32,7 @@ export function CompanySwitcherModal({
   onSelectCompany,
   onOpenNewCompanyWizard
 }: CompanySwitcherModalProps) {
+  const { openCompanyWizard } = useUIModal();
   const [search, setSearch] = useState('');
   const [pendingTargetCompany, setPendingTargetCompany] = useState<Company | null>(null);
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
@@ -294,6 +296,7 @@ export function CompanySwitcherModal({
                 onClick={() => {
                   handleClose();
                   onOpenNewCompanyWizard();
+                  openCompanyWizard();
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-blue-800 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-300 transition cursor-pointer shadow-2xs"
               >

@@ -203,7 +203,11 @@ export function buildFinancialStatementsFromTrialBalance(
   const ingresosAccs = computedAccounts.filter((a) => a.type === 'INGRESOS' && a.level >= 2);
   const costosAccs = computedAccounts.filter((a) => a.type === 'COSTOS' && a.level >= 2);
   const gastosAccs = computedAccounts.filter(
-    (a) => a.type === 'GASTOS' && a.level >= 2 && !a.code.startsWith('8')
+    (a) =>
+      a.type === 'GASTOS' &&
+      a.level >= 2 &&
+      !a.code.startsWith('8') &&
+      !a.satGroupCode.startsWith('611')
   );
   const isrAccs = computedAccounts.filter(
     (a) =>
@@ -214,35 +218,63 @@ export function buildFinancialStatementsFromTrialBalance(
   const pasivosAccs = computedAccounts.filter((a) => a.type === 'PASIVO' && a.level >= 2);
   const capitalAccs = computedAccounts.filter((a) => a.type === 'CAPITAL' && a.level >= 2);
 
-  const sumL2Signed = (accs: AccountWithBalance[]) =>
+  const sumL2Signed = (
+    accs: AccountWithBalance[],
+    expectedNature: 'DEUDORA' | 'ACREEDORA'
+  ) =>
     fromCents(
-      accs.reduce((s, a) => s + (a.level === 2 ? toCents(a.finalBalance) : 0), 0)
+      accs.reduce((s, a) => {
+        if (a.level !== 2) return s;
+        const sign = a.nature === expectedNature ? 1 : -1;
+        return s + sign * toCents(a.finalBalance);
+      }, 0)
     );
 
+  // Evitar doble conteo de cuentas SAT 611.* clasificadas como GASTOS bajo 600-00-000
+  const isrInsideGastos600Cents = computedAccounts
+    .filter(
+      (a) =>
+        a.isAffectable &&
+        a.type === 'GASTOS' &&
+        !a.code.startsWith('8') &&
+        a.satGroupCode.startsWith('611')
+    )
+    .reduce((s, a) => s + (a.nature === 'DEUDORA' ? 1 : -1) * toCents(a.finalBalance), 0);
+
   const totalIngresosCents = toCents(
-    computedAccounts.find((a) => a.code === '400-00-000')?.finalBalance ?? sumL2Signed(ingresosAccs)
+    computedAccounts.find((a) => a.code === '400-00-000')?.finalBalance ??
+      sumL2Signed(ingresosAccs, 'ACREEDORA')
   );
   const totalCostosCents = toCents(
-    computedAccounts.find((a) => a.code === '500-00-000')?.finalBalance ?? sumL2Signed(costosAccs)
+    computedAccounts.find((a) => a.code === '500-00-000')?.finalBalance ??
+      sumL2Signed(costosAccs, 'DEUDORA')
   );
-  const totalGastosCents = toCents(
-    computedAccounts.find((a) => a.code === '600-00-000')?.finalBalance ?? sumL2Signed(gastosAccs)
-  );
-  const totalIsrCents = toCents(
-    computedAccounts.find((a) => a.code === '800-00-000' || a.code === '801-00-000')
-      ?.finalBalance ?? sumL2Signed(isrAccs)
-  );
+  const acc600 = computedAccounts.find((a) => a.code === '600-00-000');
+  const totalGastosCents = acc600
+    ? toCents(acc600.finalBalance) - isrInsideGastos600Cents
+    : toCents(sumL2Signed(gastosAccs, 'DEUDORA'));
+  const l1Or800Isr = computedAccounts.find((a) => a.code === '800-00-000' || a.code === '801-00-000');
+  const totalIsrCents = l1Or800Isr
+    ? toCents(l1Or800Isr.finalBalance) + isrInsideGastos600Cents
+    : isrAccs.some((a) => a.level === 2)
+      ? toCents(sumL2Signed(isrAccs, 'DEUDORA'))
+      : isrAccs
+          .filter((a) => a.isAffectable)
+          .reduce((s, a) => s + (a.nature === 'DEUDORA' ? 1 : -1) * toCents(a.finalBalance), 0);
   const utilidadBrutaCents = totalIngresosCents - totalCostosCents;
   const utilidadNetaCents = utilidadBrutaCents - totalGastosCents - totalIsrCents;
 
   const totalActivoCents = toCents(
-    computedAccounts.find((a) => a.code === '100-00-000')?.finalBalance ?? sumL2Signed(activosAccs)
+    computedAccounts.find((a) => a.code === '100-00-000')?.finalBalance ??
+      sumL2Signed(activosAccs, 'DEUDORA')
   );
   const totalPasivoCents = toCents(
-    computedAccounts.find((a) => a.code === '200-00-000')?.finalBalance ?? sumL2Signed(pasivosAccs)
+    computedAccounts.find((a) => a.code === '200-00-000')?.finalBalance ??
+      sumL2Signed(pasivosAccs, 'ACREEDORA')
   );
   const totalCapitalBaseCents = toCents(
-    computedAccounts.find((a) => a.code === '300-00-000')?.finalBalance ?? sumL2Signed(capitalAccs)
+    computedAccounts.find((a) => a.code === '300-00-000')?.finalBalance ??
+      sumL2Signed(capitalAccs, 'ACREEDORA')
   );
   const totalPasivoMasCapitalCents = totalPasivoCents + totalCapitalBaseCents + utilidadNetaCents;
 

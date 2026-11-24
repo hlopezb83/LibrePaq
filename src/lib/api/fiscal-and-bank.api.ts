@@ -244,16 +244,17 @@ export const fiscalAndBankApi = {
       handleResponse<FiscalWorkpaperResponse>(r)
     ),
 
-  getTaxParameters: (companyId: string, year?: number) =>
+  getTaxParameters: (companyId: string, year?: number, period?: number) =>
     fetchWithTimeout(
       `/api/fiscal-workpaper/parameters?companyId=${encodeURIComponent(companyId)}${
         year !== undefined ? `&year=${year}` : ''
-      }`
+      }${period !== undefined ? `&period=${period}` : ''}`
     ).then((r) => handleResponse<TaxParametersRecord>(r)),
 
   saveTaxParameters: (payload: {
     companyId: string;
     ejercicio: number;
+    periodo?: number;
     coeficienteUtilidad?: number;
     perdidasFiscalesPendientes?: number;
     pagosProvisionalesAnteriores?: number;
@@ -266,18 +267,18 @@ export const fiscalAndBankApi = {
       body: JSON.stringify(payload)
     }).then((r) => handleResponse<TaxParametersRecord>(r)),
 
-  generateTaxProvisionPoliza: (companyId: string) =>
+  generateTaxProvisionPoliza: (companyId: string, year?: number, period?: number) =>
     fetchWithTimeout('/api/fiscal-workpaper/provision-poliza', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId })
+      body: JSON.stringify({ companyId, year, period })
     }).then((r) => handleResponse<Poliza>(r)),
 
-  generateExchangePoliza: (companyId: string) =>
+  generateExchangePoliza: (companyId: string, year?: number, period?: number) =>
     fetchWithTimeout('/api/fiscal-workpaper/exchange-poliza', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId })
+      body: JSON.stringify({ companyId, year, period })
     }).then((r) => handleResponse<Poliza>(r)),
 
   getCxcCxpAging: (companyId: string) =>

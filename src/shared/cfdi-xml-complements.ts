@@ -83,12 +83,14 @@ export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | nu
           ? (monedaDr === g.pagoMoneda || !monedaDr)
             ? impPagado * g.pagoTipoCambio
             : equivalenciaDr
-              ? (equivalenciaDr < 1 ? impPagado / equivalenciaDr : impPagado * equivalenciaDr) * g.pagoTipoCambio
+              ? (impPagado / equivalenciaDr) * g.pagoTipoCambio
               : impPagado * g.pagoTipoCambio
-          : impPagado;
+          : moneda !== 'MXN' && monedaDr && monedaDr !== g.pagoMoneda && equivalenciaDr
+            ? impPagado / equivalenciaDr
+            : impPagado;
       drImpPagadoSum += impInHeaderCur;
       const objetoImpDr = getAttr(dr, 'ObjetoImpDR');
-      if (objetoImpDr === '01' || objetoImpDr === '03') {
+      if (objetoImpDr === '01' || objetoImpDr === '03' || objetoImpDr === '04') {
         exentoDrFallback += impInHeaderCur;
       }
       relatedDocs.push({
@@ -130,7 +132,7 @@ export function parsePago20Complement(doc: XmlNode, fallbackUuidRel: string | nu
   };
 }
 
-export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number) {
+export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number, baseDescuento = 0) {
   const nominaAttrs = findNode(doc, 'Nomina');
   const deduccionesAttrs = findNode(doc, 'Deducciones');
   const rawTotalPercepciones = getAttr(nominaAttrs, 'TotalPercepciones');
@@ -140,13 +142,19 @@ export function parseNomina12Complement(doc: XmlNode, baseSubtotal: number) {
   const totalImpuestosRet =
     parseFloat(getAttr(deduccionesAttrs, 'TotalImpuestosRetenidos') || '0') || 0;
   const totalOtrasDed = parseFloat(getAttr(deduccionesAttrs, 'TotalOtrasDeducciones') || '0') || 0;
+  const totalDeducciones = parseFloat(getAttr(nominaAttrs, 'TotalDeducciones') || '0') || 0;
 
   const subtotal =
     rawTotalPercepciones !== ''
       ? Number((totalPercepciones + totalOtrosPagos).toFixed(2))
       : Number(baseSubtotal.toFixed(2));
   const isrRetenido = Number(totalImpuestosRet.toFixed(2));
-  const descuento = Number(totalOtrasDed.toFixed(2));
+  const descuento =
+    totalOtrasDed > 0
+      ? Number(totalOtrasDed.toFixed(2))
+      : totalDeducciones > 0
+        ? Number(Math.max(0, totalDeducciones - isrRetenido).toFixed(2))
+        : Number(baseDescuento.toFixed(2));
   const total = Number((subtotal - isrRetenido - descuento).toFixed(2));
 
   return {
@@ -285,7 +293,7 @@ export function extractCfdiTaxBreakdown(
       0,
       (parseFloat(getAttr(c, 'Importe') || '0') || 0) - (parseFloat(getAttr(c, 'Descuento') || '0') || 0)
     );
-    if ((obj === '01' || obj === '03') && cTraslados.length === 0) {
+    if ((obj === '01' || obj === '03' || obj === '04') && cTraslados.length === 0) {
       baseExento += netImp;
     } else if (rootTraslados.length > 0 && !hasRootExento && cTraslados.length > 0) {
       for (const ct of cTraslados) {
@@ -309,10 +317,19 @@ export function extractCfdiTaxBreakdown(
         iva16 = ivaFallback;
       }
     } else if (netSub > 0) {
-      if (firstObjetoImp === '01' || firstObjetoImp === '03') baseExento = netSub;
+      if (firstObjetoImp === '01' || firstObjetoImp === '03' || firstObjetoImp === '04') baseExento = netSub;
       else base0 = netSub;
     }
   }
+
+  const localRetenido = findNodes(comprobanteNode, 'RetencionesLocales').reduce(
+    (sum, n) => sum + (parseFloat(getAttr(n, 'Importe') || '0') || 0),
+    0
+  );
+  const localTrasladado = findNodes(comprobanteNode, 'TrasladosLocales').reduce(
+    (sum, n) => sum + (parseFloat(getAttr(n, 'Importe') || '0') || 0),
+    0
+  );
 
   return {
     base16: round2(base16),
@@ -322,6 +339,8 @@ export function extractCfdiTaxBreakdown(
     base0: round2(base0),
     baseExento: round2(baseExento),
     ieps: round2(ieps),
-    ...(firstObjetoImp ? { objetoImp: firstObjetoImp } : {})
-  };
+    ...(firstObjetoImp ? { objetoImp: firstObjetoImp } : {}),
+    ...(localRetenido > 0 ? { localRetenido: round2(localRetenido) } : {}),
+    ...(localTrasladado > 0 ? { localTrasladado: round2(localTrasladado) } : {})
+  } as CfdiTaxBreakdown & { localRetenido?: number; localTrasladado?: number };
 }

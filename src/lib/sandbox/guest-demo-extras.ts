@@ -10,11 +10,17 @@ import {
   computeAnnualFixedAssetFiscalDeduction
 } from '../../shared/engine/annual-tax-balances.helper';
 import { computeAnnualTaxSummary, resolveAnnualInpcPair } from '../../shared/engine/annual-tax.engine';
+import { applyDemoBankN1Matches, proposeDemoBankN1Matches } from './guest-demo-n1';
 import { computeCostOfSales } from '../../shared/engine/cost-of-sales.engine';
 import { computeDiotReportData } from '../../shared/engine/diot.engine';
 import { computeFinancialStatementsData } from '../../shared/engine/financial-reports.engine';
 import type { AnnualTaxInputs } from '../../shared/types/annual-tax.types';
-import type { BankN1MatchRecord } from '../../shared/types/bank-n1.types';
+import type {
+  BankN1ApplyItem,
+  BankN1ApplyResponse,
+  BankN1MatchProposal,
+  BankN1ProposeResponse
+} from '../../shared/types/bank-n1.types';
 import type { AccountingRuleDirection, AccountingRuleRecord, UpsertAccountingRulePayload } from '../../shared/types/accounting-rules.types';
 import type { InventoryPeriodRecord } from '../../shared/types/cost-of-sales.types';
 import type {
@@ -31,6 +37,30 @@ function getComp(companyId: string) {
   const comp = (companyId ? s.companies.find((c) => c.id === companyId) : s.companies[0]) ?? s.companies[0];
   if (!comp) throw new Error('Empresa demo no encontrada');
   return comp;
+}
+
+function computeDemoTrialBalance(comp: ReturnType<typeof getComp>, y: number, p: number) {
+  const s = getGuestDemoState();
+  const accs = s.accounts
+    .filter((a) => a.companyId === comp.id)
+    .map((a) => ({
+      ...a,
+      initialBalanceComputed: a.initialBalance,
+      periodCharges: 0,
+      periodCredits: 0,
+      finalBalance: a.initialBalance
+    }));
+  const movs = s.polizas
+    .filter((pol) => pol.companyId === comp.id)
+    .flatMap((pol) =>
+      pol.movements.map((m) => ({
+        account_id: m.accountId,
+        cargo: m.cargo,
+        abono: m.abono,
+        polizas: { company_id: pol.companyId, ejercicio: pol.ejercicio, periodo: pol.periodo }
+      }))
+    );
+  return computeFinancialStatementsData(comp, accs, movs, y, p).trialBalance;
 }
 
 export const guestDemoExtras = {
@@ -60,16 +90,10 @@ export const guestDemoExtras = {
     const y = year || comp.currentYear;
     const p = period || comp.currentPeriod;
     const params = await this.getTaxParameters(comp.id, y, p);
-    const accs = s.accounts.filter((a) => a.companyId === comp.id).map((a) => ({
-      ...a, initialBalanceComputed: a.initialBalance, periodCharges: 0, periodCredits: 0, finalBalance: a.initialBalance
-    }));
-    const movs = s.polizas.filter((pol) => pol.companyId === comp.id).flatMap((pol) =>
-      pol.movements.map((m) => ({ account_id: m.accountId, cargo: m.cargo, abono: m.abono, polizas: { company_id: pol.companyId, ejercicio: pol.ejercicio, periodo: pol.periodo } }))
-    );
-    const rep = computeFinancialStatementsData(comp, accs, movs, y, p);
+    const trialBalance = computeDemoTrialBalance(comp, y, p);
     return computeFiscalWorkpaperFromTrialBalance({
       company: comp, ejercicio: y, periodo: p, parameters: params,
-      trialBalance: rep.trialBalance, cfdis: s.cfdis.filter((c) => c.companyId === comp.id)
+      trialBalance, cfdis: s.cfdis.filter((c) => c.companyId === comp.id)
     });
   },
 
@@ -78,12 +102,12 @@ export const guestDemoExtras = {
     const comp = getComp(companyId);
     const y = year || comp.currentYear;
     const p = period || comp.currentPeriod;
-    const wp = await this.getFiscalWorkpaper(comp.id, y, p);
+    const trialBalance = computeDemoTrialBalance(comp, y, p);
     return computeDiotReportData({
       company: comp, ejercicio: y, periodo: p,
       cfdis: s.cfdis.filter((c) => c.companyId === comp.id),
       polizaIdsInPeriod: new Set(s.polizas.filter((pol) => pol.companyId === comp.id && pol.ejercicio === y && pol.periodo === p).map((pol) => pol.id)),
-      trialBalance: s.accounts.filter((a) => a.companyId === comp.id).map((a) => ({ ...a, initialBalanceComputed: 0, periodCharges: 0, periodCredits: 0, finalBalance: wp.ivaDefinitivo.ivaTrasladadoCobrado })),
+      trialBalance,
       thirdParties: s.thirdParties.filter((t) => t.companyId === comp.id)
     });
   },
@@ -114,6 +138,10 @@ export const guestDemoExtras = {
     const y = year || comp.currentYear;
     const p = period || comp.currentPeriod;
     const bankAcc = s.accounts.find((a) => a.companyId === comp.id && a.id === accountId) || s.accounts.find((a) => a.companyId === comp.id && a.code.startsWith('102') && a.isAffectable)!;
+    const trialBalance = computeDemoTrialBalance(comp, y, p);
+    const resolvedBankAcc = trialBalance.find((a) => a.id === bankAcc.id) ?? {
+      ...bankAcc, initialBalanceComputed: 0, periodCharges: 0, periodCredits: 0, finalBalance: 0
+    };
     const lines = s.bankLines.filter((l) => l.companyId === comp.id && l.accountId === bankAcc.id && l.ejercicio === y && l.periodo === p);
     const matchedIds = new Set(s.bankMatches.map((m) => m.movementId));
     const bookMovements = s.polizas.filter((pol) => pol.companyId === comp.id && pol.ejercicio === y && pol.periodo === p)
@@ -123,10 +151,11 @@ export const guestDemoExtras = {
         isMatched: matchedIds.has(m.id) || lines.some((l) => l.matchedMovementId === m.id)
       })));
     return {
-      account: { ...bankAcc, initialBalanceComputed: 0, periodCharges: 0, periodCredits: 0, finalBalance: 0 },
+      account: resolvedBankAcc,
       ejercicio: y, periodo: p, statementLines: lines, bookMovements,
       summary: {
-        saldoInicialLibros: 0, saldoFinalLibros: 0,
+        saldoInicialLibros: resolvedBankAcc.initialBalanceComputed,
+        saldoFinalLibros: resolvedBankAcc.finalBalance,
         totalDepositosBanco: fromCents(lines.reduce((acc, l) => acc + toCents(l.abonoBanco), 0)),
         totalRetirosBanco: fromCents(lines.reduce((acc, l) => acc + toCents(l.cargoBanco), 0)),
         movimientosConciliados: lines.filter((l) => l.matchedMovementId).length,
@@ -217,7 +246,7 @@ export const guestDemoExtras = {
     return this.getAnnualTaxSummary(companyId, payload.ejercicio);
   },
 
-  async getInventoryPeriod(companyId: string, ejercicio?: number, periodo?: number) {
+  async getInventoryPeriod(companyId: string, ejercicio?: number, periodo?: number): Promise<InventoryPeriodRecord> {
     const s = getGuestDemoState();
     const comp = getComp(companyId);
     const y = ejercicio || comp.currentYear;
@@ -233,14 +262,14 @@ export const guestDemoExtras = {
       polizaId: found?.polizaId ?? null
     };
     const computed = computeCostOfSales({ initialInventory: base.initialInventory, purchasesPeriod: base.purchasesOverride ?? 0, finalInventory: base.finalInventory });
-    const record: InventoryPeriodRecord = { ...base, purchasesFromBalance: 0, effectivePurchases: computed.purchasesPeriod, costOfSales: computed.costOfSales };
-    return { record, computed };
+    return { ...base, purchasesFromBalance: 0, effectivePurchases: computed.purchasesPeriod, costOfSales: computed.costOfSales, updatedAt: found?.updatedAt };
   },
 
-  async saveInventoryPeriod(companyId: string, payload: Partial<InventoryPeriodRecord>) {
+  async saveInventoryPeriod(companyId: string, payload: Partial<InventoryPeriodRecord>): Promise<InventoryPeriodRecord> {
     const s = getGuestDemoState();
-    const y = payload.ejercicio || 2026;
-    const p = payload.periodo || 1;
+    const comp = getComp(companyId);
+    const y = payload.ejercicio || comp.currentYear;
+    const p = payload.periodo || comp.currentPeriod;
     const initInv = Number(payload.initialInventory ?? 0);
     const finInv = Number(payload.finalInventory ?? 0);
     const ov = payload.purchasesOverride ?? null;
@@ -253,17 +282,32 @@ export const guestDemoExtras = {
       polizaId: payload.polizaId ?? null, updatedAt: new Date().toISOString()
     };
     s.inventoryPeriods = [...s.inventoryPeriods.filter((ip) => !(ip.companyId === companyId && ip.ejercicio === y && ip.periodo === p)), rec];
-    return { record: rec, computed };
+    return rec;
   },
 
-  async applyBankN1Matches(companyId: string, payload: { bankLineId: string; matches: Array<{ movementId: string; polizaId: string; matchedAmount: number }> }) {
-    const s = getGuestDemoState();
-    const created: BankN1MatchRecord[] = payload.matches.map((m) => ({
-      id: `bm_${crypto.randomUUID().slice(0, 8)}`, companyId, bankLineId: payload.bankLineId,
-      movementId: m.movementId, polizaId: m.polizaId, matchedAmount: m.matchedAmount, createdAt: new Date().toISOString()
-    }));
-    s.bankMatches.push(...created);
-    return { matches: created };
+  async proposeBankN1Matches(
+    companyId: string,
+    accountId: string,
+    year?: number,
+    period?: number,
+    maxGroupSize = 5,
+    toleranceCents = 5
+  ): Promise<BankN1ProposeResponse> {
+    const recon = await this.getBankReconciliation(companyId, accountId, year, period);
+    return proposeDemoBankN1Matches(companyId, recon, maxGroupSize, toleranceCents);
+  },
+
+  async applyBankN1Matches(
+    companyId: string,
+    accountId: string,
+    items: ReadonlyArray<BankN1ApplyItem | BankN1MatchProposal>,
+    year?: number,
+    period?: number
+  ): Promise<BankN1ApplyResponse> {
+    const recon = await this.getBankReconciliation(companyId, accountId, year, period);
+    const applied = applyDemoBankN1Matches(companyId, recon, items);
+    const updatedRecon = await this.getBankReconciliation(companyId, accountId, year, period);
+    return { ...applied, reconciliation: updatedRecon };
   },
 
   async exportCompanyBackup(companyId: string): Promise<CompanyBackupBundle> {
@@ -277,7 +321,12 @@ export const guestDemoExtras = {
       thirdParties: s.thirdParties.filter((t) => t.companyId === company.id),
       fixedAssets: s.fixedAssets.filter((f) => f.companyId === company.id),
       periodLocks: s.periodLocks.filter((l) => l.companyId === company.id),
-      taxParameters: s.taxParameters.filter((t) => t.companyId === company.id)
+      taxParameters: s.taxParameters.filter((t) => t.companyId === company.id),
+      bankStatementLines: s.bankLines.filter((b) => b.companyId === company.id),
+      accountingRules: s.accountingRules.filter((r) => r.companyId === company.id),
+      annualTaxSnapshots: s.annualSnapshots.filter((sn) => sn.companyId === company.id),
+      inventoryPeriods: s.inventoryPeriods.filter((ip) => ip.companyId === company.id),
+      bankStatementMatches: s.bankMatches.filter((bm) => bm.companyId === company.id)
     };
   }
 };

@@ -292,7 +292,7 @@ describe('Ronda 3 — Corrección de Bugs Contables y Fiscales (BUG-08, 24, 28, 
     const cfdiNominaNeg = makeBaseCfdi({
       id: 'cfdi_nom_neg',
       tipoComprobante: 'N',
-      direction: 'RECIBIDO',
+      direction: 'EMITIDO',
       conceptoPrincipal: 'Nómina con ajuste por exceso de retenciones',
       subtotal: 1000,
       isrRetenido: 800,

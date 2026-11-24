@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { MESES_SAT } from '../shared/sat-constants';
 import { useUIModal } from '../context/UIModalContext';
@@ -17,6 +18,7 @@ export function ReportesView() {
   const {
     activeTab,
     setActiveTab,
+    isDossierRequested,
     satXmlType,
     setSatXmlType,
     anexo24Options,
@@ -37,6 +39,18 @@ export function ReportesView() {
     handleDownloadXml,
     handleExportBalanzaCsv
   } = useReportesManager();
+
+  const hasAutoOpenedDossierRef = useRef(false);
+  useEffect(() => {
+    if (!isDossierRequested) {
+      hasAutoOpenedDossierRef.current = false;
+      return;
+    }
+    if (hasAutoOpenedDossierRef.current) return;
+    hasAutoOpenedDossierRef.current = true;
+    setActiveTab('ENTREGABLES');
+    openDeliverables('DOSSIER');
+  }, [isDossierRequested, setActiveTab, openDeliverables]);
 
   const deliverableTabForActive =
     activeTab === 'BALANZA' || activeTab === 'RESULTADOS' || activeTab === 'BALANCE'

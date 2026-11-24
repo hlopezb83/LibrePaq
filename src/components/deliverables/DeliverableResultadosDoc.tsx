@@ -42,6 +42,8 @@ export function DeliverableResultadosDoc({
 }: DeliverableResultadosDocProps) {
   const lastDay = new Date(year, Math.min(12, Math.max(1, period)), 0).getDate();
   const isLoss = incomeStatement.utilidadNeta < 0;
+  const signedResultBal = (acc: AccountWithBalance, expectedNature: 'ACREEDORA' | 'DEUDORA') =>
+    acc.nature === expectedNature ? acc.finalBalance : -acc.finalBalance;
   const formatVerticalPct = (amount: number, base: number) => {
     if (!base || Math.abs(base) < 0.01) return '0.0%';
     return `${((amount / base) * 100).toFixed(1)}%`;
@@ -81,7 +83,9 @@ export function DeliverableResultadosDoc({
             <span>Importe | % Vertical</span>
           </div>
           <div className="p-2 space-y-1">
-            {incomeStatement.ingresos.map((a) => (
+            {incomeStatement.ingresos.map((a) => {
+              const signedAmt = signedResultBal(a, 'ACREEDORA');
+              return (
               <div
                 key={a.id}
                 className={`flex justify-between py-0.5 ${
@@ -94,10 +98,11 @@ export function DeliverableResultadosDoc({
                   {a.code} — {a.name}
                 </span>
                 <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(a.finalBalance)} ({formatVerticalPct(a.finalBalance, incomeStatement.totalIngresos)})
+                  {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
                 </span>
               </div>
-            ))}
+              );
+            })}
             <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
               <span>Total de Ingresos Netos</span>
               <span className="font-mono">{formatCurrency(incomeStatement.totalIngresos)} (100.0%)</span>
@@ -111,7 +116,9 @@ export function DeliverableResultadosDoc({
             (-) Costo de Ventas y Servicios
           </div>
           <div className="p-2 space-y-1">
-            {incomeStatement.costos.map((a) => (
+            {incomeStatement.costos.map((a) => {
+              const signedAmt = signedResultBal(a, 'DEUDORA');
+              return (
               <div
                 key={a.id}
                 className={`flex justify-between py-0.5 ${
@@ -124,10 +131,11 @@ export function DeliverableResultadosDoc({
                   {a.code} — {a.name}
                 </span>
                 <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(a.finalBalance)} ({formatVerticalPct(a.finalBalance, incomeStatement.totalIngresos)})
+                  {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
                 </span>
               </div>
-            ))}
+              );
+            })}
             <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900 bg-slate-50 py-1 rounded">
               <span>(=) Utilidad Bruta Operativa</span>
               <span className="font-mono text-emerald-900 font-extrabold">
@@ -144,7 +152,9 @@ export function DeliverableResultadosDoc({
             (-) Gastos Generales de Operación y Administración
           </div>
           <div className="p-2 space-y-1">
-            {incomeStatement.gastos.map((a) => (
+            {incomeStatement.gastos.map((a) => {
+              const signedAmt = signedResultBal(a, 'DEUDORA');
+              return (
               <div
                 key={a.id}
                 className={`flex justify-between py-0.5 ${
@@ -157,10 +167,11 @@ export function DeliverableResultadosDoc({
                   {a.code} — {a.name}
                 </span>
                 <span className={`font-mono ${a.level === 2 ? 'font-bold text-slate-900' : 'text-slate-700'}`}>
-                  {formatCurrency(a.finalBalance)} ({formatVerticalPct(a.finalBalance, incomeStatement.totalIngresos)})
+                  {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
                 </span>
               </div>
-            ))}
+              );
+            })}
             <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
               <span>Total de Gastos de Operación</span>
               <span className="font-mono">
@@ -176,7 +187,9 @@ export function DeliverableResultadosDoc({
               (-) Provisión de Impuesto a la Utilidad (ISR Ejercicio - NIF B-3)
             </div>
             <div className="p-2 space-y-1">
-              {incomeStatement.isrEjercicio.map((a) => (
+              {incomeStatement.isrEjercicio.map((a) => {
+                const signedAmt = signedResultBal(a, 'DEUDORA');
+                return (
                 <div
                   key={a.id}
                   className={`flex justify-between py-0.5 ${
@@ -189,10 +202,11 @@ export function DeliverableResultadosDoc({
                     {a.code} — {a.name}
                   </span>
                   <span className="font-mono text-slate-700">
-                    {formatCurrency(a.finalBalance)} ({formatVerticalPct(a.finalBalance, incomeStatement.totalIngresos)})
+                    {formatCurrency(signedAmt)} ({formatVerticalPct(signedAmt, incomeStatement.totalIngresos)})
                   </span>
                 </div>
-              ))}
+                );
+              })}
               <div className="flex justify-between px-2 pt-1 border-t border-slate-300 font-bold text-slate-900">
                 <span>Total ISR del Ejercicio</span>
                 <span className="font-mono">

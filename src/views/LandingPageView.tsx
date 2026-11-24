@@ -15,6 +15,7 @@ export function LandingPageView() {
   const { user, startGuestDemo } = useAuth();
   const authDialogRef = useRef<HTMLDialogElement>(null);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
+  const [isOpeningDemo, setIsOpeningDemo] = useState(false);
 
   const openSignupAuth = () => {
     setAuthMode('signup');
@@ -29,8 +30,14 @@ export function LandingPageView() {
   };
 
   const handleOpenDemo = async () => {
-    trackAnalyticsEvent('click_cta_explorar_demo', { location: 'landing_hero' });
-    await startGuestDemo();
+    if (isOpeningDemo) return;
+    setIsOpeningDemo(true);
+    try {
+      trackAnalyticsEvent('click_cta_explorar_demo', { location: 'landing_hero' });
+      await startGuestDemo();
+    } finally {
+      setIsOpeningDemo(false);
+    }
   };
 
   return (
@@ -50,7 +57,11 @@ export function LandingPageView() {
 
       <main id="main-content" tabIndex={-1} className="outline-none">
         {/* 2. Hero Section Principal con Maqueta Interactiva */}
-        <LandingHeroSection onOpenAuth={openSignupAuth} onOpenDemo={handleOpenDemo} />
+        <LandingHeroSection
+          onOpenAuth={openSignupAuth}
+          onOpenDemo={handleOpenDemo}
+          isOpeningDemo={isOpeningDemo}
+        />
 
       {/* 3. Comparativa Cara a Cara: CONTPAQi® vs. LibrePaq Pro */}
       <LandingComparisonSection />

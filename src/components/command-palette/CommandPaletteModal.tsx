@@ -3,9 +3,12 @@ import { Search, X } from 'lucide-react';
 import { useDialogLightDismiss } from '../../hooks/useDialogLightDismiss';
 import type { AccountWithBalance, Company, Poliza } from '../../shared/types';
 import {
-  useCommandPaletteItems
+  useCommandPaletteItems,
+  type FlattenedItem
 } from './useCommandPaletteItems';
 import type { CommandPaletteNavItem } from './commandPaletteTypes';
+import { CommandPaletteCompanyConfirm } from './CommandPaletteCompanyConfirm';
+import { CommandPaletteResultOption } from './CommandPaletteResultOption';
 
 export type { CommandPaletteNavItem };
 
@@ -45,8 +48,22 @@ export function CommandPaletteModal({
   onOpenNewCompanyWizard
 }: CommandPaletteModalProps) {
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [pendingSwitchCompany, setPendingSwitchCompany] = useState<Company | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  useDialogLightDismiss(dialogRef, () => dialogRef.current?.close());
+  useDialogLightDismiss(dialogRef, () => {
+    setPendingSwitchCompany(null);
+    dialogRef.current?.close();
+  });
+
+  const handleRequestCompanySwitch = (companyId: string) => {
+    const target = companies.find((c) => c.id === companyId);
+    if (!target || target.id === activeCompany?.id) {
+      dialogRef.current?.close();
+      onSelectCompany?.(companyId);
+      return;
+    }
+    setPendingSwitchCompany(target);
+  };
 
   const flattenedItems = useCommandPaletteItems({
     query,
@@ -57,11 +74,21 @@ export function CommandPaletteModal({
     polizas,
     onSelectRoute,
     onSelectAccount,
-    onSelectCompany,
+    onSelectCompany: handleRequestCompanySwitch,
     onSelectPeriod,
     onOpenCompanySwitcher,
     onOpenNewCompanyWizard
   });
+
+  const executeItem = (item: FlattenedItem) => {
+    const isSwitchingOtherCompany =
+      item.category === 'COMPANIES' &&
+      item.id !== `comp-${activeCompany?.id ?? ''}`;
+    if (!isSwitchingOtherCompany) {
+      dialogRef.current?.close();
+    }
+    item.action();
+  };
 
   useEffect(() => {
     setHighlightedIndex(0);
@@ -96,15 +123,17 @@ export function CommandPaletteModal({
       e.preventDefault();
       if (flattenedItems.length > 0) setHighlightedIndex((prev) => Math.max(0, prev - 5));
     } else if (e.key === 'Enter') {
+      if (pendingSwitchCompany) return;
       e.preventDefault();
       const currentItem = flattenedItems[highlightedIndex];
-      if (currentItem) {
-        dialogRef.current?.close();
-        currentItem.action();
-      }
+      if (currentItem) executeItem(currentItem);
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      dialogRef.current?.close();
+      if (pendingSwitchCompany) {
+        setPendingSwitchCompany(null);
+      } else {
+        dialogRef.current?.close();
+      }
     }
   };
 
@@ -116,9 +145,23 @@ export function CommandPaletteModal({
       ref={dialogRef}
       closedby="any"
       aria-labelledby="cmd-palette-title"
+      onClose={() => setPendingSwitchCompany(null)}
       onKeyDown={handleKeyDown}
       className="rounded-2xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl max-h-[90dvh] overflow-hidden backdrop:bg-slate-950/40 backdrop:backdrop-blur-xs p-0 m-auto"
     >
+      {pendingSwitchCompany ? (
+        <CommandPaletteCompanyConfirm
+          activeCompany={activeCompany}
+          targetCompany={pendingSwitchCompany}
+          onCancel={() => setPendingSwitchCompany(null)}
+          onConfirm={() => {
+            const id = pendingSwitchCompany.id;
+            setPendingSwitchCompany(null);
+            dialogRef.current?.close();
+            onSelectCompany?.(id);
+          }}
+        />
+      ) : (
       <div className="flex flex-col max-h-[90dvh] bg-white divide-y divide-slate-100">
         {/* Cabecera / Input de búsqueda Spotlight */}
         <div className="p-2.5 sm:p-3.5 flex items-center gap-2.5 bg-slate-50/70 shrink-0">
@@ -199,11 +242,7 @@ export function CommandPaletteModal({
               const globalIndex = itemIndexTracker++;
               const isSelected = globalIndex === highlightedIndex;
               const isNewCategory = item.categoryTitle !== currentCategory;
-              if (isNewCategory) {
-                currentCategory = item.categoryTitle;
-              }
-
-              const Icon = item.icon;
+              if (isNewCategory) currentCategory = item.categoryTitle;
 
               return (
                 <React.Fragment key={item.id}>
@@ -212,94 +251,15 @@ export function CommandPaletteModal({
                       <span>{item.categoryTitle}</span>
                     </div>
                   )}
-
-                  <button
-                    id={item.id}
-                    ref={(el) => {
+                  <CommandPaletteResultOption
+                    item={item}
+                    isSelected={isSelected}
+                    buttonRef={(el) => {
                       itemRefs.current[globalIndex] = el;
                     }}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    tabIndex={-1}
-                    onClick={() => {
-                      dialogRef.current?.close();
-                      item.action();
-                    }}
-                    onMouseEnter={() => setHighlightedIndex(globalIndex)}
-                    className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer select-none ${
-                      isSelected
-                        ? 'bg-blue-600 text-white shadow-xs font-medium'
-                        : 'hover:bg-slate-100 text-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                          isSelected
-                            ? 'bg-white/20 text-white'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" aria-hidden="true" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-xs truncate ${
-                              isSelected ? 'font-bold text-white' : 'font-semibold text-slate-900'
-                            }`}
-                          >
-                            {item.title}
-                          </span>
-                          {item.badge && (
-                            <span
-                              className={`text-[9px] font-medium px-1.5 py-0.5 rounded border shrink-0 ${
-                                isSelected
-                                  ? 'bg-white/20 text-white border-white/30'
-                                  : item.badgeClass || 'bg-slate-100 text-slate-600 border-slate-200'
-                              }`}
-                            >
-                              {item.badge}
-                            </span>
-                          )}
-                        </div>
-                        {item.subtitle && (
-                          <div
-                            className={`text-[11px] truncate mt-0.5 ${
-                              isSelected ? 'text-blue-100' : 'text-slate-500'
-                            }`}
-                          >
-                            {item.subtitle}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {item.meta && (
-                        <span
-                          className={`text-xs font-mono font-bold ${
-                            isSelected ? 'text-white' : 'text-slate-900'
-                          }`}
-                        >
-                          {item.meta}
-                        </span>
-                      )}
-                      {item.shortcut && (
-                        <kbd
-                          className={`px-1.5 py-0.5 font-mono text-[10px] rounded border ${
-                            isSelected
-                              ? 'bg-white/20 text-white border-white/40 font-bold'
-                              : 'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}
-                        >
-                          {item.shortcut}
-                        </kbd>
-                      )}
-                    </div>
-                  </button>
+                    onSelect={() => executeItem(item)}
+                    onHover={() => setHighlightedIndex(globalIndex)}
+                  />
                 </React.Fragment>
               );
             })
@@ -335,6 +295,7 @@ export function CommandPaletteModal({
           </div>
         </div>
       </div>
+      )}
     </dialog>
   );
 }

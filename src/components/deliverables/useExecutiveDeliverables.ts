@@ -145,8 +145,8 @@ export function useExecutiveDeliverables({
   const {
     data: prevReportsData
   } = useQuery({
-    queryKey: ['reports', company.id, year - 1, period],
-    queryFn: () => apiClient.getReports(company.id, year - 1, period),
+    queryKey: ['reports', company.id, year - 1, 13],
+    queryFn: () => apiClient.getReports(company.id, year - 1, 13),
     enabled: isOpen && year > 2000
   });
 

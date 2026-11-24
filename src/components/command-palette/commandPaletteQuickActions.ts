@@ -21,7 +21,7 @@ export function getQuickActionItems(
       category: 'ACTIONS',
       categoryTitle: 'Acciones Rápidas del Sistema',
       title: 'Capturar Nueva Póliza Contable',
-      subtitle: 'Ingresos, Egresos, Diario con cuadre automático y combobox predictivo',
+      subtitle: 'Ingresos, Egresos y Diario con cuadre automático y búsqueda asistida',
       shortcut: 'Alt+N',
       badge: 'Partida Doble',
       badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -52,7 +52,7 @@ export function getQuickActionItems(
       badgeClass: 'bg-indigo-100 text-indigo-800 border-indigo-200',
       icon: Zap,
       action: () => {
-        onSelectRoute('/reportes?dossier=true');
+        onSelectRoute('/reportes?tab=DOSSIER&dossier=true');
       }
     },
     {

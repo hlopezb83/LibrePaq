@@ -31,6 +31,7 @@ export interface AjustesFiscalTabProps {
       ivaNetoAPagar: number;
     };
   } | null;
+  isReadOnly?: boolean;
 }
 
 export function AjustesFiscalTab({
@@ -49,7 +50,8 @@ export function AjustesFiscalTab({
   isFiscalDirty,
   onResetFiscal,
   saveFiscalParamsMutation,
-  fiscalWp
+  fiscalWp,
+  isReadOnly = false
 }: AjustesFiscalTabProps) {
   return (
     <section className="space-y-5">
@@ -57,7 +59,7 @@ export function AjustesFiscalTab({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            saveFiscalParamsMutation.mutate();
+            if (!isReadOnly) saveFiscalParamsMutation.mutate();
           }}
           className="lg:col-span-2 bg-white rounded-2xl border border-slate-300/90 p-5 shadow-2xs space-y-4"
         >
@@ -74,6 +76,7 @@ export function AjustesFiscalTab({
 
             <Link
               to="/fiscal-bancos"
+              search={{ tab: 'DIA17' } as unknown as Record<string, string>}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition shrink-0"
             >
               Ver Cédula Día 17
@@ -95,9 +98,10 @@ export function AjustesFiscalTab({
                   min="0"
                   max="1"
                   required
+                  disabled={isReadOnly}
                   value={coefUtilidad}
                   onChange={(e) => setCoefUtilidad(Number(e.target.value))}
-                  className="w-full px-3 py-2 pr-12 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600"
+                  className="w-full px-3 py-2 pr-12 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
                 <span className="absolute right-3 top-2 text-[11px] text-slate-600 font-bold font-mono">
                   C.U.
@@ -118,17 +122,18 @@ export function AjustesFiscalTab({
                   type="number"
                   inputMode="decimal"
                   step="0.0001"
-                  min="1"
+                  min="0"
                   required
+                  disabled={isReadOnly}
                   value={tcDof}
                   onChange={(e) => setTcDof(Number(e.target.value))}
-                  className="w-full px-3 py-2 pr-20 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600"
+                  className="w-full px-3 py-2 pr-20 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
                 <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-bold font-mono">
                   MXN/USD
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600">Para valuación de fluctuación cambiaria oficial.</p>
+              <p className="text-[11px] text-slate-600">Para valuación de fluctuación cambiaria oficial (0 para empresas solo MXN).</p>
             </div>
 
             <div className="space-y-1">
@@ -143,9 +148,10 @@ export function AjustesFiscalTab({
                   inputMode="decimal"
                   step="0.01"
                   min="0"
+                  disabled={isReadOnly}
                   value={perdidasAnt}
                   onChange={(e) => setPerdidasAnt(Number(e.target.value))}
-                  className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600"
+                  className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
                 <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-mono">MXN</span>
               </div>
@@ -164,9 +170,10 @@ export function AjustesFiscalTab({
                   inputMode="decimal"
                   step="0.01"
                   min="0"
+                  disabled={isReadOnly}
                   value={pagosAnt}
                   onChange={(e) => setPagosAnt(Number(e.target.value))}
-                  className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600"
+                  className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
                 <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-mono">MXN</span>
               </div>
@@ -185,9 +192,10 @@ export function AjustesFiscalTab({
                   inputMode="decimal"
                   step="0.01"
                   min="0"
+                  disabled={isReadOnly}
                   value={saldoIvaAnt}
                   onChange={(e) => setSaldoIvaAnt(Number(e.target.value))}
-                  className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600"
+                  className="w-full pl-7 pr-12 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-blue-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
                 <span className="absolute right-3 top-2 text-[10px] text-slate-600 font-mono">MXN</span>
               </div>
@@ -204,7 +212,7 @@ export function AjustesFiscalTab({
               )}
             </div>
             <div className="flex items-center gap-2 ml-auto">
-              {isFiscalDirty && (
+              {isFiscalDirty && !isReadOnly && (
                 <button
                   type="button"
                   onClick={onResetFiscal}
@@ -216,7 +224,8 @@ export function AjustesFiscalTab({
               )}
               <button
                 type="submit"
-                disabled={saveFiscalParamsMutation.isPending || !isFiscalDirty}
+                disabled={isReadOnly || saveFiscalParamsMutation.isPending || !isFiscalDirty}
+                title={isReadOnly ? 'Solo un Contador o Socio puede modificar parámetros fiscales' : undefined}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" aria-hidden="true" />
@@ -268,6 +277,7 @@ export function AjustesFiscalTab({
             <div className="pt-2">
               <Link
                 to="/fiscal-bancos"
+                search={{ tab: 'DIA17' } as unknown as Record<string, string>}
                 className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#0A1120] hover:bg-slate-800 transition shadow-xs"
               >
                 Generar Póliza de Provisión

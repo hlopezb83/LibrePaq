@@ -98,7 +98,9 @@ export function DiotBancosView() {
       )}
 
       {/* Encabezado del Módulo y Pestañas */}
-      <FiscalBancosTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <div className="fb-tabbar-shell">
+        <FiscalBancosTabBar activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
 
       {/* PESTAÑA 1: CONCILIACIÓN BANCARIA */}
       {activeTab === 'CONCILIACION' && (

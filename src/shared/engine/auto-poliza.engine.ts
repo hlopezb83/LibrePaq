@@ -74,7 +74,7 @@ export function buildAutoPolizaPlan(
   const safeRuleCounter =
     ruleCounterRaw &&
     !(cfdi.metodoPago === 'PPD' && /^(101|102)/.test(ruleCounterRaw)) &&
-    !(cfdi.metodoPago === 'PUE' && /^(105|201)/.test(ruleCounterRaw))
+    !(cfdi.metodoPago === 'PUE' && /^(105|107|201|205)/.test(ruleCounterRaw))
       ? ruleCounterRaw
       : undefined;
 

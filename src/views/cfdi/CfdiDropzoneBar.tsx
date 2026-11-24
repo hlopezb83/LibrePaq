@@ -86,13 +86,13 @@ export function CfdiDropzoneBar({
           }
           handleDrop(e);
         }}
-        className={`flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border transition shadow-2xs ${
+        className={`flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border transition shadow-2xs ${
           isDragging
             ? 'border-2 border-dashed border-blue-600 bg-blue-50/40'
             : 'border-slate-300/90'
         }`}
       >
-        <div className="flex items-start gap-3 min-w-0">
+        <div className="flex items-start gap-3 min-w-[260px]">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
             <FileCode2 className="w-5 h-5" aria-hidden="true" />
           </div>

@@ -237,12 +237,13 @@ export async function exportAuxiliaresRangeXlsx(params: {
   ]).toFile(`Auxiliar_Movimientos_${company.rfc}_${ejercicio}_P${String(periodFrom).padStart(2, '0')}-P${String(periodTo).padStart(2, '0')}.xlsx`);
 }
 
-function escapeHtml(val: string | number | null | undefined): string {
+export function escapeHtml(val: string | number | null | undefined): string {
   return String(val ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function printReportHtmlDocument(title: string, subtitle: string, bodyHtml: string): boolean {

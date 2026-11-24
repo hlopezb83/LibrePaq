@@ -196,11 +196,27 @@ export function buildCostOfSalesPolizaPlan(
   input: BuildCostOfSalesPolizaInput
 ): CostOfSalesPolizaPlan {
   const costCents = toCents(input.costOfSales);
-  assertAccountingInvariant(
-    costCents > 0,
-    'ZERO_POLIZA_TOTAL',
-    'El Costo de Ventas debe ser mayor a $0.00 para generar la póliza.'
-  );
+  const useAnalyticalAdjustment =
+    input.method === 'ANALITICO' &&
+    input.initialInventory !== undefined &&
+    input.finalInventory !== undefined;
+  const initialCents = Math.max(0, toCents(input.initialInventory ?? 0));
+  const finalCents = Math.max(0, toCents(input.finalInventory ?? 0));
+  const purchasesCents = Math.max(0, toCents(input.purchasesPeriod ?? 0));
+
+  if (useAnalyticalAdjustment) {
+    assertAccountingInvariant(
+      costCents > 0 || initialCents > 0 || finalCents > 0 || purchasesCents > 0,
+      'ZERO_POLIZA_TOTAL',
+      'El Costo de Ventas o los inventarios del periodo deben ser mayores a $0.00 para generar la póliza.'
+    );
+  } else {
+    assertAccountingInvariant(
+      costCents > 0,
+      'ZERO_POLIZA_TOTAL',
+      'El Costo de Ventas debe ser mayor a $0.00 para generar la póliza.'
+    );
+  }
 
   const costAcc = resolveCostOfSalesAccount(input.accounts);
   const invAcc = resolveInventoryOrPurchasesAccount(input.accounts, costAcc);
@@ -209,16 +225,9 @@ export function buildCostOfSalesPolizaPlan(
   const referencia = `CV-${input.year}-${String(input.period).padStart(2, '0')}`;
   const resolvedFecha = resolveCdmxPolizaDate(input.year, input.period, input.fecha);
 
-  const useAnalyticalAdjustment =
-    input.method === 'ANALITICO' &&
-    input.initialInventory !== undefined &&
-    input.finalInventory !== undefined;
-
   let movements: CostOfSalesPolizaMovementDraft[];
 
   if (useAnalyticalAdjustment) {
-    const initialCents = Math.max(0, toCents(input.initialInventory ?? 0));
-    const finalCents = Math.max(0, toCents(input.finalInventory ?? 0));
     assertAccountingInvariant(
       initialCents > 0 || finalCents > 0,
       'ZERO_ANALYTICAL_ADJUSTMENT',

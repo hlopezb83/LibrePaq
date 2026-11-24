@@ -49,6 +49,22 @@ export function createAccountRecord(input: {
   const hierarchy = validateAccountHierarchy(accounts, input.parentCode, input.code);
   const resolvedLevel = input.parentCode ? hierarchy.level : input.level;
 
+  if (input.parentCode) {
+    const parentAcc = accounts.find((a) => a.code === input.parentCode);
+    if (parentAcc && parentAcc.isAffectable) {
+      const movCountRow = db
+        .query('SELECT COUNT(*) as c FROM poliza_movements WHERE account_id = ?')
+        .get(parentAcc.id) as { c: number } | null;
+      const hasMovs = (movCountRow?.c ?? 0) > 0 || toCents(parentAcc.initialBalance) !== 0;
+      assertAccountingInvariant(
+        !hasMovs,
+        'PARENT_ACCOUNT_HAS_MOVEMENTS',
+        `La cuenta padre ${parentAcc.code} es afectable y ya tiene movimientos o saldo inicial. Conviértela en acumuladora no afectable o elige otra cuenta padre.`
+      );
+      db.prepare('UPDATE accounts SET is_affectable = 0 WHERE id = ?').run(parentAcc.id);
+    }
+  }
+
   const id = `${input.companyId}_${input.code}`;
   db.prepare(`
     INSERT INTO accounts (
@@ -122,7 +138,7 @@ export function updateAccountRecord(
 
 export function deleteAccountRecord(
   id: string
-): { deleted: boolean; hasMovements: boolean; hasChildren?: boolean } {
+): { deleted: boolean; hasMovements: boolean; hasChildren?: boolean; hasInitialBalance?: boolean } {
   const hasMovs = db
     .query('SELECT COUNT(*) as c FROM poliza_movements WHERE account_id = ?')
     .get(id) as { c: number } | null;
@@ -130,9 +146,12 @@ export function deleteAccountRecord(
     return { deleted: false, hasMovements: true };
   }
   const accRow = db
-    .query('SELECT company_id, code FROM accounts WHERE id = ?')
-    .get(id) as { company_id: string; code: string } | null;
+    .query('SELECT company_id, code, initial_balance FROM accounts WHERE id = ?')
+    .get(id) as { company_id: string; code: string; initial_balance: number } | null;
   if (accRow) {
+    if (toCents(accRow.initial_balance) !== 0) {
+      return { deleted: false, hasMovements: true, hasInitialBalance: true };
+    }
     const childRow = db
       .query('SELECT COUNT(*) as c FROM accounts WHERE company_id = ? AND parent_code = ?')
       .get(accRow.company_id, accRow.code) as { c: number } | null;
@@ -152,6 +171,7 @@ export function batchImportAccountsCatalog(
     parentCode?: string | null;
     type?: AccountType;
     nature?: AccountNature;
+    level?: number;
     satGroupCode?: string;
     isAffectable?: boolean;
     initialBalance?: number;
@@ -169,6 +189,7 @@ export function batchImportAccountsCatalog(
       name = excluded.name,
       type = excluded.type,
       nature = excluded.nature,
+      level = excluded.level,
       sat_group_code = excluded.sat_group_code,
       initial_balance = excluded.initial_balance
   `);
@@ -204,7 +225,21 @@ export function batchImportAccountsCatalog(
         (inferredType === 'PASIVO' || inferredType === 'CAPITAL' || inferredType === 'INGRESOS'
           ? 'ACREEDORA'
           : 'DEUDORA');
-      const level = code.endsWith('-00-000') ? 1 : code.endsWith('-000') ? 2 : 3;
+      const segments = code.split('-');
+      const inferredLevel =
+        segments.length <= 1
+          ? 1
+          : Math.max(
+              1,
+              Math.min(
+                SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL,
+                segments.filter((seg) => !/^0+$/.test(seg)).length
+              )
+            );
+      const level =
+        r.level !== undefined && Number.isInteger(r.level) && r.level >= 1 && r.level <= SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL
+          ? r.level
+          : inferredLevel;
       const isAffectable = r.isAffectable !== undefined ? r.isAffectable : level >= 3;
       const satGroupCode = r.satGroupCode || code.slice(0, 3);
       const nextBalCents = toCents(r.initialBalance ?? 0);

@@ -75,6 +75,8 @@ export function Anexo24OptionsBar({
   const isOrden = options.tipoSolicitud === 'AF' || options.tipoSolicitud === 'FC';
   const rawOrden = options.numOrden.trim().toUpperCase();
   const rawTramite = options.numTramite.trim().toUpperCase();
+  const ordenMissing = isOrden && rawOrden.length === 0;
+  const tramiteMissing = !isOrden && rawTramite.length === 0;
   const ordenInvalid = isOrden && rawOrden.length > 0 && !isValidSatNumOrden(rawOrden);
   const tramiteInvalid = !isOrden && rawTramite.length > 0 && !isValidSatNumTramite(rawTramite);
 
@@ -115,9 +117,18 @@ export function Anexo24OptionsBar({
                 onChange({ ...options, numOrden: e.target.value.toUpperCase() })
               }
               className={`w-full rounded-lg border px-3 py-1.5 text-xs font-mono uppercase bg-white ${
-                ordenInvalid ? 'border-red-500 text-red-900' : 'border-slate-300 text-slate-800'
+                ordenInvalid
+                  ? 'border-red-500 text-red-900'
+                  : ordenMissing
+                    ? 'border-amber-400 text-slate-800'
+                    : 'border-slate-300 text-slate-800'
               }`}
             />
+            {ordenMissing && (
+              <p className="text-[11px] text-amber-800 font-semibold">
+                Requerido para {options.tipoSolicitud}: captura el NumOrden oficial del SAT.
+              </p>
+            )}
             {ordenInvalid && (
               <p className="text-[11px] text-red-700 font-semibold">
                 Debe cumplir patrón SAT: 3 letras + 7 dígitos + / + 2 dígitos.
@@ -139,9 +150,18 @@ export function Anexo24OptionsBar({
                 onChange({ ...options, numTramite: e.target.value.toUpperCase() })
               }
               className={`w-full rounded-lg border px-3 py-1.5 text-xs font-mono uppercase bg-white ${
-                tramiteInvalid ? 'border-red-500 text-red-900' : 'border-slate-300 text-slate-800'
+                tramiteInvalid
+                  ? 'border-red-500 text-red-900'
+                  : tramiteMissing
+                    ? 'border-amber-400 text-slate-800'
+                    : 'border-slate-300 text-slate-800'
               }`}
             />
+            {tramiteMissing && (
+              <p className="text-[11px] text-amber-800 font-semibold">
+                Requerido para {options.tipoSolicitud}: captura el NumTramite oficial del SAT.
+              </p>
+            )}
             {tramiteInvalid && (
               <p className="text-[11px] text-red-700 font-semibold">
                 Debe contener entre 10 y 14 caracteres alfanuméricos sin espacios.

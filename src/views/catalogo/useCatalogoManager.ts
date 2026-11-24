@@ -167,7 +167,14 @@ export function useCatalogoManager() {
     onSuccess: (res) => {
       setConfirmDeleteId(null);
       if (res && typeof res === 'object' && 'deleted' in res && !res.deleted) {
-        const meta = res as { hasMovements?: boolean; hasChildren?: boolean };
+        const meta = res as { hasMovements?: boolean; hasChildren?: boolean; hasInitialBalance?: boolean };
+        if (meta.hasInitialBalance) {
+          toast.error(
+            'No se puede eliminar la cuenta',
+            'Esta cuenta tiene saldo inicial distinto de $0.00.'
+          );
+          return;
+        }
         if (meta.hasMovements) {
           toast.error(
             'No se puede eliminar la cuenta',

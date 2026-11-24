@@ -146,6 +146,8 @@ export function useCfdiContabilizarRules({
       const existingRfcRuleId =
         matchedRule &&
         matchedRule.matchRfc === counterpartyRfc &&
+        !matchedRule.matchClaveProdServ &&
+        !matchedRule.matchUsoCfdi &&
         matchedRule.direction === selectedCfdi.direction
           ? matchedRule.id
           : undefined;

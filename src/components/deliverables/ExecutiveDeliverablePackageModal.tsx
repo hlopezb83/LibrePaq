@@ -79,7 +79,7 @@ export function ExecutiveDeliverablePackageModal({
       closedby="any"
       onClose={onClose}
       aria-labelledby="executive-deliverables-title"
-      className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-full max-w-6xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/75 p-0 m-auto printable-modal-dialog"
+      className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-6xl max-h-[92dvh] flex flex-col overflow-hidden backdrop:bg-slate-900/75 p-0 inset-0 mx-auto my-auto printable-modal-dialog"
     >
       <DeliverableModalHeader
         company={company}

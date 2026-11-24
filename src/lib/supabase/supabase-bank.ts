@@ -11,6 +11,7 @@ import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 import {
+  assertMovementNotAlreadyMatched,
   fetchActiveN1MatchedMovementIds,
   mapBankStatementLine
 } from './supabase-bank-helpers';
@@ -218,6 +219,7 @@ export const supabaseBank = {
     const lineYear = Number(bLine.ejercicio) || 2026;
     const linePeriod = Number(bLine.periodo) || 10;
     await assertSupabasePeriodOpen(String(bLine.company_id), lineYear, linePeriod);
+    await assertMovementNotAlreadyMatched(String(bLine.company_id), movementId, lineId);
 
     const { error: updErr } = await supabase
       .from('bank_statement_lines')

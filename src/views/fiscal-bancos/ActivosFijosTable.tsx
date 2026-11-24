@@ -27,6 +27,7 @@ export function ActivosFijosTable({
   isDeleting
 }: ActivosFijosTableProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmRetireId, setConfirmRetireId] = useState<string | null>(null);
   const totalMoi = assets.reduce((s, a) => s + a.montoOriginalInversion, 0);
   const totalDepContable = assets.reduce((s, a) => s + a.depreciacionMensualContable, 0);
   const totalDepFiscal = assets.reduce((s, a) => s + a.depreciacionMensualFiscalActualizada, 0);
@@ -142,16 +143,42 @@ export function ActivosFijosTable({
                           </button>
                         )}
                         {onRetireAsset && asset.estatus === 'ACTIVO' && (
-                          <button
-                            type="button"
-                            disabled={isDeleting || isPeriodLocked}
-                            onClick={() => onRetireAsset(asset.id)}
-                            title={isPeriodLocked ? 'Periodo fiscal bloqueado' : 'Dar de baja activo (BAJA)'}
-                            aria-label={`Dar de baja activo fijo ${asset.codigo}`}
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <ArchiveX className="w-3.5 h-3.5" aria-hidden="true" />
-                          </button>
+                          confirmRetireId === asset.id ? (
+                            <span className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={isDeleting || isPeriodLocked}
+                                onClick={() => {
+                                  setConfirmRetireId(null);
+                                  onRetireAsset(asset.id);
+                                }}
+                                className="px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 cursor-pointer disabled:opacity-50"
+                              >
+                                Confirmar Baja
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmRetireId(null)}
+                                className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] hover:bg-slate-300 cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isDeleting || isPeriodLocked}
+                              onClick={() => {
+                                setConfirmDeleteId(null);
+                                setConfirmRetireId(asset.id);
+                              }}
+                              title={isPeriodLocked ? 'Periodo fiscal bloqueado' : 'Dar de baja activo (BAJA)'}
+                              aria-label={`Dar de baja activo fijo ${asset.codigo}`}
+                              className="p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <ArchiveX className="w-3.5 h-3.5" aria-hidden="true" />
+                            </button>
+                          )
                         )}
                         <button
                           type="button"

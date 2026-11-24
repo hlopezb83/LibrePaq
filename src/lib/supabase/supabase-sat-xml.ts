@@ -21,12 +21,12 @@ export async function getSatXml(
   const needsCfdiLookup = type === 'polizas' || type === 'auxiliar_folios';
 
   const polizas = needsPolizas
-    ? await supabasePolizas.getPolizas(companyId, year, period)
+    ? await supabasePolizas.getPolizas(companyId, reportData.ejercicio, reportData.periodo)
     : [];
 
   let cfdiLookup: Map<string, Anexo24CfdiMetadata> | undefined;
   if (needsCfdiLookup) {
-    const cfdis = await supabaseCfdi.getCfdis(companyId);
+    const cfdis = await supabaseCfdi.getCfdis(companyId, { includeXml: false });
     cfdiLookup = new Map<string, Anexo24CfdiMetadata>();
     for (const c of cfdis) {
       if (c.uuid) {
@@ -35,7 +35,8 @@ export async function getSatXml(
           total: c.total,
           rfcContraparte: counterpartRfc,
           moneda: c.moneda,
-          tipoCambio: c.tipoCambio
+          tipoCambio: c.tipoCambio,
+          formaPago: c.formaPago
         });
       }
     }

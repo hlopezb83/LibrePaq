@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CheckCircle2, Landmark, Lock, Sparkles, Trash2, Unlink } from 'lucide-react';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
 import type { BankReconciliationResponse } from '../../shared/types';
@@ -33,6 +34,7 @@ export function BankStatementTable({
   onSelectLine,
   activeBankLineId = null
 }: BankStatementTableProps) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const isLocked = isPeriodLocked || isReadOnlyClient;
   const lockReason = isReadOnlyClient
     ? 'Modo solo lectura'
@@ -179,16 +181,40 @@ export function BankStatementTable({
                           : 'Crear Póliza'}
                       </button>
                       {onDeleteBankLine && (
-                        <button
-                          type="button"
-                          disabled={isDeletePending || isLocked}
-                          onClick={() => onDeleteBankLine(line.id)}
-                          title={isLocked ? lockReason : 'Eliminar línea bancaria mal importada'}
-                          aria-label={`Eliminar movimiento bancario ${line.referencia}`}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 border border-slate-200 hover:border-red-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                        </button>
+                        confirmDeleteId === line.id ? (
+                          <span className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={isDeletePending || isLocked}
+                              onClick={() => {
+                                setConfirmDeleteId(null);
+                                onDeleteBankLine(line.id);
+                              }}
+                              className="px-2 py-1 rounded-lg text-[11px] font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-40 cursor-pointer"
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDeletePending}
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isDeletePending || isLocked}
+                            onClick={() => setConfirmDeleteId(line.id)}
+                            title={isLocked ? lockReason : 'Eliminar línea bancaria mal importada'}
+                            aria-label={`Eliminar movimiento bancario ${line.referencia}`}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 border border-slate-200 hover:border-red-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                        )
                       )}
                     </div>
                   ) : (

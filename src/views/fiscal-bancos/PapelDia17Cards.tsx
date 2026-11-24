@@ -4,8 +4,14 @@ import type { FiscalWorkpaperResponse } from '../../shared/types';
 
 export function PapelDia17IsrCard({ workpaper, period }: { workpaper: FiscalWorkpaperResponse; period: number }) {
   const isPersonaFisica = workpaper.company.rfc.trim().length === 13;
-  const isPfGeneral = isPersonaFisica && !workpaper.isrProvisional.esResico;
-  const isrMethodLabel = workpaper.isrProvisional.esResico
+  const isResico = workpaper.isrProvisional.esResico;
+  const isResicoPf = isResico && isPersonaFisica;
+  const isResicoPm = isResico && !isPersonaFisica;
+  const isPfGeneral = isPersonaFisica && !isResico;
+  const dedAcum =
+    workpaper.isrProvisional.deduccionesAcumuladasEjercicio ??
+    workpaper.isrProvisional.deduccionesAutorizadasPeriodo;
+  const isrMethodLabel = isResico
     ? 'RESICO Flujo'
     : isPfGeneral
       ? 'Art. 106 LISR — Tarifa Progresiva'
@@ -34,28 +40,44 @@ export function PapelDia17IsrCard({ workpaper, period }: { workpaper: FiscalWork
             {formatCurrency(workpaper.isrProvisional.ingresosAcumuladosEjercicio)}
           </dd>
         </div>
-        <div className="flex justify-between">
-          <dt className="font-sans text-slate-600">
-            {workpaper.isrProvisional.esResico
-              ? '(-) Deducciones Autorizadas:'
-              : isPfGeneral
+        {!isResicoPf && (isResicoPm || isPfGeneral) && (
+          <>
+            <div className="flex justify-between">
+              <dt className="font-sans text-slate-600">(-) Deducciones del Mes:</dt>
+              <dd className="font-semibold text-slate-900">
+                -{formatCurrency(workpaper.isrProvisional.deduccionesAutorizadasPeriodo)}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="font-sans text-slate-600">
+                (-) Deducciones Acumuladas (P01-P{String(period).padStart(2, '0')}):
+              </dt>
+              <dd className="font-semibold text-slate-900">
+                -{formatCurrency(dedAcum)}
+              </dd>
+            </div>
+          </>
+        )}
+        {!isResicoPf && (
+          <div className="flex justify-between">
+            <dt className="font-sans text-slate-600">
+              {isResicoPm || isPfGeneral
                 ? '(=) Utilidad Fiscal (Ing. - Ded.):'
                 : `(x) Coeficiente Utilidad (${workpaper.isrProvisional.coeficienteUtilidadAplicado.toFixed(4)}):`}
-          </dt>
-          <dd className="font-semibold text-slate-900">
-            {formatCurrency(
-              workpaper.isrProvisional.esResico
-                ? workpaper.isrProvisional.deduccionesAutorizadasPeriodo
-                : workpaper.isrProvisional.utilidadFiscalEstimada
-            )}
-          </dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="font-sans text-slate-600">(-) Pérdidas Fiscales Amortizadas:</dt>
-          <dd className="text-emerald-700">
-            -{formatCurrency(workpaper.isrProvisional.perdidasFiscalesAplicadas)}
-          </dd>
-        </div>
+            </dt>
+            <dd className="font-semibold text-slate-900">
+              {formatCurrency(workpaper.isrProvisional.utilidadFiscalEstimada)}
+            </dd>
+          </div>
+        )}
+        {!isResicoPf && (
+          <div className="flex justify-between">
+            <dt className="font-sans text-slate-600">(-) Pérdidas Fiscales Amortizadas:</dt>
+            <dd className="text-emerald-700">
+              -{formatCurrency(workpaper.isrProvisional.perdidasFiscalesAplicadas)}
+            </dd>
+          </div>
+        )}
         <div className="flex justify-between pt-1 border-t border-slate-100">
           <dt className="font-sans font-semibold text-slate-800">(=) Base Gravable ISR:</dt>
           <dd className="font-bold text-slate-900">
@@ -68,12 +90,14 @@ export function PapelDia17IsrCard({ workpaper, period }: { workpaper: FiscalWork
             {formatCurrency(workpaper.isrProvisional.isrCausado)}
           </dd>
         </div>
-        <div className="flex justify-between">
-          <dt className="font-sans text-slate-600">(-) Pagos Prov. Anteriores:</dt>
-          <dd className="text-emerald-700">
-            -{formatCurrency(workpaper.isrProvisional.pagosProvisionalesPrevios)}
-          </dd>
-        </div>
+        {!isResicoPf && (
+          <div className="flex justify-between">
+            <dt className="font-sans text-slate-600">(-) Pagos Prov. Anteriores:</dt>
+            <dd className="text-emerald-700">
+              -{formatCurrency(workpaper.isrProvisional.pagosProvisionalesPrevios)}
+            </dd>
+          </div>
+        )}
         <div className="flex justify-between">
           <dt className="font-sans text-slate-600">(-) ISR Retenido por Clientes:</dt>
           <dd className="text-emerald-700">

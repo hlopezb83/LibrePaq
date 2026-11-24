@@ -16,6 +16,7 @@ interface UseAppShellKeyboardProps {
   stepPeriod: (delta: number) => void;
   activeCompany: Company | null;
   isOwner?: boolean;
+  disableCommandPalette?: boolean;
 }
 
 export function useAppShellKeyboard({
@@ -30,7 +31,8 @@ export function useAppShellKeyboard({
   navigate,
   stepPeriod,
   activeCompany,
-  isOwner = false
+  isOwner = false,
+  disableCommandPalette = false
 }: UseAppShellKeyboardProps) {
   useEffect(() => {
     const isEditableTarget = () => {
@@ -64,6 +66,7 @@ export function useAppShellKeyboard({
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        if (disableCommandPalette) return;
         e.preventDefault();
         if (!cmdDialogRef.current?.open) {
           openCommandPaletteModal();
@@ -127,5 +130,5 @@ export function useAppShellKeyboard({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navItems, navigate, activeCompany, isOwner, shortcutsDialogRef, cmdDialogRef, switcherDialogRef, openShortcutsModal, openCommandPaletteModal, openCompanySwitcherModal, setSidebarCollapsed, stepPeriod]);
+  }, [navItems, navigate, activeCompany, isOwner, disableCommandPalette, shortcutsDialogRef, cmdDialogRef, switcherDialogRef, openShortcutsModal, openCommandPaletteModal, openCompanySwitcherModal, setSidebarCollapsed, stepPeriod]);
 }

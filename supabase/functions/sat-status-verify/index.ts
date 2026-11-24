@@ -70,6 +70,23 @@ Deno.serve(async (req: Request) => {
       return await handleVerifyBatch(supabase, payload as VerifyBatchPayload, headers);
     }
 
+    if (action === 'UPSERT_69B_BATCH') {
+      if (auth.platformRole !== 'SUPERADMIN') {
+        if (!payload?.companyId || typeof payload.companyId !== 'string' || !payload.companyId.trim()) {
+          return jsonResponse(
+            { ok: false, error: 'Acceso denegado: se requiere rol SUPERADMIN o SOCIO con companyId válido' },
+            403,
+            headers
+          );
+        }
+        const access = await authorizeCompanyRole(supabase, auth, payload.companyId, 'SOCIO');
+        if (!access.ok) {
+          return jsonResponse({ ok: false, error: access.error }, access.status, headers);
+        }
+      }
+      return await handleUpsert69BBatch(supabase, payload as Upsert69BBatchPayload, headers);
+    }
+
     if (payload?.companyId && typeof payload.companyId === 'string') {
       const access = await authorizeCompanyRole(supabase, auth, payload.companyId, 'AUXILIAR');
       if (!access.ok) {
@@ -83,9 +100,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (action === 'UPSERT_69B_BATCH') {
-      return await handleUpsert69BBatch(supabase, payload as Upsert69BBatchPayload, headers);
-    }
     return await handleCheck69B(supabase, payload as Check69BPayload, headers);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error interno en sat-status-verify';

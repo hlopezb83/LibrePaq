@@ -7,6 +7,7 @@ import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
 import { inventoryClient } from '../../lib/inventory-client';
 import { buildCostOfSalesPolizaPlan, computeCostOfSales } from '../../shared/engine/cost-of-sales.engine';
+import { toCents } from '../../shared/engine/invariants-and-math';
 import type { AccountWithBalance } from '../../shared/types';
 import type { InventoryMethod } from '../../shared/types/cost-of-sales.types';
 import { InventarioCostoPolizaPreview } from './InventarioCostoPolizaPreview';
@@ -95,8 +96,12 @@ export function InventarioCostoTab({
 
   const exceedsAvailable = parseNonNeg(finalInput) > liveCost.availableMerchandise;
 
+  const hasAnalyticalAdjustment =
+    method === 'ANALITICO' &&
+    (toCents(liveCost.initialInventory) > 0 || toCents(liveCost.finalInventory) > 0);
+
   const { polizaPlan, polizaError } = useMemo(() => {
-    if (!targetCompanyId || liveCost.costOfSales <= 0 || resolvedAccounts.length === 0) {
+    if (!targetCompanyId || resolvedAccounts.length === 0 || (toCents(liveCost.costOfSales) <= 0 && !hasAnalyticalAdjustment)) {
       return { polizaPlan: null, polizaError: null };
     }
     try {
@@ -147,14 +152,30 @@ export function InventarioCostoTab({
         throw new Error('Periodo bloqueado o modo solo lectura: no es posible generar pólizas.');
       }
       if (!polizaPlan) throw new Error('No hay un borrador de póliza válido para registrar.');
+      if (data?.polizaId) {
+        try {
+          await apiClient.deletePoliza(data.polizaId);
+        } catch (delErr) {
+          const msg = delErr instanceof Error ? delErr.message.toLowerCase() : '';
+          if (!msg.includes('no encontrad') && !msg.includes('not found')) {
+            throw delErr;
+          }
+        }
+      }
       const poliza = await apiClient.createPoliza({
         companyId: polizaPlan.companyId, tipo: polizaPlan.tipo, fecha: polizaPlan.fecha,
         concepto: polizaPlan.concepto, origin: polizaPlan.origin,
+        ejercicio: targetYear, periodo: targetPeriod,
         movements: polizaPlan.movements.map(({ accountId, referencia, concepto, cargo, abono }) => ({
           accountId, referencia, concepto, cargo, abono
         }))
       });
-      await inventoryClient.saveInventoryPeriod(targetCompanyId, buildSavePayload(poliza.id));
+      try {
+        await inventoryClient.saveInventoryPeriod(targetCompanyId, buildSavePayload(poliza.id));
+      } catch (saveErr) {
+        await apiClient.deletePoliza(poliza.id).catch(() => {});
+        throw saveErr;
+      }
       return { poliza, targetCompanyId, targetYear, targetPeriod };
     },
     onSuccess: ({ poliza, targetCompanyId: cid, targetYear: y, targetPeriod: p }) => {
@@ -198,7 +219,7 @@ export function InventarioCostoTab({
   const saveTitle = lockReason ?? 'Guardar cálculo de inventario del periodo';
   const polizaTitle = lockReason
     ?? (!polizaPlan
-      ? (liveCost.costOfSales <= 0
+      ? (toCents(liveCost.costOfSales) <= 0 && !hasAnalyticalAdjustment
         ? 'El costo de ventas debe ser mayor a $0.00 para generar póliza'
         : polizaError ?? 'No hay cuentas contables disponibles para generar póliza')
       : 'Registrar póliza de diario de costo de ventas');

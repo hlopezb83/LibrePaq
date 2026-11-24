@@ -51,7 +51,7 @@ export const supabasePolizas = {
     concepto: string;
     cfdiUuid?: string | null;
     cfdiUuids?: string[];
-    origin?: 'MANUAL' | 'ADD_AUTO';
+    origin?: 'MANUAL' | 'ADD_AUTO' | 'CIERRE_ANUAL';
     ejercicio?: number;
     periodo?: number;
     movements: Array<{
@@ -67,8 +67,8 @@ export const supabasePolizas = {
   }): Promise<Poliza> {
     if (!supabase) throw new Error('Supabase no disponible');
 
-    const resolved = resolvePolizaYearPeriod(payload.fecha, payload.periodo);
-    const year = payload.ejercicio || resolved.ejercicio;
+    const resolved = resolvePolizaYearPeriod(payload.fecha, payload.periodo, payload.ejercicio);
+    const year = resolved.ejercicio;
     const period = resolved.periodo;
 
     // Candado Fiscal: Garantizar que el periodo de la póliza no esté cerrado
@@ -309,11 +309,23 @@ export const supabasePolizas = {
       Number(existingPol.periodo)
     );
 
-    await supabase.from('cfdi_documents').update({ poliza_id: null }).eq('poliza_id', polizaId);
-    const { data: movs } = await supabase
+    const { error: unlinkErr } = await supabase
+      .from('cfdi_documents')
+      .update({ poliza_id: null })
+      .eq('poliza_id', polizaId);
+    if (unlinkErr) throw new Error(unlinkErr.message);
+
+    const { error: unlinkLinksErr } = await supabase
+      .from('poliza_cfdis')
+      .delete()
+      .eq('poliza_id', polizaId);
+    if (unlinkLinksErr) throw new Error(unlinkLinksErr.message);
+
+    const { data: movs, error: movSelErr } = await supabase
       .from('poliza_movements')
       .select('id')
       .eq('poliza_id', polizaId);
+    if (movSelErr) throw new Error(movSelErr.message);
     const movIds = ((movs || []) as Array<{ id: string }>).map((m) => m.id);
     await clearSupabaseBankMatchesForPoliza(polizaId, movIds);
 

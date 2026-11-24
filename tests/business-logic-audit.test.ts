@@ -265,7 +265,7 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
         serie: 'NOM',
         folio: '45',
         fecha: '2026-10-15',
-        direction: 'RECIBIDO',
+        direction: 'EMITIDO',
         tipoComprobante: 'N',
         emisorRfc: demoCompany.rfc,
         emisorNombre: demoCompany.name,
@@ -431,13 +431,15 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
       const extCols = extRow.batchLine.split('|');
       expect(extCols).toHaveLength(54);
       expect(extCols[0]).toBe('05');
+      expect(extCols[3]).toBe('');
       expect(extCols[4]).toBe('STRIPE INC');
       expect(extCols[5]).toBe('USA');
-      expect(extCols[30]).toBe('4000'); // Base exenta en columna 31 (índice 30, layout 54 campos)
+      expect(extCols[49]).toBe('4000'); // Base exenta en campo 50 (índice 49, layout 54 campos)
 
       const ncRow = diot.rows.find((r) => r.rfc === 'PRO880101AA1')!;
       const ncCols = ncRow.batchLine.split('|');
-      expect(ncCols[48]).toBe('1000'); // Devoluciones/bonificaciones en columna 49 (índice 48, layout 54 campos)
+      expect(ncCols[12]).toBe('1000'); // Devoluciones/bonificaciones 16% en campo 13 (índice 12, layout 54 campos)
+      expect(ncCols[48]).toBe(''); // Campo 49 reservado para importaciones exentas
       expect(ncRow.ivaAcreditable16).toBe(-160);
     });
   });

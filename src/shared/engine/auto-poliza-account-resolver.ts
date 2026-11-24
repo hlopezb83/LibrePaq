@@ -63,15 +63,12 @@ export function resolveNonDeductibleAccount(accounts: readonly Account[]): Accou
     'El catálogo de cuentas está vacío para la empresa activa.'
   );
 
-  const roles = FISCAL_ACCOUNT_ROLES as Record<
-    string,
-    { code: string; aliases: readonly string[]; satGroupCode: string; fallbackType: Account['type'] }
-  >;
-  const role = roles['GASTO_NO_DEDUCIBLE'];
-  if (role) {
-    const byRole = accounts.find((a) => a.code === role.code && a.isAffectable);
-    if (byRole) return byRole;
-  }
+  const role = FISCAL_ACCOUNT_ROLES.GASTO_NO_DEDUCIBLE;
+  const byRole = accounts.find((a) => a.code === role.code && a.isAffectable);
+  if (byRole) return byRole;
+
+  const bySat = accounts.find((a) => a.satGroupCode === role.satGroupCode && a.isAffectable);
+  if (bySat) return bySat;
 
   const by801Exact = accounts.find((a) => a.code === '801-01-001' && a.isAffectable);
   if (by801Exact) return by801Exact;
@@ -128,7 +125,13 @@ export function resolveMatchingAccountingRule(
   rules?: readonly AccountingRuleRecord[] | null
 ): AccountingRuleRecord | null {
   if (!rules || rules.length === 0) return null;
-  if (cfdi.tipoComprobante === 'P' || cfdi.tipoComprobante === 'T') return null;
+  if (
+    cfdi.tipoComprobante === 'P' ||
+    cfdi.tipoComprobante === 'T' ||
+    cfdi.tipoComprobante === 'N'
+  ) {
+    return null;
+  }
 
   const counterpartyRfc = (
     cfdi.direction === 'RECIBIDO' ? cfdi.emisorRfc : cfdi.receptorRfc
@@ -144,6 +147,13 @@ export function resolveMatchingAccountingRule(
   for (let i = 0; i < rules.length; i += 1) {
     const rule = rules[i];
     if (!rule || rule.direction !== cfdi.direction) continue;
+    if (
+      cfdi.tipoComprobante === 'E' &&
+      cfdi.direction === 'EMITIDO' &&
+      /^401/.test((rule.operationAccountCode || '').trim())
+    ) {
+      continue;
+    }
 
     const ruleRfc = rule.matchRfc?.trim().toUpperCase() || '';
     const ruleClave = rule.matchClaveProdServ?.trim().toUpperCase() || '';
@@ -183,7 +193,7 @@ export function resolveMatchingAccountingRule(
   if (cfdi.metodoPago === 'PPD' && /^(101|102)/.test(counterCode)) {
     return { ...bestRule, counterAccountCode: null };
   }
-  if (cfdi.metodoPago === 'PUE' && /^(105|201)/.test(counterCode)) {
+  if (cfdi.metodoPago === 'PUE' && /^(105|107|201|205)/.test(counterCode)) {
     return { ...bestRule, counterAccountCode: null };
   }
 

@@ -135,8 +135,20 @@ describe('repositories — Companies & Accounts Catalog', () => {
     expect(acc?.initialBalance).toBe(7500);
   });
 
-  test('deleteAccountRecord deletes unused account', () => {
+  test('deleteAccountRecord deletes unused account after clearing initialBalance', () => {
     const accId = `${testCompanyId}_102-01-009`;
+    const blocked = deleteAccountRecord(accId);
+    expect(blocked.deleted).toBe(false);
+    expect(blocked.hasInitialBalance).toBe(true);
+
+    updateAccountRecord(accId, {
+      name: 'Cuenta Especial USD (Modificada)',
+      satGroupCode: '102.02',
+      nature: 'DEUDORA',
+      type: 'ACTIVO',
+      initialBalance: 0
+    });
+
     const res = deleteAccountRecord(accId);
     expect(res.deleted).toBe(true);
     expect(res.hasMovements).toBe(false);

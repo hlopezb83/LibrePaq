@@ -7,7 +7,10 @@ import {
   clearCompanyChildTables,
   restoreBackupChildTables
 } from './supabase-backup-mappers';
-import { exportOptionalBackupTables } from './supabase-backup-optional';
+import {
+  exportOptionalBackupTables,
+  type ExtendedBackupBundle
+} from './supabase-backup-optional';
 import type {
   Account, AccountNature, AccountType, Company, CompanyBackupBundle,
   FixedAssetRecord, PeriodLock, Poliza, TaxParametersRecord
@@ -15,7 +18,10 @@ import type {
 import { mapSupabaseAccount, supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { assertSupabasePeriodOpen, mapSupabasePoliza } from './supabase-polizas';
 import { mapSupabaseCfdi } from './supabase-cfdi';
-import { supabaseFiscalAndAssets } from './supabase-fiscal-assets';
+import {
+  mapSupabaseFixedAsset,
+  mapSupabaseThirdParty
+} from './supabase-fiscal-assets-helpers';
 
 export type BatchImportAccountRow = {
   id?: string;
@@ -157,7 +163,7 @@ export const supabaseBackupRestore = {
     return batchImportAccountsWithClient(supabase, companyId, rows);
   },
 
-  async exportCompanyBackup(companyId: string): Promise<CompanyBackupBundle> {
+  async exportCompanyBackup(companyId: string): Promise<ExtendedBackupBundle> {
     const client = supabase;
     if (!client) throw new Error('Supabase no disponible');
 
@@ -167,16 +173,16 @@ export const supabaseBackupRestore = {
 
     const [
       rawAccounts, rawCfdis, rawPolizas,
-      thirdParties, fixedAssetsRes,
-      periodLocksRes, taxParamsRes, rawBankLines, optionalTables
+      rawThirdParties, rawFixedAssets,
+      rawPeriodLocks, rawTaxParams, rawBankLines, optionalTables
     ] = await Promise.all([
       fetchAllRows((from, to) => client.from('accounts').select('*').eq('company_id', companyId).order('id').range(from, to)),
       fetchAllRows((from, to) => client.from('cfdi_documents').select('*').eq('company_id', companyId).order('id').range(from, to)),
       fetchAllRows((from, to) => client.from('polizas').select('*, poliza_movements(*)').eq('company_id', companyId).order('id').range(from, to)),
-      supabaseFiscalAndAssets.getThirdParties(companyId),
-      supabaseFiscalAndAssets.getFixedAssets(companyId),
-      client.from('period_locks').select('*').eq('company_id', companyId),
-      client.from('tax_parameters').select('*').eq('company_id', companyId),
+      fetchAllRows((from, to) => client.from('third_parties').select('*').eq('company_id', companyId).order('id').range(from, to)),
+      fetchAllRows((from, to) => client.from('fixed_assets').select('*').eq('company_id', companyId).order('id').range(from, to)),
+      fetchAllRows((from, to) => client.from('period_locks').select('*').eq('company_id', companyId).order('ejercicio').order('periodo').range(from, to)),
+      fetchAllRows((from, to) => client.from('tax_parameters').select('*').eq('company_id', companyId).order('ejercicio').order('periodo').range(from, to)),
       fetchAllRows((from, to) => client.from('bank_statement_lines').select('*').eq('company_id', companyId).order('id').range(from, to)),
       exportOptionalBackupTables(client, companyId)
     ]);
@@ -186,9 +192,14 @@ export const supabaseBackupRestore = {
     const polizas: Poliza[] = rawPolizas.map((r) =>
       mapSupabasePoliza(r as Record<string, unknown>, (r as Record<string, unknown>).poliza_movements)
     );
-    const fixedAssets: FixedAssetRecord[] = fixedAssetsRes.assets;
+    const thirdParties = (rawThirdParties as Array<Record<string, unknown>>).map((r) =>
+      mapSupabaseThirdParty(r)
+    );
+    const fixedAssets: FixedAssetRecord[] = (rawFixedAssets as Array<Record<string, unknown>>).map((r) =>
+      mapSupabaseFixedAsset(r)
+    );
 
-    const periodLocks: PeriodLock[] = (periodLocksRes.data || []).map((r) => ({
+    const periodLocks: PeriodLock[] = (rawPeriodLocks as Array<Record<string, unknown>>).map((r) => ({
       companyId: String(r.company_id),
       ejercicio: Number(r.ejercicio),
       periodo: Number(r.periodo),
@@ -197,7 +208,7 @@ export const supabaseBackupRestore = {
       notes: r.notes ? String(r.notes) : ''
     }));
 
-    const taxParameters: TaxParametersRecord[] = (taxParamsRes.data || []).map((r) => ({
+    const taxParameters: TaxParametersRecord[] = (rawTaxParams as Array<Record<string, unknown>>).map((r) => ({
       companyId: String(r.company_id),
       ejercicio: Number(r.ejercicio),
       periodo: Number(r.periodo ?? 0),
@@ -232,7 +243,9 @@ export const supabaseBackupRestore = {
       accountingRules: optionalTables.accountingRules,
       annualTaxSnapshots: optionalTables.annualTaxSnapshots,
       inventoryPeriods: optionalTables.inventoryPeriods,
-      bankStatementMatches: optionalTables.bankStatementMatches
+      bankStatementMatches: optionalTables.bankStatementMatches,
+      payrollPeriodSettings: optionalTables.payrollPeriodSettings,
+      polizaCfdis: optionalTables.polizaCfdis
     };
   },
 

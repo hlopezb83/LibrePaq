@@ -188,7 +188,11 @@ export function AddCfdiView() {
                   if (!firstCancelled) return;
                   setTab('ALL');
                   setPeriodScope('ALL');
-                  setSearchQuery(firstCancelled.uuid);
+                  setTipoFilter('ALL');
+                  setMetodoFilter('ALL');
+                  setFormaPagoFilter('ALL');
+                  setStatusSatFilter('CANCELADO_CON_POLIZA');
+                  setSearchQuery(satBatchAlert.cancelledWithPolizaCount === 1 ? firstCancelled.uuid : '');
                 }}
                 className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold cursor-pointer shrink-0 transition"
               >

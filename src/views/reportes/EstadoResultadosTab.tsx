@@ -32,6 +32,8 @@ export function EstadoResultadosTab({
 }: EstadoResultadosTabProps) {
   const lastDay = new Date(ejercicio, Math.min(12, Math.max(1, periodo ?? company.currentPeriod ?? 10)), 0).getDate();
   const isLoss = incomeStatement.utilidadNeta < 0;
+  const signedResultBal = (acc: AccountWithBalance, expectedNature: 'ACREEDORA' | 'DEUDORA') =>
+    acc.nature === expectedNature ? acc.finalBalance : -acc.finalBalance;
   const formatVerticalPct = (amount: number, base: number) => {
     if (!base || Math.abs(base) < 0.01) return '0.0%';
     return `${((amount / base) * 100).toFixed(1)}%`;
@@ -77,7 +79,9 @@ export function EstadoResultadosTab({
             Sin movimientos acumulados en este rubro.
           </p>
         ) : (
-          incomeStatement.ingresos.map((acc) => (
+          incomeStatement.ingresos.map((acc) => {
+            const val = signedResultBal(acc, 'ACREEDORA');
+            return (
             <button
               key={acc.id}
               type="button"
@@ -94,13 +98,14 @@ export function EstadoResultadosTab({
                 {acc.name}
               </span>
               <span className="flex items-center gap-4 font-mono shrink-0">
-                <span>{formatCurrency(acc.finalBalance)}</span>
+                <span>{formatCurrency(val)}</span>
                 <span className="w-14 text-right text-[11px] text-slate-500">
-                  {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+                  {formatVerticalPct(val, incomeStatement.totalIngresos)}
                 </span>
               </span>
             </button>
-          ))
+            );
+          })
         )}
         <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-300 pt-2 px-3">
           <span>Total de Ingresos Netos</span>
@@ -121,7 +126,9 @@ export function EstadoResultadosTab({
             Sin movimientos acumulados en este rubro.
           </p>
         ) : (
-          incomeStatement.costos.map((acc) => (
+          incomeStatement.costos.map((acc) => {
+            const val = signedResultBal(acc, 'DEUDORA');
+            return (
             <button
               key={acc.id}
               type="button"
@@ -138,13 +145,14 @@ export function EstadoResultadosTab({
                 {acc.name}
               </span>
               <span className="flex items-center gap-4 font-mono shrink-0">
-                <span>{formatCurrency(acc.finalBalance)}</span>
+                <span>{formatCurrency(val)}</span>
                 <span className="w-14 text-right text-[11px] text-slate-500">
-                  {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+                  {formatVerticalPct(val, incomeStatement.totalIngresos)}
                 </span>
               </span>
             </button>
-          ))
+            );
+          })
         )}
         <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-300 pt-2 px-3 bg-slate-50 rounded-lg py-2">
           <span>(=) Utilidad Bruta</span>
@@ -170,7 +178,9 @@ export function EstadoResultadosTab({
             Sin movimientos acumulados en este rubro.
           </p>
         ) : (
-          incomeStatement.gastos.map((acc) => (
+          incomeStatement.gastos.map((acc) => {
+            const val = signedResultBal(acc, 'DEUDORA');
+            return (
             <button
               key={acc.id}
               type="button"
@@ -187,13 +197,14 @@ export function EstadoResultadosTab({
                 {acc.name}
               </span>
               <span className="flex items-center gap-4 font-mono shrink-0">
-                <span>{formatCurrency(acc.finalBalance)}</span>
+                <span>{formatCurrency(val)}</span>
                 <span className="w-14 text-right text-[11px] text-slate-500">
-                  {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+                  {formatVerticalPct(val, incomeStatement.totalIngresos)}
                 </span>
               </span>
             </button>
-          ))
+            );
+          })
         )}
         <div className="flex justify-between text-xs font-bold text-slate-800 border-t border-slate-300 pt-2 px-3">
           <span>Total de Gastos de Operación</span>
@@ -215,7 +226,9 @@ export function EstadoResultadosTab({
           <div className="text-xs font-bold uppercase tracking-wider text-slate-800 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg">
             (-) Provisión de Impuesto a la Utilidad (ISR Ejercicio - NIF B-3)
           </div>
-          {incomeStatement.isrEjercicio.map((acc) => (
+          {incomeStatement.isrEjercicio.map((acc) => {
+            const val = signedResultBal(acc, 'DEUDORA');
+            return (
             <button
               key={acc.id}
               type="button"
@@ -232,13 +245,14 @@ export function EstadoResultadosTab({
                 {acc.name}
               </span>
               <span className="flex items-center gap-4 font-mono shrink-0">
-                <span>{formatCurrency(acc.finalBalance)}</span>
+                <span>{formatCurrency(val)}</span>
                 <span className="w-14 text-right text-[11px] text-slate-500">
-                  {formatVerticalPct(acc.finalBalance, incomeStatement.totalIngresos)}
+                  {formatVerticalPct(val, incomeStatement.totalIngresos)}
                 </span>
               </span>
             </button>
-          ))}
+            );
+          })}
           <div className="flex justify-between text-xs font-bold text-slate-800 border-t border-slate-300 pt-2 px-3">
             <span>Total ISR del Ejercicio</span>
             <span className="flex items-center gap-4 font-mono">

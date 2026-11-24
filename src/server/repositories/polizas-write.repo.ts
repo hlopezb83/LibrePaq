@@ -157,7 +157,7 @@ export function createPolizaTransaction(input: {
         'ACCOUNT_NOT_FOUND',
         `Cuenta contable inválida: ${m.accountId}`
       );
-      const movUuid = m.cfdiUuid !== undefined ? (m.cfdiUuid?.trim().toUpperCase() || null) : primaryUuid;
+      const movUuid = m.cfdiUuid?.trim().toUpperCase() || primaryUuid || null;
       insertMovementStmt.run(
         `${polizaId}_m${idx + 1}`,
         polizaId,
@@ -281,7 +281,7 @@ export function updatePolizaTransaction(
         'ACCOUNT_NOT_FOUND',
         `Cuenta inválida: ${m.accountId}`
       );
-      const movUuid = m.cfdiUuid !== undefined ? (m.cfdiUuid?.trim().toUpperCase() || null) : (cfdiUuid || null);
+      const movUuid = m.cfdiUuid?.trim().toUpperCase() || cfdiUuid || null;
       insertMovementStmt.run(
         `${polizaId}_m${idx + 1}_${Date.now().toString(36)}`,
         polizaId,

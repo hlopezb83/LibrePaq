@@ -15,6 +15,12 @@ interface SatVerifyEdgeItemResult {
   polizaId: string | null;
   cancelledWithPoliza: boolean;
   updated: boolean;
+  error?: string;
+}
+
+export interface SatBatchVerifyResultWithErrors extends SatBatchVerifyResult {
+  failedCount: number;
+  errors: Array<{ cfdiId: string; uuid: string; error: string }>;
 }
 
 interface SatVerifyEdgeResponse {
@@ -147,14 +153,14 @@ export const supabaseCxcSat = {
   async verifyCfdisSatBatch(
     companyId: string,
     cfdiIds: string[]
-  ): Promise<SatBatchVerifyResult> {
+  ): Promise<SatBatchVerifyResultWithErrors> {
     if (!supabase) throw new Error('Supabase no disponible');
 
     const uniqueIds = Array.from(
       new Set(cfdiIds.map((id) => String(id || '').trim()).filter(Boolean))
     );
     if (uniqueIds.length === 0) {
-      return { checkedCount: 0, updatedCount: 0, cancelledWithPolizaCount: 0, items: [] };
+      return { checkedCount: 0, updatedCount: 0, cancelledWithPolizaCount: 0, failedCount: 0, errors: [], items: [] };
     }
 
     const cfdiRows: Array<{
@@ -164,12 +170,14 @@ export const supabaseCxcSat = {
       receptor_rfc: string;
       total: number;
       poliza_id: string | null;
+      tipo_comprobante?: string | null;
+      status_sat?: string | null;
     }> = [];
 
     for (const idChunk of chunkArray(uniqueIds, 100)) {
       const { data, error } = await supabase
         .from('cfdi_documents')
-        .select('id, uuid, emisor_rfc, receptor_rfc, total, poliza_id')
+        .select('id, uuid, emisor_rfc, receptor_rfc, total, poliza_id, tipo_comprobante, status_sat')
         .eq('company_id', companyId)
         .in('id', idChunk);
       if (error) throw new Error(error.message);
@@ -177,11 +185,13 @@ export const supabaseCxcSat = {
     }
 
     if (cfdiRows.length === 0) {
-      return { checkedCount: 0, updatedCount: 0, cancelledWithPolizaCount: 0, items: [] };
+      return { checkedCount: 0, updatedCount: 0, cancelledWithPolizaCount: 0, failedCount: 0, errors: [], items: [] };
     }
 
     const polizaById = new Map(cfdiRows.map((r) => [r.id, Boolean(r.poliza_id)]));
-    const allItems: SatBatchVerifyResult['items'] = [];
+    const existingStatusById = new Map(cfdiRows.map((r) => [r.id, String(r.status_sat || '').toUpperCase()]));
+    const allItems: SatBatchVerifyResultWithErrors['items'] = [];
+    const errors: Array<{ cfdiId: string; uuid: string; error: string }> = [];
     let updatedCount = 0;
 
     for (const batchRows of chunkArray(cfdiRows, 50)) {
@@ -190,7 +200,7 @@ export const supabaseCxcSat = {
         uuid: r.uuid,
         emisorRfc: r.emisor_rfc,
         receptorRfc: r.receptor_rfc,
-        total: Number(r.total || 0)
+        total: String(r.tipo_comprobante || '').toUpperCase() === 'P' ? 0 : Number(r.total || 0)
       }));
 
       const { data: edgeData, error: edgeError } =
@@ -208,9 +218,28 @@ export const supabaseCxcSat = {
       }
 
       for (const res of edgeData?.results ?? []) {
-        const statusSat: 'VIGENTE' | 'CANCELADO' =
-          String(res.statusSat || '').toUpperCase() === 'CANCELADO' ? 'CANCELADO' : 'VIGENTE';
         const hadPoliza = polizaById.get(res.cfdiId) ?? Boolean(res.polizaId);
+        const rawStatus = String(res.statusSat || existingStatusById.get(res.cfdiId) || '').toUpperCase();
+        if (!res.ok) {
+          errors.push({
+            cfdiId: res.cfdiId,
+            uuid: res.uuid,
+            error: res.error || 'Timeout o error consultando al SAT'
+          });
+          if (rawStatus === 'CANCELADO' || rawStatus === 'VIGENTE') {
+            allItems.push({
+              cfdiId: res.cfdiId,
+              uuid: res.uuid,
+              statusSat: rawStatus,
+              hadPoliza,
+              cancelledWithPoliza: rawStatus === 'CANCELADO' && hadPoliza,
+              validacionEfos: res.validacionEfos || 'NO_VERIFICADO'
+            });
+          }
+          continue;
+        }
+        const statusSat: 'VIGENTE' | 'CANCELADO' =
+          rawStatus === 'CANCELADO' ? 'CANCELADO' : 'VIGENTE';
         const cancelledWithPoliza =
           Boolean(res.cancelledWithPoliza) || (statusSat === 'CANCELADO' && hadPoliza);
         if (res.updated) updatedCount += 1;
@@ -229,6 +258,8 @@ export const supabaseCxcSat = {
       checkedCount: allItems.length,
       updatedCount,
       cancelledWithPolizaCount: allItems.filter((item) => item.cancelledWithPoliza).length,
+      failedCount: errors.length,
+      errors,
       items: allItems
     };
   }

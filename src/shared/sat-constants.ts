@@ -121,9 +121,9 @@ export const FISCAL_ACCOUNT_ROLES = {
     fallbackType: 'PASIVO' as const
   },
   RESULTADO_DEL_EJERCICIO: {
-    code: '301-02-001',
-    aliases: ['301-01-001'],
-    satGroupCode: '304.01',
+    code: '305-01-001',
+    aliases: ['301-02-001'],
+    satGroupCode: '305.01',
     fallbackType: 'CAPITAL' as const
   },
   INGRESOS_TASA_16: {
@@ -190,6 +190,12 @@ export const FISCAL_ACCOUNT_ROLES = {
     code: '801-01-001',
     aliases: ['601-01-099', '601-01-003'],
     satGroupCode: '611.01',
+    fallbackType: 'GASTOS' as const
+  },
+  GASTO_NO_DEDUCIBLE: {
+    code: '801-01-002',
+    aliases: ['801-01-001'],
+    satGroupCode: '601.74',
     fallbackType: 'GASTOS' as const
   },
   IVA_A_FAVOR: {

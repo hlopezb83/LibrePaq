@@ -60,7 +60,12 @@ export function buildSatAnexo24Zip(input: BuildSatAnexo24ZipInput): SatAnexo24Zi
   const { mesStr, suffix } = resolveSatArchiveSuffix(type, period, xmlResult, tipoEnvio);
   const baseName = `${safeRfc}${year}${mesStr}${suffix}`;
   const zipFilename = `${baseName}.zip`;
-  const xmlFilename = (xmlResult.filename || '').trim() || `${baseName}.xml`;
+  const rawXmlName = (xmlResult.filename || '').trim();
+  const xmlFilename = rawXmlName
+    ? rawXmlName.toUpperCase().startsWith(safeRfc)
+      ? `${safeRfc}${rawXmlName.slice(safeRfc.length)}`
+      : rawXmlName
+    : `${baseName}.xml`;
 
   const zipBytes = zipSync({ [xmlFilename]: strToU8(xmlResult.xml) }, { level: 6 });
 

@@ -2,7 +2,8 @@ import { db, mapFixedAssetRow, type FixedAssetDbRow } from '../connection';
 import type { SqliteDdlTarget } from '../db-ddl';
 import {
   buildAnnualMonthlyBalancesFromMovements,
-  computeAnnualFixedAssetFiscalDeduction
+  computeAnnualFixedAssetFiscalDeduction,
+  computeAnnualProvisionalPayments
 } from '../../shared/engine/annual-tax-balances.helper';
 import {
   computeAnnualTaxSummary,
@@ -11,6 +12,7 @@ import {
 import { assertAccountingInvariant, fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type { AnnualTaxInputs, AnnualTaxSummaryResponse } from '../../shared/types/annual-tax.types';
 import { getAccounts } from './accounts.repo';
+import { getCfdiDocuments } from './cfdi.repo';
 import { getCompanyById } from './companies.repo';
 import { getTaxParameters } from './fiscal.repo';
 
@@ -214,8 +216,25 @@ export function getAnnualTaxSummaryRepo(
   const { trialBalance, monthlyBalancesByPeriod } = buildAnnualMonthlyBalancesFromMovements(accounts, joinedMovs, targetYear);
   const assets = (db.query('SELECT * FROM fixed_assets WHERE company_id = ?').all(company.id) as FixedAssetDbRow[]).map(mapFixedAssetRow);
   const fixedAssetsFiscalDeduction = computeAnnualFixedAssetFiscalDeduction(assets, targetYear);
+  const taxRows = db
+    .query('SELECT periodo, pagos_provisionales_anteriores, perdidas_fiscales_pendientes FROM tax_parameters WHERE company_id = ? AND ejercicio = ? ORDER BY periodo DESC')
+    .all(company.id, targetYear) as Array<{
+    periodo: number;
+    pagos_provisionales_anteriores: number;
+    perdidas_fiscales_pendientes: number;
+  }>;
   const taxParams = getTaxParameters(company.id, targetYear);
+  const paymentsProvisioned = computeAnnualProvisionalPayments({
+    accounts,
+    movs: joinedMovs,
+    ejercicio: targetYear,
+    taxParameterRows: taxRows.map((r) => ({
+      periodo: Number(r.periodo ?? 0),
+      pagosProvisionalesAnteriores: Number(r.pagos_provisionales_anteriores ?? 0)
+    }))
+  });
   const inputs = getAnnualTaxInputsRepo(company.id, targetYear);
+  const cfdis = getCfdiDocuments(company.id);
   const isrFavorAcc = trialBalance.find((a) => a.code === '113-02-001' || a.satGroupCode === '113.02');
 
   return computeAnnualTaxSummary({
@@ -224,9 +243,10 @@ export function getAnnualTaxSummaryRepo(
     trialBalance,
     monthlyBalancesByPeriod,
     fixedAssetsFiscalDeduction,
-    paymentsProvisioned: taxParams.pagosProvisionalesAnteriores,
-    perdidasFiscalesPendientes: taxParams.perdidasFiscalesPendientes,
+    paymentsProvisioned,
+    perdidasFiscalesPendientes: taxRows[0]?.perdidas_fiscales_pendientes ?? taxParams.perdidasFiscalesPendientes,
     isrRetenidoAcreditable: Math.max(0, isrFavorAcc?.finalBalance ?? 0),
-    inputs
+    inputs,
+    cfdis
   });
 }

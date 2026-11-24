@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, Code2, Copy } from 'lucide-react';
+import { apiClient } from '../../../lib/api-client';
 import { parseCfdiPreview } from '../../../shared/cfdi-preview-parser';
 import type { CfdiDocument } from '../../../shared/types';
 
@@ -7,11 +8,34 @@ interface CfdiXmlTabProps {
   cfdi: CfdiDocument;
   copiedText: string | null;
   copyToClipboard: (text: string, label: string) => void;
+  isLoadingXml?: boolean;
 }
 
-export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProps) {
-  const preview = useMemo(() => parseCfdiPreview(cfdi), [cfdi]);
-  const isReconstructed = !cfdi.xmlRaw;
+export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard, isLoadingXml }: CfdiXmlTabProps) {
+  const [fallbackXml, setFallbackXml] = useState<{ id: string; xml: string } | null>(null);
+  const [loadingSelf, setLoadingSelf] = useState(false);
+
+  useEffect(() => {
+    if (cfdi.xmlRaw || isLoadingXml !== undefined) {
+      setFallbackXml(null);
+      setLoadingSelf(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSelf(true);
+    void apiClient.getCfdiXml(cfdi.id).then((xml) => {
+      if (!cancelled && xml) setFallbackXml({ id: cfdi.id, xml });
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setLoadingSelf(false);
+    });
+    return () => { cancelled = true; };
+  }, [cfdi.id, cfdi.xmlRaw, isLoadingXml]);
+
+  const resolvedCfdi =
+    !cfdi.xmlRaw && fallbackXml?.id === cfdi.id ? { ...cfdi, xmlRaw: fallbackXml.xml } : cfdi;
+  const preview = useMemo(() => parseCfdiPreview(resolvedCfdi), [resolvedCfdi]);
+  const isReconstructed = !resolvedCfdi.xmlRaw;
+  const loadingNow = Boolean(isLoadingXml ?? loadingSelf);
   const totalRet = preview.impuestos.totalImpuestosRetenidos;
   const retencionesSnippet =
     totalRet > 0
@@ -20,7 +44,7 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
           .join('')}    </cfdi:Retenciones>`
       : '';
   const xmlPayload =
-    cfdi.xmlRaw ||
+    resolvedCfdi.xmlRaw ||
     `<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Version="${preview.comprobante.version}" Serie="${preview.comprobante.serie}" Folio="${preview.comprobante.folio}" Fecha="${preview.comprobante.fecha}" Total="${preview.comprobante.total}" SubTotal="${preview.comprobante.subtotal}" Moneda="${preview.comprobante.moneda}">\n  <cfdi:Emisor Rfc="${preview.emisor.rfc}" Nombre="${preview.emisor.nombre}" RegimenFiscal="${preview.emisor.regimenFiscal}"/>\n  <cfdi:Receptor Rfc="${preview.receptor.rfc}" Nombre="${preview.receptor.nombre}" UsoCFDI="${preview.receptor.usoCfdi}"/>\n  <cfdi:Impuestos TotalImpuestosTrasladados="${preview.impuestos.totalImpuestosTrasladados}"${
       totalRet > 0 ? ` TotalImpuestosRetenidos="${totalRet}"` : ''
     }>${retencionesSnippet}\n  </cfdi:Impuestos>\n</cfdi:Comprobante>`;
@@ -63,7 +87,9 @@ export function CfdiXmlTab({ cfdi, copiedText, copyToClipboard }: CfdiXmlTabProp
 
       {isReconstructed && (
         <div className="px-3 py-2 rounded-xl bg-amber-950/60 border border-amber-700/60 text-amber-200 text-[11px] font-sans">
-          Nota: El archivo XML original no está almacenado en este registro; esta vista y la copia resumen se reconstruyen con los metadatos fiscales, conceptos y timbre registrados en bóveda.
+          {loadingNow
+            ? 'Cargando XML original desde la Bóveda Digital ADD...'
+            : 'Nota: El archivo XML original no está almacenado en este registro; esta vista y la copia resumen se reconstruyen con los metadatos fiscales, conceptos y timbre registrados en bóveda.'}
         </div>
       )}
 

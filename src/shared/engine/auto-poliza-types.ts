@@ -26,6 +26,7 @@ export interface AutoPolizaOverrides {
   rules?: readonly AccountingRuleRecord[];
   deductiblePct?: number;
   relatedOriginalTipoCambio?: number;
+  relatedOriginalTipoCambioByUuid?: Readonly<Record<string, number>>;
 }
 
 export interface AutoPolizaPlan {

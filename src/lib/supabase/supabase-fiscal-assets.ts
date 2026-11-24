@@ -14,7 +14,6 @@ import {
   hasExistingDepreciationPoliza
 } from '../../shared/engine/fixed-assets.engine';
 import { MESES_SAT } from '../../shared/sat-constants';
-import { parseCalendarDate } from '../../shared/date-utils';
 import { getDefaultDateForPeriod } from '../formatters';
 import type {
   FixedAssetCategory,
@@ -91,8 +90,10 @@ export const supabaseFiscalAndAssets = {
       .eq('company_id', companyId)
       .order('fecha_adquisicion', { ascending: true });
 
+    const periodPolizas = await supabasePolizas.getPolizas(companyId, effYear, effPeriod);
+    const alreadyDepreciatedThisPeriod = hasExistingDepreciationPoliza(periodPolizas);
     const rawAssets = (data || []).map((f: Record<string, unknown>) => mapSupabaseFixedAsset(f));
-    const periodCtx = { ejercicio: effYear, periodo: effPeriod };
+    const periodCtx = { ejercicio: effYear, periodo: effPeriod, alreadyDepreciatedThisPeriod };
     const assets = rawAssets.map((a) => computeFixedAssetWithDepreciation(a, periodCtx));
 
     return {
@@ -124,11 +125,14 @@ export const supabaseFiscalAndAssets = {
     cuentaGastoDepCode?: string;
   }): Promise<FixedAssetsResponse> {
     if (!supabase) throw new Error('Supabase no disponible');
-    const acqYear = parseInt(payload.fechaAdquisicion.slice(0, 4), 10);
-    const acqPeriod = parseInt(payload.fechaAdquisicion.slice(5, 7), 10);
-    if (acqYear && acqPeriod) {
-      await assertSupabasePeriodOpen(payload.companyId, acqYear, acqPeriod);
-    }
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('current_year, current_period')
+      .eq('id', payload.companyId)
+      .maybeSingle();
+    const activeYear = Number(comp?.current_year) || 2026;
+    const activePeriod = Number(comp?.current_period) || 10;
+    await assertSupabasePeriodOpen(payload.companyId, activeYear, activePeriod);
     const priorMonths = Math.max(0, Math.floor(payload.mesesDepreciadosPrevios || 0));
     const moiCents = Math.max(0, toCents(payload.montoOriginalInversion));
     const annualRate = Math.max(0, Math.min(100, payload.tasaAnualPct)) / 100;
@@ -225,12 +229,19 @@ export const supabaseFiscalAndAssets = {
   async deleteFixedAsset(assetId: string): Promise<{ deleted: boolean }> {
     if (!supabase) return { deleted: false };
     const { data: existing, error: fetchErr } = await supabase
-      .from('fixed_assets').select('company_id, fecha_adquisicion').eq('id', assetId).maybeSingle();
+      .from('fixed_assets').select('company_id').eq('id', assetId).maybeSingle();
     if (fetchErr) throw new Error(fetchErr.message);
     if (!existing) return { deleted: false };
 
-    const { year, month } = parseCalendarDate(String(existing.fecha_adquisicion));
-    await assertSupabasePeriodOpen(String(existing.company_id), year, month);
+    const companyId = String(existing.company_id);
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('current_year, current_period')
+      .eq('id', companyId)
+      .maybeSingle();
+    const activeYear = Number(comp?.current_year) || 2026;
+    const activePeriod = Number(comp?.current_period) || 10;
+    await assertSupabasePeriodOpen(companyId, activeYear, activePeriod);
     const { error } = await supabase.from('fixed_assets').delete().eq('id', assetId);
     if (error) throw new Error(error.message);
     return { deleted: true };

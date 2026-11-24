@@ -82,6 +82,21 @@ export function validateBankPdfRequest(data: unknown, mimeType: unknown): BankPd
   return null;
 }
 
+function toValidIsoDate(year: number, month: number, day: number): string | null {
+  if (!Number.isInteger(year) || year < 1990 || year > 2100) return null;
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  if (
+    dt.getUTCFullYear() !== year ||
+    dt.getUTCMonth() !== month - 1 ||
+    dt.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 export function normalizeBankDate(raw: unknown): string {
   if (typeof raw !== 'string') return '';
   const clean = raw.trim();
@@ -89,22 +104,18 @@ export function normalizeBankDate(raw: unknown): string {
 
   const isoMatch = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/.exec(clean);
   if (isoMatch) {
-    const y = Number(isoMatch[1]);
-    const m = Number(isoMatch[2]);
-    const d = Number(isoMatch[3]);
-    if (y >= 1990 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    }
+    const valid = toValidIsoDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+    if (valid) return valid;
   }
 
-  const dmyNum = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(clean);
+  const dmyNum = /^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})$/.exec(clean);
   if (dmyNum) {
     const d = Number(dmyNum[1]);
     const m = Number(dmyNum[2]);
-    const y = Number(dmyNum[3]);
-    if (y >= 1990 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    }
+    const rawY = dmyNum[3] ?? '';
+    const y = rawY.length === 2 ? 2000 + Number(rawY) : Number(rawY);
+    const valid = toValidIsoDate(y, m, d);
+    if (valid) return valid;
   }
 
   const dmyWord = /^(\d{1,2})[-/\s]([A-Za-z]{3})[-/\s](\d{2,4})$/.exec(clean);
@@ -113,8 +124,9 @@ export function normalizeBankDate(raw: unknown): string {
     const mStr = MONTH_ABBR[(dmyWord[2] ?? '').toUpperCase()];
     const rawY = dmyWord[3] ?? '';
     const y = rawY.length === 2 ? 2000 + Number(rawY) : Number(rawY);
-    if (mStr && y >= 1990 && y <= 2100 && d >= 1 && d <= 31) {
-      return `${y}-${mStr}-${String(d).padStart(2, '0')}`;
+    if (mStr) {
+      const valid = toValidIsoDate(y, Number(mStr), d);
+      if (valid) return valid;
     }
   }
 
@@ -123,14 +135,16 @@ export function normalizeBankDate(raw: unknown): string {
 
 export function normalizeNonNegativeAmount(raw: unknown): number {
   if (typeof raw === 'number') {
-    if (!Number.isFinite(raw) || raw <= 0) return 0;
-    return Math.round((raw + Number.EPSILON) * 100) / 100;
+    if (!Number.isFinite(raw) || raw === 0) return 0;
+    return Math.round((Math.abs(raw) + Number.EPSILON) * 100) / 100;
   }
   if (typeof raw === 'string') {
-    const cleaned = raw.replace(/[$,\s]/g, '');
+    const trimmed = raw.trim().replace(/^\((.*)\)$/, '-$1');
+    const cleaned = trimmed.replace(/[$,\s]/g, '');
+    if (!cleaned) return 0;
     const parsed = Number(cleaned);
-    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
-    return Math.round((parsed + Number.EPSILON) * 100) / 100;
+    if (!Number.isFinite(parsed) || parsed === 0) return 0;
+    return Math.round((Math.abs(parsed) + Number.EPSILON) * 100) / 100;
   }
   return 0;
 }

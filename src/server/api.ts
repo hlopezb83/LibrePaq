@@ -52,7 +52,24 @@ api.use('*', async (c, next) => {
     return next();
   }
 
-  let targetCompanyId = c.req.query('companyId') || c.req.query('company_id') || '';
+  let targetCompanyId = '';
+
+  for (const [regex, table, excluded] of ENTITY_TABLE_PREFIXES) {
+    const m = regex.exec(path);
+    if (m?.[1] && !excluded?.has(m[1])) {
+      const row = db
+        .query(`SELECT company_id FROM ${table} WHERE id = ?`)
+        .get(m[1]) as { company_id?: string } | null;
+      if (row?.company_id) {
+        targetCompanyId = row.company_id;
+      }
+      break;
+    }
+  }
+
+  if (!targetCompanyId) {
+    targetCompanyId = c.req.query('companyId') || c.req.query('company_id') || '';
+  }
 
   if (!targetCompanyId && (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'PATCH')) {
     const ct = c.req.header('content-type') || '';
@@ -62,21 +79,6 @@ api.use('*', async (c, next) => {
         if (typeof body?.companyId === 'string') targetCompanyId = body.companyId;
       } catch {
         // Ignorar payloads no JSON; el handler devolverá 400 si corresponde
-      }
-    }
-  }
-
-  if (!targetCompanyId) {
-    for (const [regex, table, excluded] of ENTITY_TABLE_PREFIXES) {
-      const m = regex.exec(path);
-      if (m?.[1] && !excluded?.has(m[1])) {
-        const row = db
-          .query(`SELECT company_id FROM ${table} WHERE id = ?`)
-          .get(m[1]) as { company_id?: string } | null;
-        if (row?.company_id) {
-          targetCompanyId = row.company_id;
-        }
-        break;
       }
     }
   }

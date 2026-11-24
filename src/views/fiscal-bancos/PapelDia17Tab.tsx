@@ -98,24 +98,28 @@ export function PapelDia17Tab({
 
   const cap = workpaper.resumenLineaCapturaSat;
   const isResico = workpaper.isrProvisional.esResico;
-  const isPfGeneral = workpaper.company.rfc.trim().length === 13 && !isResico;
+  const isPersonaFisica = workpaper.company.rfc.trim().length === 13;
+  const isResicoPf = isResico && isPersonaFisica;
+  const isPfGeneral = isPersonaFisica && !isResico;
 
   return (
     <div className="space-y-5">
       <div className="bg-white p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-4">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+          <div className="flex items-center gap-2.5 min-w-[260px]">
             <Calculator className="w-5 h-5 text-blue-700 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
               <h2 className="text-sm font-bold text-slate-900">
                 Papel de Trabajo Fiscal Día 17 — Parámetros de Cálculo ({workpaper.company.regimenFiscal})
               </h2>
               <p className="text-xs text-slate-600">
-                {isResico
-                  ? 'Régimen de Flujo de Efectivo (RESICO): ajusta pérdidas fiscales por amortizar, pagos provisionales anteriores, saldo a favor de IVA o tipo de cambio DOF'
-                  : isPfGeneral
-                    ? 'Persona Física (Art. 106 LISR — Tarifa Progresiva): ajusta pérdidas fiscales, pagos provisionales anteriores, saldo a favor de IVA o tipo de cambio DOF'
-                    : 'Ajusta el Coeficiente de Utilidad (Art. 14 LISR), pérdidas fiscales por amortizar, saldo a favor de IVA o tipo de cambio DOF'}
+                {isResicoPf
+                  ? 'RESICO Persona Física (Art. 113-E LISR): tributa sobre ingresos brutos cobrados; ajusta saldo a favor de IVA o tipo de cambio DOF'
+                  : isResico
+                    ? 'RESICO Persona Moral (Flujo de Efectivo): ajusta pérdidas fiscales por amortizar, pagos provisionales anteriores, saldo a favor de IVA o tipo de cambio DOF'
+                    : isPfGeneral
+                      ? 'Persona Física (Art. 106 LISR — Tarifa Progresiva): ajusta pérdidas fiscales, pagos provisionales anteriores, saldo a favor de IVA o tipo de cambio DOF'
+                      : 'Ajusta el Coeficiente de Utilidad (Art. 14 LISR), pérdidas fiscales por amortizar, saldo a favor de IVA o tipo de cambio DOF'}
               </p>
             </div>
           </div>
@@ -155,8 +159,14 @@ export function PapelDia17Tab({
             )}
             <button
               type="button"
-              disabled={genTaxProvisionMutation.isPending || isWriteLocked}
-              title={isWriteLocked ? lockTitle : 'Contabilizar provisión mensual de ISR e IVA'}
+              disabled={genTaxProvisionMutation.isPending || isWriteLocked || hasUnsavedParams}
+              title={
+                isWriteLocked
+                  ? lockTitle
+                  : hasUnsavedParams
+                    ? 'Aplica los cambios con Recalcular antes de generar la póliza de provisión'
+                    : 'Contabilizar provisión mensual de ISR e IVA'
+              }
               onClick={() => genTaxProvisionMutation.mutate()}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-2xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
@@ -171,9 +181,9 @@ export function PapelDia17Tab({
             e.preventDefault();
             if (!isWriteLocked) saveTaxParamsMutation.mutate();
           }}
-          className={`grid grid-cols-1 sm:grid-cols-2 ${isPfGeneral ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs`}
+          className={`grid grid-cols-1 sm:grid-cols-2 ${isResicoPf ? 'lg:grid-cols-3' : isPfGeneral ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs`}
         >
-          {!isPfGeneral && (
+          {!isPfGeneral && !isResicoPf && (
             <div>
               <label htmlFor="dia17-coef-utilidad" className="block text-[11px] font-bold text-slate-700 mb-1">
                 Coeficiente Utilidad (C.U.)
@@ -200,40 +210,44 @@ export function PapelDia17Tab({
               {isResico && <p className="mt-1 text-[11px] text-slate-600">No aplica en RESICO</p>}
             </div>
           )}
-          <div>
-            <label htmlFor="dia17-perdidas-amortizar" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Pérdidas x Amortizar ($)
-            </label>
-            <input
-              id="dia17-perdidas-amortizar"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              disabled={isWriteLocked}
-              title={isWriteLocked ? lockTitle : 'Pérdidas fiscales pendientes de amortizar actualizadas (Art. 57 LISR)'}
-              value={perdidasAmortizar}
-              onChange={(e) => setPerdidasAmortizar(sanitizeNonNeg(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label htmlFor="dia17-pagos-previos" className="block text-[11px] font-bold text-slate-700 mb-1">
-              Pagos Prov. Anteriores ($)
-            </label>
-            <input
-              id="dia17-pagos-previos"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              disabled={isWriteLocked}
-              title={isWriteLocked ? lockTitle : 'Pagos provisionales de ISR enterados previamente en el ejercicio (Art. 14 LISR)'}
-              value={pagosPreviosInput}
-              onChange={(e) => setPagosPreviosInput(sanitizeNonNeg(e.target.value))}
-              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-            />
-          </div>
+          {!isResicoPf && (
+            <>
+              <div>
+                <label htmlFor="dia17-perdidas-amortizar" className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Pérdidas x Amortizar ($)
+                </label>
+                <input
+                  id="dia17-perdidas-amortizar"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  disabled={isWriteLocked}
+                  title={isWriteLocked ? lockTitle : 'Pérdidas fiscales pendientes de amortizar actualizadas (Art. 57 LISR)'}
+                  value={perdidasAmortizar}
+                  onChange={(e) => setPerdidasAmortizar(sanitizeNonNeg(e.target.value))}
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label htmlFor="dia17-pagos-previos" className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Pagos Prov. Anteriores ($)
+                </label>
+                <input
+                  id="dia17-pagos-previos"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  disabled={isWriteLocked}
+                  title={isWriteLocked ? lockTitle : 'Pagos provisionales de ISR enterados previamente en el ejercicio (Art. 14 LISR)'}
+                  value={pagosPreviosInput}
+                  onChange={(e) => setPagosPreviosInput(sanitizeNonNeg(e.target.value))}
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono tabular-nums bg-white disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                />
+              </div>
+            </>
+          )}
           <div>
             <label htmlFor="dia17-iva-saldo-favor" className="block text-[11px] font-bold text-slate-700 mb-1">
               Saldo a Favor IVA Ant. ($)

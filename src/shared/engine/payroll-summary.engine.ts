@@ -84,7 +84,9 @@ export function computePayrollPeriodSummary(params: {
 }): PayrollPeriodSummary {
   const { cfdis, trialBalance, ejercicio, periodo } = params;
   const nominaCfdis = cfdis.filter((c) => {
-    if (c.statusSat !== 'VIGENTE' || c.tipoComprobante !== 'N' || !c.fecha) return false;
+    if (c.statusSat !== 'VIGENTE' || c.tipoComprobante !== 'N' || c.direction !== 'EMITIDO' || !c.fecha) {
+      return false;
+    }
     const { year, month } = parseCalendarDate(c.fecha, 0, 0);
     return year === ejercicio && month === periodo;
   });

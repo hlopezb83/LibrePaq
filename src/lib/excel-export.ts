@@ -174,18 +174,17 @@ export async function exportDeliverablesXlsx({
     ])
   ];
 
+  const signedBal = (a: FinancialStatementsResponse['trialBalance'][number], expectedNature: 'DEUDORA' | 'ACREEDORA') =>
+    a.nature === expectedNature ? a.finalBalance : -a.finalBalance;
   const er = reportsData.incomeStatement;
   const totalIsr = er.totalIsr ?? 0;
   const isrRows: SheetData =
-    totalIsr !== 0
+    totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
       ? [
-          ...(er.isrEjercicio ?? []).map((a): SheetData[number] => [
-            sCell('ISR EJERCICIO'),
-            sCell(a.code),
-            sCell(a.name),
-            { type: Number, value: a.finalBalance, format: '$#,##0.00' },
-            sCell(formatVerticalPct(a.finalBalance, er.totalIngresos))
-          ]),
+          ...(er.isrEjercicio ?? []).map((a): SheetData[number] => {
+            const val = signedBal(a, 'DEUDORA');
+            return [sCell('ISR EJERCICIO'), sCell(a.code), sCell(a.name), { type: Number, value: val, format: '$#,##0.00' }, sCell(formatVerticalPct(val, er.totalIngresos))];
+          }),
           [
             { type: String, value: 'IMPUESTOS A LA UTILIDAD (ISR)', fontWeight: 'bold' },
             sCell(''),
@@ -196,6 +195,11 @@ export async function exportDeliverablesXlsx({
         ]
       : [];
 
+  const mapErRow = (label: string, a: FinancialStatementsResponse['trialBalance'][number], nat: 'DEUDORA' | 'ACREEDORA'): SheetData[number] => {
+    const val = signedBal(a, nat);
+    return [sCell(label), sCell(a.code), sCell(a.name), { type: Number, value: val, format: '$#,##0.00' }, sCell(formatVerticalPct(val, er.totalIngresos))];
+  };
+
   const erSheet: SheetData = [
     [
       { value: 'Rubro Contable', fontWeight: 'bold' },
@@ -204,22 +208,14 @@ export async function exportDeliverablesXlsx({
       { value: 'Importe MXN', fontWeight: 'bold', align: 'right' },
       { value: '% s/Ventas', fontWeight: 'bold', align: 'right' }
     ],
-    ...er.ingresos.map((a): SheetData[number] => [
-      sCell('INGRESOS'), sCell(a.code), sCell(a.name),
-      { type: Number, value: a.finalBalance, format: '$#,##0.00' },
-      sCell(formatVerticalPct(a.finalBalance, er.totalIngresos))
-    ]),
+    ...er.ingresos.map((a) => mapErRow('INGRESOS', a, 'ACREEDORA')),
     [
       { type: String, value: 'TOTAL INGRESOS', fontWeight: 'bold' }, sCell(''),
       { type: String, value: 'Ventas Netas del Periodo', fontWeight: 'bold' },
       { type: Number, value: er.totalIngresos, format: '$#,##0.00', fontWeight: 'bold' },
       { type: String, value: '100.0%', fontWeight: 'bold' }
     ],
-    ...er.costos.map((a): SheetData[number] => [
-      sCell('COSTOS'), sCell(a.code), sCell(a.name),
-      { type: Number, value: a.finalBalance, format: '$#,##0.00' },
-      sCell(formatVerticalPct(a.finalBalance, er.totalIngresos))
-    ]),
+    ...er.costos.map((a) => mapErRow('COSTOS', a, 'DEUDORA')),
     [
       { type: String, value: 'TOTAL COSTOS', fontWeight: 'bold' }, sCell(''),
       { type: String, value: 'Costo de Ventas NIF B-3', fontWeight: 'bold' },
@@ -232,11 +228,7 @@ export async function exportDeliverablesXlsx({
       { type: Number, value: er.utilidadBruta, format: '$#,##0.00', fontWeight: 'bold' },
       { type: String, value: formatVerticalPct(er.utilidadBruta, er.totalIngresos), fontWeight: 'bold' }
     ],
-    ...er.gastos.map((a): SheetData[number] => [
-      sCell('GASTOS'), sCell(a.code), sCell(a.name),
-      { type: Number, value: a.finalBalance, format: '$#,##0.00' },
-      sCell(formatVerticalPct(a.finalBalance, er.totalIngresos))
-    ]),
+    ...er.gastos.map((a) => mapErRow('GASTOS', a, 'DEUDORA')),
     [
       { type: String, value: 'TOTAL GASTOS GENERALES', fontWeight: 'bold' }, sCell(''),
       { type: String, value: 'Gastos de Operación y Administración', fontWeight: 'bold' },
@@ -253,8 +245,6 @@ export async function exportDeliverablesXlsx({
   ];
 
   const bg = reportsData.balanceSheet;
-  const signedBal = (a: FinancialStatementsResponse['trialBalance'][number], expectedNature: 'DEUDORA' | 'ACREEDORA') =>
-    a.nature === expectedNature ? a.finalBalance : -a.finalBalance;
 
   const mapBgRow = (section: string, a: FinancialStatementsResponse['trialBalance'][number], expectedNature: 'DEUDORA' | 'ACREEDORA'): SheetData[number] => {
     const val = signedBal(a, expectedNature);

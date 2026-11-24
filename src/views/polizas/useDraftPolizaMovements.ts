@@ -73,10 +73,21 @@ export function useDraftPolizaMovements(
     setMovements((prev) =>
       prev.map((m, idx) => {
         if (idx !== rowIndex) return m;
+        if (targetType === 'cargo') {
+          const netDiffWithoutOpposite = diffCents + toCents(m.abono);
+          const addCents = netDiffWithoutOpposite < 0 ? Math.abs(netDiffWithoutOpposite) : 0;
+          return {
+            ...m,
+            cargo: fromCents(toCents(m.cargo) + addCents),
+            abono: 0
+          };
+        }
+        const netDiffWithoutOpposite = diffCents - toCents(m.cargo);
+        const addCents = netDiffWithoutOpposite > 0 ? netDiffWithoutOpposite : 0;
         return {
           ...m,
-          cargo: targetType === 'cargo' ? fromCents(toCents(m.cargo) + Math.abs(diffCents)) : m.cargo,
-          abono: targetType === 'abono' ? fromCents(toCents(m.abono) + Math.abs(diffCents)) : m.abono
+          abono: fromCents(toCents(m.abono) + addCents),
+          cargo: 0
         };
       })
     );

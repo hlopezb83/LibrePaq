@@ -113,7 +113,7 @@ export function AjustesEmpresaTab({
                     <label htmlFor="set-rfc" className="text-xs font-bold text-slate-700">
                       RFC *
                     </label>
-                    {isRfcValid && rfcModulo11 && (
+                    {isRfcValid && rfcModulo11 && (rfcModulo11.isValidCheckDigit || rfcModulo11.expectedCheckDigit) && (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {rfcModulo11.isValidCheckDigit ? (
                           <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">

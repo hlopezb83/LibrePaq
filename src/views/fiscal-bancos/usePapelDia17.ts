@@ -116,7 +116,7 @@ export function usePapelDia17({
   const genTaxProvisionMutation = useMutation({
     mutationFn: () => {
       if (isWriteLocked) throw new Error(lockMsg);
-      return apiClient.generateTaxProvisionPoliza(companyId);
+      return apiClient.generateTaxProvisionPoliza(companyId, year, period);
     },
     onSuccess: () => {
       invalidateAccountingQueries(
@@ -135,7 +135,7 @@ export function usePapelDia17({
   const genExchangePolizaMutation = useMutation({
     mutationFn: () => {
       if (isWriteLocked) throw new Error(lockMsg);
-      return apiClient.generateExchangePoliza(companyId);
+      return apiClient.generateExchangePoliza(companyId, year, period);
     },
     onSuccess: () => {
       invalidateAccountingQueries(

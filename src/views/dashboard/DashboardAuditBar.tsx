@@ -22,6 +22,7 @@ export interface DashboardAuditBarProps {
   isBatchAutoPolizaPending: boolean;
   onBatchAutoPoliza: (ids: string[]) => void;
   isPeriodLocked?: boolean;
+  isReadOnly?: boolean;
 }
 
 export function DashboardAuditBar({
@@ -35,8 +36,13 @@ export function DashboardAuditBar({
   pendingCfdis,
   isBatchAutoPolizaPending,
   onBatchAutoPoliza,
-  isPeriodLocked = false
+  isPeriodLocked = false,
+  isReadOnly = false
 }: DashboardAuditBarProps) {
+  const hasActivity = kpis.totalPolizasPeriodo > 0 || kpis.cfdisTotalesPeriodo > 0;
+  const hasBankActivity = Boolean(
+    bankRec && (bankRec.statementLines.length > 0 || bankRec.bookMovements.length > 0)
+  );
   return (
     <section
       aria-label="Accesos directos a módulos pendientes y auditoría fiscal"
@@ -64,6 +70,8 @@ export function DashboardAuditBar({
           className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
             kpis.cfdisPendientesContabilizar > 0
               ? 'bg-amber-50/70 border-amber-300/90 shadow-xs'
+              : kpis.cfdisTotalesPeriodo === 0
+              ? 'bg-slate-50 border-slate-200 shadow-2xs'
               : 'bg-emerald-50/50 border-emerald-200 shadow-2xs'
           }`}
         >
@@ -73,7 +81,11 @@ export function DashboardAuditBar({
                 <FileCode2
                   aria-hidden="true"
                   className={`w-4 h-4 ${
-                    kpis.cfdisPendientesContabilizar > 0 ? 'text-amber-700' : 'text-emerald-700'
+                    kpis.cfdisPendientesContabilizar > 0
+                      ? 'text-amber-700'
+                      : kpis.cfdisTotalesPeriodo === 0
+                      ? 'text-slate-600'
+                      : 'text-emerald-700'
                   }`}
                 />
                 <span>CFDIs en Bóveda ADD</span>
@@ -82,17 +94,23 @@ export function DashboardAuditBar({
                 className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
                   kpis.cfdisPendientesContabilizar > 0
                     ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse'
+                    : kpis.cfdisTotalesPeriodo === 0
+                    ? 'bg-slate-100 text-slate-700 border-slate-300'
                     : 'bg-emerald-100 text-emerald-900 border-emerald-300'
                 }`}
               >
                 {kpis.cfdisPendientesContabilizar > 0
                   ? `${kpis.cfdisPendientesContabilizar} pendientes`
+                  : kpis.cfdisTotalesPeriodo === 0
+                  ? 'Sin CFDIs'
                   : '100% Cuadrado'}
               </span>
             </div>
             <p className="text-xs text-slate-600 leading-snug">
               {kpis.cfdisPendientesContabilizar > 0
                 ? `Existen ${kpis.cfdisPendientesContabilizar} factura(s) XML esperando ser contabilizadas en póliza.`
+                : kpis.cfdisTotalesPeriodo === 0
+                ? 'Aún no hay comprobantes CFDI 4.0 XML registrados en este periodo contable.'
                 : 'Todos los comprobantes CFDI 4.0 del periodo han sido transformados en pólizas cuadradas.'}
             </p>
           </div>
@@ -101,14 +119,16 @@ export function DashboardAuditBar({
             {kpis.cfdisPendientesContabilizar >= 1 && (
               <button
                 type="button"
-                disabled={isBatchAutoPolizaPending || isPeriodLocked}
+                disabled={isBatchAutoPolizaPending || isPeriodLocked || isReadOnly}
                 onClick={() => onBatchAutoPoliza(pendingCfdis.map((c) => c.id))}
                 title={
-                  isPeriodLocked
+                  isReadOnly
+                    ? 'Modo solo lectura: no tienes permisos para generar pólizas'
+                    : isPeriodLocked
                     ? 'Periodo cerrado con candado fiscal'
                     : 'Generar pólizas de todos los XMLs pendientes en 1 clic'
                 }
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition disabled:opacity-50 cursor-pointer flex items-center gap-1"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
               >
                 <Sparkles className="w-3 h-3 text-amber-100" aria-hidden="true" />
                 <span>
@@ -133,7 +153,9 @@ export function DashboardAuditBar({
         {/* 2. Módulo Tesorería: Conciliación Bancaria */}
         <div
           className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
-            !isBankReconciled
+            !hasBankActivity
+              ? 'bg-slate-50 border-slate-200 shadow-2xs'
+              : !isBankReconciled
               ? 'bg-amber-50/70 border-amber-300/90 shadow-xs'
               : 'bg-emerald-50/50 border-emerald-200 shadow-2xs'
           }`}
@@ -144,19 +166,27 @@ export function DashboardAuditBar({
                 <Landmark
                   aria-hidden="true"
                   className={`w-4 h-4 ${
-                    !isBankReconciled ? 'text-amber-700' : 'text-emerald-700'
+                    !hasBankActivity
+                      ? 'text-slate-600'
+                      : !isBankReconciled
+                      ? 'text-amber-700'
+                      : 'text-emerald-700'
                   }`}
                 />
                 <span>Conciliación Bancaria</span>
               </span>
               <span
                 className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
-                  !isBankReconciled
+                  !hasBankActivity
+                    ? 'bg-slate-100 text-slate-700 border-slate-300'
+                    : !isBankReconciled
                     ? 'bg-amber-100 text-amber-900 border-amber-300'
                     : 'bg-emerald-100 text-emerald-900 border-emerald-300'
                 }`}
               >
-                {!isBankReconciled
+                {!hasBankActivity
+                  ? 'Sin movimientos'
+                  : !isBankReconciled
                   ? `${
                       (bankRec?.summary.movimientosPendientesBanco ?? 0) +
                       (bankRec?.summary.movimientosPendientesLibros ?? 0)
@@ -165,7 +195,9 @@ export function DashboardAuditBar({
               </span>
             </div>
             <p className="text-xs text-slate-600 leading-snug">
-              {!isBankReconciled
+              {!hasBankActivity
+                ? 'Importa tu estado de cuenta bancario o registra pólizas de bancos para conciliar el periodo.'
+                : !isBankReconciled
                 ? 'Partidas bancarias pendientes de cruzar con libros. Cruza depósitos y cheques para cerrar bancos.'
                 : `Extracto bancario verificado contra libro mayor. Saldo disponible: ${formatCurrency(
                     kpis.efectivoBancos
@@ -196,6 +228,8 @@ export function DashboardAuditBar({
           className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
             !isTrialBalanced
               ? 'bg-red-50/70 border-red-300 shadow-xs'
+              : !hasActivity
+              ? 'bg-slate-50 border-slate-200 shadow-2xs'
               : 'bg-emerald-50/50 border-emerald-200 shadow-2xs'
           }`}
         >
@@ -205,7 +239,7 @@ export function DashboardAuditBar({
                 <Scale
                   aria-hidden="true"
                   className={`w-4 h-4 ${
-                    !isTrialBalanced ? 'text-red-700' : 'text-emerald-700'
+                    !isTrialBalanced ? 'text-red-700' : !hasActivity ? 'text-slate-600' : 'text-emerald-700'
                   }`}
                 />
                 <span>Balanza de Comprobación</span>
@@ -214,18 +248,26 @@ export function DashboardAuditBar({
                 className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full border ${
                   !isTrialBalanced
                     ? 'bg-red-100 text-red-900 border-red-300'
+                    : !hasActivity
+                    ? 'bg-slate-100 text-slate-700 border-slate-300'
                     : 'bg-emerald-100 text-emerald-900 border-emerald-300'
                 }`}
               >
-                {isTrialBalanced ? 'Partida Doble ✔' : 'Descuadrada'}
+                {!isTrialBalanced
+                  ? 'Descuadrada'
+                  : !hasActivity
+                  ? 'Sin movimientos'
+                  : 'Partida Doble ✔'}
               </span>
             </div>
             <p className="text-xs text-slate-600 leading-snug">
-              {isTrialBalanced
-                ? 'Sumas iguales en Cargos y Abonos verificadas. Lista para exportar en XML SAT Anexo 24.'
-                : `Alerta: Existe una discrepancia de ${formatCurrency(
+              {!isTrialBalanced
+                ? `Alerta: Existe una discrepancia de ${formatCurrency(
                     trialBalanceSummary?.difference || 0
-                  )} entre cargos y abonos del mes.`}
+                  )} entre cargos y abonos del mes.`
+                : !hasActivity
+                ? 'Captura pólizas o contabiliza CFDIs para generar movimientos en tu Balanza de Comprobación.'
+                : 'Sumas iguales en Cargos y Abonos verificadas. Lista para exportar en XML SAT Anexo 24.'}
             </p>
           </div>
 

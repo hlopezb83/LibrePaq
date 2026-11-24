@@ -9,7 +9,8 @@ import { sumCents } from '../../shared/accounting-engine';
 import { MESES_SAT } from '../../shared/sat-constants';
 
 export function useDashboardManager() {
-  const { activeCompany, activeCompanyId, updatePeriod } = useCompany();
+  const { activeCompany, activeCompanyId, updatePeriod, isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const isReadOnly = isReadOnlyClient || isReadOnlySupportMode;
   const queryClient = useQueryClient();
   const toast = useToast();
   const { openLedger, openDeliverables } = useUIModal();
@@ -85,6 +86,9 @@ export function useDashboardManager() {
 
   const autoPolizaMutation = useMutation({
     mutationFn: (cfdiId: string) => {
+      if (isReadOnly) {
+        throw new Error('Modo solo lectura: no tienes permisos para generar pólizas.');
+      }
       if (isPeriodLocked) {
         throw new Error('El periodo contable actual está cerrado con candado fiscal.');
       }
@@ -105,6 +109,9 @@ export function useDashboardManager() {
 
   const batchAutoPolizaMutation = useMutation({
     mutationFn: async (cfdiIds: string[]) => {
+      if (isReadOnly) {
+        throw new Error('Modo solo lectura: no tienes permisos para generar pólizas.');
+      }
       if (isPeriodLocked) {
         throw new Error('El periodo contable actual está cerrado con candado fiscal.');
       }
@@ -129,7 +136,7 @@ export function useDashboardManager() {
       MESES_SAT.find((m) => m.periodo === company.currentPeriod)?.nombre || `P${company.currentPeriod}`;
     const maxBar = Math.max(
       1,
-      ...monthlyTrend.map((m) => Math.max(m.ingresos, m.egresos, 100000))
+      ...monthlyTrend.map((m) => Math.max(m.ingresos, m.egresos))
     );
     const proporcionGastoIngreso =
       kpis.ingresosPeriodo > 0 ? ((kpis.egresosPeriodo / kpis.ingresosPeriodo) * 100).toFixed(1) : '0.0';
@@ -137,8 +144,12 @@ export function useDashboardManager() {
       kpis.ingresosPeriodo > 0 ? ((kpis.utilidadNeta / kpis.ingresosPeriodo) * 100).toFixed(1) : '0.0';
     const razonCoberturaBancos =
       kpis.cuentasPorPagar > 0 ? (kpis.efectivoBancos / kpis.cuentasPorPagar).toFixed(2) : 'S/D';
-    const isBankReconciled = bankRec
-      ? bankRec.summary.movimientosPendientesBanco === 0 && bankRec.summary.movimientosPendientesLibros === 0
+    const hasActivity = kpis.totalPolizasPeriodo > 0 || kpis.cfdisTotalesPeriodo > 0;
+    const hasBankData = Boolean(
+      bankRec && (bankRec.statementLines.length > 0 || bankRec.bookMovements.length > 0)
+    );
+    const isBankReconciled = hasBankData
+      ? bankRec!.summary.movimientosPendientesBanco === 0 && bankRec!.summary.movimientosPendientesLibros === 0
       : false;
     const isTrialBalanced = trialBalanceSummary.isBalanced;
 
@@ -147,8 +158,13 @@ export function useDashboardManager() {
         id: 'add',
         stepNum: '1',
         label: '1. Bóveda ADD & e.firma',
-        detail: kpis.cfdisPendientesContabilizar === 0 ? 'Todos los CFDIs al día' : `${kpis.cfdisPendientesContabilizar} CFDI(s) sin póliza`,
-        done: kpis.cfdisPendientesContabilizar === 0,
+        detail:
+          kpis.cfdisTotalesPeriodo === 0
+            ? 'Sin CFDIs XML en el periodo'
+            : kpis.cfdisPendientesContabilizar === 0
+            ? 'Todos los CFDIs al día'
+            : `${kpis.cfdisPendientesContabilizar} CFDI(s) sin póliza`,
+        done: kpis.cfdisTotalesPeriodo > 0 && kpis.cfdisPendientesContabilizar === 0,
         to: '/add'
       },
       {
@@ -163,7 +179,11 @@ export function useDashboardManager() {
         id: 'bancos',
         stepNum: '3',
         label: '3. Conciliación Bancaria',
-        detail: isBankReconciled ? 'Estado de cuenta conciliado 100%' : 'Revisión de partidas bancarias',
+        detail: isBankReconciled
+          ? 'Estado de cuenta conciliado 100%'
+          : hasBankData
+          ? 'Revisión de partidas bancarias'
+          : 'Sin movimientos bancarios',
         done: isBankReconciled,
         to: '/fiscal-bancos'
       },
@@ -171,16 +191,20 @@ export function useDashboardManager() {
         id: 'fiscal',
         stepNum: '4',
         label: '4. Cédula Fiscal Día 17',
-        detail: `IVA Neto: ${formatCurrency(kpis.ivaPorPagarNeto)}`,
-        done: true,
-        to: '/fiscal-bancos'
+        detail: hasActivity ? `IVA Neto: ${formatCurrency(kpis.ivaPorPagarNeto)}` : 'Pendiente de pólizas o CFDIs',
+        done: hasActivity && isTrialBalanced,
+        to: '/fiscal-bancos?tab=DIA17'
       },
       {
         id: 'sat',
         stepNum: '5',
         label: '5. Balanza y Cierre SAT',
-        detail: isTrialBalanced ? 'Anexo 24 listo para validación' : `Descuadre de ${formatCurrency(trialBalanceSummary.difference)}`,
-        done: isTrialBalanced && kpis.cfdisPendientesContabilizar === 0,
+        detail: !hasActivity
+          ? 'Sin movimientos en el periodo'
+          : isTrialBalanced
+          ? 'Anexo 24 listo para validación'
+          : `Descuadre de ${formatCurrency(trialBalanceSummary.difference)}`,
+        done: hasActivity && isTrialBalanced && kpis.cfdisPendientesContabilizar === 0,
         to: '/reportes'
       }
     ];
@@ -216,6 +240,7 @@ export function useDashboardManager() {
     error,
     refetch,
     isPeriodLocked,
+    isReadOnly,
     trialBalanceSummary,
     autoPolizaMutation,
     batchAutoPolizaMutation,

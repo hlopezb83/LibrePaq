@@ -186,15 +186,20 @@ export async function syncUpdatedPolizaCfdiLink(
   const removedUuids = prevUuids.filter((u) => !nextSet.has(u));
 
   if (removedUuids.length > 0) {
-    await supabase
+    const { error: clearCfdiErr } = await supabase
       .from('cfdi_documents')
       .update({ poliza_id: null })
       .eq('company_id', compId)
       .eq('poliza_id', polizaId)
       .in('uuid', removedUuids);
+    if (clearCfdiErr) throw new Error(clearCfdiErr.message);
   }
 
-  await supabase.from('poliza_cfdis').delete().eq('poliza_id', polizaId);
+  const { error: delLinksErr } = await supabase
+    .from('poliza_cfdis')
+    .delete()
+    .eq('poliza_id', polizaId);
+  if (delLinksErr) throw new Error(delLinksErr.message);
 
   if (nextUuids.length > 0) {
     const linkRows = nextUuids.map((u) => ({
@@ -222,9 +227,11 @@ export function buildPolizaMovementInsertRows(
   defaultConcepto: string,
   cfdiUuid?: string | null
 ) {
+  const headerUuid = cfdiUuid?.trim().toUpperCase() || null;
   return movements.map((m, idx) => {
     const cached = accMap.get(m.accountId);
-    const movUuid = m.cfdiUuid !== undefined ? (m.cfdiUuid?.trim().toUpperCase() || null) : (cfdiUuid?.trim().toUpperCase() || null);
+    const explicitMovUuid = m.cfdiUuid?.trim().toUpperCase() || null;
+    const movUuid = explicitMovUuid ?? headerUuid;
     return {
       id: `mov_${polizaId}_${idx + 1}`,
       poliza_id: polizaId,

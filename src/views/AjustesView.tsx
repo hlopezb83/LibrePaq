@@ -37,7 +37,6 @@ const AJUSTES_TABS: Array<{
 export function AjustesView() {
   const s = useAjustesState();
   const { activeTab, setActiveTab, activeCompany, companies, companiesLoading } = s;
-  const isReadOnly = s.isReadOnlySupportMode || s.isReadOnlyClient;
 
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const tabListRef = useRef<HTMLDivElement | null>(null);
@@ -91,7 +90,7 @@ export function AjustesView() {
   return (
     <div className="space-y-4">
       {/* Encabezado con Tabs */}
-      <header className="bg-white border border-slate-300/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3.5">
+      <header className="bg-white border border-slate-300/90 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3">
         <div className="flex items-start gap-3.5 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0">
             <Sliders className="w-5 h-5" aria-hidden="true" />
@@ -147,7 +146,7 @@ export function AjustesView() {
                   tabIndex={isSelected ? 0 : -1}
                   onClick={() => selectAndFocusTab(tab.id)}
                   onKeyDown={(e) => handleTabKeyDown(e, index)}
-                  className={`snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
+                  className={`snap-start shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
                     isSelected
                       ? 'bg-blue-600 text-white border-blue-950 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent'
@@ -219,6 +218,8 @@ export function AjustesView() {
             confirmDeleteCompany={s.confirmDeleteCompany}
             setConfirmDeleteCompany={s.setConfirmDeleteCompany}
             onConfigureFicha={() => setActiveTab('empresa')}
+            canDeleteCompany={s.canDeleteOrRestore}
+            canCreateCompany={!s.isReadOnlySupportMode}
             toast={s.toast}
           />
         )}
@@ -243,7 +244,7 @@ export function AjustesView() {
             updateCompanyMutation={s.updateCompanyMutation}
             periodLock={s.periodLock}
             togglePeriodLockMutation={s.togglePeriodLockMutation}
-            isReadOnly={isReadOnly}
+            isReadOnly={!s.canEditFiscalConfig}
           />
         )}
 
@@ -263,6 +264,7 @@ export function AjustesView() {
             setFielPass={s.setFielPass}
             showFielPass={s.showFielPass}
             setShowFielPass={s.setShowFielPass}
+            isReadOnly={!s.canEditFiscalConfig}
           />
         )}
 
@@ -284,6 +286,7 @@ export function AjustesView() {
             onResetFiscal={s.resetFiscalForm}
             saveFiscalParamsMutation={s.saveFiscalParamsMutation}
             fiscalWp={s.fiscalWp}
+            isReadOnly={!s.canEditFiscalConfig}
           />
         )}
 
@@ -303,6 +306,8 @@ export function AjustesView() {
             handleImportCsvCatalog={s.handleImportCsvCatalog}
             restoreInputRef={s.restoreInputRef}
             csvCatalogInputRef={s.csvCatalogInputRef}
+            canRestoreBackup={s.canDeleteOrRestore}
+            canImportCsv={s.canWriteAccounts}
           />
         )}
 

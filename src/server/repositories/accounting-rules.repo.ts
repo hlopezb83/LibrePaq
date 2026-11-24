@@ -42,7 +42,7 @@ const ACCOUNTING_RULES_DDL = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_accounting_rules_company_id
-    ON accounting_rules(company_id, priority DESC);
+    ON accounting_rules(company_id, priority ASC);
 `;
 
 export function ensureAccountingRulesTable(database: SqliteDdlTarget = db): void {
@@ -81,7 +81,7 @@ export function listAccountingRulesRepo(companyId: string): AccountingRuleRecord
     .query(
       `SELECT * FROM accounting_rules
        WHERE company_id = ?
-       ORDER BY priority DESC, updated_at DESC`
+       ORDER BY priority ASC, updated_at DESC`
     )
     .all(companyId) as AccountingRuleDbRow[];
   return rows.map(mapAccountingRuleRow);

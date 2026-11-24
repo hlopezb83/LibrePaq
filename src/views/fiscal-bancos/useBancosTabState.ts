@@ -38,14 +38,17 @@ export function useBancosTabState(params: {
 
   const [selectedBankId, setSelectedBankId] = useState<string>('');
   const [bFecha, setBFecha] = useState(() => defaultPeriodDate);
-  const [bRef, setBRef] = useState('COM-BANC');
-  const [bDesc, setBDesc] = useState('COMISION BANCARIA SPEI E IVA');
+  const [bRef, setBRef] = useState('');
+  const [bDesc, setBDesc] = useState('');
   const [bTipo, setBTipo] = useState<'CARGO' | 'ABONO'>('CARGO');
-  const [bMonto, setBMonto] = useState(580);
+  const [bMonto, setBMonto] = useState(0);
 
   useEffect(() => {
     setSelectedBankId('');
     setBFecha(defaultPeriodDate);
+    setBRef('');
+    setBDesc('');
+    setBMonto(0);
     if (addBankModalRef.current?.open) {
       addBankModalRef.current.close();
     }
@@ -158,6 +161,9 @@ export function useBancosTabState(params: {
     },
     onSuccess: (_data, variables) => {
       invalidateAccountingQueries(queryClient, ['bank-reconciliation', 'dashboard'], variables.companyId);
+      setBRef('');
+      setBDesc('');
+      setBMonto(0);
       addBankModalRef.current?.close();
       const count = variables.lines.length;
       toast.success(

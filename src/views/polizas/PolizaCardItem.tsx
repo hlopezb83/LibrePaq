@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  AlertTriangle,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -174,10 +175,17 @@ function PolizaCardItemBase({
             </div>
           </div>
 
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-            Cuadrada
-          </span>
+          {pol.isBalanced ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+              Cuadrada
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-800 border border-red-200">
+              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+              Descuadrada
+            </span>
+          )}
 
           <div className="flex flex-wrap items-center gap-1.5 no-print">
             {onPrintPoliza && (

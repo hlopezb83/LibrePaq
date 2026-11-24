@@ -80,7 +80,7 @@ export function DashboardRecentPolizasTable({
                 <td className="py-3 px-4 font-mono font-bold text-slate-900">
                   <Link
                     to="/polizas"
-                    search={{ search: String(pol.folio) } as unknown as Record<string, string>}
+                    search={{ search: `${pol.tipo} #${pol.folio}` } as unknown as Record<string, string>}
                     title={`Consultar póliza ${pol.tipo} #${pol.folio} en Pólizas Contables`}
                     className={`inline-block px-2.5 py-0.5 rounded text-[11px] border hover:shadow-xs transition ${
                       pol.tipo === 'INGRESO'
@@ -131,7 +131,7 @@ export function DashboardRecentPolizasTable({
                 <td className="py-3 px-4 text-right">
                   <Link
                     to="/polizas"
-                    search={{ search: String(pol.folio) } as unknown as Record<string, string>}
+                    search={{ search: `${pol.tipo} #${pol.folio}` } as unknown as Record<string, string>}
                     aria-label={`Ver asiento de póliza ${pol.tipo} folio ${pol.folio}`}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition"
                     title="Abrir asiento contable completo"

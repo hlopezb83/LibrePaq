@@ -37,6 +37,29 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
     enabled: Boolean(companyId)
   });
   const affectableAccounts = accounts.filter((a) => a.isAffectable);
+  const validCounterAccounts = affectableAccounts.filter((acc) =>
+    direction === 'EMITIDO'
+      ? /^(101|102|105)/.test(acc.code)
+      : /^(101|102|201|205)/.test(acc.code)
+  );
+
+  const handleDirectionChange = (nextDir: AccountingRuleDirection) => {
+    setDirection(nextDir);
+    if (nextDir === 'EMITIDO') {
+      const preferred =
+        affectableAccounts.find((a) => a.code === '401-01-001')?.code ??
+        affectableAccounts.find((a) => a.code.startsWith('401-'))?.code ??
+        '401-01-001';
+      setOperationAccountCode(preferred);
+    } else if (operationAccountCode.startsWith('4')) {
+      const preferred =
+        affectableAccounts.find((a) => a.code === '601-01-003')?.code ??
+        affectableAccounts.find((a) => a.code.startsWith('601-'))?.code ??
+        '601-01-003';
+      setOperationAccountCode(preferred);
+    }
+    setCounterAccountCode('');
+  };
 
   useEffect(() => {
     if (affectableAccounts.length === 0) return;
@@ -137,7 +160,7 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 text-xs">
           <div>
             <label htmlFor="rule-direction" className="block font-semibold text-slate-700 mb-1">Dirección</label>
-            <select id="rule-direction" disabled={isReadOnly} value={direction} onChange={(e) => setDirection(e.target.value as AccountingRuleDirection)} className={`${inputCls} font-medium cursor-pointer`}>
+            <select id="rule-direction" disabled={isReadOnly} value={direction} onChange={(e) => handleDirectionChange(e.target.value as AccountingRuleDirection)} className={`${inputCls} font-medium cursor-pointer`}>
               <option value="RECIBIDO">RECIBIDO (Gasto)</option>
               <option value="EMITIDO">EMITIDO (Ingreso)</option>
             </select>
@@ -168,10 +191,10 @@ export function AccountingRulesCard({ companyId }: AccountingRulesCardProps) {
           </div>
           <div>
             <label htmlFor="rule-counter-account" className="block font-semibold text-slate-700 mb-1">Contrapartida (Opc.)</label>
-            {affectableAccounts.length > 0 ? (
+            {validCounterAccounts.length > 0 ? (
               <select id="rule-counter-account" disabled={isReadOnly} value={counterAccountCode} onChange={(e) => setCounterAccountCode(e.target.value)} className={`${inputCls} font-mono cursor-pointer`}>
                 <option value="">Automática (PUE/PPD)</option>
-                {affectableAccounts.map((acc) => (
+                {validCounterAccounts.map((acc) => (
                   <option key={acc.id} value={acc.code}>{acc.code} - {acc.name}</option>
                 ))}
               </select>

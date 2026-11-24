@@ -116,12 +116,13 @@ describe('Ola 2 — P0-1 DIOT 54 campos & Pagos 2.0', () => {
     expect(nacCols[0]).toBe('04');
     expect(nacCols[1]).toBe('03');
     expect(nacCols[2]).toBe('PRO990101AA1');
-    expect(nacCols[7]).toBe('10000'); // Campo 8: Actos pagados 16%
-    expect(nacCols[9]).toBe('2000'); // Campo 10: Frontera Norte 8%
-    expect(nacCols[29]).toBe('500'); // Campo 30: 0%
-    expect(nacCols[30]).toBe('300'); // Campo 31: Exento
-    expect(nacCols[46]).toBe('1760'); // Campo 47: IVA acreditable
+    expect(nacCols[7]).toBe('2000'); // Campo 8: Frontera Norte 8%
+    expect(nacCols[11]).toBe('10000'); // Campo 12: Actos pagados 16% nacional
+    expect(nacCols[21]).toBe('1760'); // Campo 22: IVA acreditable 16%
+    expect(nacCols[46]).toBe(''); // Campo 47: Exclusivo IVA no acreditable
     expect(nacCols[47]).toBe('1067'); // Campo 48: IVA retenido
+    expect(nacCols[49]).toBe('300'); // Campo 50: Exento
+    expect(nacCols[50]).toBe('500'); // Campo 51: 0%
     expect(nacCols[53]).toBe('01'); // Campo 54: Manifestación efectos fiscales
 
     const extCols = lines[1]!.split('|');
@@ -132,14 +133,15 @@ describe('Ola 2 — P0-1 DIOT 54 campos & Pagos 2.0', () => {
     expect(extCols[4]).toBe('SAP SE');
     expect(extCols[5]).toBe('DEU');
     expect(extCols[6]).toBe('ALEMANA');
-    expect(extCols[30]).toBe('4000');
+    expect(extCols[49]).toBe('4000');
     expect(extCols[53]).toBe('01');
 
     const globalCols = lines[2]!.split('|');
     expect(globalCols).toHaveLength(54);
     expect(globalCols[0]).toBe('15');
     expect(globalCols[2]).toBe('');
-    expect(globalCols[7]).toBe('5000');
+    expect(globalCols[11]).toBe('5000');
+    expect(globalCols[21]).toBe('800');
     expect(globalCols[53]).toBe('01');
   });
 
@@ -442,7 +444,7 @@ describe('Ola 2 — P0-3 Anexo 24 v1.3 (BC, NumOrden/NumTramite, XF.xml, XC.xml)
       numTramite: 'CO202600000077'
     });
     expect(xc.filename).toBe('COL260101AB1202610XC.xml');
-    expect(xc.xml).toContain('AuxiliarCuentas_1_3.xsd');
+    expect(xc.xml).toContain('AuxiliarCtas_1_3.xsd');
     expect(xc.xml).toContain('NumTramite="CO202600000077"');
     expect(xc.xml).toContain('<AuxiliarCtas:DetalleAux Fecha="2026-10-15" NumUnIdenPol="INGRESO-1"');
 

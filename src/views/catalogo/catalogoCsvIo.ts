@@ -120,7 +120,11 @@ export function parseCatalogoCsvText(text: string): ParsedCatalogoCsvRow[] {
     const parsedAff = parseBoolColumn(cols[colAffectable]);
     const isAffectable = parsedAff !== undefined ? parsedAff : level >= 3;
 
-    const rawBalVal = cols[colBalance] !== undefined ? Number(cols[colBalance]) : 0;
+    const rawBalText = (cols[colBalance] ?? '').trim();
+    const isParenNeg = /^\(.*\)$/.test(rawBalText);
+    const cleanedBalText = rawBalText.replace(/[$,()\s]/g, '');
+    const parsedBal = cleanedBalText ? Number(cleanedBalText) : 0;
+    const rawBalVal = Number.isFinite(parsedBal) ? (isParenNeg ? -Math.abs(parsedBal) : parsedBal) : 0;
     const rawParent = colParent >= 0 ? normalizeAccountCode(cols[colParent] ?? '') : '';
 
     tempRows.push({
@@ -171,7 +175,7 @@ export function exportCatalogoCsv(
     a.nature,
     a.level,
     a.isAffectable ? 'Sí' : 'No',
-    a.initialBalanceComputed,
+    a.initialBalance,
     a.periodCharges,
     a.periodCredits,
     a.finalBalance,

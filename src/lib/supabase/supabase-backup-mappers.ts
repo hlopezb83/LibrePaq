@@ -187,19 +187,25 @@ export async function restoreBackupChildTables(
   }
 
   if (Array.isArray(bundle.thirdParties) && bundle.thirdParties.length > 0) {
-    const tpToUpsert = bundle.thirdParties.map((tp) => ({
-      id: tp.id,
-      company_id: companyId,
-      rfc: tp.rfc,
-      nombre: tp.nombre,
-      rol: tp.rol || 'PROVEEDOR',
-      cuenta_operacion_code: tp.cuentaOperacionCode,
-      cuenta_contrapartida_code: tp.cuentaContrapartidaCode,
-      tipo_tercero_diot: tp.tipoTerceroDiot || '04',
-      tipo_operacion_diot: tp.tipoOperacionDiot || '85',
-      tasa_iva_default: Number(tp.tasaIvaDefault || 16),
-      estatus_69b: tp.estatus69B || 'LIMPIO'
-    }));
+    const tpToUpsert = bundle.thirdParties.map((tp) => {
+      const ext = tp as unknown as Record<string, unknown>;
+      const estatus = (tp.estatus69B || ext.estatus69b || 'LIMPIO') as string;
+      const deductiblePct = Math.max(0, Math.min(100, Number(ext.deductiblePct ?? 100)));
+      return {
+        id: tp.id,
+        company_id: companyId,
+        rfc: tp.rfc,
+        nombre: tp.nombre,
+        rol: tp.rol || 'PROVEEDOR',
+        cuenta_operacion_code: tp.cuentaOperacionCode,
+        cuenta_contrapartida_code: tp.cuentaContrapartidaCode,
+        tipo_tercero_diot: tp.tipoTerceroDiot || '04',
+        tipo_operacion_diot: tp.tipoOperacionDiot || '85',
+        tasa_iva_default: Number(tp.tasaIvaDefault ?? 16),
+        deductible_pct: deductiblePct,
+        estatus_69b: estatus
+      };
+    });
     await assertTableUpsert(client, 'third_parties', tpToUpsert, { onConflict: 'id' });
   }
 

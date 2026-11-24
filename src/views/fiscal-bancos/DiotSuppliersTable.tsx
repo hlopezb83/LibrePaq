@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../lib/formatters';
+import { fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type { Efos69BStatus } from '../../shared/types';
 
 export interface DiotSupplierRowWithEfos {
@@ -8,6 +9,7 @@ export interface DiotSupplierRowWithEfos {
   tipoOperacion: string;
   cfdiCount: number;
   actosPagados16: number;
+  actosPagados8?: number;
   ivaAcreditable16: number;
   ivaRetenido: number;
   isrRetenido: number;
@@ -45,8 +47,8 @@ export function DiotSuppliersTable({
             <th scope="col" className="py-3 px-4 whitespace-nowrap">Tercero / Operación</th>
             <th scope="col" className="py-3 px-4 whitespace-nowrap">RFC Proveedor</th>
             <th scope="col" className="py-3 px-4">Nombre / Razón Social</th>
-            <th scope="col" className="py-3 px-4 text-right whitespace-nowrap">Actos Pagados 16%</th>
-            <th scope="col" className="py-3 px-4 text-right whitespace-nowrap">IVA Acreditable 16%</th>
+            <th scope="col" className="py-3 px-4 text-right whitespace-nowrap">Actos Pagados (16% / 8%)</th>
+            <th scope="col" className="py-3 px-4 text-right whitespace-nowrap">IVA Acreditable</th>
             <th scope="col" className="py-3 px-4 text-right whitespace-nowrap">IVA Retenido</th>
             <th scope="col" className="py-3 px-4 text-right whitespace-nowrap">ISR Retenido</th>
             <th scope="col" className="py-3 px-4">Línea Batch SAT (.txt)</th>
@@ -62,7 +64,7 @@ export function DiotSuppliersTable({
           ) : (
             rows.map((r) => (
               <tr
-                key={r.rfc}
+                key={`${r.rfc}::${r.tipoOperacion}`}
                 className={
                   r.isEfos ? 'bg-red-50/70 hover:bg-red-50 transition' : 'hover:bg-blue-50/30 transition'
                 }
@@ -92,7 +94,7 @@ export function DiotSuppliersTable({
                   </span>
                 </td>
                 <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900 whitespace-nowrap tabular-nums">
-                  {formatCurrency(r.actosPagados16)}
+                  {formatCurrency(fromCents(toCents(r.actosPagados16) + toCents(r.actosPagados8 ?? 0)))}
                 </td>
                 <td className="py-3 px-4 text-right font-mono text-slate-900 font-semibold whitespace-nowrap tabular-nums">
                   {formatCurrency(r.ivaAcreditable16)}

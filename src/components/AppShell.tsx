@@ -84,8 +84,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (el) {
         if (!el.open) el.showModal();
         onOpened?.();
-      } else if (attempt < 15) {
-        requestAnimationFrame(() => showSafe(attempt + 1));
+      } else if (attempt < 80) {
+        setTimeout(() => showSafe(attempt + 1), 50);
       }
     };
     if (!hasOpened) setHasOpened(true);
@@ -176,7 +176,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     navigate: navigateTarget,
     stepPeriod,
     activeCompany,
-    isOwner
+    isOwner,
+    disableCommandPalette: isPublicPage || isWorkspaceEmpty
   });
 
   useEffect(() => {
@@ -187,10 +188,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isPublicPage) {
     return (
-      <main id="main-content" className="min-h-screen bg-white focus:outline-none relative" tabIndex={-1}>
+      <div className="min-h-screen w-full bg-white relative">
         {children}
         <WhatsAppSupportButton />
-      </main>
+      </div>
     );
   }
 
@@ -288,8 +289,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onCompanyRestored={(id, comp) => setActiveCompanyId(id, comp)}
             />
           ) : (
-            <AppErrorBoundary>
-              {children}
+            <AppErrorBoundary key={currentPath}>
+              <div className="w-full min-w-0">
+                {children}
+              </div>
             </AppErrorBoundary>
           )}
         </main>

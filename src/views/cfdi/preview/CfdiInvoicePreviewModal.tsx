@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { apiClient } from '../../../lib/api-client';
 import { useDialogLightDismiss } from '../../../hooks/useDialogLightDismiss';
 import { handleTablistKeyDown } from '../../../hooks/useTablistKeyboard';
 import {
@@ -55,6 +56,8 @@ export function CfdiInvoicePreviewModal({
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeTab, setActiveTab] = useState<'FACTURA' | 'POLIZA' | 'XML'>('FACTURA');
   const [copiedText, setCopiedText] = useState<string | null>(null);
+  const [fetchedXml, setFetchedXml] = useState<{ id: string; xml: string } | null>(null);
+  const [isLoadingXml, setIsLoadingXml] = useState(false);
 
   useDialogLightDismiss(dialogRef, onClose, { isOpen: Boolean(cfdi) });
 
@@ -75,6 +78,27 @@ export function CfdiInvoicePreviewModal({
     }
   }, [cfdi]);
 
+  useEffect(() => {
+    if (!cfdi || cfdi.xmlRaw) {
+      setFetchedXml(null);
+      setIsLoadingXml(false);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingXml(true);
+    void apiClient.getCfdiXml(cfdi.id).then((xml) => {
+      if (!cancelled && xml) setFetchedXml({ id: cfdi.id, xml });
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setIsLoadingXml(false);
+    });
+    return () => { cancelled = true; };
+  }, [cfdi?.id, cfdi?.xmlRaw]);
+
+  const effectiveCfdi = useMemo(
+    () => (!cfdi ? null : !cfdi.xmlRaw && fetchedXml?.id === cfdi.id ? { ...cfdi, xmlRaw: fetchedXml.xml } : cfdi),
+    [cfdi, fetchedXml]
+  );
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard?.writeText(text);
     setCopiedText(label);
@@ -83,42 +107,42 @@ export function CfdiInvoicePreviewModal({
   };
 
   const emisorRfcCheck = useMemo(
-    () => (cfdi ? validateRfcModulo11(cfdi.emisorRfc) : null),
-    [cfdi?.emisorRfc]
+    () => (effectiveCfdi ? validateRfcModulo11(effectiveCfdi.emisorRfc) : null),
+    [effectiveCfdi?.emisorRfc]
   );
   const receptorRfcCheck = useMemo(
-    () => (cfdi ? validateRfcModulo11(cfdi.receptorRfc) : null),
-    [cfdi?.receptorRfc]
+    () => (effectiveCfdi ? validateRfcModulo11(effectiveCfdi.receptorRfc) : null),
+    [effectiveCfdi?.receptorRfc]
   );
-  const preview = useMemo(() => (cfdi ? parseCfdiPreview(cfdi) : null), [cfdi]);
+  const preview = useMemo(() => (effectiveCfdi ? parseCfdiPreview(effectiveCfdi) : null), [effectiveCfdi]);
 
   const autoPlan = useMemo(() => {
-    if (!cfdi || !accounts || accounts.length === 0) return null;
+    if (!effectiveCfdi || !accounts || accounts.length === 0) return null;
     try {
-      return buildAutoPolizaPlan(cfdi, accounts);
+      return buildAutoPolizaPlan(effectiveCfdi, accounts);
     } catch {
       return null;
     }
-  }, [cfdi, accounts]);
+  }, [effectiveCfdi, accounts]);
 
-  if (!cfdi) return null;
+  if (!effectiveCfdi) return null;
 
   const tipoLabel =
-    cfdi.tipoComprobante === 'I'
+    effectiveCfdi.tipoComprobante === 'I'
       ? 'I - Ingreso (Factura Comercial)'
-      : cfdi.tipoComprobante === 'E'
+      : effectiveCfdi.tipoComprobante === 'E'
       ? 'E - Egreso (Nota de Crédito)'
-      : cfdi.tipoComprobante === 'P'
+      : effectiveCfdi.tipoComprobante === 'P'
       ? 'P - Recepción de Pagos (REP 2.0)'
-      : cfdi.tipoComprobante === 'N'
+      : effectiveCfdi.tipoComprobante === 'N'
       ? 'N - Nómina Digital'
       : 'T - Traslado';
 
   const satParams = new URLSearchParams({
-    id: cfdi.uuid,
-    re: cfdi.emisorRfc,
-    rr: cfdi.receptorRfc,
-    tt: String(cfdi.total)
+    id: effectiveCfdi.uuid,
+    re: effectiveCfdi.emisorRfc,
+    rr: effectiveCfdi.receptorRfc,
+    tt: effectiveCfdi.tipoComprobante === 'P' ? '0' : String(effectiveCfdi.total)
   });
   const selloSuffix = preview?.timbre.selloCfd ? preview.timbre.selloCfd.slice(-8) : '';
   if (selloSuffix) satParams.set('fe', selloSuffix);
@@ -143,10 +167,10 @@ export function CfdiInvoicePreviewModal({
               Inspector y Visor de CFDI 4.0
             </h1>
             <div className="flex items-center gap-1.5 text-xs text-slate-600 font-mono">
-              <span className="truncate">UUID: {cfdi.uuid.slice(0, 18)}...</span>
+              <span className="truncate">UUID: {effectiveCfdi.uuid.slice(0, 18)}...</span>
               <button
                 type="button"
-                onClick={() => copyToClipboard(cfdi.uuid, 'UUID')}
+                onClick={() => copyToClipboard(effectiveCfdi.uuid, 'UUID')}
                 title="Copiar UUID completo"
                 aria-label="Copiar UUID completo"
                 className="min-w-[28px] min-h-[28px] p-1.5 inline-flex items-center justify-center rounded-md text-slate-600 hover:text-blue-700 hover:bg-slate-100 cursor-pointer shrink-0"
@@ -215,7 +239,7 @@ export function CfdiInvoicePreviewModal({
             {onDownloadXml && (
               <button
                 type="button"
-                onClick={() => onDownloadXml(cfdi)}
+                onClick={() => onDownloadXml(effectiveCfdi)}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer"
                 title="Descargar archivo XML original"
                 aria-label="Descargar XML original"
@@ -234,9 +258,9 @@ export function CfdiInvoicePreviewModal({
               <Printer className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
 
-            {!cfdi.polizaId && onContabilizar && (() => {
+            {!effectiveCfdi.polizaId && onContabilizar && (() => {
               const isNonContabilizable =
-                cfdi.statusSat === 'CANCELADO' || cfdi.tipoComprobante === 'T';
+                effectiveCfdi.statusSat === 'CANCELADO' || effectiveCfdi.tipoComprobante === 'T';
               const isContabilizarDisabled = isWriteBlocked || isNonContabilizable;
               return (
                 <button
@@ -247,16 +271,16 @@ export function CfdiInvoicePreviewModal({
                       ? 'Modo solo lectura'
                       : isPeriodLocked
                       ? 'Periodo fiscal bloqueado ante el SAT'
-                      : cfdi.statusSat === 'CANCELADO'
+                      : effectiveCfdi.statusSat === 'CANCELADO'
                       ? 'CFDI cancelado ante el SAT'
-                      : cfdi.tipoComprobante === 'T'
+                      : effectiveCfdi.tipoComprobante === 'T'
                       ? 'CFDI de Traslado (T) no contabilizable'
                       : 'Contabilizar comprobante y generar póliza'
                   }
                   onClick={() => {
                     if (isContabilizarDisabled) return;
                     dialogRef.current?.close();
-                    onContabilizar(cfdi);
+                    onContabilizar(effectiveCfdi);
                   }}
                   aria-label="Contabilizar comprobante y generar póliza"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs transition cursor-pointer"
@@ -284,7 +308,7 @@ export function CfdiInvoicePreviewModal({
         {activeTab === 'FACTURA' && (
           <div role="tabpanel" id="cfdi-prev-panel-FACTURA" aria-labelledby="cfdi-prev-tab-FACTURA">
             <CfdiFacturaTab
-              cfdi={cfdi}
+              cfdi={effectiveCfdi}
               tipoLabel={tipoLabel}
               emisorRfcCheck={emisorRfcCheck}
               receptorRfcCheck={receptorRfcCheck}
@@ -295,7 +319,7 @@ export function CfdiInvoicePreviewModal({
         {activeTab === 'POLIZA' && (
           <div role="tabpanel" id="cfdi-prev-panel-POLIZA" aria-labelledby="cfdi-prev-tab-POLIZA">
             <CfdiPolizaTab
-              cfdi={cfdi}
+              cfdi={effectiveCfdi}
               autoPlan={autoPlan}
               isWriteBlocked={isWriteBlocked}
               onContabilizar={isWriteBlocked ? undefined : onContabilizar}
@@ -307,9 +331,10 @@ export function CfdiInvoicePreviewModal({
         {activeTab === 'XML' && (
           <div role="tabpanel" id="cfdi-prev-panel-XML" aria-labelledby="cfdi-prev-tab-XML">
             <CfdiXmlTab
-              cfdi={cfdi}
+              cfdi={effectiveCfdi}
               copiedText={copiedText}
               copyToClipboard={copyToClipboard}
+              isLoadingXml={isLoadingXml}
             />
           </div>
         )}

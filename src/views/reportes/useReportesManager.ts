@@ -28,13 +28,16 @@ const VALID_REPORT_TABS: readonly ReportTabId[] = [
 
 function resolveReportTab(raw: unknown): ReportTabId | null {
   if (typeof raw !== 'string') return null;
-  const param = raw.toUpperCase() as ReportTabId;
-  return VALID_REPORT_TABS.includes(param) ? param : null;
+  const param = raw.toUpperCase();
+  if (param === 'DOSSIER') return 'ENTREGABLES';
+  return VALID_REPORT_TABS.includes(param as ReportTabId) ? (param as ReportTabId) : null;
 }
 
 function getInitialReportTab(): ReportTabId {
   if (typeof window !== 'undefined' && window.location.search) {
-    const resolved = resolveReportTab(new URLSearchParams(window.location.search).get('tab'));
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('dossier') === 'true') return 'ENTREGABLES';
+    const resolved = resolveReportTab(sp.get('tab'));
     if (resolved) return resolved;
   }
   return 'BALANZA';
@@ -46,9 +49,17 @@ export function useReportesManager() {
   const currentYear = activeCompany?.currentYear;
   const currentPeriod = activeCompany?.currentPeriod;
 
-  const urlTab = useRouterState({
+  const urlTab: unknown = useRouterState({
     select: (s) => (s.location.search as Record<string, unknown>)?.tab
   });
+  const urlDossier: unknown = useRouterState({
+    select: (s) => (s.location.search as Record<string, unknown>)?.dossier
+  });
+  const isDossierRequested =
+    urlDossier === true ||
+    urlDossier === 'true' ||
+    (typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('dossier') === 'true');
 
   const [activeTab, setActiveTab] = useState<ReportTabId>(
     () => resolveReportTab(urlTab) ?? getInitialReportTab()
@@ -63,9 +74,13 @@ export function useReportesManager() {
   });
 
   useEffect(() => {
+    if (isDossierRequested) {
+      setActiveTab('ENTREGABLES');
+      return;
+    }
     const next = resolveReportTab(urlTab);
     if (next) setActiveTab(next);
-  }, [urlTab]);
+  }, [urlTab, isDossierRequested]);
 
   const { data: periodLock } = useQuery({
     queryKey: ['period-lock', activeCompanyId, currentYear, currentPeriod],
@@ -81,8 +96,8 @@ export function useReportesManager() {
   });
 
   const { data: prevReports, isLoading: isLoadingPrevReports } = useQuery({
-    queryKey: ['reports', activeCompanyId, currentYear ? currentYear - 1 : undefined, currentPeriod],
-    queryFn: () => apiClient.getReports(activeCompanyId, (currentYear ?? 2026) - 1, currentPeriod),
+    queryKey: ['reports', activeCompanyId, currentYear ? currentYear - 1 : undefined, 13],
+    queryFn: () => apiClient.getReports(activeCompanyId, (currentYear ?? 2026) - 1, 13),
     enabled: Boolean(
       activeCompanyId && activeTab === 'FLUJOS_CAPITAL' && currentYear && currentYear > 2000
     )
@@ -143,18 +158,37 @@ export function useReportesManager() {
     if (!data) return;
     const periodCode = `P${String(data.periodo).padStart(2, '0')}`;
     if (activeTab === 'RESULTADOS') {
-      const base = data.incomeStatement.totalIngresos || 0;
+      const er = data.incomeStatement;
+      const base = er.totalIngresos || 0;
       const pct = (val: number) => (base !== 0 ? `${((val / base) * 100).toFixed(1)}%` : '0.0%');
+      const signed = (
+        a: typeof data.trialBalance[number],
+        expected: 'ACREEDORA' | 'DEUDORA'
+      ) => (a.nature === expected ? a.finalBalance : -a.finalBalance);
+      const totalIsr = er.totalIsr ?? 0;
+      const isrCsvRows: Array<Array<string | number>> =
+        totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
+          ? [
+              ...(er.isrEjercicio ?? []).map((a) => {
+                const v = signed(a, 'DEUDORA');
+                return ['ISR EJERCICIO', a.code, a.name, v, pct(v)];
+              }),
+              ['IMPUESTOS A LA UTILIDAD (ISR)', '', 'Provisión ISR del Ejercicio (NIF D-4)', totalIsr, pct(totalIsr)]
+            ]
+          : [];
       downloadCsvFile(
         `Estado_Resultados_${data.company.rfc}_${data.ejercicio}_${periodCode}.csv`,
         ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Importe MXN', '% s/Ventas'],
         [
-          ...data.incomeStatement.ingresos.map((a) => ['INGRESOS', a.code, a.name, a.finalBalance, pct(a.finalBalance)]),
-          ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', data.incomeStatement.totalIngresos, '100.0%'],
-          ...data.incomeStatement.costos.map((a) => ['COSTOS', a.code, a.name, a.finalBalance, pct(a.finalBalance)]),
-          ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', data.incomeStatement.utilidadBruta, pct(data.incomeStatement.utilidadBruta)],
-          ...data.incomeStatement.gastos.map((a) => ['GASTOS', a.code, a.name, a.finalBalance, pct(a.finalBalance)]),
-          ['UTILIDAD NETA', '', 'Resultado Neto del Periodo', data.incomeStatement.utilidadNeta, pct(data.incomeStatement.utilidadNeta)]
+          ...er.ingresos.map((a) => { const v = signed(a, 'ACREEDORA'); return ['INGRESOS', a.code, a.name, v, pct(v)]; }),
+          ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', er.totalIngresos, '100.0%'],
+          ...er.costos.map((a) => { const v = signed(a, 'DEUDORA'); return ['COSTOS', a.code, a.name, v, pct(v)]; }),
+          ['TOTAL COSTOS', '', 'Costo de Ventas', er.totalCostos, pct(er.totalCostos)],
+          ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', er.utilidadBruta, pct(er.utilidadBruta)],
+          ...er.gastos.map((a) => { const v = signed(a, 'DEUDORA'); return ['GASTOS', a.code, a.name, v, pct(v)]; }),
+          ['TOTAL GASTOS', '', 'Gastos Generales de Operación', er.totalGastos, pct(er.totalGastos)],
+          ...isrCsvRows,
+          ['UTILIDAD NETA', '', 'Resultado Neto del Periodo', er.utilidadNeta, pct(er.utilidadNeta)]
         ]
       );
       toast.success('Estado de Resultados exportado en CSV');
@@ -226,6 +260,7 @@ export function useReportesManager() {
   return {
     activeTab,
     setActiveTab,
+    isDossierRequested,
     satXmlType,
     setSatXmlType,
     anexo24Options,

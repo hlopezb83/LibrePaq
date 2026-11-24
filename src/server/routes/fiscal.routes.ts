@@ -213,7 +213,9 @@ fiscalRoutes.get('/fiscal-workpaper/parameters', (c) => {
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
     const ejercicio = Number(c.req.query('year') ?? company.currentYear);
-    return c.json(getTaxParameters(company.id, ejercicio));
+    const periodRaw = c.req.query('period');
+    const periodo = periodRaw !== undefined ? Number(periodRaw) : 0;
+    return c.json(getTaxParameters(company.id, ejercicio, Number.isFinite(periodo) ? periodo : 0));
   } catch (err) {
     const { message, status } = errorStatus(err);
     return c.json({ error: message }, status);
@@ -227,8 +229,11 @@ fiscalRoutes.put('/fiscal-workpaper/parameters', async (c) => {
     const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
-    const ejercicio = Number(body.ejercicio ?? company.currentYear);
+    const ejercicio = Number(body.ejercicio ?? body.year ?? company.currentYear);
+    const rawPeriodo = body.periodo ?? body.period;
+    const periodo = rawPeriodo !== undefined ? Number(rawPeriodo) : 0;
     const updated = saveTaxParameters(company.id, ejercicio, {
+      periodo: Number.isFinite(periodo) ? periodo : 0,
       coeficienteUtilidad:
         body.coeficienteUtilidad !== undefined ? Number(body.coeficienteUtilidad) : undefined,
       perdidasFiscalesPendientes:
@@ -258,11 +263,14 @@ fiscalRoutes.post('/fiscal-workpaper/provision-poliza', async (c) => {
     const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
-    const poliza = generateTaxProvisionPoliza(
-      company.id,
-      company.currentYear,
-      company.currentPeriod
+    const rawYear = body.year ?? body.ejercicio;
+    const rawPeriod = body.period ?? body.periodo;
+    const { year, period } = resolveYearAndPeriod(
+      rawYear !== undefined ? String(rawYear) : undefined,
+      rawPeriod !== undefined ? String(rawPeriod) : undefined,
+      company
     );
+    const poliza = generateTaxProvisionPoliza(company.id, year, period);
     return c.json(poliza, 201);
   } catch (err) {
     const { message, status } = errorStatus(err);
@@ -277,11 +285,14 @@ fiscalRoutes.post('/fiscal-workpaper/exchange-poliza', async (c) => {
     const company = getAuthorizedCompanyForRoute(c, companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
-    const poliza = generateExchangeFluctuationPoliza(
-      company.id,
-      company.currentYear,
-      company.currentPeriod
+    const rawYear = body.year ?? body.ejercicio;
+    const rawPeriod = body.period ?? body.periodo;
+    const { year, period } = resolveYearAndPeriod(
+      rawYear !== undefined ? String(rawYear) : undefined,
+      rawPeriod !== undefined ? String(rawPeriod) : undefined,
+      company
     );
+    const poliza = generateExchangeFluctuationPoliza(company.id, year, period);
     return c.json(poliza, 201);
   } catch (err) {
     const { message, status } = errorStatus(err);

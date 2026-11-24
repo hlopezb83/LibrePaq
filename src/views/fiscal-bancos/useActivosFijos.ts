@@ -4,6 +4,11 @@ import { useCompany } from '../../context/CompanyContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { supabaseFiscalAndAssets } from '../../lib/supabase/supabase-fiscal-assets';
+import {
+  computeFixedAssetWithDepreciation,
+  hasExistingDepreciationPoliza
+} from '../../shared/engine/fixed-assets.engine';
+import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
 import { getInpcForIsoDate, getInpcMedioPeriodo } from '../../shared/sat-inpc-catalog';
 import { FISCAL_ACCOUNT_ROLES } from '../../shared/sat-constants';
 import type {
@@ -46,7 +51,7 @@ export function useActivosFijos({
   const affectableAccounts = accounts.filter((a) => a.isAffectable);
 
   const {
-    data: fixedAssetsData,
+    data: rawFixedAssetsData,
     isLoading: loadingAssets,
     isError: isErrorAssets,
     error: errorAssets,
@@ -56,6 +61,43 @@ export function useActivosFijos({
     queryFn: () => apiClient.getFixedAssets(companyId, year, activePeriod),
     enabled: Boolean(companyId)
   });
+
+  const { data: periodPolizas = [] } = useQuery({
+    queryKey: ['polizas', companyId, year, activePeriod],
+    queryFn: () => apiClient.getPolizas(companyId, year, activePeriod),
+    enabled: Boolean(companyId)
+  });
+
+  const hasDepPolizaThisPeriod = hasExistingDepreciationPoliza(periodPolizas);
+
+  const fixedAssetsData =
+    rawFixedAssetsData && hasDepPolizaThisPeriod && !isSupabaseConfigured
+      ? (() => {
+          const adjusted = rawFixedAssetsData.assets.map((a) =>
+            computeFixedAssetWithDepreciation(a, {
+              ejercicio: year,
+              periodo: activePeriod,
+              alreadyDepreciatedThisPeriod: true
+            })
+          );
+          return {
+            assets: adjusted,
+            totals: {
+              totalMoi: fromCents(sumCents(adjusted.map((a) => a.montoOriginalInversion))),
+              totalDepreciacionMensualContable: fromCents(
+                sumCents(adjusted.map((a) => a.depreciacionMensualContable))
+              ),
+              totalDepreciacionMensualFiscal: fromCents(
+                sumCents(adjusted.map((a) => a.depreciacionMensualFiscalActualizada))
+              ),
+              totalDepreciacionAcumulada: fromCents(
+                sumCents(adjusted.map((a) => a.depreciacionAcumuladaTotal))
+              ),
+              totalValorNetoEnLibros: fromCents(sumCents(adjusted.map((a) => a.valorNetoEnLibros)))
+            }
+          };
+        })()
+      : rawFixedAssetsData;
 
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [assetCode, setAssetCode] = useState('AF-003');
@@ -243,6 +285,7 @@ export function useActivosFijos({
 
   return {
     activePeriod,
+    hasDepPolizaThisPeriod,
     fixedAssetsData,
     loadingAssets,
     isErrorAssets,

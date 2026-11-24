@@ -25,6 +25,7 @@ export interface CashBasisFiscalResult {
   ivaRetenidoFavorPeriodo: number;
   ivaRetenidoPorPagarPeriodo: number;
   isrRetenidoPorPagarPeriodo: number;
+  isrRetenidoFavorAcumulado?: number;
   cashBasisSummary: NonNullable<FiscalWorkpaperResponse['cashBasisSummary']>;
   resicoThresholdAlert: NonNullable<FiscalWorkpaperResponse['resicoThresholdAlert']>;
   ivaBreakdown: NonNullable<FiscalWorkpaperResponse['ivaBreakdown']>;
@@ -125,6 +126,7 @@ export function computeCashBasisFiscalSummary({
   let dedPerCents = 0;
   let dedAcumCents = 0;
   let retResico125Cents = 0;
+  let isrRetFavorAcumCents = 0;
   let ivaRetFavorCents = 0;
   let ivaRetPagarCents = 0;
   let isrRetPagarCents = 0;
@@ -133,6 +135,7 @@ export function computeCashBasisFiscalSummary({
   let recI16 = 0, recI8 = 0, recIeps = 0;
   let hasEmitidosCashActivity = false;
   let hasRecibidosCashActivity = false;
+  let hasPayrollCashActivity = false;
 
   const ppdInvoiceUuids = new Set<string>();
   for (const c of cfdis) {
@@ -144,7 +147,22 @@ export function computeCashBasisFiscalSummary({
 
   for (const doc of cfdis) {
     if (doc.statusSat === 'CANCELADO') continue;
-    if (doc.tipoComprobante === 'T' || doc.tipoComprobante === 'N') continue;
+    if (doc.tipoComprobante === 'T') continue;
+    if (doc.tipoComprobante === 'N') {
+      if (doc.direction !== 'EMITIDO' || esResicoPf) continue;
+      const calN = parseCalendarDate(doc.fecha, ejercicio, targetPeriod);
+      if (calN.year !== ejercicio || calN.month > targetPeriod) continue;
+      const tcN = getRate(doc);
+      const nominaCents = Math.max(0, toCents((doc.subtotal > 0 ? doc.subtotal : doc.total) * tcN));
+      if (nominaCents <= 0) continue;
+      hasPayrollCashActivity = true;
+      dedAcumCents += nominaCents;
+      const inPeriodN =
+        calN.month === targetPeriod ||
+        Boolean(polizaIdsInPeriod && doc.polizaId && polizaIdsInPeriod.has(doc.polizaId));
+      if (inPeriodN) dedPerCents += nominaCents;
+      continue;
+    }
     if (doc.tipoComprobante === 'I' && doc.metodoPago === 'PPD') continue;
     if (doc.tipoComprobante === 'E') {
       if (doc.metodoPago === 'PPD') continue;
@@ -172,6 +190,7 @@ export function computeCashBasisFiscalSummary({
     if (doc.direction === 'EMITIDO') {
       hasEmitidosCashActivity = true;
       ingAcumCents += sign * baseCents;
+      isrRetFavorAcumCents += sign * toCents(doc.isrRetenido * tc);
       if (inPeriod) {
         if (doc.tipoComprobante === 'P') repIngCents += baseCents;
         else if (isCreditNote) ncIngCents += baseCents;
@@ -216,7 +235,7 @@ export function computeCashBasisFiscalSummary({
 
   return {
     isCashBasisRegime,
-    hasCfdiCashActivity: hasEmitidosCashActivity || hasRecibidosCashActivity,
+    hasCfdiCashActivity: hasEmitidosCashActivity || hasRecibidosCashActivity || hasPayrollCashActivity,
     hasEmitidosCashActivity,
     hasRecibidosCashActivity,
     ingresosPeriodo: fromCents(ingresosPeriodoCents),
@@ -228,6 +247,7 @@ export function computeCashBasisFiscalSummary({
     ivaRetenidoFavorPeriodo: fromCents(Math.max(0, ivaRetFavorCents)),
     ivaRetenidoPorPagarPeriodo: fromCents(Math.max(0, ivaRetPagarCents)),
     isrRetenidoPorPagarPeriodo: fromCents(Math.max(0, isrRetPagarCents)),
+    isrRetenidoFavorAcumulado: fromCents(Math.max(0, isrRetFavorAcumCents)),
     cashBasisSummary: {
       isCashBasisRegime,
       baseContableDevengada,

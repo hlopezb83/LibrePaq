@@ -247,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     authCheckSeqRef.current += 1;
     clearSuspension();
+    setGuestDemoMode(false);
     localStorage.removeItem(GUEST_DEMO_KEY);
     endSupportSession();
     try {

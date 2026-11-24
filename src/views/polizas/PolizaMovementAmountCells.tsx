@@ -66,6 +66,11 @@ export function PolizaMovementAmountCells({
             if ((e.key === '=' || e.key === ' ') && difference < 0 && (!mov.cargo || mov.cargo === 0)) {
               e.preventDefault();
               applyBalanceToRow(idx, 'cargo');
+              if (mov.abono > 0) {
+                setMovements((prev) =>
+                  prev.map((item, i) => (i === idx ? { ...item, abono: 0 } : item))
+                );
+              }
               return;
             }
             if (e.key === 'Enter') {
@@ -134,6 +139,11 @@ export function PolizaMovementAmountCells({
             if ((e.key === '=' || e.key === ' ') && difference > 0 && (!mov.abono || mov.abono === 0)) {
               e.preventDefault();
               applyBalanceToRow(idx, 'abono');
+              if (mov.cargo > 0) {
+                setMovements((prev) =>
+                  prev.map((item, i) => (i === idx ? { ...item, cargo: 0 } : item))
+                );
+              }
               return;
             }
             if (e.key === 'Enter') {

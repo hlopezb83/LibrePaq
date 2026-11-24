@@ -357,7 +357,7 @@ describe('Ola 2C — Conciliación Bancaria N-a-1 & Extractor PDF Gemini', () =>
           fecha: '2026-10-15',
           referencia: 'SPEI-77',
           descripcion: 'DEPOSITO CLIENTE',
-          cargo: 0,
+          cargo: 50,
           abono: 1250.5
         },
         {

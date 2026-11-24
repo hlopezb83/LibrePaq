@@ -26,6 +26,8 @@ export interface AjustesRespaldosTabProps {
   handleImportCsvCatalog: (e: ChangeEvent<HTMLInputElement>) => void;
   restoreInputRef: RefObject<HTMLInputElement | null>;
   csvCatalogInputRef: RefObject<HTMLInputElement | null>;
+  canRestoreBackup?: boolean;
+  canImportCsv?: boolean;
 }
 
 export function AjustesRespaldosTab({
@@ -42,7 +44,9 @@ export function AjustesRespaldosTab({
   handleRestoreBackupFile,
   handleImportCsvCatalog,
   restoreInputRef,
-  csvCatalogInputRef
+  csvCatalogInputRef,
+  canRestoreBackup = true,
+  canImportCsv = true
 }: AjustesRespaldosTabProps) {
   return (
     <section className="space-y-4">
@@ -92,8 +96,9 @@ export function AjustesRespaldosTab({
           <div>
             <label
               htmlFor="ajustes-restore-backup-input"
-              className={`w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition shadow-2xs cursor-pointer focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 ${
-                isRestoringBackup ? 'opacity-50 pointer-events-none' : ''
+              title={!canRestoreBackup ? 'Solo el Titular o Socio puede restaurar respaldos' : undefined}
+              className={`w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition shadow-2xs focus-within:outline-2 focus-within:outline-blue-700 focus-within:outline-offset-2 ${
+                isRestoringBackup || !canRestoreBackup ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'
               }`}
             >
               <input
@@ -102,7 +107,7 @@ export function AjustesRespaldosTab({
                 name="restoreBackupFile"
                 type="file"
                 accept=".json"
-                disabled={isRestoringBackup}
+                disabled={isRestoringBackup || !canRestoreBackup}
                 onChange={handleRestoreBackupFile}
                 className="visually-hidden"
               />
@@ -133,7 +138,10 @@ export function AjustesRespaldosTab({
           <div className="space-y-2">
             <label
               htmlFor="ajustes-import-csv-input"
-              className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition shadow-2xs cursor-pointer focus-within:outline-2 focus-within:outline-purple-700 focus-within:outline-offset-2"
+              title={!canImportCsv ? 'Modo solo lectura: no tienes permisos para importar catálogo' : undefined}
+              className={`w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition shadow-2xs focus-within:outline-2 focus-within:outline-purple-700 focus-within:outline-offset-2 ${
+                !canImportCsv ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'
+              }`}
             >
               <input
                 ref={csvCatalogInputRef}
@@ -141,6 +149,7 @@ export function AjustesRespaldosTab({
                 name="csvCatalogFile"
                 type="file"
                 accept=".csv,.txt"
+                disabled={!canImportCsv}
                 onChange={handleImportCsvCatalog}
                 className="visually-hidden"
               />
@@ -210,7 +219,7 @@ export function AjustesRespaldosTab({
             </button>
             <button
               type="button"
-              disabled={isRestoringBackup}
+              disabled={isRestoringBackup || !canRestoreBackup}
               aria-busy={isRestoringBackup}
               onClick={confirmRestoreBackup}
               className="px-3.5 py-1.5 rounded-xl font-bold bg-amber-700 hover:bg-amber-800 text-white cursor-pointer disabled:opacity-50"

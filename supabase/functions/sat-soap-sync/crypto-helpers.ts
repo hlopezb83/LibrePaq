@@ -305,14 +305,26 @@ export function buildSatSolicitaDescargaSoapXml(params: {
   tipoSolicitud: 'EMITIDOS' | 'RECIBIDOS';
   fechaInicial: string;
   fechaFinal: string;
+  fechaFinalTime?: string;
+  estadoComprobante?: 'Vigente' | 'Cancelado' | 'Todos';
   certificateBase64: string;
   privateKeyPem: string;
 }): { soapXml: string } {
   const rfc = escapeXmlAttr(params.rfcSolicitante.toUpperCase());
   const operationTag = params.tipoSolicitud === 'EMITIDOS' ? 'SolicitaDescargaEmitidos' : 'SolicitaDescargaRecibidos';
   const rfcFilterAttr = params.tipoSolicitud === 'EMITIDOS' ? `RfcEmisor="${rfc}"` : `RfcReceptor="${rfc}"`;
+  const fechaFinalIso = params.fechaFinal.includes('T')
+    ? params.fechaFinal
+    : `${params.fechaFinal}T${params.fechaFinalTime || '23:59:59'}`;
+  const fechaInicialIso = params.fechaInicial.includes('T')
+    ? params.fechaInicial
+    : `${params.fechaInicial}T00:00:00`;
+  const estadoComprobante =
+    params.tipoSolicitud === 'EMITIDOS' && params.estadoComprobante
+      ? params.estadoComprobante
+      : 'Vigente';
 
-  const solicitudCanonical = `<des:${operationTag} xmlns:des="http://DescargaMasivaTerceros.sat.gob.mx"><des:solicitud EstadoComprobante="Vigente" FechaFinal="${escapeXmlAttr(params.fechaFinal)}T23:59:59" FechaInicial="${escapeXmlAttr(params.fechaInicial)}T00:00:00" ${rfcFilterAttr} RfcSolicitante="${rfc}" TipoSolicitud="CFDI"></des:solicitud></des:${operationTag}>`;
+  const solicitudCanonical = `<des:${operationTag} xmlns:des="http://DescargaMasivaTerceros.sat.gob.mx"><des:solicitud EstadoComprobante="${escapeXmlAttr(estadoComprobante)}" FechaFinal="${escapeXmlAttr(fechaFinalIso)}" FechaInicial="${escapeXmlAttr(fechaInicialIso)}" ${rfcFilterAttr} RfcSolicitante="${rfc}" TipoSolicitud="CFDI"></des:solicitud></des:${operationTag}>`;
   const digestValue = computeSha1Base64(solicitudCanonical);
 
   const signedInfoCanonical = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></CanonicalizationMethod><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></SignatureMethod><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></Transform></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></DigestMethod><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
@@ -322,7 +334,7 @@ export function buildSatSolicitaDescargaSoapXml(params: {
   <s:Header/>
   <s:Body>
     <des:${operationTag}>
-      <des:solicitud EstadoComprobante="Vigente" FechaFinal="${escapeXmlAttr(params.fechaFinal)}T23:59:59" FechaInicial="${escapeXmlAttr(params.fechaInicial)}T00:00:00" ${rfcFilterAttr} RfcSolicitante="${rfc}" TipoSolicitud="CFDI">
+      <des:solicitud EstadoComprobante="${escapeXmlAttr(estadoComprobante)}" FechaFinal="${escapeXmlAttr(fechaFinalIso)}" FechaInicial="${escapeXmlAttr(fechaInicialIso)}" ${rfcFilterAttr} RfcSolicitante="${rfc}" TipoSolicitud="CFDI">
         <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
           ${signedInfoCanonical}
           <SignatureValue>${signatureValue}</SignatureValue>

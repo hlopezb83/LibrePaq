@@ -94,19 +94,15 @@ export const supabaseWorkspaceMembers = {
   },
 
   async getEffectiveCompanyRole(companyId: string): Promise<EffectiveCompanyRoleResult> {
-    try {
-      const res = await invokeWorkspaceInvites<EffectiveCompanyRoleResult>('GET_COMPANY_ROLE', {
-        companyId
-      });
-      return {
-        companyId: res.companyId ?? companyId,
-        role: res.role ?? null,
-        canWrite: Boolean(res.canWrite),
-        isReadOnlyClient: Boolean(res.isReadOnlyClient)
-      };
-    } catch {
-      return { companyId, role: null, canWrite: false, isReadOnlyClient: true };
-    }
+    const res = await invokeWorkspaceInvites<EffectiveCompanyRoleResult>('GET_COMPANY_ROLE', {
+      companyId
+    });
+    return {
+      companyId: res.companyId ?? companyId,
+      role: res.role ?? null,
+      canWrite: Boolean(res.canWrite),
+      isReadOnlyClient: Boolean(res.isReadOnlyClient)
+    };
   },
 
   async listCompanyAuditLogs(companyId: string, limit = 50): Promise<CompanyAuditLogRecord[]> {

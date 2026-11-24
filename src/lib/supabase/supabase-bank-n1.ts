@@ -12,6 +12,7 @@ import type {
 import type { ImportBankPdfLineInput } from '../api/bank-n1.api';
 import { supabaseBank } from './supabase-bank';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
+import { fetchAllRows } from './supabase-pagination';
 import { assertSupabasePeriodOpen } from './supabase-polizas';
 
 function mapSupabaseMatch(r: Record<string, unknown>): BankN1MatchRecord {
@@ -27,13 +28,16 @@ function mapSupabaseMatch(r: Record<string, unknown>): BankN1MatchRecord {
 }
 
 async function fetchMatches(companyId: string): Promise<BankN1MatchRecord[]> {
-  const { data, error } = await getRequiredSupabase()
-    .from('bank_statement_matches')
-    .select('*')
-    .eq('company_id', companyId)
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => mapSupabaseMatch(r as Record<string, unknown>));
+  const rows = await fetchAllRows(async (from, to) =>
+    getRequiredSupabase()
+      .from('bank_statement_matches')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  return rows.map((r) => mapSupabaseMatch(r as Record<string, unknown>));
 }
 
 export const supabaseBankN1 = {

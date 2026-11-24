@@ -89,9 +89,11 @@ describe('Ronda 4 Auditoría — SAT Fiscal, DIOT y Consistencia Contable', () =
     expect(cols[0]).toBe('04'); // Proveedor nacional
     expect(cols[1]).toBe('03'); // Prestación de servicios
     expect(cols[2]).toBe('PRO120304AB1'); // RFC
-    expect(cols[7]).toBe('20000'); // Base 16% en MXN
-    expect(cols[30]).toBe(''); // Exento vacío
+    expect(cols[7]).toBe(''); // Región Frontera Norte vacío
+    expect(cols[11]).toBe('20000'); // Base 16% nacional en campo 12 (índice 11)
+    expect(cols[21]).toBe('3200'); // IVA acreditable 16% en campo 22 (índice 21)
     expect(cols[47]).toBe('2133'); // IVA Retenido en campo 48 (índice 47, DIOT 54 campos)
+    expect(cols[49]).toBe(''); // Exento vacío en campo 50 (índice 49)
   });
 
   it('[FISCAL-R4-13] Motor de provisión en Saldo a Favor acredita IVA_ACREDITABLE_RETENIDO y es estrictamente cuadrado', () => {

@@ -7,6 +7,8 @@ export interface CfdiTaxBreakdown {
   baseExento: number;
   ieps: number;
   objetoImp?: string;
+  localRetenido?: number;
+  localTrasladado?: number;
 }
 
 export interface CfdiRelatedDoc {
@@ -45,6 +47,7 @@ export interface ParsedCfdiFull {
   formaPago: string;
   usoCfdi: string;
   uuidRelacionado: string | null;
+  uuidsRelacionados?: string[];
   taxBreakdown: CfdiTaxBreakdown | null;
   relatedDocs: CfdiRelatedDoc[] | null;
 }
@@ -249,13 +252,14 @@ function parsePago20(comprobante: XmlElementNode, fallbackUuidRel: string | null
           ? monedaDr === g.pagoMoneda || !monedaDr
             ? impPagado * g.pagoTipoCambio
             : equivalenciaDr
-              ? (equivalenciaDr < 1 ? impPagado / equivalenciaDr : impPagado * equivalenciaDr) *
-                g.pagoTipoCambio
+              ? (impPagado / equivalenciaDr) * g.pagoTipoCambio
               : impPagado * g.pagoTipoCambio
-          : impPagado;
+          : moneda !== 'MXN' && monedaDr && monedaDr !== g.pagoMoneda && equivalenciaDr
+            ? impPagado / equivalenciaDr
+            : impPagado;
       drImpPagadoSum += impInHeaderCur;
       const objetoImpDr = attr(dr, 'ObjetoImpDR');
-      if (objetoImpDr === '01' || objetoImpDr === '03') {
+      if (objetoImpDr === '01' || objetoImpDr === '03' || objetoImpDr === '04') {
         exentoDrFallback += impInHeaderCur;
       }
       relatedDocs.push({
@@ -410,7 +414,7 @@ function parseStandardImpuestosAndBreakdown(comprobante: XmlElementNode, netSubt
     if (!firstObjetoImp && obj) firstObjetoImp = obj;
     const cTraslados = findAll(c, 'Traslado');
     const netImp = Math.max(0, numAttr(c, 'Importe') - numAttr(c, 'Descuento'));
-    if ((obj === '01' || obj === '03') && cTraslados.length === 0) {
+    if ((obj === '01' || obj === '03' || obj === '04') && cTraslados.length === 0) {
       baseExento += netImp;
     } else if (rootTraslados.length > 0 && !hasRootExento && cTraslados.length > 0) {
       for (const ct of cTraslados) {
@@ -434,10 +438,19 @@ function parseStandardImpuestosAndBreakdown(comprobante: XmlElementNode, netSubt
         iva16 = ivaTrasladado;
       }
     } else if (netSub > 0) {
-      if (firstObjetoImp === '01' || firstObjetoImp === '03') baseExento = netSub;
+      if (firstObjetoImp === '01' || firstObjetoImp === '03' || firstObjetoImp === '04') baseExento = netSub;
       else base0 = netSub;
     }
   }
+
+  const localRetenido = findAll(comprobante, 'RetencionesLocales').reduce(
+    (sum, n) => sum + numAttr(n, 'Importe'),
+    0
+  );
+  const localTrasladado = findAll(comprobante, 'TrasladosLocales').reduce(
+    (sum, n) => sum + numAttr(n, 'Importe'),
+    0
+  );
 
   const rootRetenciones = globalImp ? findAll(globalImp, 'Retencion') : [];
   const retenciones =
@@ -466,7 +479,9 @@ function parseStandardImpuestosAndBreakdown(comprobante: XmlElementNode, netSubt
     base0: round2(base0),
     baseExento: round2(baseExento),
     ieps: round2(ieps),
-    ...(firstObjetoImp ? { objetoImp: firstObjetoImp } : {})
+    ...(firstObjetoImp ? { objetoImp: firstObjetoImp } : {}),
+    ...(localRetenido > 0 ? { localRetenido: round2(localRetenido) } : {}),
+    ...(localTrasladado > 0 ? { localTrasladado: round2(localTrasladado) } : {})
   };
 
   return {
@@ -509,8 +524,11 @@ export function parseCfdiFull(xmlRaw: string): ParsedCfdiFull | null {
   let moneda = rawMoneda && rawMoneda !== 'XXX' ? rawMoneda : 'MXN';
   let tipoCambio = numAttr(comprobante, 'TipoCambio') || 1;
 
-  const cfdiRelNode = findFirst(comprobante, 'CfdiRelacionado');
-  let uuidRelacionado: string | null = attr(cfdiRelNode, 'UUID').toUpperCase() || null;
+  const cfdiRelNodes = findAll(comprobante, 'CfdiRelacionado');
+  const uuidsRelacionados = cfdiRelNodes
+    .map((n) => attr(n, 'UUID').toUpperCase())
+    .filter(Boolean);
+  let uuidRelacionado: string | null = uuidsRelacionados[0] || null;
   let taxBreakdown: CfdiTaxBreakdown | null = null;
   let relatedDocs: CfdiRelatedDoc[] | null = null;
 
@@ -585,6 +603,7 @@ export function parseCfdiFull(xmlRaw: string): ParsedCfdiFull | null {
       attr(receptor, 'UsoCFDI') ||
       (tipoComprobante === 'P' ? 'CP01' : tipoComprobante === 'T' ? 'S01' : 'G03'),
     uuidRelacionado,
+    ...(uuidsRelacionados.length > 0 ? { uuidsRelacionados } : {}),
     taxBreakdown,
     relatedDocs
   };

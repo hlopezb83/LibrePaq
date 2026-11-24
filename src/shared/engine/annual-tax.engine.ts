@@ -1,12 +1,19 @@
-import { getOfficialInpc } from '../sat-inpc-catalog';
-import { MESES_SAT } from '../sat-constants';
 import type {
-  AnnualFiscalReconciliation, AnnualInflationMonthlyRow, AnnualInflationResult,
+  AnnualFiscalReconciliation, AnnualInflationResult,
   AnnualTaxDetermination, AnnualTaxInputs, AnnualTaxRegimeType, AnnualTaxSummaryResponse
 } from '../types/annual-tax.types';
-import type { AccountWithBalance, Company } from '../types/core.types';
+import type { AccountWithBalance, CfdiDocument, Company } from '../types/core.types';
 import { calculateArt106PfIsr } from './art106-tax.engine';
+import {
+  computeAnnualInflation,
+  pickEvalAccounts,
+  resolveAnnualInpcPair,
+  truncate4
+} from './annual-tax-balances.helper';
+import { computeCashBasisFiscalSummary } from './cash-basis-fiscal.engine';
 import { fromCents, toCents } from './invariants-and-math';
+
+export { resolveAnnualInpcPair };
 
 export interface AnnualTaxMonthlyBalance { periodo: number; accounts: readonly AccountWithBalance[]; }
 export type AnnualMonthlyBalancesInput =
@@ -24,59 +31,7 @@ export interface ComputeAnnualTaxParams {
   inputs: Partial<AnnualTaxInputs>;
   perdidasFiscalesPendientes?: number;
   isrRetenidoAcreditable?: number;
-}
-
-const CREDIT_PREFIXES = ['102', '105', '107'] as const;
-const DEBT_PREFIXES = ['201', '205', '252'] as const;
-
-function pickEvalAccounts(accounts: readonly AccountWithBalance[]): AccountWithBalance[] {
-  const affectable = accounts.filter((a) => a.isAffectable);
-  return affectable.length > 0 ? affectable : accounts.filter((a) => a.level >= 2);
-}
-
-function hasPrefix(acc: AccountWithBalance, prefixes: readonly string[]): boolean {
-  const code = acc.code ?? '';
-  const sat = acc.satGroupCode ?? '';
-  return prefixes.some((p) => code.startsWith(p) || sat.startsWith(p));
-}
-
-function normalizeMonthlyBalances(
-  input: AnnualMonthlyBalancesInput,
-  fallbackTrialBalance: readonly AccountWithBalance[]
-): AnnualTaxMonthlyBalance[] {
-  const map = new Map<number, readonly AccountWithBalance[]>();
-  if (input instanceof Map) {
-    for (const [p, accs] of input.entries()) if (p >= 1 && p <= 12) map.set(p, accs);
-  } else if (Array.isArray(input)) {
-    for (const item of input) if (item && item.periodo >= 1 && item.periodo <= 12) map.set(item.periodo, item.accounts);
-  } else if (input && typeof input === 'object') {
-    for (const [k, accs] of Object.entries(input)) {
-      const p = Number(k);
-      if (p >= 1 && p <= 12 && Array.isArray(accs)) map.set(p, accs);
-    }
-  }
-  if (map.size === 0) {
-    return Array.from({ length: 12 }, (_, idx) => ({ periodo: idx + 1, accounts: fallbackTrialBalance }));
-  }
-  return Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([periodo, accounts]) => ({ periodo, accounts }));
-}
-
-function truncate4(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) return 0;
-  return Math.floor((value + 1e-12) * 10000) / 10000;
-}
-
-export function resolveAnnualInpcPair(
-  ejercicio: number,
-  inpcAnterior?: number,
-  inpcActual?: number
-): { inpcCierreAnterior: number; inpcCierreActual: number } {
-  const fallbackAnt = getOfficialInpc(ejercicio - 1, 12) ?? 139.38;
-  const fallbackAct = getOfficialInpc(ejercicio, 12) ?? 145.4;
-  return {
-    inpcCierreAnterior: inpcAnterior !== undefined && Number(inpcAnterior) > 0 ? Number(inpcAnterior) : fallbackAnt,
-    inpcCierreActual: inpcActual !== undefined && Number(inpcActual) > 0 ? Number(inpcActual) : fallbackAct
-  };
+  cfdis?: readonly CfdiDocument[];
 }
 
 export function calculateResicoPfAnnualIsr(annualRevenueCents: number): { isrCents: number; ratePct: number } {
@@ -90,54 +45,6 @@ export function calculateResicoPfAnnualIsr(annualRevenueCents: number): { isrCen
   return { isrCents: Math.round(annualRevenueCents * (ratePct / 100)), ratePct };
 }
 
-function computeAnnualInflation(
-  ejercicio: number,
-  monthlyBalancesByPeriod: AnnualMonthlyBalancesInput,
-  fallbackTrialBalance: readonly AccountWithBalance[],
-  inpcAnteriorInput?: number,
-  inpcActualInput?: number
-): AnnualInflationResult {
-  const { inpcCierreAnterior, inpcCierreActual } = resolveAnnualInpcPair(ejercicio, inpcAnteriorInput, inpcActualInput);
-  const periods = normalizeMonthlyBalances(monthlyBalancesByPeriod, fallbackTrialBalance);
-  const monthlyRows: AnnualInflationMonthlyRow[] = [];
-  let sumCreditosCents = 0;
-  let sumDeudasCents = 0;
-
-  for (const item of periods) {
-    let monthCreditosCents = 0;
-    let monthDeudasCents = 0;
-    for (const acc of pickEvalAccounts(item.accounts)) {
-      const balCents = toCents(acc.finalBalance);
-      if (hasPrefix(acc, CREDIT_PREFIXES)) monthCreditosCents += Math.max(0, balCents);
-      else if (hasPrefix(acc, DEBT_PREFIXES)) monthDeudasCents += Math.max(0, balCents);
-    }
-    sumCreditosCents += monthCreditosCents;
-    sumDeudasCents += monthDeudasCents;
-    const mesNombre = MESES_SAT.find((m) => m.periodo === item.periodo)?.nombre ?? `Mes ${item.periodo}`;
-    monthlyRows.push({ periodo: item.periodo, mesNombre, creditosCierre: fromCents(monthCreditosCents), deudasCierre: fromCents(monthDeudasCents) });
-  }
-
-  const divisor = Math.max(1, periods.length);
-  const promedioCreditosCents = Math.round(sumCreditosCents / divisor);
-  const promedioDeudasCents = Math.round(sumDeudasCents / divisor);
-  const diffCents = promedioDeudasCents - promedioCreditosCents;
-  const factorAjuste = truncate4(inpcCierreAnterior > 0 && inpcCierreActual > inpcCierreAnterior ? inpcCierreActual / inpcCierreAnterior - 1 : 0);
-  const tipo: AnnualInflationResult['tipo'] = diffCents > 0 ? 'ACUMULABLE' : diffCents < 0 ? 'DEDUCIBLE' : 'NEUTRO';
-
-  return {
-    promedioCreditos: fromCents(promedioCreditosCents),
-    promedioDeudas: fromCents(promedioDeudasCents),
-    diferenciaPromedios: fromCents(Math.abs(diffCents)),
-    tipo,
-    inpcCierreAnterior,
-    inpcCierreActual,
-    factorAjuste,
-    ajusteAcumulable: fromCents(diffCents > 0 ? Math.round(diffCents * factorAjuste) : 0),
-    ajusteDeducible: fromCents(diffCents < 0 ? Math.round(Math.abs(diffCents) * factorAjuste) : 0),
-    monthlyRows
-  };
-}
-
 function summarizeLedgerAndReconcile(params: {
   trialBalance: readonly AccountWithBalance[];
   inflation: AnnualInflationResult;
@@ -147,12 +54,20 @@ function summarizeLedgerAndReconcile(params: {
   noDeduciblesManual: number;
   perdidasPendientes: number;
   factorActualizacionInpc: number;
-}): { ingresosContablesCents: number; noDeduciblesManualCents: number; reconciliation: AnnualFiscalReconciliation } {
+  cashOverride?: { ingresosCents: number; deduccionesCents: number; isPfResico: boolean } | null;
+}): {
+  ingresosContablesCents: number;
+  noDeduciblesManualCents: number;
+  noDeducibles801Cents: number;
+  reconciliation: AnnualFiscalReconciliation;
+} {
   let ingresosContablesCents = 0;
   let costosCents = 0;
   let gastosOpCents = 0;
   let isrContableCents = 0;
+  let noDeducibles801Cents = 0;
   let depContableCents = 0;
+  let nonCfdiImssIsnCents = 0;
 
   for (const acc of pickEvalAccounts(params.trialBalance)) {
     const balCents = toCents(acc.finalBalance);
@@ -162,17 +77,40 @@ function summarizeLedgerAndReconcile(params: {
       costosCents += (acc.nature === 'DEUDORA' ? 1 : -1) * balCents;
     } else if (acc.type === 'GASTOS') {
       const signedBal = (acc.nature === 'DEUDORA' ? 1 : -1) * balCents;
-      const isIsr = acc.code.startsWith('801') || acc.code.startsWith('800') || acc.satGroupCode.startsWith('611') || acc.satGroupCode.startsWith('801');
-      if (isIsr) {
+      const sat = acc.satGroupCode ?? '';
+      const isNonDed801 =
+        acc.code === '801-01-002' ||
+        sat === '601.74' ||
+        (acc.code.startsWith('801') &&
+          !sat.startsWith('611') &&
+          acc.code !== '801-01-001' &&
+          !acc.name.toLowerCase().includes('isr'));
+      const isIsr =
+        !isNonDed801 &&
+        (acc.code === '801-01-001' ||
+          acc.code.startsWith('800') ||
+          sat.startsWith('611') ||
+          sat.startsWith('801') ||
+          acc.code.startsWith('801'));
+      if (isNonDed801) {
+        noDeducibles801Cents += Math.max(0, signedBal);
+      } else if (isIsr) {
         isrContableCents += Math.max(0, signedBal);
       } else {
         gastosOpCents += signedBal;
-        if (acc.code.startsWith('601-01-006') || acc.satGroupCode.startsWith('613')) depContableCents += Math.max(0, signedBal);
+        if (acc.code.startsWith('601-01-006') || sat.startsWith('613')) depContableCents += Math.max(0, signedBal);
+        if (
+          ['601-01-007', '601-01-008', '601-01-011', '601-02-001', '601-02-002', '601-26-001', '601-58-001'].includes(acc.code) ||
+          ['601.26', '601.27', '601.28', '601.29', '601.58'].includes(sat)
+        ) {
+          nonCfdiImssIsnCents += Math.max(0, signedBal);
+        }
       }
     }
   }
 
-  const utilidadContableCents = ingresosContablesCents - costosCents - gastosOpCents - isrContableCents;
+  const utilidadContableCents =
+    ingresosContablesCents - costosCents - gastosOpCents - isrContableCents - noDeducibles801Cents;
   const ajusteAcumCents = params.applyInflationAdjustment ? toCents(params.inflation.ajusteAcumulable) : 0;
   const ajusteDedCents = params.applyInflationAdjustment ? toCents(params.inflation.ajusteDeducible) : 0;
   const depFiscalCents = Math.max(0, toCents(params.fixedAssetsFiscalDeduction));
@@ -180,17 +118,29 @@ function summarizeLedgerAndReconcile(params: {
   const ptuPagadaCents = Math.max(0, toCents(params.ptuPagadaAnterior));
   const perdidasPendCents = Math.max(0, toCents(params.perdidasPendientes));
 
-  const dedContNoFiscCents = isrContableCents + depContableCents + noDedManualCents;
+  const dedContNoFiscCents = isrContableCents + depContableCents + noDedManualCents + noDeducibles801Cents;
   const dedFiscNoContCents = depFiscalCents + ajusteDedCents;
-  const utilidadFiscalAntesPtuCents = utilidadContableCents + ajusteAcumCents + dedContNoFiscCents - dedFiscNoContCents;
-  const utilidadFiscalCents = utilidadFiscalAntesPtuCents - ptuPagadaCents;
+  const cashOv = params.cashOverride;
+  const utilidadFiscalAntesPtuCents = cashOv
+    ? cashOv.isPfResico
+      ? cashOv.ingresosCents
+      : cashOv.ingresosCents - (cashOv.deduccionesCents + nonCfdiImssIsnCents) - depFiscalCents
+    : utilidadContableCents + ajusteAcumCents + dedContNoFiscCents - dedFiscNoContCents;
+  const utilidadFiscalCents = cashOv?.isPfResico
+    ? utilidadFiscalAntesPtuCents
+    : utilidadFiscalAntesPtuCents - ptuPagadaCents;
   const perdidasActCents = Math.round(perdidasPendCents * params.factorActualizacionInpc);
-  const perdidasAplicadasCents = utilidadFiscalCents > 0 ? Math.min(utilidadFiscalCents, perdidasActCents) : 0;
-  const resultadoFiscalCents = utilidadFiscalCents > 0 ? Math.max(0, utilidadFiscalCents - perdidasAplicadasCents) : 0;
+  const perdidasAplicadasCents =
+    !cashOv?.isPfResico && utilidadFiscalCents > 0
+      ? Math.min(utilidadFiscalCents, perdidasActCents)
+      : 0;
+  const resultadoFiscalCents =
+    utilidadFiscalCents > 0 ? Math.max(0, utilidadFiscalCents - perdidasAplicadasCents) : 0;
 
   return {
-    ingresosContablesCents,
+    ingresosContablesCents: cashOv ? cashOv.ingresosCents : ingresosContablesCents,
     noDeduciblesManualCents: noDedManualCents,
+    noDeducibles801Cents,
     reconciliation: {
       utilidadContable: fromCents(utilidadContableCents),
       ingresosFiscalesNoContables: fromCents(ajusteAcumCents),
@@ -247,14 +197,26 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
     : 1;
   const factorActualizacionInpc = Math.max(1, truncate4(rawUpdateFactor));
   const resolvedInputs = buildResolvedInputs(company.id, ejercicio, inflation, inputs);
+  const cashSummary =
+    tipoRegimenAnual !== 'PM_GENERAL' && params.cfdis && params.cfdis.length > 0
+      ? computeCashBasisFiscalSummary({ company, ejercicio, periodo: 12, cfdis: params.cfdis })
+      : null;
 
-  const { ingresosContablesCents, noDeduciblesManualCents, reconciliation } = summarizeLedgerAndReconcile({
-    trialBalance, inflation, applyInflationAdjustment, fixedAssetsFiscalDeduction,
-    ptuPagadaAnterior: resolvedInputs.ptuPagadaAnterior,
-    noDeduciblesManual: resolvedInputs.noDeduciblesManual,
-    perdidasPendientes: params.perdidasFiscalesPendientes ?? 0,
-    factorActualizacionInpc
-  });
+  const { ingresosContablesCents, noDeduciblesManualCents, noDeducibles801Cents, reconciliation } =
+    summarizeLedgerAndReconcile({
+      trialBalance, inflation, applyInflationAdjustment, fixedAssetsFiscalDeduction,
+      ptuPagadaAnterior: resolvedInputs.ptuPagadaAnterior,
+      noDeduciblesManual: resolvedInputs.noDeduciblesManual,
+      perdidasPendientes: params.perdidasFiscalesPendientes ?? 0,
+      factorActualizacionInpc,
+      cashOverride: cashSummary
+        ? {
+            ingresosCents: toCents(cashSummary.ingresosAcumulados),
+            deduccionesCents: toCents(cashSummary.deduccionesAcumuladas),
+            isPfResico: tipoRegimenAnual === 'PF_RESICO'
+          }
+        : null
+    });
 
   const resultadoFiscalCents = toCents(reconciliation.resultadoFiscal);
   const ingresosNominalesCents = Math.max(0, ingresosContablesCents);
@@ -272,7 +234,8 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
   }
 
   const pagosPreviosCents = Math.max(0, toCents(paymentsProvisioned));
-  const isrRetenidoCents = Math.max(0, toCents(params.isrRetenidoAcreditable ?? 0));
+  const cashRetCents = cashSummary ? toCents(cashSummary.isrRetenidoFavorAcumulado ?? 0) : 0;
+  const isrRetenidoCents = Math.max(toCents(params.isrRetenidoAcreditable ?? 0), cashRetCents);
   const isrCargoFavorCents = isrAnualCausadoCents - pagosPreviosCents - isrRetenidoCents;
   const ptuBaseCents = Math.max(0, toCents(reconciliation.utilidadFiscalAntesPtu));
   const utilidadFiscalCents = toCents(reconciliation.utilidadFiscal);
@@ -280,8 +243,10 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
   const cucaActualizadaCents = Math.round(toCents(resolvedInputs.cucaInicial) * factorActualizacionInpc);
   const cucaFinalCents = Math.max(0, cucaActualizadaCents + toCents(resolvedInputs.aportacionesCapital) - toCents(resolvedInputs.reduccionesCapital));
   const cufinActualizadaCents = Math.round(toCents(resolvedInputs.cufinInicial) * factorActualizacionInpc);
-  const ufinCents = resultadoFiscalCents - isrAnualCausadoCents - noDeduciblesManualCents;
-  const cufinFinalCents = Math.max(0, cufinActualizadaCents + ufinCents - toCents(resolvedInputs.dividendosPagados));
+  const ufinCents =
+    resultadoFiscalCents - isrAnualCausadoCents - noDeduciblesManualCents - noDeducibles801Cents;
+  const cufinFinalCents =
+    cufinActualizadaCents + ufinCents - toCents(resolvedInputs.dividendosPagados);
 
   const determination: AnnualTaxDetermination = {
     regimenClave, tipoRegimenAnual,

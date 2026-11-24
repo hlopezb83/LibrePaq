@@ -15,6 +15,8 @@ interface SatVerifySingleEdgeItem {
   esCancelable: string | null;
   estatusCancelacion: string | null;
   validacionEfos: string | null;
+  polizaId?: string | null;
+  cancelledWithPoliza?: boolean;
   error?: string;
 }
 
@@ -38,19 +40,14 @@ export const supabaseClosingAndVerification = {
     const ejercicio = company.currentYear || 2026;
     await assertSupabasePeriodOpen(companyId, ejercicio, 13);
 
-    const reports = await supabaseReportsAndDashboard.getReports(companyId, ejercicio, 13);
-    const { movements, utilidadTraspasada } = buildYearCloseMovements(
-      reports.trialBalance,
-      ejercicio,
-      'initialBalanceComputed'
-    );
-
+    // Preservar pólizas manuales/ajuste en Periodo 13: borrar únicamente pólizas previas de CIERRE_ANUAL
     const { data: oldPols, error: oldPolsErr } = await supabase
       .from('polizas')
       .select('id')
       .eq('company_id', companyId)
       .eq('ejercicio', ejercicio)
-      .eq('periodo', 13);
+      .eq('periodo', 13)
+      .eq('origin', 'CIERRE_ANUAL');
     if (oldPolsErr) throw new Error(oldPolsErr.message);
 
     if (oldPols && oldPols.length > 0) {
@@ -59,13 +56,20 @@ export const supabaseClosingAndVerification = {
       }
     }
 
+    const reports = await supabaseReportsAndDashboard.getReports(companyId, ejercicio, 13);
+    const { movements, utilidadTraspasada } = buildYearCloseMovements(
+      reports.trialBalance,
+      ejercicio,
+      'finalBalance'
+    );
+
     const createdPol = await supabasePolizas.createPoliza({
       companyId,
       tipo: 'DIARIO',
       fecha: `${ejercicio}-12-31`,
       concepto: `Póliza de Cierre Anual del Ejercicio ${ejercicio} (Cancelación de Cuentas de Resultados)`,
       cfdiUuid: null,
-      origin: 'MANUAL',
+      origin: 'CIERRE_ANUAL',
       ejercicio,
       periodo: 13,
       movements
@@ -95,16 +99,20 @@ export const supabaseClosingAndVerification = {
   },
 
   /** Verifica el estatus individual de un CFDI ante el SAT via Edge Function `sat-status-verify` (sin CORS). */
-  async verifyCfdiSatStatus(cfdiId: string): Promise<SatCfdiStatusCheckResult> {
+  async verifyCfdiSatStatus(
+    cfdiId: string
+  ): Promise<SatCfdiStatusCheckResult & { cancelledWithPoliza: boolean }> {
     if (!supabase) throw new Error('Supabase no disponible');
 
     const { data: cfdi, error } = await supabase
       .from('cfdi_documents')
-      .select('id, company_id, uuid, emisor_rfc, receptor_rfc, total, status_sat')
+      .select('id, company_id, uuid, emisor_rfc, receptor_rfc, total, status_sat, tipo_comprobante, poliza_id')
       .eq('id', cfdiId)
       .single();
 
     if (error || !cfdi) throw new Error('CFDI no encontrado.');
+
+    const isPago = String(cfdi.tipo_comprobante || '').toUpperCase() === 'P';
 
     const { data: edgeData, error: edgeError } =
       await supabase.functions.invoke<SatVerifySingleEdgeResponse>('sat-status-verify', {
@@ -117,7 +125,7 @@ export const supabaseClosingAndVerification = {
               uuid: String(cfdi.uuid || ''),
               emisorRfc: String(cfdi.emisor_rfc || ''),
               receptorRfc: String(cfdi.receptor_rfc || ''),
-              total: Number(cfdi.total || 0)
+              total: isPago ? 0 : Number(cfdi.total || 0)
             }
           ]
         }
@@ -143,19 +151,24 @@ export const supabaseClosingAndVerification = {
       throw new Error('La Edge Function sat-status-verify no devolvió resultados para el CFDI.');
     }
 
+    const hadPoliza = Boolean(item.polizaId ?? cfdi.poliza_id);
+
     if (!item.ok) {
+      const offlineEstado: 'VIGENTE' | 'CANCELADO' =
+        String(item.statusSat || cfdi.status_sat || 'VIGENTE').toUpperCase() === 'CANCELADO'
+          ? 'CANCELADO'
+          : 'VIGENTE';
       return {
         uuid: item.uuid || String(cfdi.uuid || ''),
         codigoEstatus: item.codigoEstatus || item.error || 'N - No verificable ante el SAT.',
-        estadoSat:
-          String(item.statusSat || cfdi.status_sat || 'VIGENTE').toUpperCase() === 'CANCELADO'
-            ? 'CANCELADO'
-            : 'VIGENTE',
+        estadoSat: offlineEstado,
         esCancelable: item.esCancelable || 'No verificable sin conexión',
         estatusCancelacion: item.estatusCancelacion || 'Sin respuesta del SAT',
         validacionEfos: 'NO_VERIFICADO_TIMEOUT_SAT',
         soapEnvelopeXml: '',
-        modoConsulta: 'OFFLINE_UNVERIFIED'
+        modoConsulta: 'OFFLINE_UNVERIFIED',
+        cancelledWithPoliza:
+          Boolean(item.cancelledWithPoliza) || (offlineEstado === 'CANCELADO' && hadPoliza)
       };
     }
 
@@ -174,7 +187,9 @@ export const supabaseClosingAndVerification = {
       estatusCancelacion: item.estatusCancelacion || 'Ninguno',
       validacionEfos,
       soapEnvelopeXml: '',
-      modoConsulta: 'SAT_LIVE'
+      modoConsulta: 'SAT_LIVE',
+      cancelledWithPoliza:
+        Boolean(item.cancelledWithPoliza) || (estadoSat === 'CANCELADO' && hadPoliza)
     };
   }
 };

@@ -11,6 +11,7 @@ export interface DashboardAddAutomationSectionProps {
   pendingCfdiId?: string | null;
   onSingleAutoPoliza: (id: string) => void;
   isPeriodLocked?: boolean;
+  isReadOnly?: boolean;
   cfdisTotalesPeriodo?: number;
 }
 
@@ -22,6 +23,7 @@ export function DashboardAddAutomationSection({
   pendingCfdiId = null,
   onSingleAutoPoliza,
   isPeriodLocked = false,
+  isReadOnly = false,
   cfdisTotalesPeriodo
 }: DashboardAddAutomationSectionProps) {
   return (
@@ -47,10 +49,16 @@ export function DashboardAddAutomationSection({
           {pendingCfdis.length > 1 && (
             <button
               type="button"
-              disabled={isBatchPending || isPeriodLocked}
-              title={isPeriodLocked ? 'Periodo cerrado con candado fiscal' : undefined}
+              disabled={isBatchPending || isPeriodLocked || isReadOnly}
+              title={
+                isReadOnly
+                  ? 'Modo solo lectura: no tienes permisos para generar pólizas'
+                  : isPeriodLocked
+                  ? 'Periodo cerrado con candado fiscal'
+                  : undefined
+              }
               onClick={() => onBatchAutoPoliza(pendingCfdis.map((c) => c.id))}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-800 hover:bg-blue-100 disabled:opacity-50 border border-blue-200 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-800 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-200 cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               {isBatchPending ? 'Contabilizando...' : `Contabilizar Todos (${pendingCfdis.length})`}
@@ -154,10 +162,12 @@ export function DashboardAddAutomationSection({
                   </div>
                   <button
                     type="button"
-                    disabled={isSinglePending || isPeriodLocked}
+                    disabled={isSinglePending || isPeriodLocked || isReadOnly}
                     aria-busy={isSinglePending && pendingCfdiId === cfdi.id}
                     title={
-                      isPeriodLocked
+                      isReadOnly
+                        ? 'Modo solo lectura: no tienes permisos para generar pólizas'
+                        : isPeriodLocked
                         ? 'Periodo cerrado con candado fiscal'
                         : isSinglePending && pendingCfdiId === cfdi.id
                         ? 'Generando póliza contable...'

@@ -243,8 +243,8 @@ table td {
   overflow-x: auto;
   scrollbar-width: none;
   scroll-snap-type: inline proximity;
-  scroll-padding-inline: 1.5rem;
-  --fade-size: 1.75rem;
+  scroll-padding-inline: 0.5rem;
+  --fade-size: 0.75rem;
   --fade-dir: right;
   --fade-start-pos: 0;
   --fade-end-pos: 100%;
@@ -255,6 +255,21 @@ table td {
   animation: erp-reveal-fade-start linear both, erp-hide-fade-end linear both;
   animation-timeline: scroll(self inline);
   animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%;
+}
+
+/* Evita recorte lateral de pestañas en /fiscal-bancos a 1280×800 */
+@media (min-width: 768px) {
+  .fb-tabbar-shell [role="tablist"] {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 0.375rem;
+    mask: none;
+    animation: none;
+  }
+
+  .fb-tabbar-shell [role="tablist"] [role="tab"] {
+    padding-inline: 0.625rem;
+  }
 }
 
 .erp-tab-scroller::-webkit-scrollbar {

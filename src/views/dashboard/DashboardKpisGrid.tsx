@@ -146,7 +146,9 @@ export function DashboardKpisGrid({
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
             <span>
               Cobertura s/Pasivo:{' '}
-              <strong className="font-mono text-slate-900">{razonCoberturaBancos}x</strong>
+              <strong className="font-mono text-slate-900">
+                {razonCoberturaBancos === 'S/D' ? 'S/D' : `${razonCoberturaBancos}x`}
+              </strong>
             </span>
             <span className="text-[11px] font-semibold text-blue-700 inline-flex items-center gap-1">
               <BookOpen className="w-3 h-3" aria-hidden="true" />
@@ -181,6 +183,7 @@ export function DashboardKpisGrid({
           </button>
           <Link
             to="/fiscal-bancos"
+            search={{ tab: 'DIA17' } as unknown as Record<string, string>}
             title="Abrir Cédula Fiscal Día 17 e impuestos mensuales ante el SAT"
             className="space-y-1 border-t border-slate-100 pt-2 sm:border-t-0 sm:pt-0 sm:pl-3 block hover:bg-slate-50 rounded-lg p-1 -m-1 sm:m-0 transition cursor-pointer"
           >

@@ -31,7 +31,7 @@ function makeNominaCfdi(overrides: Partial<CfdiDocument> & { id: string; uuid: s
     companyId: 'comp-1',
     fecha: '2026-10-15',
     tipoComprobante: 'N',
-    direction: 'RECIBIDO',
+    direction: 'EMITIDO',
     serie: 'NOM',
     folio: '1',
     emisorRfc: 'EMP010101AAA',

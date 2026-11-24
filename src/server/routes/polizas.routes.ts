@@ -7,7 +7,7 @@ import {
   updatePolizaTransaction
 } from '../db';
 import { resolveYearAndPeriod, validatePolizaPayload } from '../validators';
-import { parseCalendarDate } from '../../shared/date-utils';
+import { resolvePolizaYearPeriod } from '../../shared/date-utils';
 import { errorStatus, getAuthorizedCompanyForRoute } from './route-helpers';
 
 export const polizasRoutes = new Hono();
@@ -31,20 +31,17 @@ polizasRoutes.post('/polizas', async (c) => {
     const company = getAuthorizedCompanyForRoute(c, payload.companyId);
     if (!company) return c.json({ error: 'Empresa no encontrada' }, 404);
 
-    const { year: pYear, month: pPeriod } = parseCalendarDate(
+    const resolved = resolvePolizaYearPeriod(
       payload.fecha,
+      payload.periodo,
       company.currentYear,
       company.currentPeriod
     );
-    const resolvedPeriod =
-      payload.periodo && payload.periodo >= 1 && payload.periodo <= 13
-        ? payload.periodo
-        : pPeriod;
 
     const created = createPolizaTransaction({
       ...payload,
-      ejercicio: pYear,
-      periodo: resolvedPeriod
+      ejercicio: resolved.ejercicio,
+      periodo: resolved.periodo
     });
     return c.json(created, 201);
   } catch (err) {

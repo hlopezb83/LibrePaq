@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  AlertTriangle,
   Check,
   CheckCircle2,
   Copy,
@@ -11,7 +12,11 @@ import {
 import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { downloadBlobFile } from '../../lib/formatters';
-import type { SatXmlType } from '../../shared/sat-anexo24';
+import {
+  isValidSatNumOrden,
+  isValidSatNumTramite,
+  type SatXmlType
+} from '../../shared/sat-anexo24';
 import { buildSatAnexo24Zip } from '../../shared/sat-anexo24-zip';
 import { Anexo24OptionsBar, type Anexo24UiOptions } from './Anexo24OptionsBar';
 
@@ -57,6 +62,24 @@ export function Anexo24Tab({
   const toast = useToast();
   const { copiedKey, copy } = useCopyToClipboard<'xml'>(1800);
   const copiedXml = copiedKey === 'xml';
+
+  const needsSolicitud =
+    satXmlType === 'polizas' ||
+    satXmlType === 'auxiliar_folios' ||
+    satXmlType === 'auxiliar_cuentas';
+  const isOrdenSolicitud =
+    anexo24Options.tipoSolicitud === 'AF' || anexo24Options.tipoSolicitud === 'FC';
+  const capturedFolio = isOrdenSolicitud
+    ? anexo24Options.numOrden.trim()
+    : anexo24Options.numTramite.trim();
+  const missingSolicitudFolio = needsSolicitud && capturedFolio.length === 0;
+  const invalidSolicitudFolio =
+    needsSolicitud &&
+    capturedFolio.length > 0 &&
+    (isOrdenSolicitud
+      ? !isValidSatNumOrden(capturedFolio)
+      : !isValidSatNumTramite(capturedFolio));
+  const hasSolicitudWarning = missingSolicitudFolio || invalidSolicitudFolio;
 
   const handleCopy = () => {
     if (!satXmlData?.xml) return;
@@ -220,13 +243,27 @@ export function Anexo24Tab({
             <span>
               Archivo oficial: <strong className="text-blue-700 break-all">{satXmlData.filename}</strong> ({satXmlData.type})
             </span>
-            <span
-              role="status"
-              className="inline-flex items-center gap-1 text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Esquema XSD SAT 1.3 Válido</span>
-            </span>
+            {hasSolicitudWarning ? (
+              <span
+                role="status"
+                className="inline-flex items-center gap-1 text-amber-900 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-700" aria-hidden="true" />
+                <span>
+                  {missingSolicitudFolio
+                    ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
+                    : `${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} con formato inválido`}
+                </span>
+              </span>
+            ) : (
+              <span
+                role="status"
+                className="inline-flex items-center gap-1 text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Esquema XSD SAT 1.3 Válido</span>
+              </span>
+            )}
           </figcaption>
           <p className="text-[11px] text-slate-600 px-1">
             Regla 2.8.1.5 RMF:{' '}

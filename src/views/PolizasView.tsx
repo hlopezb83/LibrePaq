@@ -1,5 +1,6 @@
 import { AlertCircle, Eye, FilePlus2, Lock, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
+import { useToast } from '../context/ToastContext';
 import { useUIModal } from '../context/UIModalContext';
 import { PedimentoEditorModal } from './polizas/PedimentoEditorModal';
 import { PolizasFilterBar } from './polizas/PolizasFilterBar';
@@ -11,6 +12,17 @@ import { usePolizasManager } from './polizas/usePolizasManager';
 export function PolizasView() {
   const m = usePolizasManager();
   const { openLedger } = useUIModal();
+  const toast = useToast();
+
+  const handlePrintPdf = (list: typeof m.filteredPolizas, title?: string) => {
+    const ok = printPolizasFormalPdf(list, m.activeCompany, title);
+    if (!ok) {
+      toast.warning(
+        'Ventana de impresión bloqueada',
+        'Habilita las ventanas emergentes (pop-ups) para imprimir o guardar el PDF formal.'
+      );
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -58,6 +70,7 @@ export function PolizasView() {
         setCompactMode={m.setCompactMode}
         filteredTotals={m.filteredPolizasTotals}
         isPeriodLocked={m.isPeriodLocked}
+        isPeriod13Locked={m.isPeriod13Locked}
         isReadOnlyClient={m.isReadOnlyClient}
         hasPolizasToExport={m.filteredPolizas.length > 0}
         onNewPoliza={m.openNewPolizaModal}
@@ -65,7 +78,7 @@ export function PolizasView() {
           if (!m.isWriteBlocked) m.setIsPedimentoModalOpen(true);
         }}
         onExportCsv={m.handleExportPolizasCsv}
-        onPrintPdf={() => printPolizasFormalPdf(m.filteredPolizas, m.activeCompany)}
+        onPrintPdf={() => handlePrintPdf(m.filteredPolizas)}
         onCloseYear={() => m.closeYearMutation.mutate()}
         isCloseYearPending={m.closeYearMutation.isPending}
       />
@@ -186,9 +199,7 @@ export function PolizasView() {
                   m.setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }))
                 }
                 onCopyPoliza={m.handleCopyPoliza}
-                onPrintPoliza={(p) =>
-                  printPolizasFormalPdf([p], m.activeCompany, `${p.tipo} #${p.folio}`)
-                }
+                onPrintPoliza={(p) => handlePrintPdf([p], `${p.tipo} #${p.folio}`)}
                 onDuplicate={m.openDuplicatePolizaModal}
                 onEdit={m.openEditPolizaModal}
                 onConfirmDelete={(id) => m.deletePolizaMutation.mutate(id)}

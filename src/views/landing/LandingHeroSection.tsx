@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   FlaskConical,
   HardDrive,
+  Loader2,
   ShieldCheck,
   Sparkles,
   Zap
@@ -24,9 +25,14 @@ type HeroPreviewTab = (typeof PREVIEW_TABS)[number]['id'];
 interface LandingHeroSectionProps {
   onOpenAuth: () => void;
   onOpenDemo: () => void;
+  isOpeningDemo?: boolean;
 }
 
-export function LandingHeroSection({ onOpenAuth, onOpenDemo }: LandingHeroSectionProps) {
+export function LandingHeroSection({
+  onOpenAuth,
+  onOpenDemo,
+  isOpeningDemo = false
+}: LandingHeroSectionProps) {
   const [activePreviewTab, setActivePreviewTab] = useState<HeroPreviewTab>('polizas');
 
   return (
@@ -78,11 +84,19 @@ export function LandingHeroSection({ onOpenAuth, onOpenDemo }: LandingHeroSectio
 
           <button
             type="button"
+            disabled={isOpeningDemo}
+            aria-busy={isOpeningDemo}
             onClick={onOpenDemo}
-            className="w-full sm:w-auto px-5 sm:px-7 py-3.5 sm:py-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300 font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+            className="w-full sm:w-auto px-5 sm:px-7 py-3.5 sm:py-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300 font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-wait"
           >
-            <FlaskConical className="w-4 sm:w-5 h-4 sm:h-5 text-amber-600 shrink-0" aria-hidden="true" />
-            <span>Explorar Demo en Vivo (Sin Registro)</span>
+            {isOpeningDemo ? (
+              <Loader2 className="w-4 sm:w-5 h-4 sm:h-5 text-amber-700 animate-spin shrink-0" aria-hidden="true" />
+            ) : (
+              <FlaskConical className="w-4 sm:w-5 h-4 sm:h-5 text-amber-600 shrink-0" aria-hidden="true" />
+            )}
+            <span>
+              {isOpeningDemo ? 'Abriendo Demo en Vivo...' : 'Explorar Demo en Vivo (Sin Registro)'}
+            </span>
           </button>
         </div>
 

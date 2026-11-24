@@ -33,9 +33,14 @@ export type AccountingQueryScope =
   | 'fixed-assets'
   | 'fiscal-workpaper'
   | 'cxc-cxp'
-  | 'sat-xml';
+  | 'sat-xml'
+  | 'inventory-cost'
+  | 'payroll-settings'
+  | 'annual-tax'
+  | 'auxiliares-diario'
+  | 'accounting-rules';
 
-const DEFAULT_ACCOUNTING_SCOPES: ReadonlyArray<AccountingQueryScope> = [
+export const DEFAULT_ACCOUNTING_SCOPES: ReadonlyArray<AccountingQueryScope> = [
   'dashboard',
   'accounts',
   'account-ledger',
@@ -44,12 +49,19 @@ const DEFAULT_ACCOUNTING_SCOPES: ReadonlyArray<AccountingQueryScope> = [
   'reports',
   'diot',
   'bank-reconciliation',
+  'fiel-status',
+  'sat-requests',
   'period-lock',
   'third-parties',
   'fixed-assets',
   'fiscal-workpaper',
   'cxc-cxp',
-  'sat-xml'
+  'sat-xml',
+  'inventory-cost',
+  'payroll-settings',
+  'annual-tax',
+  'auxiliares-diario',
+  'accounting-rules'
 ];
 
 /**

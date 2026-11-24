@@ -7,6 +7,7 @@ import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import { useAjustesBackups } from './useAjustesBackups';
 import { useAjustesEfirma } from './useAjustesEfirma';
+import { useAjustesFiscalParams } from './useAjustesFiscalParams';
 
 export type AjustesTab = 'directorio' | 'empresa' | 'efirma' | 'fiscal' | 'respaldos' | 'atajos' | 'equipo';
 
@@ -34,9 +35,19 @@ export function useAjustesState() {
     setActiveCompanyId,
     isLoading: companiesLoading,
     isReadOnlySupportMode,
-    isReadOnlyClient
+    isReadOnlyClient,
+    effectiveCompanyRole
   } = useCompany();
   const isReadOnly = isReadOnlySupportMode || isReadOnlyClient;
+  const canEditFiscalConfig =
+    !isReadOnly &&
+    (effectiveCompanyRole === 'OWNER' ||
+      effectiveCompanyRole === 'SOCIO' ||
+      effectiveCompanyRole === 'CONTADOR');
+  const canDeleteOrRestore =
+    !isReadOnly && (effectiveCompanyRole === 'OWNER' || effectiveCompanyRole === 'SOCIO');
+  const canWriteAccounts =
+    !isReadOnly && effectiveCompanyRole !== 'CLIENTE_LECTURA' && effectiveCompanyRole !== null;
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -110,7 +121,7 @@ export function useAjustesState() {
 
   const updateCompanyMutation = useMutation({
     mutationFn: async () => {
-      if (isReadOnly) throw new Error('Modo solo lectura: no es posible modificar datos fiscales.');
+      if (!canEditFiscalConfig) throw new Error('Solo un Contador o Socio puede modificar los datos fiscales.');
       if (!activeCompanyId) throw new Error('No hay empresa activa seleccionada');
       if (!isRfcValid) {
         throw new Error(
@@ -176,7 +187,7 @@ export function useAjustesState() {
 
   const togglePeriodLockMutation = useMutation({
     mutationFn: async (isLocked: boolean) => {
-      if (isReadOnly) throw new Error('Modo solo lectura: no tienes permisos para modificar el candado fiscal.');
+      if (!canEditFiscalConfig) throw new Error('Solo un Contador o Socio puede modificar el candado fiscal.');
       if (!activeCompany) return;
       return apiClient.setPeriodLock({
         companyId: activeCompany.id,
@@ -207,79 +218,15 @@ export function useAjustesState() {
   // Tab 3: Parámetros Fiscales
   const currentYear = activeCompany?.currentYear ?? 2026;
   const currentPeriod = activeCompany?.currentPeriod ?? 10;
-
-  const { data: fiscalWp, refetch: refetchFiscalWp } = useQuery({
-    queryKey: ['fiscal-workpaper', activeCompanyId, currentYear, currentPeriod],
-    queryFn: () =>
-      activeCompanyId
-        ? apiClient.getFiscalWorkpaper(activeCompanyId, currentYear, currentPeriod)
-        : null,
-    enabled: Boolean(activeCompanyId)
-  });
-
-  const [coefUtilidad, setCoefUtilidad] = useState<number>(0.1845);
-  const [tcDof, setTcDof] = useState<number>(19.865);
-  const [perdidasAnt, setPerdidasAnt] = useState<number>(45000);
-  const [pagosAnt, setPagosAnt] = useState<number>(128500);
-  const [saldoIvaAnt, setSaldoIvaAnt] = useState<number>(0);
-
-  React.useEffect(() => {
-    setCoefUtilidad(0.1845);
-    setTcDof(19.865);
-    setPerdidasAnt(0);
-    setPagosAnt(0);
-    setSaldoIvaAnt(0);
-  }, [activeCompanyId]);
-
-  React.useEffect(() => {
-    if (fiscalWp?.parameters) {
-      setCoefUtilidad(fiscalWp.parameters.coeficienteUtilidad);
-      setTcDof(fiscalWp.parameters.tipoCambioDofCierre);
-      setPerdidasAnt(fiscalWp.parameters.perdidasFiscalesPendientes);
-      setPagosAnt(fiscalWp.parameters.pagosProvisionalesAnteriores);
-      setSaldoIvaAnt(fiscalWp.parameters.saldoFavorIvaAnterior);
-    }
-  }, [fiscalWp]);
-
-  const saveFiscalParamsMutation = useMutation({
-    mutationFn: () =>
-      apiClient.saveTaxParameters({
-        companyId: activeCompanyId,
-        ejercicio: currentYear,
-        coeficienteUtilidad: Number(coefUtilidad),
-        tipoCambioDofCierre: Number(tcDof),
-        perdidasFiscalesPendientes: Number(perdidasAnt),
-        pagosProvisionalesAnteriores: Number(pagosAnt),
-        saldoFavorIvaAnterior: Number(saldoIvaAnt)
-      }),
-    onSuccess: () => {
-      toast.success('Parámetros fiscales Día 17 actualizados');
-      refetchFiscalWp();
-    },
-    onError: (err: Error) => {
-      toast.error(`Error al guardar parámetros fiscales: ${err.message}`);
-    }
-  });
-
-  // Tab 4: Respaldos delegados (solo activa las consultas cuando la pestaña está visible)
-  const isFiscalDirty = Boolean(
-    fiscalWp?.parameters &&
-      (Number(coefUtilidad) !== fiscalWp.parameters.coeficienteUtilidad ||
-        Number(tcDof) !== fiscalWp.parameters.tipoCambioDofCierre ||
-        Number(perdidasAnt) !== fiscalWp.parameters.perdidasFiscalesPendientes ||
-        Number(pagosAnt) !== fiscalWp.parameters.pagosProvisionalesAnteriores ||
-        Number(saldoIvaAnt) !== fiscalWp.parameters.saldoFavorIvaAnterior)
+  const fiscalParams = useAjustesFiscalParams(
+    activeCompanyId,
+    currentYear,
+    currentPeriod,
+    canEditFiscalConfig,
+    toast
   );
 
-  const resetFiscalForm = () => {
-    if (!fiscalWp?.parameters) return;
-    setCoefUtilidad(fiscalWp.parameters.coeficienteUtilidad);
-    setTcDof(fiscalWp.parameters.tipoCambioDofCierre);
-    setPerdidasAnt(fiscalWp.parameters.perdidasFiscalesPendientes);
-    setPagosAnt(fiscalWp.parameters.pagosProvisionalesAnteriores);
-    setSaldoIvaAnt(fiscalWp.parameters.saldoFavorIvaAnterior);
-  };
-
+  // Tab 4: Respaldos delegados (solo activa las consultas cuando la pestaña está visible)
   const backups = useAjustesBackups(activeCompany, activeCompanyId, {
     isTabActive: activeTab === 'respaldos'
   });
@@ -289,6 +236,10 @@ export function useAjustesState() {
     companiesLoading,
     isReadOnlySupportMode,
     isReadOnlyClient,
+    effectiveCompanyRole,
+    canEditFiscalConfig,
+    canDeleteOrRestore,
+    canWriteAccounts,
     activeCompany,
     activeCompanyId,
     setActiveCompanyId,
@@ -318,20 +269,7 @@ export function useAjustesState() {
     ...efirma,
     currentYear,
     currentPeriod,
-    coefUtilidad,
-    setCoefUtilidad,
-    tcDof,
-    setTcDof,
-    perdidasAnt,
-    setPerdidasAnt,
-    pagosAnt,
-    setPagosAnt,
-    saldoIvaAnt,
-    setSaldoIvaAnt,
-    isFiscalDirty,
-    resetFiscalForm,
-    saveFiscalParamsMutation,
-    fiscalWp,
+    ...fiscalParams,
     ...backups,
     toast
   };

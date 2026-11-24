@@ -66,10 +66,48 @@ export async function runSupabaseAutoPolizaFromCfdi(
       }
     : null;
 
+  let relatedOriginalTipoCambioByUuid: Record<string, number> | undefined;
+  let relatedOriginalTipoCambio: number | undefined;
+  if (cfdi.tipoComprobante === 'P') {
+    const relUuids = Array.from(
+      new Set(
+        [
+          ...(cfdi.relatedDocs?.map((d) => d.idDocumento) ?? []),
+          ...(cfdi.uuidRelacionado ? [cfdi.uuidRelacionado] : [])
+        ]
+          .map((u) => u.trim())
+          .filter(Boolean)
+      )
+    );
+    if (relUuids.length > 0) {
+      const lookupKeys = Array.from(
+        new Set(relUuids.flatMap((u) => [u, u.toUpperCase(), u.toLowerCase()]))
+      );
+      const { data: relRows } = await supabase
+        .from('cfdi_documents')
+        .select('uuid, moneda, tipo_cambio')
+        .eq('company_id', cfdi.companyId)
+        .in('uuid', lookupKeys);
+      const tcMap: Record<string, number> = {};
+      for (const r of (relRows ?? []) as Array<{ uuid?: string; moneda?: string; tipo_cambio?: number }>) {
+        const key = String(r.uuid ?? '').trim().toUpperCase();
+        const cur = String(r.moneda ?? 'MXN').toUpperCase();
+        const tc = Number(r.tipo_cambio ?? 0);
+        if (key && cur !== 'MXN' && tc > 0) {
+          tcMap[key] = tc;
+          if (relatedOriginalTipoCambio === undefined) relatedOriginalTipoCambio = tc;
+        }
+      }
+      if (Object.keys(tcMap).length > 0) relatedOriginalTipoCambioByUuid = tcMap;
+    }
+  }
+
   const plan = buildAutoPolizaPlan(cfdi, accounts, {
     ...options,
     rules,
-    thirdParty
+    thirdParty,
+    ...(relatedOriginalTipoCambio !== undefined ? { relatedOriginalTipoCambio } : {}),
+    ...(relatedOriginalTipoCambioByUuid ? { relatedOriginalTipoCambioByUuid } : {})
   });
 
   const { year, month: period } = parseCalendarDate(cfdi.fecha);

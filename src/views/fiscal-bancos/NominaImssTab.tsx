@@ -63,8 +63,8 @@ export function NominaImssTab({
   };
 
   const { data: cfdis = [], isLoading: loadingCfdis, isError: isErrCfdis, refetch: refetchCfdis } = useQuery({
-    queryKey: ['cfdis', activeCompanyId, 'with-xml'],
-    queryFn: () => apiClient.getCfdis(activeCompanyId, { includeXml: true }),
+    queryKey: ['cfdis', activeCompanyId],
+    queryFn: () => apiClient.getCfdis(activeCompanyId),
     enabled: Boolean(activeCompanyId)
   });
 
@@ -150,6 +150,8 @@ export function NominaImssTab({
         fecha: polizaDate,
         concepto: prov.polizaConcept,
         origin: 'MANUAL',
+        ejercicio: effectiveYear,
+        periodo: effectivePeriod,
         movements: prov.polizaMovements.map((m) => ({
           accountId: m.accountId, referencia: m.referencia, concepto: m.concepto, cargo: m.cargo, abono: m.abono
         }))

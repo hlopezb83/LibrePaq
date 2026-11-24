@@ -25,17 +25,23 @@ export function DeclaracionAnualKpiGrid({
   reconciliation: AnnualFiscalReconciliation;
 }) {
   const isNetCargo = determination.isrAnualCargoFavor >= 0;
-  const isCuNotApplicable = determination.tipoRegimenAnual !== 'PM_GENERAL';
+  const isPersonaFisica =
+    determination.tipoRegimenAnual === 'PF_RESICO' || determination.tipoRegimenAnual === 'PF_ART152';
+  const isPfResico = determination.tipoRegimenAnual === 'PF_RESICO';
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+    <div className={`grid grid-cols-1 sm:grid-cols-2 ${isPersonaFisica ? 'xl:grid-cols-3' : 'xl:grid-cols-4'} gap-3.5`}>
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-1">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Resultado Fiscal</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+          {isPfResico ? 'Ingresos Cobrados (Base RESICO)' : 'Resultado Fiscal'}
+        </span>
         <div className="text-xl font-extrabold font-mono tabular-nums text-slate-900">
-          {formatCurrency(reconciliation.resultadoFiscal)}
+          {formatCurrency(isPfResico ? determination.ingresosNominales : reconciliation.resultadoFiscal)}
         </div>
         <p className="text-[11px] text-slate-600 font-mono tabular-nums">
-          Utilidad Fiscal: {formatCurrency(reconciliation.utilidadFiscal)}
+          {isPfResico
+            ? 'Flujo de efectivo acumulado (Art. 113-F)'
+            : `Utilidad Fiscal: ${formatCurrency(reconciliation.utilidadFiscal)}`}
         </p>
       </div>
 
@@ -63,23 +69,25 @@ export function DeclaracionAnualKpiGrid({
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-1">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-          Nuevo Coeficiente de Utilidad
-        </span>
-        <div className="text-xl font-extrabold font-mono tabular-nums text-emerald-800">
-          {determination.nuevoCoeficienteUtilidad.toFixed(4)}
+      {!isPersonaFisica && (
+        <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+            Nuevo Coeficiente de Utilidad
+          </span>
+          <div className="text-xl font-extrabold font-mono tabular-nums text-emerald-800">
+            {determination.nuevoCoeficienteUtilidad.toFixed(4)}
+          </div>
+          {determination.tipoRegimenAnual !== 'PM_GENERAL' ? (
+            <p className="text-[11px] font-medium text-amber-800">
+              Aplica solo a PM Régimen General (Art. 14 LISR)
+            </p>
+          ) : (
+            <p className="text-[11px] text-slate-600 font-mono tabular-nums">
+              Ingresos Nom.: {formatCurrency(determination.ingresosNominales)}
+            </p>
+          )}
         </div>
-        {isCuNotApplicable ? (
-          <p className="text-[11px] font-medium text-amber-800">
-            Aplica solo a PM Régimen General (Art. 14 LISR)
-          </p>
-        ) : (
-          <p className="text-[11px] text-slate-600 font-mono tabular-nums">
-            Ingresos Nom.: {formatCurrency(determination.ingresosNominales)}
-          </p>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -90,6 +98,8 @@ export function DeclaracionAnualIsrCard({
   inputs
 }: Omit<DeclaracionAnualIsrCardProps, 'reconciliation'>) {
   const isNetCargo = determination.isrAnualCargoFavor >= 0;
+  const isPersonaFisica =
+    determination.tipoRegimenAnual === 'PF_RESICO' || determination.tipoRegimenAnual === 'PF_ART152';
   const netLabel = isNetCargo ? '(=) ISR Anual a Cargo' : '(=) Saldo a Favor de ISR';
   const netAmount = isNetCargo ? determination.isrACargo : determination.isrAFavor;
 
@@ -150,6 +160,7 @@ export function DeclaracionAnualIsrCard({
         </div>
       </section>
 
+      {!isPersonaFisica && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-2 text-xs">
           <h3 className="text-sm font-bold text-slate-900 border-b border-slate-200 pb-1.5">
@@ -195,6 +206,7 @@ export function DeclaracionAnualIsrCard({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

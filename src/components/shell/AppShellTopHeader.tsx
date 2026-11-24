@@ -1,9 +1,7 @@
+import { useRef } from 'react';
 import {
   Briefcase,
-  Calendar,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Cloud,
   Eye,
   Loader2,
@@ -12,10 +10,11 @@ import {
   LogOut,
   Plus
 } from 'lucide-react';
-import { MESES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
 import type { DespachoRole } from '../../shared/types/despacho-rbac.types';
 import type { User } from '@supabase/supabase-js';
+import { PeriodLockConfirmDialog } from './PeriodLockConfirmDialog';
+import { AppShellTopHeaderPeriod } from './AppShellTopHeaderPeriod';
 
 interface AppShellTopHeaderProps {
   workspaceName?: string;
@@ -52,26 +51,39 @@ export function AppShellTopHeader({
   user,
   onSignOut
 }: AppShellTopHeaderProps) {
+  const lockConfirmDialogRef = useRef<HTMLDialogElement>(null);
+  const canTogglePeriodLock =
+    !isReadOnlyClient &&
+    (effectiveCompanyRole === 'OWNER' ||
+      effectiveCompanyRole === 'SOCIO' ||
+      effectiveCompanyRole === 'CONTADOR');
+
+  const companyInitials = activeCompany
+    ? (activeCompany.name.replace(/^\[[^\]]*\]\s*/, '').trim() || activeCompany.name)
+        .slice(0, 2)
+        .toUpperCase()
+    : '';
+
   return (
     <header className="@container bg-white/95 backdrop-blur-md border-b border-slate-300/80 px-2 sm:px-3.5 py-1.5 shadow-2xs no-print">
-      <div className="max-w-[1800px] mx-auto flex flex-wrap items-center justify-between gap-1.5">
+      <div className="max-w-[1800px] mx-auto flex flex-wrap @[820px]:flex-nowrap items-center justify-between gap-1.5">
         {/* Despacho y Conmutador de Empresa Activa */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-1 @[600px]:flex-initial">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {activeCompany ? (
             <button
               type="button"
               onClick={onOpenCompanySwitcher}
               title={`Empresa cliente: ${activeCompany.name} (${activeCompany.rfc}) · Despacho: ${workspaceName || 'Mi Despacho'} (Atajo: Ctrl+E)`}
               aria-label={`Empresa cliente activa: ${activeCompany.name}, RFC: ${activeCompany.rfc}. Despacho: ${workspaceName || 'Mi Despacho'}. Presiona para cambiar de empresa (Ctrl+E)`}
-              className="w-full @[600px]:w-auto flex items-center gap-2 bg-slate-50 hover:bg-white border border-slate-300/90 hover:border-blue-500 hover:shadow-xs rounded-xl px-2 py-1 transition group cursor-pointer text-left min-w-0"
+              className="w-full @[600px]:w-auto @[600px]:max-w-full flex items-center gap-2 bg-slate-50 hover:bg-white border border-slate-300/90 hover:border-blue-500 hover:shadow-xs rounded-xl px-2 py-1 transition group cursor-pointer text-left min-w-0"
             >
               <div
                 title={`Empresa cliente activa: ${activeCompany.name} (${activeCompany.rfc})`}
                 className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg ${currentTheme.bg} ${currentTheme.text} font-mono font-bold text-[10px] flex items-center justify-center shrink-0 shadow-2xs border ${currentTheme.border}`}
               >
-                {activeCompany.name.slice(0, 2).toUpperCase()}
+                {companyInitials}
               </div>
-              <div className="min-w-0 flex-1 @[600px]:max-w-[280px] @[760px]:max-w-[360px] @[960px]:max-w-[460px] @[1200px]:max-w-[600px]">
+              <div className="min-w-0 flex-1">
                 {/* Fila 1: Despacho Contable (Contexto del Despacho) */}
                 <div className="flex items-center gap-1 min-w-0">
                   <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">
@@ -134,10 +146,10 @@ export function AppShellTopHeader({
 
         {/* Controles Superiores: Comandos, Periodo y Sesión */}
         <div
-          className={`flex flex-wrap items-center gap-1 sm:gap-1.5 min-w-0 ${
+          className={`flex flex-wrap items-center gap-1 sm:gap-1.5 min-w-0 shrink-0 ${
             activeCompany
-              ? 'w-full @[600px]:w-auto justify-between @[600px]:justify-end'
-              : 'shrink-0 ml-auto'
+              ? 'w-full @[820px]:w-auto justify-between @[820px]:justify-end'
+              : 'ml-auto'
           }`}
         >
           {isReadOnlyClient && effectiveCompanyRole === 'CLIENTE_LECTURA' && (
@@ -159,92 +171,28 @@ export function AppShellTopHeader({
           )}
 
           {activeCompany && (
-            <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-300/90 rounded-xl px-1 py-0.5 min-w-0 shrink">
-              <button
-                type="button"
-                onClick={() => stepPeriod(-1)}
-                disabled={activeCompany.currentPeriod <= 1}
-                title={
-                  activeCompany.currentPeriod <= 1
-                    ? 'Ya estás en el primer periodo del ejercicio (Enero)'
-                    : 'Periodo anterior'
-                }
-                aria-label="Cambiar al periodo contable anterior"
-                className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-
-              <Calendar className="w-3 h-3 text-blue-700 shrink-0 hidden @[380px]:block mx-0.5" aria-hidden="true" />
-
-              <div className="flex items-center gap-0.5 min-w-0">
-                <label htmlFor="period-selector" className="visually-hidden">
-                  Periodo Contable
-                </label>
-                <select
-                  id="period-selector"
-                  name="currentPeriod"
-                  value={activeCompany.currentPeriod}
-                  onChange={(e) => updatePeriod(activeCompany.currentYear, Number(e.target.value))}
-                  className="text-[11px] sm:text-xs font-bold text-slate-800 bg-transparent cursor-pointer w-[94px] @[420px]:w-[112px] @[760px]:w-[126px] truncate"
-                >
-                  {MESES_SAT.map((m) => (
-                    <option key={m.periodo} value={m.periodo}>
-                      P{String(m.periodo).padStart(2, '0')} -{' '}
-                      {m.periodo === 13 ? 'Cierre Anual' : m.nombre}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-slate-300 text-xs">/</span>
-                <label htmlFor="year-selector" className="visually-hidden">
-                  Ejercicio Fiscal
-                </label>
-                <select
-                  id="year-selector"
-                  name="currentYear"
-                  value={activeCompany.currentYear}
-                  onChange={(e) => updatePeriod(Number(e.target.value), activeCompany.currentPeriod)}
-                  className="text-[11px] sm:text-xs font-bold font-mono text-blue-800 bg-transparent cursor-pointer shrink-0"
-                >
-                  {Array.from(new Set([2022, 2023, 2024, 2025, 2026, 2027, activeCompany.currentYear]))
-                    .sort((a, b) => a - b)
-                    .map((yr) => (
-                      <option key={yr} value={yr}>
-                        {yr}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => stepPeriod(1)}
-                disabled={activeCompany.currentPeriod >= 13}
-                title={
-                  activeCompany.currentPeriod >= 13
-                    ? 'Ya estás en el último periodo (Cierre Anual P13)'
-                    : 'Periodo siguiente'
-                }
-                aria-label="Cambiar al periodo contable siguiente"
-                className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
-              >
-                <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-            </div>
+            <AppShellTopHeaderPeriod
+              currentPeriod={activeCompany.currentPeriod}
+              currentYear={activeCompany.currentYear}
+              stepPeriod={stepPeriod}
+              updatePeriod={updatePeriod}
+            />
           )}
 
           <div className="flex items-center gap-1 shrink-0">
             {activeCompany && (
               <button
                 type="button"
-                disabled={isTogglingLock || isReadOnlyClient}
+                disabled={isTogglingLock || !canTogglePeriodLock}
                 aria-pressed={isPeriodLocked}
                 aria-busy={isTogglingLock}
-                onClick={() => onTogglePeriodLock(!isPeriodLocked)}
+                onClick={() => {
+                  if (canTogglePeriodLock) lockConfirmDialogRef.current?.showModal();
+                }}
                 aria-label={isPeriodLocked ? 'Reabrir periodo contable' : 'Bloquear periodo contable'}
                 title={
-                  isReadOnlyClient
-                    ? 'Tu rol Cliente (Solo lectura) no permite bloquear o reabrir periodos'
+                  !canTogglePeriodLock
+                    ? 'Solo un Contador o Socio puede bloquear o reabrir periodos fiscales'
                     : isTogglingLock
                     ? 'Actualizando candado de periodo...'
                     : isPeriodLocked
@@ -254,7 +202,7 @@ export function AppShellTopHeader({
                 className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl border text-xs font-bold transition shrink-0 ${
                   isTogglingLock
                     ? 'opacity-60 cursor-wait'
-                    : isReadOnlyClient
+                    : !canTogglePeriodLock
                     ? 'opacity-50 cursor-not-allowed'
                     : 'cursor-pointer'
                 } ${
@@ -319,6 +267,22 @@ export function AppShellTopHeader({
           </div>
         </div>
       </div>
+      {activeCompany && (
+        <PeriodLockConfirmDialog
+          dialogRef={lockConfirmDialogRef}
+          isPeriodLocked={isPeriodLocked}
+          companyName={activeCompany.name}
+          companyRfc={activeCompany.rfc}
+          period={activeCompany.currentPeriod}
+          year={activeCompany.currentYear}
+          isPending={isTogglingLock}
+          onCancel={() => lockConfirmDialogRef.current?.close()}
+          onConfirm={() => {
+            lockConfirmDialogRef.current?.close();
+            onTogglePeriodLock(!isPeriodLocked);
+          }}
+        />
+      )}
     </header>
   );
 }

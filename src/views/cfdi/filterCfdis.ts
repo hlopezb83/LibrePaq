@@ -74,7 +74,7 @@ export function filterCfdis(
   });
 }
 
-/** Calcula totales visibles excluyendo CANCELADO y Traslados (T), y restando Notas de Crédito (E). */
+/** Calcula totales visibles excluyendo CANCELADO, Traslados (T) y Pagos (P), convirtiendo FX a MXN y restando Notas de Crédito (E). */
 export function computeCfdiTotals(filteredCfdis: CfdiDocument[]) {
   let subtotalCents = 0;
   let ivaCents = 0;
@@ -82,12 +82,13 @@ export function computeCfdiTotals(filteredCfdis: CfdiDocument[]) {
   let totalCents = 0;
 
   for (const d of filteredCfdis) {
-    if (d.statusSat === 'CANCELADO' || d.tipoComprobante === 'T') continue;
+    if (d.statusSat === 'CANCELADO' || d.tipoComprobante === 'T' || d.tipoComprobante === 'P') continue;
     const sign = d.tipoComprobante === 'E' ? -1 : 1;
-    subtotalCents += sign * toCents(d.subtotal);
-    ivaCents += sign * toCents(d.ivaTrasladado);
-    retencionesCents += sign * toCents(d.isrRetenido + d.ivaRetenido);
-    totalCents += sign * toCents(d.total);
+    const tc = d.moneda && d.moneda !== 'MXN' && (d.tipoCambio || 1) > 0 ? d.tipoCambio || 1 : 1;
+    subtotalCents += sign * toCents(d.subtotal * tc);
+    ivaCents += sign * toCents(d.ivaTrasladado * tc);
+    retencionesCents += sign * toCents((d.isrRetenido + d.ivaRetenido) * tc);
+    totalCents += sign * toCents(d.total * tc);
   }
 
   return {

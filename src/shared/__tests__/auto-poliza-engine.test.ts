@@ -147,7 +147,7 @@ describe('Power of 10 Fiscal Rules — Unified Auto-Póliza Engine (CFDI I, E, P
       serie: 'NOM',
       folio: '19',
       fecha: '2026-10-15',
-      direction: 'RECIBIDO',
+      direction: 'EMITIDO',
       tipoComprobante: 'N',
       emisorRfc: 'SLO2204159A1',
       emisorNombre: 'SOLUCIONES LOGISTICAS DEL NORTE',

@@ -1,7 +1,8 @@
 import { getRequiredSupabase, supabase } from '../supabase';
 import {
   buildAnnualMonthlyBalancesFromMovements,
-  computeAnnualFixedAssetFiscalDeduction
+  computeAnnualFixedAssetFiscalDeduction,
+  computeAnnualProvisionalPayments
 } from '../../shared/engine/annual-tax-balances.helper';
 import {
   computeAnnualTaxSummary,
@@ -15,6 +16,7 @@ import type {
   SaveAnnualTaxInputsPayload
 } from '../../shared/types/annual-tax.types';
 import type { FixedAssetCategory, FixedAssetRecord } from '../../shared/types/fiscal.types';
+import { mapSupabaseCfdi } from './supabase-cfdi-mappers';
 import { mapSupabaseAccount, mapSupabaseCompany } from './supabase-mappers';
 import { fetchAllRows } from './supabase-pagination';
 
@@ -82,7 +84,7 @@ export const supabaseAnnualTax = {
     const company = mapSupabaseCompany(cRow as Record<string, unknown>);
     const targetYear = ejercicio && ejercicio > 2000 ? ejercicio : company.currentYear;
 
-    const [rawAccounts, movs, snapRes, taxRes, assetsRes] = await Promise.all([
+    const [rawAccounts, movs, snapRes, taxRes, assetsRes, rawCfdis] = await Promise.all([
       fetchAllRows(async (from, to) =>
         sb.from('accounts').select('*').eq('company_id', company.id).order('code', { ascending: true }).range(from, to)
       ),
@@ -95,20 +97,35 @@ export const supabaseAnnualTax = {
           .range(from, to)
       ),
       sb.from('annual_tax_snapshots').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).maybeSingle(),
-      sb.from('tax_parameters').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).order('periodo', { ascending: false }).limit(1).maybeSingle(),
-      sb.from('fixed_assets').select('*').eq('company_id', company.id)
+      sb.from('tax_parameters').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).order('periodo', { ascending: false }),
+      sb.from('fixed_assets').select('*').eq('company_id', company.id),
+      fetchAllRows(async (from, to) =>
+        sb.from('cfdi_documents').select('*').eq('company_id', company.id).order('fecha', { ascending: false }).range(from, to)
+      )
     ]);
 
     const accounts = rawAccounts.map((r) => mapSupabaseAccount(r as Record<string, unknown>));
+    const joinedMovs = movs as unknown as JoinedPolizaMovementInput[];
     const { trialBalance, monthlyBalancesByPeriod } = buildAnnualMonthlyBalancesFromMovements(
       accounts,
-      movs as unknown as JoinedPolizaMovementInput[],
+      joinedMovs,
       targetYear
     );
+    const cfdis = rawCfdis.map((r) => mapSupabaseCfdi(r as Record<string, unknown>));
     const assets = (assetsRes.data || []).map((a) => mapAsset(a as Record<string, unknown>));
     const fixedAssetsFiscalDeduction = computeAnnualFixedAssetFiscalDeduction(assets, targetYear);
     const inputs = mapSnapshot((snapRes.data as Record<string, unknown> | null) ?? null, company.id, targetYear);
-    const taxRow = taxRes.data as Record<string, unknown> | null;
+    const taxRows = (taxRes.data ?? []) as Array<Record<string, unknown>>;
+    const taxRow = taxRows[0] ?? null;
+    const paymentsProvisioned = computeAnnualProvisionalPayments({
+      accounts,
+      movs: joinedMovs,
+      ejercicio: targetYear,
+      taxParameterRows: taxRows.map((r) => ({
+        periodo: Number(r.periodo ?? 0),
+        pagosProvisionalesAnteriores: Number(r.pagos_provisionales_anteriores ?? 0)
+      }))
+    });
     const isrFavorAcc = trialBalance.find((a) => a.code === '113-02-001' || a.satGroupCode === '113.02');
 
     return computeAnnualTaxSummary({
@@ -117,10 +134,11 @@ export const supabaseAnnualTax = {
       trialBalance,
       monthlyBalancesByPeriod,
       fixedAssetsFiscalDeduction,
-      paymentsProvisioned: Number(taxRow?.pagos_provisionales_anteriores ?? 0),
+      paymentsProvisioned,
       perdidasFiscalesPendientes: Number(taxRow?.perdidas_fiscales_pendientes ?? 0),
       isrRetenidoAcreditable: Math.max(0, isrFavorAcc?.finalBalance ?? 0),
-      inputs
+      inputs,
+      cfdis
     });
   },
 

@@ -10,6 +10,21 @@ import {
   type DbSatDownloadRequest
 } from './supabase-soap-mappers';
 
+async function extractSoapEdgeErrorMessage(edgeError: unknown): Promise<string> {
+  let errorMsg = edgeError instanceof Error ? edgeError.message : String(edgeError || 'Error de comunicación');
+  try {
+    const ctx = (edgeError as { context?: Response })?.context;
+    if (ctx && typeof ctx.json === 'function') {
+      const ctxJson = (await ctx.json()) as { error?: unknown; message?: unknown } | null;
+      const realMsg = ctxJson?.error ?? ctxJson?.message;
+      if (realMsg) errorMsg = String(realMsg);
+    }
+  } catch {
+    // ignore non-JSON context
+  }
+  return errorMsg;
+}
+
 export const supabaseSoapDownload = {
   async getSatDownloadRequests(companyId: string): Promise<SatDownloadRequestRecord[]> {
     if (supabase) {
@@ -94,7 +109,10 @@ export const supabaseSoapDownload = {
         if (!error && data?.ok && data.requestRecord) {
           edgeRecord = data.requestRecord;
         } else if (!isDemo && modo === 'SAT_LIVE' && (error || (data && !data.ok))) {
-          const errMsg = data?.error || (error as Error)?.message || 'El SAT rechazó la solicitud de descarga.';
+          const errMsg =
+            data?.error ||
+            (error ? await extractSoapEdgeErrorMessage(error) : '') ||
+            'El SAT rechazó la solicitud de descarga.';
           throw new Error(errMsg);
         }
       } catch (err) {
@@ -200,13 +218,14 @@ export const supabaseSoapDownload = {
       });
 
       if (error) {
+        const realErrMsg = await extractSoapEdgeErrorMessage(error);
         return {
           ok: false,
           updatedCount: 0,
           downloadedCount: 0,
           rejectedCount: 0,
           pendingCount: 0,
-          message: `Fallo al verificar con SAT Cloud: ${error.message}`
+          message: `Fallo al verificar con SAT Cloud: ${realErrMsg}`
         };
       }
 

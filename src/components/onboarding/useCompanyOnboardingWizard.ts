@@ -117,17 +117,23 @@ export function useCompanyOnboardingWizard({
     codigoPostal.trim().length === 5 &&
     Boolean(regimenFiscal);
 
+  const handleRegimenChange = (nextRegimen: string) => {
+    setRegimenFiscal(nextRegimen);
+    if (nextRegimen.startsWith('626')) {
+      setCatalogPreset('RESICO_SIMPLIFIED');
+    } else {
+      setCatalogPreset('SAT_STANDARD');
+    }
+  };
+
   const applyXmlCandidate = (cand: CfdiCompanyCandidate) => {
     setActiveXmlRole(cand.role);
     setPersonType(cand.personType);
     setName(cand.name);
     setRfc(cand.rfc);
-    setRegimenFiscal(cand.regimenFiscal);
+    handleRegimenChange(cand.regimenFiscal);
     if (cand.codigoPostal.length === 5) {
       setCodigoPostal(cand.codigoPostal);
-    }
-    if (cand.regimenFiscal.startsWith('626')) {
-      setCatalogPreset('RESICO_SIMPLIFIED');
     }
     setCreationFlow('xml_autofill');
     setBypassRfcCheckDigit(false);
@@ -193,7 +199,14 @@ export function useCompanyOnboardingWizard({
       setErrorMessage('Por favor completa Razón Social, RFC válido y Código Postal de 5 dígitos.');
       return false;
     }
-    if (rfcModulo11 && !rfcModulo11.isValidCheckDigit && !bypassRfcCheckDigit) {
+    if (
+      rfcModulo11 &&
+      rfcModulo11.isValidFormat &&
+      rfcModulo11.expectedCheckDigit &&
+      rfcModulo11.actualCheckDigit &&
+      !rfcModulo11.isValidCheckDigit &&
+      !bypassRfcCheckDigit
+    ) {
       setErrorMessage(
         `Advertencia SAT Módulo 11: El dígito verificador ('${rfcModulo11.actualCheckDigit}') no coincide con el cálculo SAT ('${rfcModulo11.expectedCheckDigit}'). Pulsa "Corregir a ${rfcModulo11.expectedCheckDigit}" o vuelve a pulsar para conservar este RFC.`
       );
@@ -232,7 +245,7 @@ export function useCompanyOnboardingWizard({
     codigoPostal,
     setCodigoPostal,
     regimenFiscal,
-    setRegimenFiscal,
+    setRegimenFiscal: handleRegimenChange,
     currentYear,
     setCurrentYear,
     currentPeriod,

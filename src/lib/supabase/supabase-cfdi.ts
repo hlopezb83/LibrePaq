@@ -27,6 +27,7 @@ export const supabaseCfdi = {
           .select(projection)
           .eq('company_id', companyId)
           .order('fecha', { ascending: false })
+          .order('id', { ascending: true })
           .range(from, to);
       });
       const rows = data as unknown as Array<Record<string, unknown>>;
@@ -87,7 +88,20 @@ export const supabaseCfdi = {
   }): Promise<CfdiDocument> {
     if (!supabase) throw new Error('Supabase no disponible');
     const xmlString = payload.xmlRaw || '';
-    const parsed = xmlString ? parseCfdiXmlString(xmlString) : null;
+    const parsed = xmlString ? parseCfdiXmlString(xmlString, { requireStamp: true }) : null;
+    const uuid = (parsed?.uuid || crypto.randomUUID()).toUpperCase();
+
+    const { data: existingDup, error: dupErr } = await supabase
+      .from('cfdi_documents')
+      .select('id')
+      .eq('company_id', payload.companyId)
+      .eq('uuid', uuid)
+      .maybeSingle();
+    if (dupErr) throw new Error(dupErr.message);
+    if (existingDup) {
+      throw new Error(`DUPLICATE_CFDI: El comprobante con UUID ${uuid} ya existe en la Bóveda ADD.`);
+    }
+
     const id = `cfdi_${crypto.randomUUID().slice(0, 12)}`;
 
     const { data: comp } = await supabase
@@ -114,7 +128,7 @@ export const supabaseCfdi = {
       .insert({
         id,
         company_id: payload.companyId,
-        uuid: parsed?.uuid || crypto.randomUUID().toUpperCase(),
+        uuid,
         fecha: parsed?.fecha || payload.fecha || getTodayLocalIso(),
         tipo_comprobante: parsed?.tipoComprobante || payload.tipoComprobante || 'I',
         direction,
@@ -168,7 +182,7 @@ export const supabaseCfdi = {
     const parsedItems: { parsed: ReturnType<typeof parseCfdiXmlString>; xmlRaw: string }[] = [];
     for (const xmlRaw of xmlList) {
       try {
-        const parsed = parseCfdiXmlString(xmlRaw);
+        const parsed = parseCfdiXmlString(xmlRaw, { requireStamp: true });
         if (parsed?.uuid) parsedItems.push({ parsed, xmlRaw });
       } catch {
         // Skip invalid XML strings

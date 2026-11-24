@@ -146,12 +146,12 @@ export function useAddCfdiMutations({
           undefined,
           (current, total) => setBatchProgress({ current, total })
         );
-        return res.count;
+        return res;
       } finally {
         setBatchProgress(null);
       }
     },
-    onSuccess: (count) => {
+    onSuccess: (res) => {
       invalidateAccountingQueries(queryClient, [
         'cfdis',
         'polizas',
@@ -165,9 +165,25 @@ export function useAddCfdiMutations({
         'sat-xml'
       ]);
       setSelectedCfdiIds(new Set());
-      toast.success(
-        `¡Contabilización en lote exitosa! Se generaron ${count} pólizas cuadradas desde la Bóveda ADD.`
-      );
+      const typedRes = res as typeof res & {
+        failedCount?: number;
+        errors?: Array<{ cfdiId: string; uuid?: string; error: string }>;
+      };
+      const failedCount = typedRes.failedCount ?? 0;
+      const firstErr = typedRes.errors?.[0]?.error || '';
+      if (typedRes.count === 0 && failedCount > 0) {
+        toast.error(
+          `Error en contabilización en lote: fallaron los ${failedCount} comprobantes.${firstErr ? ` ${firstErr}` : ''}`
+        );
+      } else if (failedCount > 0) {
+        toast.warning(
+          `Contabilización parcial: ${typedRes.count} póliza(s) generada(s) y ${failedCount} fallido(s).${firstErr ? ` (${firstErr})` : ''}`
+        );
+      } else {
+        toast.success(
+          `¡Contabilización en lote exitosa! Se generaron ${typedRes.count} pólizas cuadradas desde la Bóveda ADD.`
+        );
+      }
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -252,6 +268,8 @@ export function useAddCfdiMutations({
       void queryClient.invalidateQueries({ queryKey: ['cfdis', targetCompanyId] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard', targetCompanyId] });
       if (latestCompanyIdRef.current !== targetCompanyId) return;
+      const failedCount = (res as { failedCount?: number }).failedCount ?? 0;
+      const errors = (res as { errors?: Array<{ error: string }> }).errors ?? [];
       if (res.cancelledWithPolizaCount > 0) {
         const alerts = res.items
           .filter((item) => item.cancelledWithPoliza)
@@ -262,7 +280,17 @@ export function useAddCfdiMutations({
           alerts
         });
         toast.error(
-          `Alerta SAT: ${res.cancelledWithPolizaCount} de ${res.checkedCount} CFDI(s) cancelados ante el SAT aún tienen póliza contable.`
+          `Alerta SAT: ${res.cancelledWithPolizaCount} de ${res.checkedCount} CFDI(s) cancelados ante el SAT aún tienen póliza contable.${failedCount > 0 ? ` (${failedCount} sin respuesta SAT)` : ''}`
+        );
+      } else if (failedCount > 0 && res.updatedCount === 0 && res.checkedCount === 0) {
+        setSatBatchAlert(null);
+        toast.error(
+          `No se pudo verificar ningún CFDI ante el SAT (${failedCount} error(es)/timeout). ${errors[0]?.error || ''}`
+        );
+      } else if (failedCount > 0) {
+        setSatBatchAlert(null);
+        toast.warning(
+          `Validación SAT parcial: ${res.checkedCount} verificados (${res.updatedCount} actualizados) y ${failedCount} con error/timeout del SAT.`
         );
       } else {
         setSatBatchAlert(null);

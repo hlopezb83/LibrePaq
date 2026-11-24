@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { SAT_GROUP_CODES, type SatGroupCodeItem } from '../../shared/sat-constants';
 import type { AccountType } from '../../shared/types';
@@ -19,6 +19,15 @@ const GROUPS: ReadonlyArray<AccountType> = [
 
 export function SatGroupCodePicker({ value, onSelect }: SatGroupCodePickerProps) {
   const [search, setSearch] = useState('');
+  const lastInternalSelectRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastInternalSelectRef.current === value) {
+      lastInternalSelectRef.current = null;
+      return;
+    }
+    setSearch('');
+  }, [value]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -34,6 +43,11 @@ export function SatGroupCodePicker({ value, onSelect }: SatGroupCodePickerProps)
   const currentMatch = useMemo(
     () => SAT_GROUP_CODES.find((s) => s.code === value),
     [value]
+  );
+
+  const isValueInFiltered = useMemo(
+    () => filtered.some((s) => s.code === value),
+    [filtered, value]
   );
 
   return (
@@ -67,13 +81,18 @@ export function SatGroupCodePicker({ value, onSelect }: SatGroupCodePickerProps)
         value={value}
         onChange={(e) => {
           const val = e.target.value;
+          lastInternalSelectRef.current = val;
           const found = SAT_GROUP_CODES.find((s) => s.code === val) ?? null;
           onSelect(found, val);
         }}
         className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs bg-white font-mono"
       >
-        {!currentMatch && value && (
-          <option value={value}>[{value}] Código SAT personalizado</option>
+        {value && !isValueInFiltered && (
+          <option value={value}>
+            {currentMatch
+              ? `[${currentMatch.code}] ${currentMatch.name} (${currentMatch.nature})`
+              : `[${value}] Código SAT personalizado`}
+          </option>
         )}
         {GROUPS.map((grp) => {
           const items = filtered.filter((s) => s.type === grp);

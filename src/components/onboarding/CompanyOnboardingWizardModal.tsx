@@ -93,9 +93,9 @@ export function CompanyOnboardingWizardModal({
           prevStep();
         }
       }}
-      className="rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl overflow-hidden max-h-[92dvh]"
+      className="rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 bg-white w-full max-w-2xl overflow-hidden max-h-[90dvh] p-0"
     >
-      <div className="flex flex-col h-full max-h-[92dvh]">
+      <div className="flex flex-col max-h-[90dvh]">
         {/* Cabecera con Stepper de Progreso */}
         <div className="bg-[#0A1120] text-white px-4 sm:px-6 py-3 sm:py-3.5 shrink-0 border-b border-slate-800">
           <div className="flex items-center justify-between gap-2 pb-2.5">
@@ -151,7 +151,7 @@ export function CompanyOnboardingWizardModal({
         </div>
 
         {/* Cuerpo del Asistente con scroll interno */}
-        <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-3.5 sm:space-y-4">
+        <div className="p-4 sm:p-6 pb-6 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-3.5 sm:space-y-4">
           {errorMessage && (
             <div
               role="alert"

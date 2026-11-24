@@ -147,6 +147,8 @@ async function executeSingleSatSolicitaDescarga(params: {
   tipoSat: 'RECIBIDOS' | 'EMITIDOS';
   fechaInicial: string;
   fechaFinal: string;
+  fechaFinalTime?: string;
+  estadoComprobante?: 'Vigente' | 'Cancelado' | 'Todos';
   modoEjecucion: 'SAT_LIVE' | 'SANDBOX_CRYPTO';
   cerBase64: string;
   privateKeyPem: string;
@@ -159,6 +161,8 @@ async function executeSingleSatSolicitaDescarga(params: {
     tipoSat,
     fechaInicial,
     fechaFinal,
+    fechaFinalTime,
+    estadoComprobante,
     modoEjecucion,
     cerBase64,
     privateKeyPem,
@@ -181,6 +185,8 @@ async function executeSingleSatSolicitaDescarga(params: {
         tipoSolicitud: tipoSat,
         fechaInicial,
         fechaFinal,
+        fechaFinalTime,
+        estadoComprobante,
         certificateBase64: cerBase64,
         privateKeyPem
       });
@@ -309,15 +315,27 @@ export async function handleSolicitaDescarga(
     return jsonResponse({ ok: false, error: 'companyRfc es requerido para la solicitud al SAT' }, 400, headers);
   }
 
-  // Clamping de fechaFinal en horario oficial CDMX (America/Mexico_City) para prevenir error 301 del SAT
+  // Clamping de fechaFinal y hora actual en horario oficial CDMX (America/Mexico_City) para prevenir error 301 del SAT
+  const nowDate = new Date();
   const todayIso = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Mexico_City',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
-  }).format(new Date());
+  }).format(nowDate);
+  const cdmxTime = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Mexico_City',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).format(nowDate);
   if (fechaFinal > todayIso) fechaFinal = todayIso;
   if (fechaInicial > fechaFinal) fechaInicial = fechaFinal;
+  const fechaFinalTime = fechaFinal === todayIso ? cdmxTime : '23:59:59';
+  const estadoComprobante = (payload as SatRequestPayload & {
+    estadoComprobante?: 'Vigente' | 'Cancelado' | 'Todos';
+  }).estadoComprobante;
 
   let authHeader: string | null = null;
   if (creds.privateKeyPem && creds.cerBase64 && modoEjecucion === 'SAT_LIVE') {
@@ -347,6 +365,8 @@ export async function handleSolicitaDescarga(
       tipoSat,
       fechaInicial,
       fechaFinal,
+      fechaFinalTime,
+      estadoComprobante,
       modoEjecucion,
       cerBase64: creds.cerBase64,
       privateKeyPem: creds.privateKeyPem,
@@ -435,7 +455,7 @@ async function ingestSatPackage(params: {
   }
 
   const descText = await descRes.text();
-  const paqMatch = descText.match(/<Paquete>([^<]+)<\/Paquete>/i);
+  const paqMatch = descText.match(/<(?:[\w-]+:)?Paquete\b[^>]*>([^<]+)<\/(?:[\w-]+:)?Paquete>/i);
   if (!paqMatch?.[1]) {
     return { insertedCount: 0, skippedDuplicates: 0, totalParsed: 0, hadInsertErrors: true, truncatedAtLimit: false };
   }
@@ -624,7 +644,11 @@ export async function handleVerificaDescarga(
           nuevoEstado = 'TERMINADA';
           nuevoMensaje = 'SAT 5000: Solicitud completada por el SAT (0 comprobantes en el periodo).';
         } else {
-          const idsPaquetes = [...verText.matchAll(/<IdsPaquetes>([^<]+)<\/IdsPaquetes>/gi)].map((m) => m[1]);
+          const idsPaquetes = [
+            ...verText.matchAll(/<(?:[\w-]+:)?IdsPaquetes\b[^>]*>([^<]+)<\/(?:[\w-]+:)?IdsPaquetes>/gi)
+          ]
+            .map((m) => m[1]!.trim())
+            .filter(Boolean);
           if (idsPaquetes.length === 0) idsPaquetes.push(`${reqItem.id_solicitud_sat}_01`);
 
           let skippedDuplicatesTotal = 0;

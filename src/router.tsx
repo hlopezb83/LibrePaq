@@ -44,6 +44,7 @@ const indexRoute = createRoute({
 const addRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/add',
+  validateSearch: validateStringSearch,
   component: lazyRouteComponent(
     () => import('./views/AddCfdiView'),
     'AddCfdiView'
@@ -72,6 +73,7 @@ const polizasRoute = createRoute({
 const cuentasRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/cuentas',
+  validateSearch: validateStringSearch,
   component: lazyRouteComponent(
     () => import('./views/CatalogoCuentasView'),
     'CatalogoCuentasView'
@@ -81,6 +83,7 @@ const cuentasRoute = createRoute({
 const fiscalBancosRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/fiscal-bancos',
+  validateSearch: validateStringSearch,
   component: lazyRouteComponent(
     () => import('./views/DiotBancosView'),
     'DiotBancosView'
@@ -90,6 +93,7 @@ const fiscalBancosRoute = createRoute({
 const reportesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/reportes',
+  validateSearch: validateStringSearch,
   component: lazyRouteComponent(
     () => import('./views/ReportesView'),
     'ReportesView'
@@ -99,6 +103,7 @@ const reportesRoute = createRoute({
 const ajustesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/ajustes',
+  validateSearch: validateStringSearch,
   component: lazyRouteComponent(
     () => import('./views/AjustesView'),
     'AjustesView'

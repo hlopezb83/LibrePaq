@@ -60,13 +60,13 @@ export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: 
 
   return (
     <aside
+      ref={cardRef}
       aria-label="Soporte y contacto por WhatsApp"
       className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 lg:bottom-6 lg:right-6 z-50 no-print"
     >
       {/* Ventana emergente con mensaje de bienvenida (Chat Preview Card) */}
       {isOpen && (
         <div
-          ref={cardRef}
           role="dialog"
           aria-label="Ventana de ayuda de WhatsApp"
           className="absolute bottom-14 sm:bottom-16 right-0 mb-1.5 w-[min(20rem,calc(100dvw-1.5rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-3.5 sm:p-4 shadow-2xl border border-slate-200 text-slate-800 font-sans animate-in fade-in slide-in-from-bottom-2 duration-200"
@@ -82,8 +82,8 @@ export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: 
               </div>
               <div>
                 <h4 className="text-sm font-bold text-slate-900 leading-tight">Asesor LibrePaq</h4>
-                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                <p className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block animate-pulse" />
                   En línea · Respuesta rápida
                 </p>
               </div>
@@ -108,7 +108,7 @@ export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: 
             <p>
               Escríbenos directamente a WhatsApp y un especialista fiscal te apoyará paso a paso.
             </p>
-            <span className="block text-[10px] text-slate-400 text-right mt-1.5">Ahora</span>
+            <span className="block text-[10px] text-slate-500 text-right mt-1.5">Ahora</span>
           </div>
 
           <a
@@ -130,7 +130,7 @@ export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: 
           <button
             type="button"
             onClick={handleOpenChat}
-            className="w-full py-2.5 px-4 bg-[#25D366] hover:bg-[#20bd5a] active:bg-[#1caa51] text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98]"
+            className="w-full py-2.5 px-4 bg-[#25D366] hover:bg-[#20bd5a] active:bg-[#1caa51] text-[#052E16] rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] cursor-pointer"
           >
             <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
               <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.288.043.088.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86.174.086.275.072.376-.044.102-.115.434-.506.549-.68.116-.173.232-.144.39-.086.159.058 1.011.477 1.184.564.174.087.289.13.332.203.043.072.043.419-.101.824z" />
@@ -142,9 +142,9 @@ export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: 
 
       {/* Botón Flotante Principal de WhatsApp */}
       <div className="relative group">
-        {/* Tooltip flotante al pasar el mouse (cuando el modal está cerrado) */}
+        {/* Tooltip flotante al pasar el mouse o enfocar (cuando el modal está cerrado) */}
         {!isOpen && (
-          <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 pointer-events-none hidden md:flex items-center">
+          <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150 hidden md:flex items-center">
             <div className="bg-slate-900/95 text-white text-xs font-semibold py-1.5 px-3 rounded-lg shadow-lg whitespace-nowrap">
               ¿Dudas? Chatea con nosotros
             </div>
@@ -154,10 +154,10 @@ export function WhatsAppSupportButton({ phoneNumber = DEFAULT_WHATSAPP_PHONE }: 
 
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => setIsOpen((prev) => !prev)}
           aria-expanded={isOpen}
-          aria-label="Abrir soporte por WhatsApp"
-          className="flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-full bg-[#25D366] text-white shadow-xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-emerald-400/40 relative z-10 cursor-pointer"
+          aria-label={isOpen ? 'Cerrar soporte por WhatsApp' : 'Abrir soporte por WhatsApp'}
+          className="flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-[#052E16] shadow-xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-emerald-600/50 relative z-10 cursor-pointer"
         >
           {/* Icono de WhatsApp */}
           <svg className="w-6 h-6 lg:w-7 lg:h-7 fill-current" viewBox="0 0 24 24">

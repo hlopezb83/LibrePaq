@@ -1,5 +1,6 @@
 import { getRequiredSupabase } from '../supabase';
 import type { BankStatementLine } from '../../shared/types';
+import { fetchAllRows } from './supabase-pagination';
 
 export function mapBankStatementLine(
   l: Record<string, unknown>,
@@ -22,7 +23,7 @@ export function mapBankStatementLine(
 }
 
 /**
- * Consulta bank_statement_matches para marcar como conciliados TODOS los movement_id (1..N)
+ * Consulta paginada a bank_statement_matches para marcar como conciliados TODOS los movement_id (1..N)
  * vinculados a líneas activas en cruces Varios-a-1.
  */
 export async function fetchActiveN1MatchedMovementIds(
@@ -31,16 +32,53 @@ export async function fetchActiveN1MatchedMovementIds(
 ): Promise<Set<string>> {
   const result = new Set<string>();
   if (activeStatementLineIds.size === 0) return result;
-  const { data, error } = await getRequiredSupabase()
-    .from('bank_statement_matches')
-    .select('bank_line_id, movement_id')
-    .eq('company_id', companyId);
+  const rows = await fetchAllRows(async (from, to) =>
+    getRequiredSupabase()
+      .from('bank_statement_matches')
+      .select('bank_line_id, movement_id')
+      .eq('company_id', companyId)
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
 
-  if (error || !data) return result;
-  for (const row of data as Array<{ bank_line_id?: string; movement_id?: string }>) {
+  for (const row of rows as Array<{ bank_line_id?: string; movement_id?: string }>) {
     if (row.bank_line_id && row.movement_id && activeStatementLineIds.has(String(row.bank_line_id))) {
       result.add(String(row.movement_id));
     }
   }
   return result;
+}
+
+/**
+ * Impide asignar el mismo movimiento contable a múltiples líneas bancarias (1-a-1 o Varios-a-1).
+ */
+export async function assertMovementNotAlreadyMatched(
+  companyId: string,
+  movementId: string,
+  targetLineId: string
+): Promise<void> {
+  const client = getRequiredSupabase();
+  const { data: lineMatches, error: lineErr } = await client
+    .from('bank_statement_lines')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('matched_movement_id', movementId)
+    .neq('id', targetLineId)
+    .limit(1);
+  if (lineErr) throw new Error(lineErr.message);
+  if ((lineMatches ?? []).length > 0) {
+    throw new Error('Este movimiento contable ya está conciliado con otra línea bancaria.');
+  }
+
+  const { data: n1Matches, error: n1Err } = await client
+    .from('bank_statement_matches')
+    .select('id, bank_line_id')
+    .eq('company_id', companyId)
+    .eq('movement_id', movementId)
+    .neq('bank_line_id', targetLineId)
+    .limit(1);
+  if (n1Err) throw new Error(n1Err.message);
+  if ((n1Matches ?? []).length > 0) {
+    throw new Error('Este movimiento contable ya forma parte de un cruce bancario N-a-1.');
+  }
 }

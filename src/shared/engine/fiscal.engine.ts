@@ -217,6 +217,7 @@ export function computeFiscalWorkpaper(params: {
       ingresosPeriodo: fromCents(ingresosMesCents),
       ingresosAcumuladosEjercicio: fromCents(ingresosAcumCents),
       deduccionesAutorizadasPeriodo: fromCents(deduccionesMesCents),
+      deduccionesAcumuladasEjercicio: fromCents(deduccionesAcumCents),
       coeficienteUtilidadAplicado: cu,
       utilidadFiscalEstimada: fromCents(utilidadFiscalEstimadaCents),
       perdidasFiscalesAplicadas: fromCents(perdidasAplicadasCents),

@@ -9,7 +9,13 @@ import type {
   ThirdPartyRecord
 } from '../../shared/types';
 
-export function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyRecord {
+export type ThirdPartyWithBackupAliases = ThirdPartyRecord & {
+  deductiblePct?: number;
+  estatus69b?: Efos69BStatus;
+};
+
+export function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyWithBackupAliases {
+  const estatus = (t.estatus_69b || t.estatus69B || t.estatus69b || 'LIMPIO') as Efos69BStatus;
   return {
     id: String(t.id),
     companyId: String(t.company_id),
@@ -21,7 +27,9 @@ export function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyRec
     tipoTerceroDiot: (t.tipo_tercero_diot as '04' | '05') || '04',
     tipoOperacionDiot: (t.tipo_operacion_diot as '03' | '06' | '85') || '85',
     tasaIvaDefault: (t.tasa_iva_default === 8 ? 8 : t.tasa_iva_default === 0 ? 0 : 16) as 16 | 8 | 0,
-    estatus69B: (t.estatus_69b || 'LIMPIO') as Efos69BStatus,
+    deductiblePct: Number(t.deductible_pct ?? t.deductiblePct ?? 100),
+    estatus69B: estatus,
+    estatus69b: estatus,
     updatedAt: String(t.updated_at || new Date().toISOString())
   };
 }
@@ -50,8 +58,8 @@ export function mapSupabaseFixedAsset(f: Record<string, unknown>): FixedAssetRec
 
 export async function saveThirdPartyWithClient(
   client: SupabaseClient,
-  payload: Omit<ThirdPartyRecord, 'id' | 'updatedAt'>
-): Promise<ThirdPartyRecord> {
+  payload: Omit<ThirdPartyWithBackupAliases, 'id' | 'updatedAt'>
+): Promise<ThirdPartyWithBackupAliases> {
   const cleanRfc = payload.rfc.trim().toUpperCase();
   const { data: existing, error: lookupErr } = await client
     .from('third_parties')
@@ -63,6 +71,8 @@ export async function saveThirdPartyWithClient(
 
   const id = existing?.id ? String(existing.id) : `tp_${payload.companyId}_${cleanRfc}`;
   const now = new Date().toISOString();
+  const resolvedEstatus69B = payload.estatus69B || payload.estatus69b || 'LIMPIO';
+  const resolvedDeductiblePct = Math.max(0, Math.min(100, Number(payload.deductiblePct ?? 100)));
 
   const { data, error } = await client
     .from('third_parties')
@@ -78,7 +88,8 @@ export async function saveThirdPartyWithClient(
         tipo_tercero_diot: payload.tipoTerceroDiot,
         tipo_operacion_diot: payload.tipoOperacionDiot,
         tasa_iva_default: payload.tasaIvaDefault,
-        estatus_69b: payload.estatus69B,
+        deductible_pct: resolvedDeductiblePct,
+        estatus_69b: resolvedEstatus69B,
         updated_at: now
       },
       { onConflict: 'company_id,rfc' }

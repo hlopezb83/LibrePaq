@@ -46,6 +46,16 @@ export function AccountEditorModal({
     ? accounts.find((a) => a.code === parentCode)
     : undefined;
   const computedLevel = Math.min(4, selectedParent ? selectedParent.level + 1 : 1);
+  const parentHasActivity = Boolean(
+    selectedParent &&
+      (selectedParent.periodCharges > 0 ||
+        selectedParent.periodCredits > 0 ||
+        Math.abs(selectedParent.initialBalanceComputed) >= 0.01 ||
+        Math.abs(selectedParent.initialBalance) >= 0.01)
+  );
+  const hasBlockedAffectableParent = Boolean(
+    !editingAccountId && selectedParent?.isAffectable && parentHasActivity
+  );
 
   return (
     <dialog
@@ -89,12 +99,28 @@ export function AccountEditorModal({
           method="post"
           onSubmit={(e) => {
             e.preventDefault();
-            if (isWriteBlocked || isSaving) return;
+            if (isWriteBlocked || isSaving || hasBlockedAffectableParent) return;
             onSave();
           }}
           className="flex-1 min-h-0 flex flex-col overflow-hidden"
         >
           <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-3.5">
+          {hasBlockedAffectableParent && selectedParent && (
+            <div
+              role="alert"
+              className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900"
+            >
+              La cuenta padre <strong className="font-mono">{selectedParent.code}</strong> es afectable y ya tiene movimientos o saldo inicial. Para evitar doble conteo (2×), elige una cuenta acumuladora o reclasifica sus movimientos primero.
+            </div>
+          )}
+          {!editingAccountId && selectedParent?.isAffectable && !parentHasActivity && (
+            <div
+              role="status"
+              className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900"
+            >
+              La cuenta padre <strong className="font-mono">{selectedParent.code}</strong> se convertirá automáticamente en cuenta acumuladora (no afectable) al crear esta subcuenta.
+            </div>
+          )}
           {formError && (
             <div
               role="alert"
@@ -276,7 +302,7 @@ export function AccountEditorModal({
             </button>
             <button
               type="submit"
-              disabled={isSaving || isWriteBlocked}
+              disabled={isSaving || isWriteBlocked || hasBlockedAffectableParent}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
             >
               <CheckCircle2 className="w-4 h-4" aria-hidden="true" />

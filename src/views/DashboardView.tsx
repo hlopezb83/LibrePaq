@@ -24,6 +24,7 @@ export function DashboardView() {
     error,
     refetch,
     isPeriodLocked,
+    isReadOnly,
     trialBalanceSummary,
     autoPolizaMutation,
     batchAutoPolizaMutation,
@@ -130,6 +131,7 @@ export function DashboardView() {
         isBatchAutoPolizaPending={batchAutoPolizaMutation.isPending}
         onBatchAutoPoliza={(ids) => batchAutoPolizaMutation.mutate(ids)}
         isPeriodLocked={isPeriodLocked}
+        isReadOnly={isReadOnly}
       />
 
       {/* Tarjetas de KPIs Principales y Posición Financiera */}
@@ -166,6 +168,7 @@ export function DashboardView() {
           pendingCfdiId={autoPolizaMutation.isPending ? autoPolizaMutation.variables : null}
           onSingleAutoPoliza={(id) => autoPolizaMutation.mutate(id)}
           isPeriodLocked={isPeriodLocked}
+          isReadOnly={isReadOnly}
         />
 
         <DashboardTrendSection

@@ -3,6 +3,7 @@ import { fromCents, toCents } from '../../shared/accounting-engine';
 import type {
   AccountLedgerEntry,
   AccountLedgerResponse,
+  AccountWithBalance,
   Company,
   PolizaType
 } from '../../shared/types';
@@ -65,16 +66,40 @@ export const supabaseAccountLedger = {
       descendantCodes.add(targetAcc.code);
       descendantIds.add(targetAcc.id);
     } else {
-      let prefix = targetAcc.code;
-      if (targetAcc.code.endsWith('-00-000')) {
-        prefix = targetAcc.level === 1 ? targetAcc.code.slice(0, 1) : `${targetAcc.code.slice(0, 3)}-`;
-      } else if (targetAcc.code.endsWith('-000')) {
-        prefix = `${targetAcc.code.slice(0, 6)}-`;
-      }
+      const childrenByParent = new Map<string, AccountWithBalance[]>();
       for (const acc of reportsStart.trialBalance) {
-        if (acc.isAffectable && acc.code.startsWith(prefix)) {
-          descendantCodes.add(acc.code);
-          descendantIds.add(acc.id);
+        if (!acc.parentCode) continue;
+        const list = childrenByParent.get(acc.parentCode) ?? [];
+        list.push(acc);
+        childrenByParent.set(acc.parentCode, list);
+      }
+
+      const visited = new Set<string>();
+      const queue: AccountWithBalance[] = [targetAcc];
+      const maxSteps = reportsStart.trialBalance.length + 1;
+      for (let step = 0; step < maxSteps && queue.length > 0; step += 1) {
+        const curr = queue.shift()!;
+        if (visited.has(curr.code)) continue;
+        visited.add(curr.code);
+        if (curr.isAffectable) {
+          descendantCodes.add(curr.code);
+          descendantIds.add(curr.id);
+        }
+        const children = childrenByParent.get(curr.code) ?? [];
+        for (const ch of children) {
+          if (!visited.has(ch.code)) queue.push(ch);
+        }
+      }
+
+      // Respaldo para catálogos legados sin parentCode enlazado
+      if (descendantCodes.size === 0) {
+        const rootSeg = targetAcc.code.split('-')[0] ?? targetAcc.code;
+        const prefix = targetAcc.level === 1 ? rootSeg.slice(0, 1) : `${rootSeg}-`;
+        for (const acc of reportsStart.trialBalance) {
+          if (acc.isAffectable && acc.code.startsWith(prefix)) {
+            descendantCodes.add(acc.code);
+            descendantIds.add(acc.id);
+          }
         }
       }
     }
@@ -149,8 +174,11 @@ export const supabaseAccountLedger = {
 
     const rows = (movementsData || []) as unknown as SupabasePolizaMovementRow[];
 
-    // Ordenar cronológicamente por fecha, folio y movement ID
+    // Ordenar cronológicamente poniendo periodo antes de fecha (evita intercalar P13 con P12), luego folio y movement ID
     rows.sort((a, b) => {
+      const perA = Number(a.polizas?.periodo || 0);
+      const perB = Number(b.polizas?.periodo || 0);
+      if (perA !== perB) return perA - perB;
       const fechaA = a.polizas?.fecha || '';
       const fechaB = b.polizas?.fecha || '';
       if (fechaA !== fechaB) return fechaA.localeCompare(fechaB);

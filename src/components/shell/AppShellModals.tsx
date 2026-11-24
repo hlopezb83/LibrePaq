@@ -179,7 +179,7 @@ export function AppShellModals({
         />
       )}
 
-      {/* Modal de Autenticación y Acceso Supabase Cloud */}
+      {/* Modal de Autenticación y Acceso a la Nube */}
       {hasOpenedAuth && (
         <AuthModal dialogRef={authDialogRef} />
       )}

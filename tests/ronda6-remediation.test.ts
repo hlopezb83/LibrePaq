@@ -57,7 +57,7 @@ describe('Ronda 6 — Remediation & Architectural Integrity Suite', () => {
 
       expect(resolveFiscalAccount(seed, 'IVA_ACREDITABLE_PAGADO').code).toBe('118-01-001');
       expect(resolveFiscalAccount(seed, 'IVA_TRASLADADO_COBRADO').code).toBe('208-01-001');
-      expect(resolveFiscalAccount(seed, 'RESULTADO_DEL_EJERCICIO').code).toBe('301-02-001');
+      expect(resolveFiscalAccount(seed, 'RESULTADO_DEL_EJERCICIO').code).toBe('305-01-001');
       expect(resolveFiscalAccount(seed, 'GASTO_IMPUESTO_UTILIDAD').code).toBe('801-01-001');
 
       for (const acc of seed) {

@@ -126,13 +126,13 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     sumCents(ingresosAccounts.map((a) => a.periodCredits - a.periodCharges))
   );
   const tbIngresosAcumulados = fromCents(
-    sumCents(ingresosAccounts.map((a) => a.finalBalance))
+    sumCents(ingresosAccounts.map((a) => (a.nature === 'DEUDORA' ? -a.finalBalance : a.finalBalance)))
   );
   const tbDeduccionesPeriodo = fromCents(
     sumCents(egresosAccounts.map((a) => a.periodCharges - a.periodCredits))
   );
   const tbDeduccionesAcumuladas = fromCents(
-    sumCents(egresosAccounts.map((a) => a.finalBalance))
+    sumCents(egresosAccounts.map((a) => (a.nature === 'ACREEDORA' ? -a.finalBalance : a.finalBalance)))
   );
 
   const accIvaCobrado = trialBalance.find(
@@ -255,6 +255,27 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     }
   }
 
+  const esResicoPf = company.regimenFiscal.slice(0, 3) === '626' && company.rfc.trim().length === 13;
+  const includeNonCfdiPayrollAndDep = useCashFlow && !esResicoPf;
+  let extraDedPeriodoCents = 0;
+  let extraDedAcumCents = 0;
+  if (includeNonCfdiPayrollAndDep) {
+    for (const a of egresosAccounts) {
+      if (!isNonCfdiCashDeductionAccount(a)) continue;
+      extraDedPeriodoCents += Math.max(0, toCents(a.periodCharges - a.periodCredits));
+      extraDedAcumCents += Math.max(
+        0,
+        toCents(a.nature === 'ACREEDORA' ? -a.finalBalance : a.finalBalance)
+      );
+    }
+  }
+  const cashDedPeriodo = fromCents(toCents(cashResult.deduccionesPeriodo) + extraDedPeriodoCents);
+  const cashDedAcum = fromCents(toCents(cashResult.deduccionesAcumuladas) + extraDedAcumCents);
+  const effectiveCashSummary =
+    includeNonCfdiPayrollAndDep && extraDedPeriodoCents > 0
+      ? { ...cashResult.cashBasisSummary, deduccionesPagadasFlujo: cashDedPeriodo }
+      : cashResult.cashBasisSummary;
+
   return computeFiscalWorkpaper({
     company,
     ejercicio,
@@ -262,8 +283,8 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     parameters,
     ingresosPeriodo: useCashFlow ? cashResult.ingresosPeriodo : tbIngresosPeriodo,
     ingresosAcumuladosEjercicio: useCashFlow ? cashResult.ingresosAcumulados : tbIngresosAcumulados,
-    deduccionesAutorizadasPeriodo: useCashFlow ? cashResult.deduccionesPeriodo : tbDeduccionesPeriodo,
-    deduccionesAcumuladasEjercicio: useCashFlow ? cashResult.deduccionesAcumuladas : tbDeduccionesAcumuladas,
+    deduccionesAutorizadasPeriodo: useCashFlow ? cashDedPeriodo : tbDeduccionesPeriodo,
+    deduccionesAcumuladasEjercicio: useCashFlow ? cashDedAcum : tbDeduccionesAcumuladas,
     ivaTrasladadoCobrado,
     ivaAcreditablePagado,
     isrRetenidoPorPagar,
@@ -271,9 +292,27 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     isrRetenidoFavorPeriodo,
     ivaRetenidoFavorPeriodo,
     usdCfdis,
-    cashBasisSummary: cashResult.cashBasisSummary,
+    cashBasisSummary: effectiveCashSummary,
     resicoThresholdAlert: cashResult.resicoThresholdAlert,
     ivaBreakdown: effectiveIvaBreakdown,
     retencionesDesglose
   });
+}
+
+function isNonCfdiCashDeductionAccount(a: AccountWithBalance): boolean {
+  const sat = (a.satGroupCode ?? '').trim();
+  const lower = a.name.toLowerCase();
+  if (
+    ['601-01-007', '601-01-008', '601-01-011', '601-02-001', '601-02-002', '601-26-001', '601-58-001'].includes(a.code) ||
+    ['601.26', '601.27', '601.28', '601.29', '601.58'].includes(sat) ||
+    sat.startsWith('613')
+  ) {
+    return true;
+  }
+  if ((a.code === '601-01-009' || a.code === '601-01-010') && sat !== '601.48' && sat !== '601.52') {
+    return true;
+  }
+  return /imss|infonavit|\bsar\b|\brcv\b|\bisn\b|impuesto sobre n[oó]mina|cuota.*patron|depreciaci[oó]n\s*(fiscal|autorizada)|deducci[oó]n\s*(fiscal|de\s*inversiones)/i.test(
+    lower
+  );
 }

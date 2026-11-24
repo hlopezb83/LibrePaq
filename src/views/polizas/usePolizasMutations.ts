@@ -11,6 +11,7 @@ export interface UsePolizasMutationsParams {
   currentYear?: number;
   currentPeriod?: number;
   isPeriodLocked: boolean;
+  isPeriod13Locked?: boolean;
   isReadOnlyClient?: boolean;
   editingPolizaId: string | null;
   tipo: PolizaType;
@@ -32,6 +33,7 @@ export function usePolizasMutations({
   currentYear,
   currentPeriod,
   isPeriodLocked,
+  isPeriod13Locked = false,
   isReadOnlyClient = false,
   editingPolizaId,
   tipo,
@@ -162,11 +164,11 @@ export function usePolizasMutations({
 
   const closeYearMutation = useMutation({
     mutationFn: async () => {
-      if (isWriteBlocked) {
+      if (isReadOnlyClient || isPeriod13Locked) {
         throw new Error(
           isReadOnlyClient
             ? 'Acceso de solo lectura: no es posible ejecutar el cierre anual.'
-            : 'El periodo contable está bloqueado ante el SAT.'
+            : 'El Periodo 13 (Cierre Anual) está bloqueado ante el SAT.'
         );
       }
       if (!currentYear) throw new Error('Año no definido');

@@ -61,18 +61,26 @@ export function exportAllDeliverablesCsv({
   ]);
 
   // 2. Estado de Resultados
+  const signedBal = (
+    a: FinancialStatementsResponse['trialBalance'][number],
+    expectedNature: 'DEUDORA' | 'ACREEDORA'
+  ) => (a.nature === expectedNature ? a.finalBalance : -a.finalBalance);
+
   const er = reportsData.incomeStatement;
   const totalIsr = er.totalIsr ?? 0;
   const isrRows: Array<Array<string | number>> =
     totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
       ? [
-          ...(er.isrEjercicio ?? []).map((a) => [
-            'ISR EJERCICIO',
-            a.code,
-            a.name,
-            a.finalBalance,
-            formatVerticalPct(a.finalBalance, er.totalIngresos)
-          ]),
+          ...(er.isrEjercicio ?? []).map((a) => {
+            const val = signedBal(a, 'DEUDORA');
+            return [
+              'ISR EJERCICIO',
+              a.code,
+              a.name,
+              val,
+              formatVerticalPct(val, er.totalIngresos)
+            ];
+          }),
           [
             'IMPUESTOS A LA UTILIDAD (ISR)',
             '',
@@ -85,40 +93,27 @@ export function exportAllDeliverablesCsv({
 
   const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Importe MXN', '% s/Ventas'];
   const erRows: Array<Array<string | number>> = [
-    ...er.ingresos.map((a) => [
-      'INGRESOS',
-      a.code,
-      a.name,
-      a.finalBalance,
-      formatVerticalPct(a.finalBalance, er.totalIngresos)
-    ]),
+    ...er.ingresos.map((a) => {
+      const val = signedBal(a, 'ACREEDORA');
+      return ['INGRESOS', a.code, a.name, val, formatVerticalPct(val, er.totalIngresos)];
+    }),
     ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', er.totalIngresos, '100.0%'],
-    ...er.costos.map((a) => [
-      'COSTOS',
-      a.code,
-      a.name,
-      a.finalBalance,
-      formatVerticalPct(a.finalBalance, er.totalIngresos)
-    ]),
+    ...er.costos.map((a) => {
+      const val = signedBal(a, 'DEUDORA');
+      return ['COSTOS', a.code, a.name, val, formatVerticalPct(val, er.totalIngresos)];
+    }),
     ['TOTAL COSTOS', '', 'Costo de Ventas', er.totalCostos, formatVerticalPct(er.totalCostos, er.totalIngresos)],
     ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', er.utilidadBruta, formatVerticalPct(er.utilidadBruta, er.totalIngresos)],
-    ...er.gastos.map((a) => [
-      'GASTOS',
-      a.code,
-      a.name,
-      a.finalBalance,
-      formatVerticalPct(a.finalBalance, er.totalIngresos)
-    ]),
+    ...er.gastos.map((a) => {
+      const val = signedBal(a, 'DEUDORA');
+      return ['GASTOS', a.code, a.name, val, formatVerticalPct(val, er.totalIngresos)];
+    }),
     ['TOTAL GASTOS', '', 'Gastos Generales de Operación', er.totalGastos, formatVerticalPct(er.totalGastos, er.totalIngresos)],
     ...isrRows,
     ['UTILIDAD NETA', '', 'Resultado Neto del Periodo', er.utilidadNeta, formatVerticalPct(er.utilidadNeta, er.totalIngresos)]
   ];
 
   // 3. Balance General
-  const signedBal = (
-    a: FinancialStatementsResponse['trialBalance'][number],
-    expectedNature: 'DEUDORA' | 'ACREEDORA'
-  ) => (a.nature === expectedNature ? a.finalBalance : -a.finalBalance);
 
   const bgHeaders = ['Clasificación', 'Código', 'Nombre Cuenta', 'Saldo Final MXN'];
   const bgRows: Array<Array<string | number>> = [

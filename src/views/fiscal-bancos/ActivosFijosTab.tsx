@@ -128,15 +128,23 @@ export function ActivosFijosTab({
                 </button>
                 <button
                   type="button"
-                  disabled={fa.genDepPolizaMutation.isPending || isWriteLocked}
-                  title={isWriteLocked ? lockTitle : 'Generar póliza mensual de depreciación contable'}
+                  disabled={fa.genDepPolizaMutation.isPending || isWriteLocked || fa.hasDepPolizaThisPeriod}
+                  title={
+                    fa.hasDepPolizaThisPeriod
+                      ? 'Ya existe una póliza de depreciación registrada para este periodo'
+                      : isWriteLocked
+                        ? lockTitle
+                        : 'Generar póliza mensual de depreciación contable'
+                  }
                   onClick={() => fa.genDepPolizaMutation.mutate()}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-2xs cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" aria-hidden="true" />
                   {fa.genDepPolizaMutation.isPending
                     ? 'Generando Póliza...'
-                    : 'Generar Póliza de Depreciación del Mes'}
+                    : fa.hasDepPolizaThisPeriod
+                      ? 'Depreciación del Mes ya Generada'
+                      : 'Generar Póliza de Depreciación del Mes'}
                 </button>
               </div>
             </div>

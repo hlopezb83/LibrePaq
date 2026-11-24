@@ -122,7 +122,7 @@ describe('Ola 3 — PyME Parity, Multi-CFDI, Rules, REP Divisas, Catalog & Repor
     expect(repRec.counterAccountCode.startsWith('102-')).toBe(true);
 
     const nomina = resolveDefaultAccountsForCfdi(
-      makeCfdi({ direction: 'RECIBIDO', tipoComprobante: 'N', metodoPago: 'PUE', ivaTrasladado: 0, isrRetenido: 100, total: 900 }),
+      makeCfdi({ direction: 'EMITIDO', tipoComprobante: 'N', metodoPago: 'PUE', ivaTrasladado: 0, isrRetenido: 100, total: 900 }),
       accounts
     );
     expect(nomina.operationAccountCode).toBe('601-01-001');

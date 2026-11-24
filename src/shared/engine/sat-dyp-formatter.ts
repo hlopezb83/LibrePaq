@@ -22,6 +22,13 @@ export function formatSatDypWorkpaperText(
   const cap = workpaper.resumenLineaCapturaSat;
   const totalPagar = cap.totalEstimadoDia17;
 
+  const isPfGeneral = workpaper.company.rfc.trim().length === 13 && !isr.esResico;
+  const isrMethodLabel = isr.esResico
+    ? 'RESICO'
+    : isPfGeneral
+      ? 'Art. 106 LISR'
+      : `Art. 14 C.U. ${isr.coeficienteUtilidadAplicado.toFixed(4)}`;
+
   return [
     '=======================================================',
     'CÉDULA FISCAL DÍA 17 — SAT DECLARACIONES Y PAGOS (DyP)',
@@ -29,7 +36,7 @@ export function formatSatDypWorkpaperText(
     `Periodo: P${String(period).padStart(2, '0')}/${year} | Régimen: ${workpaper.company.regimenFiscal}`,
     '=======================================================',
     '',
-    `1. PAGO PROVISIONAL ISR (${isr.esResico ? 'RESICO' : `Art. 14 C.U. ${isr.coeficienteUtilidadAplicado.toFixed(4)}`}):`,
+    `1. PAGO PROVISIONAL ISR (${isrMethodLabel}):`,
     `- Ingresos Nominales del Mes: ${fmtMxn(isr.ingresosPeriodo)}`,
     `- Ingresos Acumulados del Ejercicio: ${fmtMxn(isr.ingresosAcumuladosEjercicio)}`,
     `- Utilidad Fiscal Estimada: ${fmtMxn(isr.utilidadFiscalEstimada)}`,

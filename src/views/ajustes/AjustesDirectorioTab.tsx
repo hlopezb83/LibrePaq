@@ -25,6 +25,8 @@ export interface AjustesDirectorioTabProps {
   confirmDeleteCompany: boolean;
   setConfirmDeleteCompany: (val: boolean) => void;
   onConfigureFicha: () => void;
+  canDeleteCompany?: boolean;
+  canCreateCompany?: boolean;
   toast: {
     success: (msg: string) => void;
     error: (msg: string) => void;
@@ -39,6 +41,8 @@ export function AjustesDirectorioTab({
   confirmDeleteCompany,
   setConfirmDeleteCompany,
   onConfigureFicha,
+  canDeleteCompany = true,
+  canCreateCompany = true,
   toast
 }: AjustesDirectorioTabProps) {
   const { openCompanyWizard } = useUIModal();
@@ -121,8 +125,9 @@ export function AjustesDirectorioTab({
 
             <button
               type="button"
+              disabled={!canCreateCompany}
               onClick={openCompanyWizard}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 transition shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
             >
               <Plus className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>Dar de Alta Empresa</span>
@@ -204,9 +209,9 @@ export function AjustesDirectorioTab({
                       RFC: {c.rfc}
                       {m11.isValidCheckDigit ? (
                         <span className="text-emerald-700 text-[10px] ml-0.5">✓ M11</span>
-                      ) : (
+                      ) : m11.expectedCheckDigit ? (
                         <span className="text-amber-700 text-[10px] ml-0.5">⚠ M11:{m11.expectedCheckDigit}</span>
-                      )}
+                      ) : null}
                     </span>
                     <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
                       CP: {c.codigoPostal || '64000'}
@@ -254,7 +259,7 @@ export function AjustesDirectorioTab({
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    {!isCurrent && (
+                    {!isCurrent && canDeleteCompany && (
                       <button
                         type="button"
                         onClick={() => setCompanyPendingDelete(c)}
@@ -265,7 +270,7 @@ export function AjustesDirectorioTab({
                         <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     )}
-                    {isCurrent && companies.length > 1 && (
+                    {isCurrent && companies.length > 1 && canDeleteCompany && (
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteCompany(!confirmDeleteCompany)}

@@ -3,7 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { bankN1Client } from '../../lib/bank-n1-client';
 import { isSupabaseConfigured } from '../../lib/supabase';
-import { supabaseBank } from '../../lib/supabase/supabase-bank';
+
+interface ExtendedBankApiClient {
+  manualMatchBankLine?: (lineId: string, movementId: string) => Promise<unknown>;
+  deleteBankStatementLine?: (lineId: string) => Promise<unknown>;
+}
 import { useToast } from '../../context/ToastContext';
 import type { BankReconciliationResponse, BankStatementLine, ReconciliationFormulaData } from '../../shared/types';
 import type { BankN1MatchProposal } from '../../shared/types/bank-n1.types';
@@ -79,8 +83,11 @@ export function useConciliacionTabActions(params: {
   const manualMatchMutation = useMutation({
     mutationFn: ({ lineId, movementId }: { lineId: string; movementId: string }) => {
       if (isWriteLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
-      if (!isSupabaseConfigured) throw new Error('El emparejamiento manual requiere conexión Supabase Cloud.');
-      return supabaseBank.manualMatchBankLine(lineId, movementId);
+      const fn = (apiClient as unknown as ExtendedBankApiClient).manualMatchBankLine;
+      if (!isSupabaseConfigured || typeof fn !== 'function') {
+        throw new Error('El emparejamiento manual requiere conexión Supabase Cloud.');
+      }
+      return fn(lineId, movementId);
     },
     onSuccess: () => {
       setSelectedLineId(null);
@@ -94,8 +101,11 @@ export function useConciliacionTabActions(params: {
   const deleteBankLineMutation = useMutation({
     mutationFn: (lineId: string) => {
       if (isWriteLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
-      if (!isSupabaseConfigured) throw new Error('Eliminar líneas bancarias requiere conexión Supabase Cloud.');
-      return supabaseBank.deleteBankStatementLine(lineId);
+      const fn = (apiClient as unknown as ExtendedBankApiClient).deleteBankStatementLine;
+      if (!isSupabaseConfigured || typeof fn !== 'function') {
+        throw new Error('Eliminar líneas bancarias requiere conexión Supabase Cloud.');
+      }
+      return fn(lineId);
     },
     onSuccess: () => {
       setSelectedLineId(null);

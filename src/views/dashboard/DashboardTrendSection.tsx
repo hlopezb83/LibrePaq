@@ -49,12 +49,12 @@ export function DashboardTrendSection({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <div className={`relative h-48 flex items-end justify-between gap-1 sm:gap-2 pt-8 pb-2 px-1 sm:px-2 border-b border-slate-200 ${monthlyTrend.length > 6 ? 'min-w-[340px]' : ''}`}>
+        <div className="overflow-x-auto pb-1">
+          <div className={`relative h-48 flex items-end justify-between gap-1.5 pt-8 pb-2 px-1.5 border-b border-slate-200 ${monthlyTrend.length > 6 ? 'min-w-[440px]' : ''}`}>
           {/* Líneas horizontales de referencia */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-1 sm:inset-x-2 top-8 bottom-7 flex flex-col justify-between"
+            className="pointer-events-none absolute inset-x-1.5 top-8 bottom-7 flex flex-col justify-between"
           >
             <div className="border-b border-dashed border-slate-200 w-full" />
             <div className="border-b border-dashed border-slate-200 w-full" />
@@ -62,8 +62,8 @@ export function DashboardTrendSection({
           </div>
 
           {monthlyTrend.map((item, idx) => {
-            const ingHeight = Math.max(8, Math.round((item.ingresos / maxBar) * 124));
-            const egrHeight = Math.max(8, Math.round((item.egresos / maxBar) * 124));
+            const ingHeight = item.ingresos > 0 ? Math.max(6, Math.round((item.ingresos / maxBar) * 124)) : 2;
+            const egrHeight = item.egresos > 0 ? Math.max(6, Math.round((item.egresos / maxBar) * 124)) : 2;
             const isCurrent = item.periodo === currentPeriod;
             const utilMes = item.ingresos - item.egresos;
             const tooltipPos =
@@ -100,10 +100,10 @@ export function DashboardTrendSection({
                   </div>
                 </div>
 
-                <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-32">
+                <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-32">
                   <div
                     style={{ height: `${ingHeight}px` }}
-                    className={`w-2.5 sm:w-3.5 rounded-t-xs transition-all ${
+                    className={`w-2 sm:w-2.5 rounded-t-xs transition-all ${
                       isCurrent
                         ? 'bg-blue-700'
                         : 'bg-blue-600/75 group-hover:bg-blue-700'
@@ -111,7 +111,7 @@ export function DashboardTrendSection({
                   />
                   <div
                     style={{ height: `${egrHeight}px` }}
-                    className={`w-2.5 sm:w-3.5 rounded-t-xs transition-all ${
+                    className={`w-2 sm:w-2.5 rounded-t-xs transition-all ${
                       isCurrent
                         ? 'bg-slate-600'
                         : 'bg-slate-400 group-hover:bg-slate-600'
@@ -119,11 +119,11 @@ export function DashboardTrendSection({
                   />
                 </div>
                 <span
-                  className={`text-[10px] sm:text-[11px] font-mono truncate ${
+                  className={`text-[10px] font-mono whitespace-nowrap ${
                     isCurrent ? 'font-bold text-blue-800' : 'text-slate-600'
                   }`}
                 >
-                  {item.mesNombre}
+                  {item.mesNombre.slice(0, 3)}
                 </span>
               </button>
             );

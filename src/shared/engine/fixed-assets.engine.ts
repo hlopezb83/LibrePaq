@@ -50,7 +50,7 @@ function resolveFiscalDepreciableMoiCents(asset: FixedAssetRecord, moiCents: num
 
 export function computeFixedAssetWithDepreciation(
   asset: FixedAssetRecord,
-  targetPeriod?: { ejercicio: number; periodo: number }
+  targetPeriod?: { ejercicio: number; periodo: number; alreadyDepreciatedThisPeriod?: boolean }
 ): FixedAssetWithCalculation {
   const moiCents = Math.max(0, toCents(asset.montoOriginalInversion));
   const annualRate = Math.max(0, Math.min(100, asset.tasaAnualPct)) / 100;
@@ -71,7 +71,12 @@ export function computeFixedAssetWithDepreciation(
   const isDepreciableNow = asset.estatus === 'ACTIVO' && !acquiredAfterTarget && !isPeriod13;
   const rawMonthlyCents = isDepreciableNow ? Math.round((moiCents * annualRate) / 12) : 0;
 
-  const priorMonths = Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
+  const rawPriorMonths = Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
+  // Si ya se generó la póliza del periodo actual, mesesDepreciadosPrevios ya incluye +1 de este mes.
+  const priorMonths =
+    targetPeriod?.alreadyDepreciatedThisPeriod && isDepreciableNow && rawPriorMonths > 0
+      ? rawPriorMonths - 1
+      : rawPriorMonths;
   const priorAccumulatedCents =
     priorMonths > 0 ? Math.min(moiCents, Math.round((moiCents * annualRate * priorMonths) / 12)) : 0;
   const totalAtTargetMonthCents = isDepreciableNow
@@ -92,13 +97,19 @@ export function computeFixedAssetWithDepreciation(
   const rawFiscalMonthlyBase = isDepreciableNow
     ? Math.round((fiscalMoiCents * annualRate) / 12)
     : 0;
-  const priorFiscalAccumCents = Math.min(
-    fiscalMoiCents,
-    Math.round((fiscalMoiCents * annualRate) / 12) * priorMonths
-  );
+  const priorFiscalAccumCents =
+    priorMonths > 0
+      ? Math.min(fiscalMoiCents, Math.round((fiscalMoiCents * annualRate * priorMonths) / 12))
+      : 0;
+  const totalFiscalAtTargetMonthCents = isDepreciableNow
+    ? Math.min(fiscalMoiCents, Math.round((fiscalMoiCents * annualRate * (priorMonths + 1)) / 12))
+    : priorFiscalAccumCents;
   const remainingFiscalBaseCents = Math.max(0, fiscalMoiCents - priorFiscalAccumCents);
   const cappedFiscalBaseMonthCents = isDepreciableNow
-    ? Math.min(rawFiscalMonthlyBase, remainingFiscalBaseCents)
+    ? Math.min(
+        Math.max(rawFiscalMonthlyBase, totalFiscalAtTargetMonthCents - priorFiscalAccumCents),
+        remainingFiscalBaseCents
+      )
     : 0;
   const fiscalMonthlyCents = Math.round(cappedFiscalBaseMonthCents * factorActualizacionInpc);
 

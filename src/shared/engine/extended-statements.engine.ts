@@ -260,6 +260,51 @@ function buildComparativeRows(
   return rows;
 }
 
+function hasNonZeroTrialActivity(accounts: readonly AccountWithBalance[] | null | undefined): boolean {
+  if (!accounts || accounts.length === 0) return false;
+  return accounts.some(
+    (a) =>
+      Math.abs(a.finalBalance) >= 0.01 ||
+      Math.abs(a.periodCharges) >= 0.01 ||
+      Math.abs(a.periodCredits) >= 0.01
+  );
+}
+
+/**
+ * En Periodo 13 post-cierre anual, las cuentas de resultados se saldaron en $0.00 y el resultado
+ * se traspasó a 305. Reconstruye la vista pre-cierre para NIF B-2 / B-4 sin doble conteo.
+ */
+function normalizePostCloseP13TrialBalance(
+  accounts: readonly AccountWithBalance[],
+  periodo: number
+): AccountWithBalance[] {
+  if (periodo !== 13) return [...accounts];
+  const pnl = accounts.filter(
+    (a) => (a.type === 'INGRESOS' || a.type === 'COSTOS' || a.type === 'GASTOS') && (a.isAffectable || a.level >= 2)
+  );
+  if (pnl.length === 0) return [...accounts];
+  const allClosed = pnl.every((a) => toCents(a.finalBalance) === 0);
+  const hadActivity = pnl.some(
+    (a) => toCents(a.initialBalanceComputed) !== 0 || toCents(a.periodCharges) > 0 || toCents(a.periodCredits) > 0
+  );
+  if (!allClosed || !hadActivity) return [...accounts];
+
+  return accounts.map((a) => {
+    if (a.type === 'INGRESOS' || a.type === 'COSTOS' || a.type === 'GASTOS') {
+      const preCloseCents =
+        a.nature === 'ACREEDORA'
+          ? toCents(a.initialBalanceComputed) + toCents(a.periodCredits)
+          : toCents(a.initialBalanceComputed) + toCents(a.periodCharges);
+      return { ...a, finalBalance: fromCents(preCloseCents) };
+    }
+    const prefix = getSatPrefixNum(a);
+    if (a.type === 'CAPITAL' && (prefix === 305 || (prefix === 302 && a.name.toLowerCase().includes('resultado')))) {
+      return { ...a, finalBalance: a.initialBalanceComputed };
+    }
+    return a;
+  });
+}
+
 /**
  * Calcula los estados financieros extendidos NIF B-2 (Flujos de Efectivo Método Indirecto),
  * NIF B-4 (Cambios en el Capital Contable) y Comparativo Interanual a partir de las balanzas.
@@ -272,20 +317,21 @@ export function computeExtendedFinancialStatements(params: {
   previousTrialBalance?: readonly AccountWithBalance[] | null;
 }): ExtendedFinancialStatementsResponse {
   const { company, ejercicio, periodo, currentTrialBalance, previousTrialBalance } = params;
-  const hasPrev = Boolean(previousTrialBalance && previousTrialBalance.length > 0);
-  const currNetCents = toCents(buildFinancialStatementsFromTrialBalance(company, [...currentTrialBalance], ejercicio, periodo).incomeStatement.utilidadNeta);
+  const normalizedCurrTB = normalizePostCloseP13TrialBalance(currentTrialBalance, periodo);
+  const hasPrev = hasNonZeroTrialActivity(previousTrialBalance);
+  const currNetCents = toCents(buildFinancialStatementsFromTrialBalance(company, normalizedCurrTB, ejercicio, periodo).incomeStatement.utilidadNeta);
   const prevNetCents = hasPrev
-    ? toCents(buildFinancialStatementsFromTrialBalance(company, [...(previousTrialBalance ?? [])], ejercicio - 1, periodo).incomeStatement.utilidadNeta)
-    : computeNetIncomeFromInitialCents(currentTrialBalance);
+    ? toCents(buildFinancialStatementsFromTrialBalance(company, [...(previousTrialBalance ?? [])], ejercicio - 1, 13).incomeStatement.utilidadNeta)
+    : computeNetIncomeFromInitialCents(normalizedCurrTB);
   const flowNetCents = hasPrev ? currNetCents : currNetCents - prevNetCents;
-  const pairs = buildAccountPairs(currentTrialBalance, previousTrialBalance, hasPrev);
+  const pairs = buildAccountPairs(normalizedCurrTB, previousTrialBalance, hasPrev);
 
   return {
     company, ejercicio, periodo,
     hasPreviousComparative: hasPrev,
     previousEjercicioLabel: hasPrev ? `Ejercicio ${ejercicio - 1}` : `Ejercicio ${ejercicio - 1} (Sin datos — Base $0.00)`,
-    cashFlow: buildCashFlowStatement(pairs, selectLeafAccounts(currentTrialBalance), flowNetCents, hasPrev ? prevNetCents : 0, hasPrev),
+    cashFlow: buildCashFlowStatement(pairs, selectLeafAccounts(normalizedCurrTB), flowNetCents, hasPrev ? prevNetCents : 0, hasPrev),
     equityChanges: buildEquityChangesStatement(pairs, prevNetCents, currNetCents, flowNetCents, hasPrev),
-    comparative: buildComparativeRows(currentTrialBalance, previousTrialBalance)
+    comparative: buildComparativeRows(normalizedCurrTB, previousTrialBalance)
   };
 }

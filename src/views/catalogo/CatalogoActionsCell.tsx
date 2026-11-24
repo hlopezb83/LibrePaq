@@ -1,4 +1,5 @@
 import { BookOpen, Pencil, Plus, Trash2 } from 'lucide-react';
+import { toCents } from '../../shared/accounting-engine';
 import type { AccountWithBalance } from '../../shared/types';
 
 interface CatalogoActionsCellProps {
@@ -72,7 +73,11 @@ export function CatalogoActionsCell({
       >
         <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
-      {row.isAffectable && row.periodCharges === 0 && row.periodCredits === 0 && (
+      {row.isAffectable &&
+        row.periodCharges === 0 &&
+        row.periodCredits === 0 &&
+        toCents(row.initialBalance) === 0 &&
+        toCents(row.initialBalanceComputed) === 0 && (
         confirmDeleteId === row.id ? (
           <div
             onKeyDown={(e) => {

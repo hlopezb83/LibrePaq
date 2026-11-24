@@ -5,8 +5,8 @@ import { getStoredAdAttribution, trackWorkspaceSignupConversion } from '../lib/a
 import { useAuth, checkIsSuperAdmin } from './AuthContext';
 import { setClientReadOnlyMode, useSupportSession } from '../lib/support-impersonation';
 import { workspaceRbacClient } from '../lib/workspace-rbac-client';
-import { getCurrentFiscalPeriod } from '../shared/date-utils';
 import { loadStoredViewedPeriods, saveStoredViewedPeriods, type ViewedPeriodsMap } from './companyPeriodStorage';
+import { buildSupportCompany, readUrlCompanyParam, resolveWorkspaceName } from './companyContextHelpers';
 import type { Company } from '../shared/types';
 import type { DespachoRole } from '../shared/types/despacho-rbac.types';
 
@@ -49,29 +49,18 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [workspaceNameOverride, setWorkspaceNameOverride] = useState<string | null>(null);
   const [viewedPeriods, setViewedPeriods] = useState<ViewedPeriodsMap>(() => loadStoredViewedPeriods(userScope));
 
-  const [activeCompanyId, setActiveCompanyIdState] = useState<string>(() => {
-    if (typeof window !== 'undefined' && window.location.search) {
-      const urlComp =
-        new URLSearchParams(window.location.search).get('companyId') ||
-        new URLSearchParams(window.location.search).get('company');
-      if (urlComp) return urlComp;
-    }
-    return localStorage.getItem(storageKey) || '';
-  });
+  const [activeCompanyId, setActiveCompanyIdState] = useState<string>(
+    () => readUrlCompanyParam() || localStorage.getItem(storageKey) || ''
+  );
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.search) {
-      const urlComp =
-        new URLSearchParams(window.location.search).get('companyId') ||
-        new URLSearchParams(window.location.search).get('company');
-      if (urlComp) {
-        setActiveCompanyIdState(urlComp);
-        localStorage.setItem(storageKey, urlComp);
-        return;
-      }
+    const urlComp = readUrlCompanyParam();
+    if (urlComp) {
+      setActiveCompanyIdState(urlComp);
+      localStorage.setItem(storageKey, urlComp);
+      return;
     }
-    const saved = localStorage.getItem(storageKey) || '';
-    setActiveCompanyIdState(saved);
+    setActiveCompanyIdState(localStorage.getItem(storageKey) || '');
     setWorkspaceNameOverride(localStorage.getItem(wsStorageKey));
     setViewedPeriods(loadStoredViewedPeriods(userScope));
   }, [storageKey, wsStorageKey, userScope]);
@@ -79,11 +68,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const defaultWorkspaceName = user
     ? `Despacho Contable — ${user.user_metadata?.full_name || user.email?.split('@')[0] || 'Mi Cartera'}`
     : 'Mi Despacho Contable';
-
-  const rawWsName = workspaceNameOverride || user?.user_metadata?.workspace_name;
-  const resolvedWsName = rawWsName
-    ? String(rawWsName).replace(/^Workspace(\s*[-—]\s*|\s+)/i, 'Despacho Contable — ')
-    : defaultWorkspaceName;
+  const resolvedWsName = resolveWorkspaceName(workspaceNameOverride, user?.user_metadata?.workspace_name, defaultWorkspaceName);
 
   const workspace: UserWorkspace | null = useMemo(() => {
     if (!user || isOwner) return null;
@@ -176,22 +161,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     enabled: Boolean(user) && !authLoading && !hasAdminAccess && !checkIsSuperAdmin(user)
   });
 
-  const supportCompany: Company | null = useMemo(() => {
-    if (!isSupportImpersonation || !supportSession) return null;
-    const d = supportDetail?.company;
-    return {
-      id: supportSession.companyId,
-      name: d?.name || supportSession.companyName,
-      rfc: d?.rfc || supportSession.companyRfc,
-      regimenFiscal: d?.regimenFiscal || '601 - General de Ley Personas Morales',
-      codigoPostal: d?.codigoPostal || '64000',
-      maskFormat: 'XXX-XX-XXX',
-      currentYear: d?.currentYear ?? getCurrentFiscalPeriod().year,
-      currentPeriod: d?.currentPeriod ?? 1,
-      createdAt: d?.createdAt || supportSession.startedAt,
-      userId: d?.userId ?? null
-    };
-  }, [isSupportImpersonation, supportSession, supportDetail]);
+  const supportCompany: Company | null = useMemo(
+    () => buildSupportCompany(isSupportImpersonation, supportSession, supportDetail?.company),
+    [isSupportImpersonation, supportSession, supportDetail]
+  );
 
   const effectiveCompanies = useMemo(
     () => (supportCompany ? [supportCompany] : companies),
@@ -253,26 +226,41 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     user && resolvedActiveCompanyId && !isSupportImpersonation &&
       !hasAdminAccess && !checkIsSuperAdmin(user) && !user.user_metadata?.is_guest
   );
+  const isDirectCompanyOwner = Boolean(
+    user && baseActiveCompany?.userId && baseActiveCompany.userId === user.id
+  );
 
-  const { data: effectiveRoleInfo, isLoading: effectiveRoleLoading } = useQuery({
+  const {
+    data: effectiveRoleInfo,
+    isLoading: effectiveRoleLoading,
+    isError: effectiveRoleError
+  } = useQuery({
     queryKey: ['effective-company-role', resolvedActiveCompanyId, user?.id],
     queryFn: () => workspaceRbacClient.getEffectiveCompanyRole(resolvedActiveCompanyId),
     enabled: shouldCheckCompanyRole,
     staleTime: 60_000,
-    retry: false
+    retry: 2
   });
 
-  const isRoleUnresolved = shouldCheckCompanyRole && (effectiveRoleLoading || !effectiveRoleInfo);
-  const isFailClosedNullRole = shouldCheckCompanyRole && effectiveRoleInfo?.role === null;
-  const isReadOnlyClient = Boolean(
-    isRoleUnresolved || isFailClosedNullRole ||
-      effectiveRoleInfo?.isReadOnlyClient || effectiveRoleInfo?.role === 'CLIENTE_LECTURA'
-  );
+  const isTransientRoleFallbackOwner = Boolean(effectiveRoleError && isDirectCompanyOwner);
+  const isRoleUnresolved = shouldCheckCompanyRole && !effectiveRoleError && (effectiveRoleLoading || !effectiveRoleInfo);
+  const isFailClosedNullRole = shouldCheckCompanyRole && !effectiveRoleError && effectiveRoleInfo?.role === null;
+  const isReadOnlyClient = isTransientRoleFallbackOwner
+    ? false
+    : Boolean(
+        isRoleUnresolved ||
+          (shouldCheckCompanyRole && effectiveRoleError) ||
+          isFailClosedNullRole ||
+          effectiveRoleInfo?.isReadOnlyClient ||
+          effectiveRoleInfo?.role === 'CLIENTE_LECTURA'
+      );
   const effectiveCompanyRole: DespachoRole | 'OWNER' | null = isSupportImpersonation
     ? 'CLIENTE_LECTURA'
-    : shouldCheckCompanyRole
-      ? isRoleUnresolved || !effectiveRoleInfo?.role ? null : effectiveRoleInfo.role
-      : baseActiveCompany ? 'OWNER' : null;
+    : isTransientRoleFallbackOwner
+      ? 'OWNER'
+      : shouldCheckCompanyRole
+        ? isRoleUnresolved || !effectiveRoleInfo?.role ? null : effectiveRoleInfo.role
+        : baseActiveCompany ? 'OWNER' : null;
   const isReadOnlySupportMode = isSupportImpersonation || isReadOnlyClient;
 
   useEffect(() => {

@@ -24,6 +24,7 @@ export interface Anexo24CfdiMetadata {
   rfcContraparte: string;
   moneda?: string;
   tipoCambio?: number;
+  formaPago?: string;
 }
 
 export interface SatAnexo24Options {
@@ -156,7 +157,8 @@ export function buildSatAnexo24Xml(
 ): SatAnexo24XmlResult {
   const safePeriodBal = Math.max(1, Math.min(13, period));
   const mesBalStr = String(safePeriodBal).padStart(2, '0');
-  const safeRfc = truncXml(company.rfc.toUpperCase(), 13);
+  const cleanRfc = (company.rfc || '').trim().toUpperCase();
+  const safeRfc = truncXml(cleanRfc, 13);
 
   // 1. Catálogo de Cuentas (CT.xml — Mes permitido 01..12)
   if (type === 'catalogo') {
@@ -180,7 +182,7 @@ ${ctasXml}
 </catalogocuentas:Catalogo>`;
 
     return {
-      filename: `${company.rfc}${year}${catMesStr}CT.xml`,
+      filename: `${cleanRfc}${year}${catMesStr}CT.xml`,
       type: 'Catálogo de Cuentas Anexo 24 (1.3)',
       xml
     };
@@ -226,7 +228,7 @@ ${ctasXml}
               monedaRaw,
               tcVal,
               fxAttrs
-            } = resolveMovementCounterpart(company.rfc, p, m, options);
+            } = resolveMovementCounterpart(cleanRfc, p, m, options);
 
             let compNode = '';
             if (rawUuid) {
@@ -265,7 +267,7 @@ ${polizasXml}
 </PLZ:Polizas>`;
 
     return {
-      filename: `${company.rfc}${year}${polMesStr}PL.xml`,
+      filename: `${cleanRfc}${year}${polMesStr}PL.xml`,
       type: 'Pólizas del Periodo Anexo 24 (1.3)',
       xml
     };
@@ -300,7 +302,7 @@ ${balanzaCtasXml}
 </BCE:Balanza>`;
 
   return {
-    filename: `${company.rfc}${year}${mesBalStr}${fileSuffix}`,
+    filename: `${cleanRfc}${year}${mesBalStr}${fileSuffix}`,
     type: 'Balanza de Comprobación Anexo 24 (1.3)',
     xml
   };

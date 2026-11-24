@@ -90,3 +90,26 @@ export function computePolizasTotals(filteredPolizas: Poliza[]) {
     abonos: fromCents(totalAbonosCents)
   };
 }
+
+export function isPolizaDateInDifferentPeriod(
+  fecha: string,
+  currentYear?: number,
+  currentPeriod?: number
+): boolean {
+  if (!fecha || !currentYear || !currentPeriod) return false;
+  const parts = fecha.split('-');
+  if (parts.length < 2) return false;
+  return Number(parts[0]) !== currentYear || Number(parts[1]) !== currentPeriod;
+}
+
+export function parsePolizasUrlSearch(search: unknown): { urlSearchParam: string; isNewRequested: boolean } {
+  try {
+    const sp = new URLSearchParams((search || {}) as Record<string, string>);
+    return {
+      urlSearchParam: sp.get('search') || sp.get('folio') || '',
+      isNewRequested: sp.get('nueva') === 'true' || sp.get('action') === 'new'
+    };
+  } catch {
+    return { urlSearchParam: '', isNewRequested: false };
+  }
+}

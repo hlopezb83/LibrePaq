@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { AlertCircle, CheckCircle2, ClipboardCheck, Printer } from 'lucide-react';
+import { parseNavTarget } from '../../components/shell/parseNavTarget';
 
 export interface DashboardClosingCycleStep {
   id: string;
@@ -58,10 +59,13 @@ export function DashboardClosingCycle({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-        {closingChecks.map((check) => (
+        {closingChecks.map((check) => {
+          const parsedTarget = parseNavTarget(check.to);
+          return (
           <Link
             key={check.id}
-            to={check.to}
+            to={parsedTarget.to}
+            search={parsedTarget.search as unknown as Record<string, string>}
             className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2.5 group ${
               check.done
                 ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-400 hover:shadow-xs'
@@ -95,7 +99,8 @@ export function DashboardClosingCycle({
               </span>
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

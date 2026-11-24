@@ -90,6 +90,8 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
   }
 
   const { inflation, reconciliation, determination, inputs } = data;
+  const isPersonaFisica =
+    determination.tipoRegimenAnual === 'PF_RESICO' || determination.tipoRegimenAnual === 'PF_ART152';
   const conciliationRows: ReadonlyArray<{ label: string; value: number; rowClass?: string; labelClass?: string; valueClass?: string }> = [
     { label: 'Utilidad / Pérdida Contable', value: reconciliation.utilidadContable, labelClass: 'font-semibold text-slate-800', valueClass: 'font-semibold text-slate-900' },
     { label: '(+) Ingresos Fiscales No Contables (Ajuste Inflación)', value: reconciliation.ingresosFiscalesNoContables, valueClass: 'text-amber-800' },
@@ -102,8 +104,8 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
   ];
 
   const inflationRows: ReadonlyArray<{ label: string; value: string; bold?: boolean }> = [
-    { label: 'Promedio Anual de Créditos (102, 105, 107)', value: formatCurrency(inflation.promedioCreditos) },
-    { label: 'Promedio Anual de Deudas (201, 205, 252)', value: formatCurrency(inflation.promedioDeudas) },
+    { label: 'Promedio Anual de Créditos (102, 103, 105, 106, 107*, 113)', value: formatCurrency(inflation.promedioCreditos) },
+    { label: 'Promedio Anual de Deudas (201, 202, 205, 206, 210–216, 251–253)', value: formatCurrency(inflation.promedioDeudas) },
     { label: 'Diferencia Promedios', value: formatCurrency(inflation.diferenciaPromedios), bold: true },
     { label: `Factor Ajuste (${inflation.inpcCierreActual.toFixed(3)} / ${inflation.inpcCierreAnterior.toFixed(3)} - 1)`, value: inflation.factorAjuste.toFixed(4) }
   ];
@@ -132,8 +134,9 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
 
       <DeclaracionAnualKpiGrid determination={determination} reconciliation={reconciliation} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3">
+      {!isPersonaFisica && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <h3 id="annual-conciliation-heading" className="text-sm font-bold text-slate-900">Conciliación Contable-Fiscal</h3>
             <Calculator className="w-4 h-4 text-blue-700" aria-hidden="true" />
@@ -232,6 +235,7 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
           )}
         </div>
       </div>
+      )}
 
       <DeclaracionAnualIsrCard ejercicio={data.ejercicio} determination={determination} inputs={inputs} />
 

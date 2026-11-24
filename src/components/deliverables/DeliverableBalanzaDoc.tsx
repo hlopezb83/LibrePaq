@@ -13,9 +13,11 @@ interface DeliverableBalanzaDocProps {
   trialBalance: AccountWithBalance[];
   totals: {
     initialDeudor: number;
+    initialAcreedor?: number;
     totalCargos: number;
     totalAbonos: number;
     finalDeudor: number;
+    finalAcreedor?: number;
   };
   auditorName: string;
   auditorCedula: string;
@@ -39,8 +41,12 @@ export function DeliverableBalanzaDoc({
 }: DeliverableBalanzaDocProps) {
   const isBalanced = Math.abs(totals.totalCargos - totals.totalAbonos) < 0.01;
   const affectableAcreedor = trialBalance.filter((r) => r.isAffectable && r.nature === 'ACREEDORA');
-  const initialAcreedor = affectableAcreedor.reduce((s, r) => s + r.initialBalanceComputed, 0);
-  const finalAcreedor = affectableAcreedor.reduce((s, r) => s + r.finalBalance, 0);
+  const initialAcreedor =
+    totals.initialAcreedor ??
+    affectableAcreedor.reduce((s, r) => s + r.initialBalanceComputed, 0);
+  const finalAcreedor =
+    totals.finalAcreedor ??
+    affectableAcreedor.reduce((s, r) => s + r.finalBalance, 0);
 
   return (
     <article className="max-w-5xl mx-auto bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 space-y-5 print-page-break mb-8">

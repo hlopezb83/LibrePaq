@@ -241,6 +241,7 @@ export interface FiscalWorkpaperResponse {
     ingresosPeriodo: number;
     ingresosAcumuladosEjercicio: number;
     deduccionesAutorizadasPeriodo: number;
+    deduccionesAcumuladasEjercicio?: number;
     coeficienteUtilidadAplicado: number;
     utilidadFiscalEstimada: number;
     perdidasFiscalesAplicadas: number;
