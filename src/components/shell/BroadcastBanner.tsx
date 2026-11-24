@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../lib/api-client';
 
 const DISMISSED_BROADCAST_STORAGE_KEY = 'librepaq_dismissed_broadcast_id';
@@ -22,11 +23,13 @@ function writeDismissedBroadcastId(broadcastId: string): void {
 }
 
 export function BroadcastBanner() {
+  const { user, session, loading, isGuest } = useAuth();
   const [dismissedId, setDismissedId] = useState<string | null>(() => readDismissedBroadcastId());
 
   const { data: broadcast } = useQuery({
     queryKey: ['platform-broadcast'],
     queryFn: () => apiClient.getActiveBroadcast(),
+    enabled: !loading && !isGuest && Boolean(user && session),
     staleTime: 60_000,
     retry: false
   });

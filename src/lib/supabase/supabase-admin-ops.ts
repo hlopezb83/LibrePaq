@@ -135,7 +135,10 @@ export const supabaseAdminOpsApi = {
     if (!supabase || isGuestDemoMode()) return null;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) return null;
+      const sess = sessionData?.session;
+      if (!sess?.access_token || (sess.expires_at && sess.expires_at * 1000 <= Date.now())) {
+        return null;
+      }
       const { data, error } = await supabase.from('platform_broadcasts').select('*').eq('active', true).order('created_at', { ascending: false }).limit(1);
       if (error || !data || data.length === 0) return null;
       const row = data[0] as Row;
