@@ -1,3 +1,4 @@
+import { isGuestDemoMode } from '../sandbox/guest-demo-mode';
 import { isSupabaseConfigured, supabase } from '../supabase';
 import { chunkArray } from '../../shared/array-utils';
 import { computeCxcCxpAging } from '../../shared/accounting-engine';
@@ -62,7 +63,11 @@ export async function checkRfcsAgainstCloud69B(
   rfcs: string[],
   companyId?: string
 ): Promise<{ checkedCount: number; matches: Cloud69BMatch[] }> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || isGuestDemoMode()) {
+    return { checkedCount: 0, matches: [] };
+  }
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
     return { checkedCount: 0, matches: [] };
   }
   const normalized = Array.from(

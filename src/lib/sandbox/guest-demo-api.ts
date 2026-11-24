@@ -2,7 +2,12 @@ import { fromCents, toCents, validateAccountHierarchy } from '../../shared/accou
 import { getSeedAccountsForPreset } from '../../shared/catalogs/base-accounts.seed';
 import { buildDashboardKpisFromTrialBalance, buildMonthlyTrendFromPolizas } from '../../shared/engine/dashboard.engine';
 import { computeFinancialStatementsData, type JoinedPolizaMovementInput } from '../../shared/engine/financial-reports.engine';
-import { buildSatAnexo24Xml } from '../../shared/sat-anexo24';
+import {
+  buildSatAnexo24Xml,
+  type Anexo24CfdiMetadata,
+  type SatAnexo24Options,
+  type SatXmlType
+} from '../../shared/sat-anexo24';
 import type {
   Account,
   AccountLedgerEntry,
@@ -220,14 +225,42 @@ export const guestDemoApi = {
     };
   },
 
-  async getSatXmlPackage(companyId: string, type: 'catalogo' | 'balanza' | 'polizas', year?: number, period?: number) {
-    const comp = getCompanyOrFirst(companyId);
+  async getSatXml(
+    companyId: string,
+    type: SatXmlType | string,
+    year?: number,
+    period?: number,
+    options?: Omit<SatAnexo24Options, 'cfdiLookup'>
+  ): Promise<{ filename: string; type: string; xml: string }> {
     const rep = await this.getReports(companyId, year, period);
     const y = rep.ejercicio;
     const p = rep.periodo;
-    const pols = await guestDemoPolizasCfdi.getPolizas(companyId, y, p);
-    const res = buildSatAnexo24Xml(comp, y, p, type, rep.trialBalance, pols);
-    return { xmlContent: res.xml, filename: res.filename };
+    const needsPolizas =
+      type === 'polizas' || type === 'auxiliar_folios' || type === 'auxiliar_cuentas';
+    const needsCfdiLookup = type === 'polizas' || type === 'auxiliar_folios';
+    const pols = needsPolizas
+      ? await guestDemoPolizasCfdi.getPolizas(rep.company.id, y, p)
+      : [];
+    let cfdiLookup: Map<string, Anexo24CfdiMetadata> | undefined;
+    if (needsCfdiLookup) {
+      const cfdis = await guestDemoPolizasCfdi.getCfdis(rep.company.id);
+      cfdiLookup = new Map<string, Anexo24CfdiMetadata>();
+      for (const c of cfdis) {
+        if (c.uuid) {
+          const counterpartRfc = c.direction === 'EMITIDO' ? c.receptorRfc : c.emisorRfc;
+          cfdiLookup.set(c.uuid.toUpperCase(), {
+            total: c.total,
+            rfcContraparte: counterpartRfc,
+            moneda: c.moneda,
+            tipoCambio: c.tipoCambio
+          });
+        }
+      }
+    }
+    return buildSatAnexo24Xml(rep.company, y, p, type, rep.trialBalance, pols, {
+      ...options,
+      cfdiLookup
+    });
   }
 };
 

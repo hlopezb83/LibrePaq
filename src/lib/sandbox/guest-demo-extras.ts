@@ -34,6 +34,10 @@ function getComp(companyId: string) {
 }
 
 export const guestDemoExtras = {
+  async getActiveBroadcast() {
+    return null;
+  },
+
   async getTaxParameters(companyId: string, ejercicio: number, periodo = 0): Promise<TaxParametersRecord> {
     const s = getGuestDemoState();
     const row = s.taxParameters.find((t) => t.companyId === companyId && t.ejercicio === ejercicio && (t.periodo ?? 0) === periodo)

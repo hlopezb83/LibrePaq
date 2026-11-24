@@ -1,3 +1,4 @@
+import { isGuestDemoMode } from '../sandbox/guest-demo-mode';
 import { supabase } from '../supabase';
 import type {
   AdminAuditLogEntry, AdminBroadcastMessage, AdminCompanyDetail, AdminSatHealthResponse, AdminUserStatusPayload
@@ -131,8 +132,10 @@ async function buildCompanyDetailFallback(companyId: string): Promise<AdminCompa
 
 export const supabaseAdminOpsApi = {
   async getActiveBroadcast(): Promise<AdminBroadcastMessage | null> {
-    if (!supabase) return null;
+    if (!supabase || isGuestDemoMode()) return null;
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return null;
       const { data, error } = await supabase.from('platform_broadcasts').select('*').eq('active', true).order('created_at', { ascending: false }).limit(1);
       if (error || !data || data.length === 0) return null;
       const row = data[0] as Row;

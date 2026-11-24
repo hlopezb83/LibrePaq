@@ -1,3 +1,4 @@
+import { isGuestDemoMode } from '../sandbox/guest-demo-mode';
 import { supabase } from '../supabase';
 import { MEXICO_ISN_RATES } from '../../shared/engine/payroll-summary.engine';
 import { fromCents, toCents } from '../../shared/engine/invariants-and-math';
@@ -87,12 +88,22 @@ function isMissingTableError(error: { code?: string; message?: string } | null):
   );
 }
 
+async function hasActiveSupabaseSession(): Promise<boolean> {
+  if (!supabase || isGuestDemoMode()) return false;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return Boolean(data?.session);
+  } catch {
+    return false;
+  }
+}
+
 export async function getPayrollPeriodSettings(
   companyId: string,
   ejercicio: number,
   periodo: number
 ): Promise<PayrollPeriodSettingsRecord> {
-  if (!supabase || !companyId) {
+  if (!companyId || !(await hasActiveSupabaseSession()) || !supabase) {
     return readLocalFallback(companyId, ejercicio, periodo);
   }
 
@@ -149,7 +160,7 @@ export async function savePayrollPeriodSettings(
 
   writeLocalFallback(normalized);
 
-  if (!supabase) return normalized;
+  if (!(await hasActiveSupabaseSession()) || !supabase) return normalized;
 
   const { error } = await supabase.from('payroll_period_settings').upsert(
     {
