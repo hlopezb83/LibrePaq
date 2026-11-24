@@ -37,7 +37,7 @@ function buildManualHtml(logoDataUri: string): string {
     size: Letter;
     margin: 0.62in 0.54in 0.62in 0.54in;
     @top-left {
-      content: 'LibrePaq Pro — Manual de Usuario para Nuevos Usuarios';
+      content: 'LibrePaq Pro — Manual de Usuario';
       font-family: 'Segoe UI', Arial, sans-serif;
       font-size: 7.5pt;
       font-weight: 700;
@@ -58,7 +58,7 @@ function buildManualHtml(logoDataUri: string): string {
       vertical-align: bottom;
     }
     @bottom-left {
-      content: 'librepaq.com • Horario Oficial CDMX (America/Mexico_City)';
+      content: 'librepaq.com • Horario Oficial del Centro de México (CDMX)';
       font-family: 'Segoe UI', Arial, sans-serif;
       font-size: 7.5pt;
       color: #64748b;
@@ -564,8 +564,8 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
 
   <div class="cover-mid">
-    <div class="cover-pill">Guía Oficial de Inicio Rápido y Operación</div>
-    <h1 class="cover-title">Manual de Usuario<br />para <span>Nuevos Usuarios</span></h1>
+    <div class="cover-pill">Guía Práctica de Inicio y Operación</div>
+    <h1 class="cover-title">Manual de Usuario<br /><span>LibrePaq Pro</span></h1>
     <p class="cover-desc">
       Todo lo que necesitas para operar tu despacho contable, empresas PyME o contribuyentes RESICO:
       descarga masiva del SAT, Auto-Póliza inteligente, conciliación bancaria múltiple con IA,
@@ -614,7 +614,7 @@ function buildManualHtml(logoDataUri: string): string {
 
 <p>
   Este manual está diseñado para contadores, auxiliares y dueños de negocio que inician en <strong>LibrePaq Pro</strong>.
-  Sigue los capítulos en orden para pasar de una cuenta nueva a tu primer cierre mensual completo en menos de 15 minutos.
+  Sigue los capítulos en orden para configurar tu primera empresa, descargar tus CFDIs y emitir tus primeros reportes en menos de 15 minutos.
 </p>
 
 <div class="toc-grid">
@@ -631,7 +631,7 @@ function buildManualHtml(logoDataUri: string): string {
   <div class="toc-card">
     <div class="toc-num">Capítulo 3</div>
     <div class="toc-title">Tablero Fiscal y Ciclo de Cierre</div>
-    <div class="toc-desc">Lectura de KPIs mensuales, alertas de pendientes, checklist de cierre y Dossier Ejecutivo.</div>
+    <div class="toc-desc">Lectura de indicadores clave del mes, alertas de pendientes, checklist de cierre y Dossier Ejecutivo.</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 4</div>
@@ -641,7 +641,7 @@ function buildManualHtml(logoDataUri: string): string {
   <div class="toc-card">
     <div class="toc-num">Capítulo 5</div>
     <div class="toc-title">Auto-Póliza, Reglas y Partida Doble</div>
-    <div class="toc-desc">Reglas aprendidas por RFC/ClaveProdServ, separación a No Deducibles (801), atajos contables y Cierre Anual M13.</div>
+    <div class="toc-desc">Reglas aprendidas por RFC/ClaveProdServ, separación a No Deducibles (801), atajos contables y Cierre Anual (Periodo 13).</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 6</div>
@@ -661,7 +661,7 @@ function buildManualHtml(logoDataUri: string): string {
   <div class="toc-card">
     <div class="toc-num">Capítulo 9</div>
     <div class="toc-title">Equipo del Despacho, Bitácora y Respaldos</div>
-    <div class="toc-desc">Acceso por roles (Socio, Contador, Auxiliar, Cliente Solo Lectura), permisos por empresa, bitácora en español, e.firma y respaldos integrales.</div>
+    <div class="toc-desc">Acceso por roles (Socio, Contador, Auxiliar, Cliente (Solo lectura)), permisos por empresa, bitácora en español, e.firma y respaldos integrales.</div>
   </div>
   <div class="toc-card">
     <div class="toc-num">Capítulo 10</div>
@@ -708,7 +708,7 @@ function buildManualHtml(logoDataUri: string): string {
 
 <h2>1.1 Creación de Cuenta e Inicio de Sesión</h2>
 <p>
-  Ingresa a <strong>https://librepaq.com</strong> desde cualquier navegador moderno (Chrome, Edge, Safari o Firefox, en escritorio o dispositivo móvil). No requiere instalaciones locales ni servidores Windows.
+  Ingresa a <strong>https://librepaq.com</strong> desde cualquier navegador moderno (Chrome, Edge, Safari o Firefox). Funciona directo en la nube desde Windows, Mac o móvil, sin instalaciones ni servidores locales.
 </p>
 <ol class="step-list">
   <li>
@@ -721,7 +721,7 @@ function buildManualHtml(logoDataUri: string): string {
   </li>
   <li>
     <div class="step-num">3</div>
-    <div class="step-body"><strong>Recuperación segura:</strong> si olvidas tu contraseña, utiliza el enlace <em>¿Olvidaste tu contraseña?</em> dentro del modal de acceso para recibir un enlace de restablecimiento.</div>
+    <div class="step-body"><strong>Recuperación segura:</strong> si olvidas tu contraseña, utiliza el enlace <em>¿Olvidaste tu contraseña?</em> dentro de la ventana de acceso para recibir un enlace de restablecimiento.</div>
   </li>
 </ol>
 
@@ -737,12 +737,12 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="info-card">
     <div class="info-card-title">Horario Oficial CDMX</div>
-    <p>Todas las fechas calendario, vencimientos del Día 17 y límites de descarga SAT operan sobre <code>America/Mexico_City</code>, evitando desfases tras las 18:00 h.</p>
+    <p>Todas las fechas calendario, vencimientos del Día 17 y límites de descarga SAT operan sobre el <strong>Horario Oficial del Centro de México (CDMX)</strong>, evitando desfases tras las 18:00 h.</p>
   </div>
 </div>
 
 <h2>1.3 Mapa de los 7 Módulos Principales</h2>
-<table>
+<table style="margin: 4px 0 6px 0; font-size: 8.1pt;">
   <thead>
     <tr>
       <th style="width: 11%;">Atajo</th>
@@ -752,46 +752,46 @@ function buildManualHtml(logoDataUri: string): string {
   </thead>
   <tbody>
     <tr>
-      <td><kbd>Alt</kbd>+<kbd>1</kbd></td>
-      <td><strong>Tablero Fiscal</strong></td>
-      <td>KPIs financieros del mes, ruta de arranque, ciclo de cierre y acceso al Dossier Ejecutivo.</td>
+      <td style="padding: 3.5px 7px;"><kbd>Alt</kbd>+<kbd>1</kbd></td>
+      <td style="padding: 3.5px 7px;"><strong>Tablero Fiscal</strong></td>
+      <td style="padding: 3.5px 7px;">Indicadores clave del mes, ruta de arranque, ciclo de cierre y acceso al panel de Entregables Ejecutivos.</td>
     </tr>
     <tr>
-      <td><kbd>Alt</kbd>+<kbd>2</kbd></td>
-      <td><strong>Bóveda Digital (ADD)</strong></td>
-      <td>Descarga Masiva SAT (Emitidos + Recibidos), validación SAT en lote, Padrón 69-B en la nube y Auto-Póliza con reglas.</td>
+      <td style="padding: 3.5px 7px;"><kbd>Alt</kbd>+<kbd>2</kbd></td>
+      <td style="padding: 3.5px 7px;"><strong>Bóveda Digital (ADD)</strong></td>
+      <td style="padding: 3.5px 7px;">Descarga Masiva SAT (Emitidos + Recibidos), validación SAT en lote, Padrón 69-B en la nube y Auto-Póliza con reglas.</td>
     </tr>
     <tr>
-      <td><kbd>Alt</kbd>+<kbd>3</kbd></td>
-      <td><strong>Pólizas Contables</strong></td>
-      <td>Captura y edición de pólizas de Ingresos, Egresos, Diario y M13 con cuadre automático y No Deducibles (801).</td>
+      <td style="padding: 3.5px 7px;"><kbd>Alt</kbd>+<kbd>3</kbd></td>
+      <td style="padding: 3.5px 7px;"><strong>Pólizas Contables</strong></td>
+      <td style="padding: 3.5px 7px;">Captura y edición de pólizas de Ingresos, Egresos, Diario y Periodo 13 con cuadre automático y No Deducibles (801).</td>
     </tr>
     <tr>
-      <td><kbd>Alt</kbd>+<kbd>4</kbd></td>
-      <td><strong>Catálogo de Cuentas</strong></td>
-      <td>Árbol de cuentas Anexo 24 con código agrupador SAT, importación CSV y Libro Mayor.</td>
+      <td style="padding: 3.5px 7px;"><kbd>Alt</kbd>+<kbd>4</kbd></td>
+      <td style="padding: 3.5px 7px;"><strong>Catálogo de Cuentas</strong></td>
+      <td style="padding: 3.5px 7px;">Árbol de cuentas Anexo 24 con código agrupador SAT, importación CSV y Libro Mayor.</td>
     </tr>
     <tr>
-      <td><kbd>Alt</kbd>+<kbd>5</kbd></td>
-      <td><strong>Bancos, DIOT y Fiscal</strong></td>
-      <td>Conciliación múltiple (Varios a 1) y PDF con IA, DIOT (.txt oficial SAT), Padrón 69-B, Activos INPC, CxC/CxP PPD, Nómina/ISN, Inventario y Día 17 RESICO.</td>
+      <td style="padding: 3.5px 7px;"><kbd>Alt</kbd>+<kbd>5</kbd></td>
+      <td style="padding: 3.5px 7px;"><strong>Bancos, DIOT y Fiscal</strong></td>
+      <td style="padding: 3.5px 7px;">Conciliación múltiple (Varios a 1) y PDF con IA, DIOT (.txt oficial SAT), Padrón 69-B, Activos INPC, Cédula Día 17 RESICO, CxC/CxP PPD, Nómina/ISN e Inventario.</td>
     </tr>
     <tr>
-      <td><kbd>Alt</kbd>+<kbd>6</kbd></td>
-      <td><strong>Estados Financieros</strong></td>
-      <td>4 Estados NIF (incl. Flujos B-2, Capital B-4 y Comparativo), Declaración Anual, Anexo 24 en .zip y Dossier Ejecutivo (.xlsx / Paquete .ZIP / PDF).</td>
+      <td style="padding: 3.5px 7px;"><kbd>Alt</kbd>+<kbd>6</kbd></td>
+      <td style="padding: 3.5px 7px;"><strong>Estados Financieros</strong></td>
+      <td style="padding: 3.5px 7px;">4 Estados NIF (incl. Flujos B-2, Capital B-4 y Comparativo), Declaración Anual, Anexo 24 en .zip, Dossier de Cierre y Dossier Ejecutivo (.xlsx / Paquete .ZIP / PDF).</td>
     </tr>
     <tr>
-      <td><kbd>Alt</kbd>+<kbd>7</kbd></td>
-      <td><strong>Configuración y Equipo</strong></td>
-      <td>Directorio multi-RFC, reglas contables, candado mensual, e.firma, parámetros Día 17, respaldos integrales y 7. Equipo y Bitácora.</td>
+      <td style="padding: 3.5px 7px;"><kbd>Alt</kbd>+<kbd>7</kbd></td>
+      <td style="padding: 3.5px 7px;"><strong>Configuración y Empresa</strong></td>
+      <td style="padding: 3.5px 7px;">Directorio multi-RFC, reglas contables, candado mensual, e.firma, parámetros Día 17, respaldos integrales y 7. Equipo y Bitácora.</td>
     </tr>
   </tbody>
 </table>
 
-<div class="callout callout-blue">
+<div class="callout callout-blue" style="margin: 5px 0 0 0; padding: 7px 11px;">
   <div class="callout-title">Tip de Productividad: Paleta de Comandos (<kbd>Ctrl</kbd>+<kbd>K</kbd>), Candado y Modo Cliente (Solo Lectura)</div>
-  Presiona <kbd>Ctrl</kbd>+<kbd>K</kbd> en cualquier pantalla para buscar cuentas, saltar entre módulos o ejecutar acciones sin soltar el teclado. Activa el <strong>Candado de Periodo</strong> desde la cabecera o Ajustes al cerrar un mes ante el SAT. Si ingresas con rol <strong>Cliente (Solo lectura)</strong>, verás el aviso superior informativo y podrás navegar por todos los periodos, pólizas, XML y reportes en consulta sin riesgo de alterar la contabilidad.
+  Presiona <kbd>Ctrl</kbd>+<kbd>K</kbd> en cualquier pantalla para buscar cuentas, saltar entre módulos o ejecutar acciones sin soltar el teclado. Activa el <strong>Candado de Periodo</strong> desde la cabecera o en <em>Configuración y Empresa</em> al cerrar un mes ante el SAT. Si ingresas con rol <strong>Cliente (Solo lectura)</strong>, verás el aviso superior informativo y podrás navegar por todos los periodos, pólizas, XML y reportes en consulta sin riesgo de alterar la contabilidad.
 </div>
 
 <!-- ==================== CAPÍTULO 2 ==================== -->
@@ -810,7 +810,7 @@ function buildManualHtml(logoDataUri: string): string {
     <div class="step-num">1</div>
     <div class="step-body">
       <strong>Paso 1 — Identidad SAT (Alta Manual, CSF PDF o XML CFDI):</strong><br />
-      Puedes teclear los datos manualmente o acelerar el registro arrastrando tu <strong>Constancia de Situación Fiscal (PDF)</strong> o cualquier <strong>factura XML CFDI 4.0</strong> de la empresa. LibrePaq extraerá automáticamente el <strong>RFC</strong> (validado con algoritmo Módulo 11), <strong>Razón Social</strong>, <strong>Tipo de Persona</strong> (Moral o Física), <strong>Régimen Fiscal SAT</strong> y <strong>Código Postal</strong>. Define el <em>Ejercicio</em> y <em>Periodo</em> inicial.<br />
+      Puedes teclear los datos manualmente o acelerar el registro arrastrando tu <strong>Constancia de Situación Fiscal (PDF)</strong> o cualquier <strong>factura XML CFDI 4.0</strong> de la empresa. LibrePaq extraerá automáticamente el <strong>RFC</strong> (con verificación automática del dígito verificador SAT), <strong>Razón Social</strong>, <strong>Tipo de Persona</strong> (Moral o Física), <strong>Régimen Fiscal SAT</strong> y <strong>Código Postal</strong>. Define el <em>Ejercicio</em> y <em>Periodo</em> inicial.<br />
       <span class="badge badge-emerald">Atajo</span> Si deseas empezar de inmediato, haz clic en <strong>Creación Rápida</strong> desde este mismo paso; podrás ajustar bancos y e.firma después.
     </div>
   </li>
@@ -832,7 +832,7 @@ function buildManualHtml(logoDataUri: string): string {
     <div class="step-num">4</div>
     <div class="step-body">
       <strong>Paso 4 — Vinculación de e.firma / FIEL (Opcional):</strong><br />
-      Sube tus archivos <code>.cer</code>, <code>.key</code> y contraseña para habilitar la <strong>Descarga Masiva directa del SAT</strong>. El sistema verifica matemáticamente que el certificado y la llave coincidan y resguarda la llave cifrada. Si no tienes los archivos a la mano, selecciona omitir y cárgala después en <em>Ajustes → 3. e.Firma / SAT</em>.
+      Sube tus archivos <code>.cer</code>, <code>.key</code> y contraseña para habilitar la <strong>Descarga Masiva directa del SAT</strong>. El sistema verifica matemáticamente que el certificado y la llave coincidan y resguarda la llave cifrada. Si no tienes los archivos a la mano, selecciona omitir y cárgala después en <em>Configuración y Empresa → 3. e.Firma / SAT</em>.
     </div>
   </li>
   <li>
@@ -863,7 +863,7 @@ function buildManualHtml(logoDataUri: string): string {
 <h2>3.1 Componentes Principales del Tablero</h2>
 <div class="card-grid-2">
   <div class="info-card">
-    <div class="info-card-title">Indicadores Clave (KPIs del Periodo)</div>
+    <div class="info-card-title">Indicadores Clave del Periodo</div>
     <p>Muestra en tiempo real <strong>Ingresos del periodo</strong>, <strong>Egresos / Costos</strong>, <strong>Utilidad Operativa y Margen %</strong>, <strong>Saldo en Bancos</strong> y el contador de <strong>CFDIs pendientes por contabilizar</strong>. Haz clic en cualquier cifra clave para consultar su auxiliar de Libro Mayor.</p>
   </div>
   <div class="info-card">
@@ -876,7 +876,7 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="info-card">
     <div class="info-card-title">Tendencia y Acceso a Entregables</div>
-    <p>Visualiza la evolución mensual de ingresos vs. gastos, revisa las pólizas recientes del periodo y abre el modal de <strong>Entregables Ejecutivos</strong> en 1 clic desde el encabezado.</p>
+    <p>Visualiza la evolución mensual de ingresos vs. gastos, revisa las pólizas recientes del periodo y abre el panel de <strong>Entregables Ejecutivos</strong> en 1 clic desde el encabezado.</p>
   </div>
 </div>
 
@@ -899,7 +899,7 @@ function buildManualHtml(logoDataUri: string): string {
     </tr>
     <tr>
       <td><strong>Conciliación Bancaria</strong></td>
-      <td>Que los movimientos cargados en el estado de cuenta CSV del mes estén empatados contra pólizas de bancos.</td>
+      <td>Que los movimientos cargados en el estado de cuenta CSV o PDF del mes estén empatados contra pólizas de bancos.</td>
     </tr>
     <tr>
       <td><strong>Provisión Fiscal Día 17</strong></td>
@@ -927,12 +927,12 @@ function buildManualHtml(logoDataUri: string): string {
 <h2>4.1 Dos Formas de Alimentar tu Bóveda ADD</h2>
 <div class="card-grid-2">
   <div class="info-card">
-    <div class="info-card-title">A. Carga Manual de XML o ZIP (<kbd>U</kbd>)</div>
-    <p>Arrastra archivos <code>.xml</code> o paquetes <code>.zip</code> sobre la zona superior o presiona <kbd>U</kbd>. El motor detecta automáticamente si cada CFDI es <strong>Emitido</strong> o <strong>Recibido</strong> según el RFC de tu empresa, evita duplicados por UUID y desglosa subtotal, descuentos, IVA y retenciones de ISR/IVA.</p>
+    <div class="info-card-title">A. Carga Manual de XML o ZIP (<kbd>Alt</kbd>+<kbd>U</kbd>)</div>
+    <p>Arrastra archivos <code>.xml</code> o paquetes <code>.zip</code> sobre la zona superior o presiona <kbd>Alt</kbd>+<kbd>U</kbd> (usa <kbd>Alt</kbd>+<kbd>S</kbd> para captura manual). Detecta si el CFDI es <strong>Emitido</strong> o <strong>Recibido</strong> por RFC, evita duplicados por UUID y desglosa IVA y retenciones.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">B. Descarga SAT EMITIDOS + RECIBIDOS (Paquetes Grandes)</div>
-    <p>Abre el panel <strong>Descarga Masiva SAT (SOAP v1.5)</strong> con tu e.firma. Elige <em>Recibidos</em>, <em>Emitidos</em> o <strong>Ambos (EMITIDOS + RECIBIDOS)</strong>, selecciona presets rápidos (<em>Mes Actual</em>, <em>Mes Anterior</em>, <em>Bimestre</em>) y solicita la descarga. Al verificar, LibrePaq procesa e integra incluso <strong>paquetes ZIP grandes del SAT</strong> sin timeouts ni duplicados.</p>
+    <p>Abre el panel <strong>Descarga Masiva directa del SAT</strong> con tu e.firma. Elige <em>Recibidos</em>, <em>Emitidos</em> o <strong>Ambos (EMITIDOS + RECIBIDOS)</strong>, selecciona rangos rápidos (<em>Mes Actual</em>, <em>Mes Anterior</em>, <em>Bimestre</em>) y solicita la descarga. Al verificar, integra incluso <strong>paquetes ZIP grandes del SAT</strong> sin interrupciones ni duplicados.</p>
   </div>
 </div>
 
@@ -943,9 +943,9 @@ function buildManualHtml(logoDataUri: string): string {
 
 <h2>4.2 Validación de Estatus SAT en Lote, Padrón 69-B y Visor CFDI 4.0</h2>
 <ul>
-  <li><strong>Validación de estatus SAT en lote:</strong> selecciona varios comprobantes (o todo el mes) y haz clic en <strong>Validar SAT en Lote</strong>. LibrePaq consulta la vigencia oficial (<em>Vigente</em> o <em>Cancelado</em>) y, si detecta facturas canceladas con póliza activa, muestra una alerta con el botón <strong>Localizar cancelado</strong> para ubicarlas al instante. Los CFDIs <code>CANCELADO</code> o de Traslado (<code>T</code>) quedan protegidos contra contabilización accidental.</li>
+  <li><strong>Validación de estatus SAT en lote:</strong> selecciona varios comprobantes (o todo el mes) y haz clic en <strong>Validar SAT en Lote</strong>. LibrePaq consulta la vigencia oficial (<em>Vigente</em> o <em>Cancelado</em>) y, si detecta facturas canceladas con póliza activa, muestra una alerta con el botón <strong>Localizar cancelado</strong> para ubicarlas al instante. Los CFDIs cancelados (<code>CANCELADO</code>) o de Traslado (<code>T</code>) quedan protegidos contra contabilización accidental.</li>
   <li><strong>Padrón 69-B completo en la nube:</strong> cada RFC emisor o receptor se cruza automáticamente contra el padrón oficial del <strong>Artículo 69-B del CFF (EFOS)</strong>, mostrando alertas preventivas en la tabla, en la vista previa y al contabilizar.</li>
-  <li><strong>Visor CFDI 4.0 y verificación directa en el SAT:</strong> abre la vista previa con <kbd>Espacio</kbd>/<kbd>Enter</kbd> para validar el dígito verificador de RFC (<em>RFC Válido / Revisar</em>), revisar nodos XML (con aviso explícito si es reconstruido), consultar el <strong>Sello Digital real</strong> cuando está adjunto el XML o abrir el portal oficial del SAT con los datos codificados correctamente; también puedes filtrar por periodo, tipo (<code>I</code>, <code>E</code>, <code>P</code>, <code>N</code>, <code>T</code>) o método (<code>PUE</code>/<code>PPD</code>) y buscar con <kbd>/</kbd>.</li>
+  <li><strong>Visor CFDI 4.0 y verificación directa en el SAT:</strong> abre la vista previa desde cualquier comprobante para revisar la validación del dígito verificador del RFC (<em>RFC Válido / Revisar</em>), inspeccionar nodos XML (con aviso explícito si es reconstruido), consultar el <strong>Sello Digital real</strong> o abrir el portal del SAT. Filtra por periodo, tipo o método (<code>PUE</code>/<code>PPD</code>) y busca con <kbd>/</kbd> o <kbd>Alt</kbd>+<kbd>F</kbd>.</li>
 </ul>
 
 <h2>4.3 Auto-Póliza en 1 Clic o en Lote</h2>
@@ -1017,16 +1017,16 @@ function buildManualHtml(logoDataUri: string): string {
       <td>Filtra por tipo (Ingreso/Egreso/Diario), origen (Manual o Auto-Póliza ADD) o texto libre; activa <em>Modo Compacto</em> para auditar decenas de pólizas por pantalla.</td>
     </tr>
     <tr>
-      <td><strong>Drill-down a Libro Mayor</strong></td>
+      <td><strong>Consulta directa al Libro Mayor</strong></td>
       <td>Haz clic sobre cualquier cuenta dentro de una póliza para abrir al instante su auxiliar histórico sin salir del módulo.</td>
     </tr>
     <tr>
-      <td><strong>Póliza de Cierre Anual (M13)</strong></td>
+      <td><strong>Póliza de Cierre Anual (Periodo 13)</strong></td>
       <td>Al posicionarte en el cierre del ejercicio, utiliza <strong>Cierre Anual</strong> para saldar automáticamente cuentas de resultados contra <em>Resultado del Ejercicio (301-02-001)</em> en el Periodo 13.</td>
     </tr>
     <tr>
       <td><strong>Exportación CSV</strong></td>
-      <td>Descarga las pólizas filtradas en archivo CSV sanitizado para revisiones en Excel o auditorías externas.</td>
+      <td>Descarga las pólizas filtradas en archivo CSV compatible con Excel para revisiones o auditorías externas.</td>
     </tr>
   </tbody>
 </table>
@@ -1044,12 +1044,12 @@ function buildManualHtml(logoDataUri: string): string {
 
 <div class="card-grid-2">
   <div class="info-card">
-    <div class="info-card-title">Alta y Subcuentas Consecutivas</div>
-    <p>Selecciona cualquier cuenta acumuladora y presiona <kbd>Ctrl</kbd>+<kbd>D</kbd> (o <kbd>Insert</kbd>) para crear una subcuenta hija. El sistema sugiere automáticamente el siguiente código consecutivo respetando la máscara de la empresa (ej. <code>105-01-002</code>) y hereda tipo y naturaleza.</p>
+    <div class="info-card-title">Alta y Subcuentas Consecutivas (<kbd>Insert</kbd>)</div>
+    <p>Selecciona cualquier cuenta acumuladora y presiona <kbd>Insert</kbd> (o <kbd>Alt</kbd>+<kbd>N</kbd> para cuenta nueva) y el sistema sugiere automáticamente el siguiente código consecutivo respetando la máscara de la empresa (ej. <code>105-01-002</code>) heredando tipo y naturaleza.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">Navegación en Árbol y Filtros</div>
-    <p>Desplázate con <kbd>↑</kbd> / <kbd>↓</kbd>, expande todo con <kbd>+</kbd>, contrae a cuentas de mayor con <kbd>-</kbd> y edita la cuenta en foco con <kbd>F2</kbd>. Filtra por tipo (Activo, Pasivo, Capital, Ingresos, Costos, Gastos) o muestra solo cuentas con movimientos.</p>
+    <p>Busca con <kbd>F3</kbd>, muévete con <kbd>↑</kbd> / <kbd>↓</kbd>, pliega o despliega con <kbd>←</kbd> / <kbd>→</kbd>, edita con <kbd>Enter</kbd> o <kbd>F2</kbd> y abre el auxiliar con <kbd>Espacio</kbd>. Filtra por rubro o por cuentas con movimientos.</p>
   </div>
   <div class="info-card">
     <div class="info-card-title">Importación y Exportación CSV</div>
@@ -1057,7 +1057,7 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="info-card">
     <div class="info-card-title">Auxiliar / Libro Mayor Instantáneo</div>
-    <p>Haz clic en el saldo o botón de auxiliar de cualquier cuenta para abrir el modal de <strong>Libro Mayor</strong> con saldo inicial, cargos, abonos, saldo corrido y referencia directa a cada póliza.</p>
+    <p>Haz clic en el saldo o botón de auxiliar de cualquier cuenta para abrir la ventana de <strong>Libro Mayor</strong> con saldo inicial, cargos, abonos, saldo corrido y referencia directa a cada póliza.</p>
   </div>
 </div>
 
@@ -1084,7 +1084,7 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><code>300 – 399</code></td>
       <td><strong>Capital Contable</strong></td>
-      <td>Capital social, Reservas, Resultados de ejercicios anteriores y Resultado del Ejercicio (<code>301-02-001</code>) para cierre M13.</td>
+      <td>Capital social, Reservas, Resultados de ejercicios anteriores y Resultado del Ejercicio (<code>301-02-001</code>) para cierre en Periodo 13.</td>
     </tr>
     <tr>
       <td><code>400 – 699</code></td>
@@ -1143,27 +1143,33 @@ function buildManualHtml(logoDataUri: string): string {
       </td>
     </tr>
     <tr>
-      <td><strong>5. CxC / CxP (PPD)</strong></td>
+      <td><strong>5. Cédula Día 17</strong></td>
+      <td>
+        Determina pagos provisionales de ISR y definitivos de IVA (Régimen General, PF y RESICO), calcula prorrateo Art. 5 LIVA, fluctuación cambiaria USD y genera las pólizas de provisión con fecha límite en día hábil.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>6. CxC / CxP (PPD)</strong></td>
       <td>
         Controla facturas Emitidas y Recibidas en <code>PPD</code> descontando abonos de <strong>Pagos 2.0</strong> (con conversión multimoneda USD exacta). Filtra por antigüedad interactiva (<code>0–30</code>, <code>31–60</code>, <code>61–90</code>, <code>+90</code> días), busca por RFC/nombre/folio y copia el UUID en 1 clic.
       </td>
     </tr>
     <tr>
-      <td><strong>6. Nómina / IMSS / ISN</strong></td>
+      <td><strong>7. Nómina / IMSS / ISN</strong></td>
       <td>
         Amarra CFDIs de <strong>Nómina 1.2</strong> contra la contabilidad y el Día 17, edita libremente la <strong>Base Gravable ISN ($)</strong> (con botón <em>Usar nómina</em> y catálogo de los 32 estados), valida la tabla previa y confirma antes de emitir la póliza de provisión SUA + ISN.
       </td>
     </tr>
     <tr>
-      <td><strong>7. Inventario y Costo</strong></td>
+      <td><strong>8. Inventario / Costo</strong></td>
       <td>
-        Registra inventario inicial y final en Almacén (<code>115</code>) bajo método <em>Analítico</em> o <em>Perpetuo</em> jalando compras de balanza, alerta si el inventario final excede la mercancía disponible y solicita confirmación si ya existe una póliza de Costo de Ventas vinculada.
+        Registra inventario inicial y final en Almacén (<code>115</code>) bajo método <em>Analítico</em> o <em>Perpetuo</em> tomando automáticamente las compras de la balanza, alerta si el inventario final excede la mercancía disponible y solicita confirmación si ya existe una póliza vinculada.
       </td>
     </tr>
   </tbody>
 </table>
 
-<h2>7.2 Pestaña 8 — Cédula Día 17: Flujo RESICO, Topes e IVA Multi-Tasa</h2>
+<h2>7.2 Detalle de Cédula Día 17: Flujo RESICO, Topes e IVA Multi-Tasa</h2>
 <div class="card-grid-2">
   <div class="info-card">
     <div class="info-card-title">Base Devengada vs. Flujo de Efectivo RESICO</div>
@@ -1171,13 +1177,13 @@ function buildManualHtml(logoDataUri: string): string {
   </div>
   <div class="info-card">
     <div class="info-card-title">Semáforo de Topes RESICO ($3.5M / $35M)</div>
-    <p>Supervisa ingresos acumulados del ejercicio con alertas accesibles (<code>OK</code>, <code>Precaución ≥ 80%</code>, <code>Crítica ≥ 95%</code> y <code>Excedido</code>) sobre el tope anual de <strong><code>$3.5 MDP</code> (PF)</strong> y <strong><code>$35 MDP</code> (PM)</strong>; en régimen 612 muestra el desglose de flujo sin alertas RESICO.</p>
+    <p>Supervisa ingresos acumulados del ejercicio con un semáforo preventivo (<code>OK</code>, <code>Precaución ≥ 80%</code>, <code>Crítica ≥ 95%</code> y <code>Excedido</code>) sobre el tope anual de <strong><code>$3.5 MDP</code> (PF)</strong> y <strong><code>$35 MDP</code> (PM)</strong>; en régimen 612 muestra el desglose de flujo sin alertas RESICO.</p>
   </div>
 </div>
 
 <div class="callout callout-emerald">
   <div class="callout-title">IVA Multi-Tasa, Prorrateo Art. 5 LIVA, Fluctuación USD y Provisiones</div>
-  La Cédula Día 17 desglosa bases al <strong>16%</strong>, <strong>8% frontera</strong>, <strong>0%</strong>, <strong>Exento</strong> e <strong>IEPS acreditable</strong> (incluyendo traslados exentos en CFDIs mixtos), calcula el <strong>Factor de Prorrateo (Art. 5 LIVA)</strong>, evalúa fluctuación cambiaria USD en REPs parciales/multidocumento con corte mensual y provisiona pólizas con límite recorrido a día hábil.
+  La Cédula Día 17 desglosa bases al <strong>16%</strong>, <strong>8% frontera</strong>, <strong>0%</strong>, <strong>Exento</strong> e <strong>IEPS acreditable</strong> (incluyendo traslados exentos en CFDIs mixtos), calcula el <strong>Factor de Prorrateo (Art. 5 LIVA)</strong>, evalúa fluctuación cambiaria USD en Complementos de Pago parciales o que liquidan varias facturas con corte mensual y provisiona pólizas con límite recorrido a día hábil.
 </div>
 
 <!-- ==================== CAPÍTULO 8 ==================== -->
@@ -1221,17 +1227,17 @@ function buildManualHtml(logoDataUri: string): string {
   <li><strong>Nuevo Coeficiente de Utilidad, CUCA y CUFIN:</strong> determina el C.U. del siguiente ejercicio (con aviso aclaratorio cuando aplica a PM Régimen General) y actualiza saldos de <strong>CUCA</strong> (Art. 78 LISR) y <strong>CUFIN</strong> (Art. 77 LISR).</li>
 </ul>
 
-<h2>8.3 Anexo 24 en .zip Oficial SAT y Dossier Ejecutivo</h2>
+<h2>8.3 Anexo 24 en .zip Oficial SAT, Dossier de Cierre y Entregables</h2>
 <div class="callout callout-blue">
-  <div class="callout-title">Anexo 24 v1.3 en .zip Oficial SAT y Dossier de Cierre (.xlsx / Paquete .ZIP / PDF)</div>
-  En <strong>XML SAT Anexo 24</strong> descarga directamente el paquete comprimido <strong><code>.zip</code> oficial SAT</strong> (Regla 2.8.1.5 RMF) para <em>Catálogo (CT)</em>, <em>Balanza (BN Normal/Complementaria)</em> y <em>Pólizas (PL)</em> —recordando sustituir el <code>NumOrden</code>/<code>NumTramite</code> de ejemplo en <code>PL.xml</code> por el folio oficial del requerimiento SAT—. Desde <strong>Dossier Ejecutivo</strong> exporta el libro <strong>Excel (<code>.xlsx</code>)</strong>, el <strong>Paquete .ZIP (CSV)</strong> identificado por periodo (<code>_P01.._P13</code>) o el PDF (con alerta si siguen activas las firmas/cédula de ejemplo en <em>Firmas y Membrete</em>).
+  <div class="callout-title">Anexo 24 v1.3 en .zip Oficial SAT y Dossier Ejecutivo (.xlsx / Paquete .ZIP / PDF)</div>
+  En <strong>XML SAT Anexo 24</strong> descarga directamente el paquete comprimido <strong><code>.zip</code> oficial SAT</strong> (Regla 2.8.1.5 RMF) para <em>Catálogo (CT)</em>, <em>Balanza (BN Normal/Complementaria)</em> y <em>Pólizas (PL)</em> —recordando sustituir el número de orden o trámite de ejemplo en el archivo de Pólizas (<code>PL</code>) por el folio oficial del requerimiento SAT—. Desde la pestaña <strong>Dossier de Cierre</strong> o el botón <strong>Entregables Ejecutivos</strong> exporta el libro <strong>Excel (<code>.xlsx</code>)</strong>, el <strong>Paquete .ZIP (CSV)</strong> identificado por periodo (<code>_P01.._P13</code>) o el PDF (con alerta si siguen activas las firmas o cédula de ejemplo en <em>Firmas y Membrete</em>).
 </div>
 
 <!-- ==================== CAPÍTULO 9 ==================== -->
 <div class="page-break"></div>
 <div class="chapter-header">
   <div class="chapter-kicker">Capítulo 9</div>
-  <h1 class="chapter-title">Configuración, Equipo del Despacho, Bitácora y Respaldos (<kbd>Alt</kbd>+<kbd>7</kbd>)</h1>
+  <h1 class="chapter-title">Configuración y Empresa, Equipo, Bitácora y Respaldos (<kbd>Alt</kbd>+<kbd>7</kbd>)</h1>
 </div>
 
 <p>
@@ -1314,27 +1320,27 @@ function buildManualHtml(logoDataUri: string): string {
     <tr>
       <td><span class="badge badge-slate">Global</span></td>
       <td><kbd>Ctrl</kbd>+<kbd>E</kbd></td>
-      <td>Cambiar de empresa fiscal (Conmutador Multi-RFC).</td>
+      <td>Cambiar de empresa fiscal (Selector de Empresas Multi-RFC).</td>
     </tr>
     <tr>
       <td><span class="badge badge-slate">Global</span></td>
       <td><kbd>Alt</kbd>+<kbd>1</kbd> .. <kbd>Alt</kbd>+<kbd>7</kbd></td>
-      <td>Saltar directamente a cada uno de los 7 módulos del ERP.</td>
+      <td>Saltar directamente a cada uno de los 7 módulos principales.</td>
     </tr>
     <tr>
       <td><span class="badge badge-slate">Global</span></td>
       <td><kbd>Alt</kbd>+<kbd>[</kbd> / <kbd>Alt</kbd>+<kbd>]</kbd></td>
-      <td>Retroceder o avanzar periodo contable (hasta M13 Cierre Anual).</td>
+      <td>Retroceder o avanzar periodo contable (hasta Periodo 13 de Cierre Anual).</td>
     </tr>
     <tr>
       <td><span class="badge badge-slate">Global</span></td>
       <td><kbd>Ctrl</kbd>+<kbd>B</kbd> / <kbd>F1</kbd> / <kbd>Esc</kbd></td>
-      <td>Colapsar barra lateral / Abrir guía de atajos / Cerrar modal activo.</td>
+      <td>Colapsar barra lateral / Abrir guía de atajos / Cerrar ventana activa.</td>
     </tr>
     <tr>
       <td><span class="badge badge-blue">ADD CFDI</span></td>
-      <td><kbd>U</kbd> / <kbd>C</kbd> / <kbd>D</kbd> / <kbd>Espacio</kbd></td>
-      <td>Cargar XML/ZIP / Contabilizar (Auto-Póliza) / Descargar XML / Vista previa PDF.</td>
+      <td><kbd>Alt</kbd>+<kbd>U</kbd> / <kbd>Alt</kbd>+<kbd>S</kbd> / <kbd>/</kbd></td>
+      <td>Cargar XML/ZIP / Captura manual de CFDI / Enfocar buscador de facturas.</td>
     </tr>
     <tr>
       <td><span class="badge badge-emerald">Pólizas</span></td>
@@ -1353,8 +1359,8 @@ function buildManualHtml(logoDataUri: string): string {
     </tr>
     <tr>
       <td><span class="badge badge-amber">Catálogo</span></td>
-      <td><kbd>↑</kbd><kbd>↓</kbd> / <kbd>+</kbd><kbd>-</kbd> / <kbd>F2</kbd> / <kbd>Ctrl</kbd>+<kbd>D</kbd></td>
-      <td>Navegar árbol / Expandir o contraer / Editar cuenta / Crear subcuenta hija.</td>
+      <td><kbd>F3</kbd> / <kbd>↑↓</kbd> / <kbd>← →</kbd> / <kbd>Insert</kbd> / <kbd>F2</kbd></td>
+      <td>Buscar / Navegar árbol / Plegar o desplegar / + Subcuenta / Editar (<kbd>Espacio</kbd> Mayor).</td>
     </tr>
   </tbody>
 </table>
@@ -1363,7 +1369,7 @@ function buildManualHtml(logoDataUri: string): string {
 <ul class="checklist" style="margin: 2px 0 6px 0;">
   <li><span class="chk-box"></span><span><strong>Crea tu cuenta</strong> en <code>librepaq.com</code> (con Google o correo/contraseña) y verifica tu acceso.</span></li>
   <li><span class="chk-box"></span><span><strong>Registra tu primera empresa</strong> usando el Asistente de 5 Pasos (CSF PDF o XML CFDI 4.0 y catálogo General SAT o RESICO).</span></li>
-  <li><span class="chk-box"></span><span><strong>Sube tu e.firma (FIEL)</strong> en <em>Configuración → 3. e.Firma / SAT</em> e invita a tu equipo en <em>7. Equipo y Bitácora</em> si trabajas en despacho.</span></li>
+  <li><span class="chk-box"></span><span><strong>Sube tu e.firma (FIEL)</strong> en <em>Configuración y Empresa → 3. e.Firma / SAT</em> e invita a tu equipo en <em>7. Equipo y Bitácora</em> si trabajas en despacho.</span></li>
   <li><span class="chk-box"></span><span><strong>Descarga Emitidos + Recibidos del SAT</strong> en la <em>Bóveda Digital (ADD)</em>, ejecuta <em>Validar SAT en Lote</em> y contabiliza con <em>Reglas Aprendidas</em>.</span></li>
 </ul>
 
