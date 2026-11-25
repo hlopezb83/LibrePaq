@@ -53,13 +53,21 @@ export function resolveRecibidoIsrRetentionAccount(
   const clave = (relatedMeta?.claveProdServ || cfdi.claveProdServ || '').trim();
   const uso = (relatedMeta?.usoCfdi || cfdi.usoCfdi || '').trim().toUpperCase();
 
+  if (regimen === '605' || /asimilado/i.test(text)) {
+    return findByCodeOrSat('216-01-006', '216.02') ?? resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
+  }
   if (regimen === '626' || Math.abs(rate - 0.0125) < 0.0025 || /resico|r[eé]gimen simplificado/i.test(text)) {
     return findByCodeOrSat('216-01-005', '216.09') ?? resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
   }
   if (regimen === '606' || /arrendamiento|renta|alquiler|inmueble|local comercial|oficina/i.test(text) || clave.startsWith('801315')) {
     return findByCodeOrSat('216-01-003', '216.03') ?? resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
   }
-  if (Math.abs(rate - 0.1) < 0.01 || /honorario|servicio|profesional|consultor|asesor|contable|legal|m[eé]dic/i.test(text) || /^(801|841|851)/.test(clave) || uso === 'G03') {
+  if (
+    Math.abs(rate - 0.1) < 0.01 ||
+    /honorario|servicio|profesional|consultor|asesor|contable|legal|m[eé]dic/i.test(text) ||
+    /^(801|841|851)/.test(clave) ||
+    (uso === 'G03' && (regimen === '612' || (isrAmount > 0 && netSub > 0 && Math.abs(rate - 0.1) < 0.02)))
+  ) {
     return findByCodeOrSat('216-01-004', '216.04') ?? resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');
   }
   return resolveFiscalAccount(accounts, 'ISR_RETENIDO_POR_PAGAR');

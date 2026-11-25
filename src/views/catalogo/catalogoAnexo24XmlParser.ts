@@ -26,7 +26,8 @@ function asArray<T>(val: T | T[] | undefined): T[] {
 
 export function parseAnexo24XmlCatalogOrBalanza(
   xmlText: string,
-  existingAccounts: readonly AccountWithBalance[] = []
+  existingAccounts: readonly AccountWithBalance[] = [],
+  options?: { bnBalanceField?: 'SaldoIni' | 'SaldoFin' }
 ): CatalogoMigrationParseResult {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -99,11 +100,13 @@ export function parseAnexo24XmlCatalogOrBalanza(
     const ctas = asArray(bal.Ctas as Record<string, unknown>[]);
     const existingByCode = new Map(existingAccounts.map((a) => [a.code, a]));
 
+    const balanceField = options?.bnBalanceField ?? 'SaldoIni';
     const parsedNodes: Array<{
       row: ParsedCatalogoCsvRow;
-      saldoIniCents: number;
+      selectedBalCents: number;
       debeCents: number;
       haberCents: number;
+      hasExplicitAffectable: boolean;
     }> = [];
     const skipped: CatalogoCsvSkippedRow[] = [];
 
@@ -122,6 +125,8 @@ export function parseAnexo24XmlCatalogOrBalanza(
       const nature = ex?.nature ?? inferNatureFromType(type);
       const level = ex?.level ?? inferLevelFromCode(code);
       const saldoIniCents = toCents(Number(node['@_SaldoIni'] ?? 0));
+      const saldoFinCents = toCents(Number(node['@_SaldoFin'] ?? node['@_SaldoIni'] ?? 0));
+      const selectedBalCents = balanceField === 'SaldoFin' ? saldoFinCents : saldoIniCents;
       const debeCents = toCents(Number(node['@_Debe'] ?? 0));
       const haberCents = toCents(Number(node['@_Haber'] ?? 0));
 
@@ -134,12 +139,13 @@ export function parseAnexo24XmlCatalogOrBalanza(
           type,
           nature,
           level,
-          isAffectable: ex?.isAffectable ?? level >= 3,
-          initialBalance: fromCents(saldoIniCents)
+          isAffectable: ex?.isAffectable,
+          initialBalance: fromCents(selectedBalCents)
         },
-        saldoIniCents,
+        selectedBalCents,
         debeCents,
-        haberCents
+        haberCents,
+        hasExplicitAffectable: ex !== undefined
       });
     });
 
@@ -149,6 +155,12 @@ export function parseAnexo24XmlCatalogOrBalanza(
       const inferredParent = n.row.parentCode ?? inferParentCodeFromSet(n.row.code, knownCodes);
       if (inferredParent) parentInXml.add(inferredParent);
       n.row.parentCode = inferredParent;
+    }
+    for (const n of parsedNodes) {
+      if (!n.hasExplicitAffectable) {
+        const lvl = n.row.level ?? 1;
+        n.row.isAffectable = !parentInXml.has(n.row.code) && lvl >= 2;
+      }
     }
 
     const leafNodes = parsedNodes.filter(
@@ -161,8 +173,8 @@ export function parseAnexo24XmlCatalogOrBalanza(
     let totalDebeCents = 0;
     let totalHaberCents = 0;
     for (const n of nodesForBalance) {
-      if (n.row.nature === 'DEUDORA') totalDeudorCents += n.saldoIniCents;
-      else totalAcreedorCents += n.saldoIniCents;
+      if (n.row.nature === 'DEUDORA') totalDeudorCents += n.selectedBalCents;
+      else totalAcreedorCents += n.selectedBalCents;
       totalDebeCents += n.debeCents;
       totalHaberCents += n.haberCents;
     }
@@ -185,7 +197,8 @@ export function parseAnexo24XmlCatalogOrBalanza(
         isBalanced: maxDiff === 0,
         difference: fromCents(maxDiff),
         anio,
-        mes
+        mes,
+        balanceField
       }
     };
   }

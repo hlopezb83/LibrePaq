@@ -1,5 +1,6 @@
 import { supabase, getRequiredSupabase } from '../supabase';
 import { parseCfdiXmlString } from '../../shared/cfdi-xml';
+import type { ForeignNoCfdiPayload } from '../../shared/cfdi-xml-foreign';
 import { parseCalendarDate, getTodayLocalIso } from '../../shared/date-utils';
 import { isCfdiBelongingToCompany } from '../../shared/xml-utils';
 import type { CfdiDocument, Poliza } from '../../shared/types';
@@ -8,6 +9,7 @@ import { chunkArray, fetchAllRows } from './supabase-pagination';
 import {
   buildParsedCfdiInsertRow,
   fetchCfdiPolizaLookup,
+  insertForeignNoCfdiWithClient,
   mapSupabaseCfdi
 } from './supabase-cfdi-mappers';
 import {
@@ -25,7 +27,7 @@ export const supabaseCfdi = {
     try {
       const projection = opts?.includeXml
         ? '*'
-        : 'id, company_id, uuid, fecha, fecha_pago, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
+        : 'id, company_id, uuid, fecha, fecha_pago, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, validacion_efos, es_cancelable, estatus_cancelacion, poliza_id, deductible_pct, is_foreign_no_cfdi, tax_breakdown, related_docs';
 
       const data = await fetchAllRows(async (from, to) => {
         return getRequiredSupabase()
@@ -77,22 +79,41 @@ export const supabaseCfdi = {
     return (data as { xml_raw?: string }).xml_raw || '';
   },
 
-  async uploadCfdi(payload: {
-    companyId: string;
-    xmlRaw?: string;
-    tipoComprobante?: 'I' | 'E' | 'P' | 'N';
-    direction?: 'EMITIDO' | 'RECIBIDO';
-    counterpartyRfc?: string;
-    counterpartyName?: string;
-    conceptoPrincipal?: string;
-    subtotal?: number;
-    isrRetenido?: number;
-    ivaRetenido?: number;
-    metodoPago?: 'PUE' | 'PPD';
-    uuidRelacionado?: string | null;
-    fecha?: string;
-  }): Promise<CfdiDocument> {
+  async uploadCfdi(
+    payload:
+      | {
+          companyId: string;
+          xmlRaw?: string;
+          tipoComprobante?: 'I' | 'E' | 'P' | 'N';
+          direction?: 'EMITIDO' | 'RECIBIDO';
+          counterpartyRfc?: string;
+          counterpartyName?: string;
+          conceptoPrincipal?: string;
+          subtotal?: number;
+          isrRetenido?: number;
+          ivaRetenido?: number;
+          metodoPago?: 'PUE' | 'PPD';
+          uuidRelacionado?: string | null;
+          fecha?: string;
+          isForeignNoCfdi?: false;
+        }
+      | ForeignNoCfdiPayload
+  ): Promise<CfdiDocument> {
     if (!supabase) throw new Error('Supabase no disponible');
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('rfc, name')
+      .eq('id', payload.companyId)
+      .maybeSingle();
+    const companyRfc = (comp?.rfc || '').toUpperCase();
+
+    if ('isForeignNoCfdi' in payload && payload.isForeignNoCfdi) {
+      return insertForeignNoCfdiWithClient(supabase, payload, {
+        rfc: companyRfc,
+        name: comp?.name || 'Mi Empresa'
+      });
+    }
+
     const xmlString = payload.xmlRaw || '';
     const parsed = xmlString ? parseCfdiXmlString(xmlString, { requireStamp: true }) : null;
     const uuid = (parsed?.uuid || crypto.randomUUID()).toUpperCase();
@@ -109,13 +130,6 @@ export const supabaseCfdi = {
     }
 
     const id = `cfdi_${crypto.randomUUID().slice(0, 12)}`;
-
-    const { data: comp } = await supabase
-      .from('companies')
-      .select('rfc')
-      .eq('id', payload.companyId)
-      .maybeSingle();
-    const companyRfc = (comp?.rfc || '').toUpperCase();
     if (parsed && companyRfc && !isCfdiBelongingToCompany(parsed, companyRfc)) {
       throw new Error(
         `CFDI_RFC_MISMATCH: El comprobante ${uuid} (${parsed.emisorRfc} → ${parsed.receptorRfc}) no pertenece al RFC de esta empresa (${companyRfc}).`

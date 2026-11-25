@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { FileArchive, Loader2, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
-import { Button, InlineConfirm, StatusBadge } from '../../components/ui';
+import { Button, InlineConfirm, Select, StatusBadge } from '../../components/ui';
+import type { BatchPolizaGroupingMode } from '../../shared/engine/auto-poliza-types';
 
 export interface CfdiBatchActionBarProps {
   selectedCfdiIds: Set<string>;
   onClearSelection: () => void;
   isBatchContabilizarPending: boolean;
   batchProgress?: { current: number; total: number } | null;
+  batchGroupingMode?: BatchPolizaGroupingMode;
+  onChangeBatchGroupingMode?: (mode: BatchPolizaGroupingMode) => void;
   onBatchContabilizarSelected: () => void;
   isVerifySatBatchPending?: boolean;
   onVerifySatBatchSelected?: () => void;
@@ -23,6 +26,8 @@ export function CfdiBatchActionBar({
   onClearSelection,
   isBatchContabilizarPending,
   batchProgress,
+  batchGroupingMode = 'PER_CFDI',
+  onChangeBatchGroupingMode,
   onBatchContabilizarSelected,
   isVerifySatBatchPending = false,
   onVerifySatBatchSelected,
@@ -70,6 +75,22 @@ export function CfdiBatchActionBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {!isReadOnlyClient && onChangeBatchGroupingMode && (
+          <Select
+            aria-label="Modo de agrupación de pólizas en lote"
+            size="sm"
+            value={batchGroupingMode}
+            disabled={isBatchContabilizarPending || isWriteBlocked}
+            onChange={(e) => onChangeBatchGroupingMode(e.target.value as BatchPolizaGroupingMode)}
+            containerClassName="w-auto min-w-[168px]"
+            title="Elige entre 1 póliza por CFDI o póliza concentrada"
+          >
+            <option value="PER_CFDI">1 póliza por CFDI</option>
+            <option value="BY_DAY">Concentrada por día</option>
+            <option value="BY_RFC">Concentrada por RFC</option>
+            <option value="BY_NOMINA">Concentrada nómina</option>
+          </Select>
+        )}
         {!isReadOnlyClient && (
           <Button
             variant="primary"

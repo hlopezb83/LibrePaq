@@ -3,11 +3,15 @@ import { BookOpen, CreditCard, FileSpreadsheet } from 'lucide-react';
 interface WizardStep2CatalogProps {
   catalogPreset: 'SAT_STANDARD' | 'RESICO_SIMPLIFIED' | 'CUSTOM';
   setCatalogPreset: (preset: 'SAT_STANDARD' | 'RESICO_SIMPLIFIED' | 'CUSTOM') => void;
+  replaceBaseCatalog?: boolean;
+  setReplaceBaseCatalog?: (replace: boolean) => void;
 }
 
 export function WizardStep2Catalog({
   catalogPreset,
-  setCatalogPreset
+  setCatalogPreset,
+  replaceBaseCatalog = false,
+  setReplaceBaseCatalog
 }: WizardStep2CatalogProps) {
   return (
     <fieldset className="space-y-3.5">
@@ -99,10 +103,10 @@ export function WizardStep2Catalog({
             </div>
             <div>
               <div className="text-sm font-bold text-slate-900">
-                Migración CONTPAQi / Catálogo Propio (.CSV)
+                Migración CONTPAQi / Catálogo Propio (.CSV / .TXT / .XML)
               </div>
               <div className="text-xs text-slate-600 mt-0.5">
-                Se iniciará con la estructura base y podrás importar tu CSV desde el módulo de Catálogo.
+                Se iniciará con la estructura base; mientras no registres pólizas podrás usar <strong>Reemplazar catálogo base</strong> al importar desde Catálogo de Cuentas.
               </div>
             </div>
           </div>
@@ -115,6 +119,25 @@ export function WizardStep2Catalog({
             className="mt-1 text-blue-600 shrink-0"
           />
         </div>
+        {catalogPreset === 'CUSTOM' && (
+          <div className="mt-2.5 pt-2.5 border-t border-blue-200/80 flex items-center gap-2 text-xs text-blue-950">
+            {setReplaceBaseCatalog ? (
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none font-semibold">
+                <input
+                  type="checkbox"
+                  checked={replaceBaseCatalog}
+                  onChange={(e) => setReplaceBaseCatalog(e.target.checked)}
+                  className="rounded border-blue-400 text-blue-700 focus:ring-blue-600"
+                />
+                <span>Reemplazar catálogo base al importar archivo propio (empresa sin pólizas)</span>
+              </label>
+            ) : (
+              <span className="font-medium">
+                Opción <strong>Reemplazar catálogo base</strong> habilitada automáticamente mientras la empresa no tenga pólizas.
+              </span>
+            )}
+          </div>
+        )}
       </label>
     </fieldset>
   );

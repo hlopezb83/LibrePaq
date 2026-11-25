@@ -1,8 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
-import { downloadCsvFile } from '../../lib/formatters';
 import { splitCsvLine } from '../../shared/csv-bank-parser';
 import type { AccountNature, AccountType, AccountWithBalance } from '../../shared/types';
+import {
+  confirmImportCatalogoRows,
+  downloadCatalogoTemplateCsv,
+  exportCatalogoCsv
+} from './catalogoCsvExport';
 import {
   inferLevelFromCode,
   inferParentCodeFromSet,
@@ -14,6 +17,8 @@ import {
   type BalanzaValidationSummary,
   type CatalogoFileFormat
 } from './catalogoMigrationParsers';
+
+export { confirmImportCatalogoRows, downloadCatalogoTemplateCsv, exportCatalogoCsv };
 
 export interface ParsedCatalogoCsvRow {
   code: string;
@@ -154,7 +159,6 @@ export function parseCatalogoCsvWithReport(text: string): {
         : inferLevelFromCode(rawCode);
 
     const parsedAff = parseBoolColumn(cols[colAffectable]);
-    const isAffectable = parsedAff !== undefined ? parsedAff : level >= 3;
 
     const rawBalText = (cols[colBalance] ?? '').trim();
     const isParenNeg = /^\(.*\)$/.test(rawBalText);
@@ -171,15 +175,23 @@ export function parseCatalogoCsvWithReport(text: string): {
       type: parsedType,
       nature: parsedNature,
       level,
-      isAffectable,
+      ...(parsedAff !== undefined ? { isAffectable: parsedAff } : {}),
       initialBalance: Number.isFinite(rawBalVal) ? rawBalVal : 0
     });
   }
 
   const knownCodes = new Set(tempRows.map((r) => r.code));
-  const rows = tempRows.map((r) => ({
+  const withParents = tempRows.map((r) => ({
     ...r,
     parentCode: r.parentCode !== undefined ? r.parentCode : inferParentCodeFromSet(r.code, knownCodes)
+  }));
+  const parentSet = new Set(withParents.map((r) => r.parentCode).filter((p): p is string => Boolean(p)));
+  const rows = withParents.map((r) => ({
+    ...r,
+    isAffectable:
+      r.isAffectable !== undefined
+        ? r.isAffectable
+        : (r.level ?? 1) >= 3 || ((r.level ?? 1) === 2 && !parentSet.has(r.code))
   }));
   return { rows, skipped };
 }
@@ -198,7 +210,8 @@ export function parseCatalogoCsvText(text: string): ParsedCatalogoCsvRow[] {
 export function buildCatalogoImportPreview(
   fileName: string,
   text: string,
-  existingAccounts: AccountWithBalance[]
+  existingAccounts: AccountWithBalance[],
+  options?: { bnBalanceField?: 'SaldoIni' | 'SaldoFin'; replaceBaseCatalog?: boolean }
 ): CatalogoCsvImportPreview {
   const trimmed = text.replace(/^\uFEFF/, '').trimStart();
   const isXml = fileName.toLowerCase().endsWith('.xml') || trimmed.startsWith('<');
@@ -209,7 +222,9 @@ export function buildCatalogoImportPreview(
   let fechaInicioOperaciones: string | undefined;
 
   if (isXml) {
-    const parsedXml = parseAnexo24XmlCatalogOrBalanza(trimmed, existingAccounts);
+    const parsedXml = parseAnexo24XmlCatalogOrBalanza(trimmed, existingAccounts, {
+      bnBalanceField: options?.bnBalanceField
+    });
     fileFormat = parsedXml.format;
     rows = parsedXml.rows;
     skipped = parsedXml.skipped;
@@ -226,7 +241,9 @@ export function buildCatalogoImportPreview(
     skipped = parsedCsv.skipped;
   }
 
-  const existingCodes = new Set(existingAccounts.map((a) => a.code));
+  const existingCodes = options?.replaceBaseCatalog
+    ? new Set<string>()
+    : new Set(existingAccounts.map((a) => a.code));
   const toCreate: ParsedCatalogoCsvRow[] = [];
   const toUpdate: ParsedCatalogoCsvRow[] = [];
   for (const row of rows) {
@@ -246,91 +263,6 @@ export function buildCatalogoImportPreview(
     skipped,
     allValidRows: rows
   };
-}
-
-export function downloadCatalogoTemplateCsv() {
-  const headers = [
-    'Código Cuenta',
-    'Nombre de la Cuenta',
-    'Código Agrupador SAT',
-    'Rubro',
-    'Naturaleza',
-    'Nivel',
-    'Afectable',
-    'Saldo Inicial',
-    'Cuenta Padre'
-  ];
-  const rows = [
-    ['601-00-000', 'Gastos Generales', '601.01', 'GASTOS', 'DEUDORA', 2, 'No', 0, '600-00-000'],
-    ['601-01-099', 'Gastos de Publicidad Digital', '601.84', 'GASTOS', 'DEUDORA', 3, 'Sí', 0, '601-00-000']
-  ];
-  downloadCsvFile('Plantilla_Catalogo_Cuentas_SAT.csv', headers, rows);
-}
-
-export function exportCatalogoCsv(
-  accounts: AccountWithBalance[],
-  rfcOrId: string,
-  year?: number,
-  period?: number
-) {
-  const headers = [
-    'Código Cuenta',
-    'Nombre de la Cuenta',
-    'Código Agrupador SAT',
-    'Rubro',
-    'Naturaleza',
-    'Nivel',
-    'Afectable',
-    'Saldo Inicial Acumulado',
-    'Saldo Apertura Enero',
-    'Cargos del Periodo',
-    'Abonos del Periodo',
-    'Saldo Final',
-    'Cuenta Padre'
-  ];
-  const rows = accounts.map((a) => [
-    a.code,
-    a.name,
-    a.satGroupCode,
-    a.type,
-    a.nature,
-    a.level,
-    a.isAffectable ? 'Sí' : 'No',
-    a.initialBalanceComputed,
-    a.initialBalance,
-    a.periodCharges,
-    a.periodCredits,
-    a.finalBalance,
-    a.parentCode || ''
-  ]);
-  const pStr = period ? `_P${String(period).padStart(2, '0')}` : '';
-  downloadCsvFile(
-    `Catalogo_Cuentas_${rfcOrId}_${year || 2026}${pStr}.csv`,
-    headers,
-    rows
-  );
-}
-
-export async function confirmImportCatalogoRows(
-  parsedRows: ParsedCatalogoCsvRow[],
-  companyId: string,
-  queryClient: QueryClient,
-  toast: { success: (title: string, desc?: string) => void; error: (title: string, desc?: string) => void }
-) {
-  if (parsedRows.length === 0) {
-    toast.error(
-      'Importación fallida',
-      'No se detectaron cuentas válidas (ej. XXX-XX-XXX o XXXX-XXX-XXXX) en el archivo CSV.'
-    );
-    return;
-  }
-
-  const res = await apiClient.batchImportAccounts(companyId, parsedRows);
-  invalidateAccountingQueries(queryClient, ['accounts', 'reports', 'dashboard']);
-  toast.success(
-    'Catálogo Importado',
-    `Importación completada: ${res.importedCount} cuentas creadas (${res.updatedCount} actualizadas).`
-  );
 }
 
 export async function importCatalogoCsvFile(

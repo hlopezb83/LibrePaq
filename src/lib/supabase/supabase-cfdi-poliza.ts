@@ -1,10 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 import { buildAutoPolizaPlan } from '../../shared/engine/auto-poliza.engine';
+import { clampDeductiblePct } from '../../shared/engine/auto-poliza-deductible';
+import type { BatchPolizaGroupingMode } from '../../shared/engine/auto-poliza-types';
 import { validateDoubleEntryMovements } from '../../shared/engine/invariants-and-math';
 import { parseCalendarDate } from '../../shared/date-utils';
 import { MESES_SAT } from '../../shared/sat-constants';
-import type { AccountWithBalance, Poliza, ThirdPartyRecord } from '../../shared/types';
+import type { AccountWithBalance, Efos69BStatus, Poliza, ThirdPartyRecord } from '../../shared/types';
 import type { AccountingRuleRecord } from '../../shared/types/accounting-rules.types';
 import { logCompanyAuditEvent } from './audit-logger';
 import { supabaseAccountingRules } from './supabase-accounting-rules';
@@ -17,6 +19,8 @@ export interface AutoPolizaClientOptions {
   operationAccountCode?: string;
   counterAccountCode?: string;
   deductiblePct?: number;
+  allowEfos69B?: boolean;
+  groupingMode?: BatchPolizaGroupingMode;
 }
 
 export interface AutoPolizaBatchContext {
@@ -24,7 +28,12 @@ export interface AutoPolizaBatchContext {
   rules?: AccountingRuleRecord[];
   thirdParties?: Map<
     string,
-    { rol?: ThirdPartyRecord['rol']; cuentaOperacionCode: string; cuentaContrapartidaCode: string }
+    {
+      rol?: ThirdPartyRecord['rol'];
+      cuentaOperacionCode: string;
+      cuentaContrapartidaCode: string;
+      estatus69B?: Efos69BStatus;
+    }
   >;
   periodLocks?: Map<string, boolean>;
 }
@@ -65,7 +74,7 @@ export async function preloadAutoPolizaBatchContext(
     fetchAllRows(async (from, to) =>
       client
         .from('third_parties')
-        .select('rfc, rol, cuenta_operacion_code, cuenta_contrapartida_code')
+        .select('rfc, rol, cuenta_operacion_code, cuenta_contrapartida_code, estatus_69b')
         .eq('company_id', companyId)
         .order('rfc', { ascending: true })
         .order('id', { ascending: true })
@@ -79,20 +88,27 @@ export async function preloadAutoPolizaBatchContext(
 
   const thirdParties = new Map<
     string,
-    { rol?: ThirdPartyRecord['rol']; cuentaOperacionCode: string; cuentaContrapartidaCode: string }
+    {
+      rol?: ThirdPartyRecord['rol'];
+      cuentaOperacionCode: string;
+      cuentaContrapartidaCode: string;
+      estatus69B?: Efos69BStatus;
+    }
   >();
   for (const row of tpRows as Array<{
     rfc?: string;
     rol?: string | null;
     cuenta_operacion_code?: string | null;
     cuenta_contrapartida_code?: string | null;
+    estatus_69b?: string | null;
   }>) {
     const rfc = String(row.rfc || '').trim().toUpperCase();
     if (!rfc) continue;
     thirdParties.set(rfc, {
       ...(row.rol ? { rol: row.rol as ThirdPartyRecord['rol'] } : {}),
       cuentaOperacionCode: row.cuenta_operacion_code || '',
-      cuentaContrapartidaCode: row.cuenta_contrapartida_code || ''
+      cuentaContrapartidaCode: row.cuenta_contrapartida_code || '',
+      ...(row.estatus_69b ? { estatus69B: row.estatus_69b as Efos69BStatus } : {})
     });
   }
 
@@ -205,44 +221,23 @@ export async function runAutoPolizaFromCfdiWithClient(
   let nextFolio = 1;
   let prevFolio = 0;
   let polizaData: {
-    id: string;
-    company_id: string;
-    tipo: typeof plan.polizaType;
-    folio: number;
-    fecha: string;
-    ejercicio: number;
-    periodo: number;
-    concepto: string;
-    cfdi_uuid: string;
-    origin: 'ADD_AUTO';
-    created_at: string;
+    id: string; company_id: string; tipo: typeof plan.polizaType; folio: number;
+    fecha: string; ejercicio: number; periodo: number; concepto: string;
+    cfdi_uuid: string; origin: 'ADD_AUTO'; created_at: string;
   } | null = null;
 
   for (let attempt = 0; attempt < MAX_FOLIO_CONFLICT_RETRIES; attempt++) {
     const { data: maxRows, error: maxErr } = await client
-      .from('polizas')
-      .select('folio')
-      .eq('company_id', cfdi.companyId)
-      .eq('tipo', plan.polizaType)
-      .eq('ejercicio', year)
-      .eq('periodo', period)
-      .order('folio', { ascending: false })
-      .limit(1);
+      .from('polizas').select('folio').eq('company_id', cfdi.companyId)
+      .eq('tipo', plan.polizaType).eq('ejercicio', year).eq('periodo', period)
+      .order('folio', { ascending: false }).limit(1);
     if (maxErr) throw new Error(maxErr.message);
 
     nextFolio = Math.max(Number(maxRows?.[0]?.folio || 0) + 1, prevFolio + 1);
     const candidate = {
-      id: polizaId,
-      company_id: cfdi.companyId,
-      tipo: plan.polizaType,
-      folio: nextFolio,
-      fecha: accountingDate,
-      ejercicio: year,
-      periodo: period,
-      concepto: plan.polizaConcept,
-      cfdi_uuid: cfdi.uuid,
-      origin: 'ADD_AUTO' as const,
-      created_at: now
+      id: polizaId, company_id: cfdi.companyId, tipo: plan.polizaType, folio: nextFolio,
+      fecha: accountingDate, ejercicio: year, periodo: period,
+      concepto: plan.polizaConcept, cfdi_uuid: cfdi.uuid, origin: 'ADD_AUTO' as const, created_at: now
     };
     const { error: polErr } = await client.from('polizas').insert(candidate);
     if (!polErr) {
@@ -281,9 +276,15 @@ export async function runAutoPolizaFromCfdiWithClient(
     }
   }
 
+  const persistedDeductiblePct = clampDeductiblePct(
+    options?.deductiblePct ?? relatedOverrides.deductiblePct ?? plan.matchedRule?.deductiblePct ?? cfdi.deductiblePct
+  );
   const { data: claimedRows, error: linkErr } = await client
     .from('cfdi_documents')
-    .update({ poliza_id: polizaId })
+    .update({
+      poliza_id: polizaId,
+      ...(cfdi.tipoComprobante !== 'P' ? { deductible_pct: persistedDeductiblePct } : {})
+    })
     .eq('id', cfdiId)
     .is('poliza_id', null)
     .select('id');

@@ -2,7 +2,7 @@ import { Sparkles } from 'lucide-react';
 import { Select, StatusBadge } from '../../components/ui';
 import type { AccountingRuleRecord } from '../../shared/types/accounting-rules.types';
 
-const DEDUCTIBLE_PRESETS = [100, 50, 25, 10, 0] as const;
+const DEDUCTIBLE_PRESETS = [100, 53, 50, 47, 25, 10, 8.5, 0] as const;
 
 export interface CfdiRuleLearningBarProps {
   direction: 'EMITIDO' | 'RECIBIDO';
@@ -94,9 +94,12 @@ export function CfdiRuleLearningBar({
                 <option value={deductiblePct}>{deductiblePct}% (Regla)</option>
               )}
               <option value={100}>100% (Totalmente deducible)</option>
+              <option value={53}>53% (Previsión social / exentos 47% · Art. 28-XXX)</option>
               <option value={50}>50% (Parcial · 50% a No Deducibles 801)</option>
+              <option value={47}>47% (Previsión social / exentos 53% · Art. 28-XXX)</option>
               <option value={25}>25% (Parcial · 75% a No Deducibles 801)</option>
               <option value={10}>10% (Parcial · 90% a No Deducibles 801)</option>
+              <option value={8.5}>8.5% (Restaurantes Art. 28-XX · 91.5% a 801)</option>
               <option value={0}>0% (No deducible · 100% a No Deducibles 801)</option>
             </Select>
           </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet } from 'lucide-react';
-import { AlertBanner, Button, ModalShell, StatusBadge } from '../../components/ui';
+import { AlertBanner, Button, ModalShell, Select, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import {
   downloadCatalogoTemplateCsv,
@@ -17,6 +17,11 @@ const FORMAT_LABELS: Record<NonNullable<CatalogoCsvImportPreview['fileFormat']>,
 interface CatalogoCsvImportPreviewModalProps {
   preview: CatalogoCsvImportPreview | null;
   isImporting: boolean;
+  hasPolizas?: boolean;
+  bnBalanceField?: 'SaldoIni' | 'SaldoFin';
+  onChangeBnBalanceField?: (field: 'SaldoIni' | 'SaldoFin') => void;
+  replaceBaseCatalog?: boolean;
+  onChangeReplaceBaseCatalog?: (replace: boolean) => void;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -24,6 +29,11 @@ interface CatalogoCsvImportPreviewModalProps {
 export function CatalogoCsvImportPreviewModal({
   preview,
   isImporting,
+  hasPolizas = true,
+  bnBalanceField = 'SaldoIni',
+  onChangeBnBalanceField,
+  replaceBaseCatalog = false,
+  onChangeReplaceBaseCatalog,
   onClose,
   onConfirm
 }: CatalogoCsvImportPreviewModalProps) {
@@ -137,12 +147,45 @@ export function CatalogoCsvImportPreviewModal({
           </div>
         )}
 
+        {preview.fileFormat === 'ANEXO24_BN_XML' && onChangeBnBalanceField && (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-blue-50/70 border border-blue-200">
+            <label htmlFor="bn-balance-field" className="text-[11px] font-bold text-blue-950">
+              Columna de saldo a importar desde BN.xml:
+            </label>
+            <Select
+              id="bn-balance-field"
+              size="sm"
+              value={bnBalanceField}
+              onChange={(e) => onChangeBnBalanceField(e.target.value as 'SaldoIni' | 'SaldoFin')}
+              containerClassName="w-auto min-w-[230px]"
+            >
+              <option value="SaldoIni">SaldoIni (Saldo Inicial del periodo)</option>
+              <option value="SaldoFin">SaldoFin (Saldo Final / corte intermedio)</option>
+            </Select>
+          </div>
+        )}
+
+        {!hasPolizas && onChangeReplaceBaseCatalog && (
+          <label className="flex items-start gap-2.5 p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={replaceBaseCatalog}
+              onChange={(e) => onChangeReplaceBaseCatalog(e.target.checked)}
+              className="mt-0.5 rounded border-amber-400 text-amber-700 focus:ring-amber-600"
+            />
+            <span className="text-[11px] text-amber-950">
+              <strong className="block">Reemplazar catálogo base</strong>
+              Elimina las cuentas semilla iniciales antes de importar el nuevo catálogo (disponible porque la empresa aún no tiene pólizas).
+            </span>
+          </label>
+        )}
+
         {preview.balanzaValidation && (
           <AlertBanner
             tone={preview.balanzaValidation.isBalanced ? 'success' : 'danger'}
             title={
               preview.balanzaValidation.isBalanced
-                ? 'Validación Balanza BN.xml: Deudor = Acreedor (Cuadrada)'
+                ? `Validación Balanza BN.xml (${bnBalanceField}): Deudor = Acreedor (Cuadrada)`
                 : `Descuadre detectado en BN.xml (${formatCurrency(preview.balanzaValidation.difference)})`
             }
             action={
@@ -155,8 +198,8 @@ export function CatalogoCsvImportPreviewModal({
           >
             <div className="mt-1.5 space-y-2">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono tabular-nums text-[11px]">
-                <div>Saldo Ini Deudor: <strong>{formatCurrency(preview.balanzaValidation.totalDeudor)}</strong></div>
-                <div>Saldo Ini Acreedor: <strong>{formatCurrency(preview.balanzaValidation.totalAcreedor)}</strong></div>
+                <div>{bnBalanceField === 'SaldoFin' ? 'Saldo Fin Deudor' : 'Saldo Ini Deudor'}: <strong>{formatCurrency(preview.balanzaValidation.totalDeudor)}</strong></div>
+                <div>{bnBalanceField === 'SaldoFin' ? 'Saldo Fin Acreedor' : 'Saldo Ini Acreedor'}: <strong>{formatCurrency(preview.balanzaValidation.totalAcreedor)}</strong></div>
                 <div>Debe: <strong>{formatCurrency(preview.balanzaValidation.totalDebe)}</strong></div>
                 <div>Haber: <strong>{formatCurrency(preview.balanzaValidation.totalHaber)}</strong></div>
               </div>

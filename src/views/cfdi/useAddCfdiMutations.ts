@@ -3,8 +3,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries, type AccountingQueryScope } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/formatters';
+import type { ForeignNoCfdiPayload } from '../../shared/cfdi-xml-foreign';
+import type { BatchPolizaGroupingMode } from '../../shared/engine/auto-poliza-types';
 import { deleteCfdisInBatches } from './cfdiXmlUploadHelpers';
-import type { SatBatchVerifyResult } from '../../shared/types';
+import type { CfdiDocument, Poliza, SatBatchVerifyResult } from '../../shared/types';
 
 const POLIZA_SCOPES: ReadonlyArray<AccountingQueryScope> = [
   'cfdis', 'polizas', 'accounts', 'account-ledger', 'reports',
@@ -48,24 +50,33 @@ export function useAddCfdiMutations({
   latestCompanyIdRef.current = activeCompanyId;
   const isWriteBlocked = isPeriodLocked || isReadOnlyClient;
 
+type UploadCfdiPayload = { companyId: string; xmlRaw: string } | ForeignNoCfdiPayload;
+type BatchAutoPolizaFn = (
+  cfdiIds: string[],
+  options?: { groupingMode?: BatchPolizaGroupingMode; allowEfos69B?: boolean },
+  onProgress?: (current: number, total: number) => void
+) => Promise<{
+  createdPolizas: Poliza[];
+  count: number;
+  failedCount?: number;
+  errors?: Array<{ cfdiId: string; uuid?: string; error: string }>;
+}>;
+
   const uploadXmlMutation = useMutation({
-    mutationFn: (params: { companyId: string; xmlRaw: string }) => {
-      if (isReadOnlyClient) {
-        throw new Error('Acceso de solo lectura: no es posible importar comprobantes CFDI.');
-      }
-      return apiClient.uploadCfdi(params);
+    mutationFn: (params: UploadCfdiPayload) => {
+      if (isReadOnlyClient) throw new Error('Acceso de solo lectura: no es posible importar comprobantes CFDI.');
+      return (apiClient.uploadCfdi as (p: UploadCfdiPayload) => Promise<CfdiDocument>)(params);
     },
     onSuccess: (created) => {
-      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard', 'fiscal-workpaper', 'diot']);
-      toast.success(
-        `CFDI ${created.serie}-${created.folio} (${created.tipoComprobante} • ${created.uuid.slice(0, 8)}...) importado al ADD.`
-      );
+      invalidateAccountingQueries(queryClient, ['cfdis', 'dashboard', 'fiscal-workpaper', 'diot', 'third-parties']);
+      const tag = created.isForeignNoCfdi
+        ? `Comprobante ${created.serie}-${created.folio} (${created.moneda} · Sin CFDI)`
+        : `CFDI ${created.serie}-${created.folio} (${created.tipoComprobante} • ${created.uuid.slice(0, 8)}...)`;
+      toast.success(`${tag} registrado en la Bóveda ADD.`);
       onUploadXmlSuccess?.();
       simModalRef?.current?.close();
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    }
+    onError: (err: Error) => toast.error(err.message)
   });
 
   const autoPolizaMutation = useMutation({
@@ -134,7 +145,11 @@ export function useAddCfdiMutations({
   }, [activeCompanyId]);
 
   const batchContabilizarMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
+    mutationFn: async (
+      input:
+        | string[]
+        | { ids: string[]; groupingMode?: BatchPolizaGroupingMode; allowEfos69B?: boolean }
+    ) => {
       if (isWriteBlocked) {
         throw new Error(
           isReadOnlyClient
@@ -142,14 +157,16 @@ export function useAddCfdiMutations({
             : 'Periodo bloqueado ante el SAT. No es posible contabilizar en lote.'
         );
       }
+      const ids = Array.isArray(input) ? input : input.ids;
+      const groupingMode = Array.isArray(input) ? 'PER_CFDI' : (input.groupingMode ?? 'PER_CFDI');
+      const allowEfos69B = Array.isArray(input) ? false : Boolean(input.allowEfos69B);
       setBatchProgress({ current: 0, total: ids.length });
       try {
-        const res = await apiClient.batchAutoPolizaFromCfdis(
+        return await (apiClient.batchAutoPolizaFromCfdis as unknown as BatchAutoPolizaFn)(
           ids,
-          undefined,
+          { groupingMode, ...(allowEfos69B ? { allowEfos69B } : {}) },
           (current, total) => setBatchProgress({ current, total })
         );
-        return res;
       } finally {
         setBatchProgress(null);
       }
@@ -157,36 +174,35 @@ export function useAddCfdiMutations({
     onSuccess: (res) => {
       invalidateAccountingQueries(queryClient, POLIZA_SCOPES);
       setSelectedCfdiIds(new Set());
-      const typedRes = res as typeof res & {
-        failedCount?: number;
-        errors?: Array<{ cfdiId: string; uuid?: string; error: string }>;
-      };
-      const failedCount = typedRes.failedCount ?? 0;
-      const errors = typedRes.errors ?? [];
+      const failedCount = res.failedCount ?? 0;
+      const errors = res.errors ?? [];
       const firstErr = errors[0]?.error || '';
+      const efosCount = errors.filter((e) => e.error.includes('EFOS_69B_BLOCKED') || e.error.includes('69-B')).length;
       if (failedCount > 0) {
         setBatchPartialAlert({
           title:
-            typedRes.count === 0
-              ? `No se pudo contabilizar ninguno de los ${failedCount} comprobantes`
-              : `Contabilización parcial: ${typedRes.count} póliza(s) generada(s) y ${failedCount} con error`,
+            efosCount > 0
+              ? `Alerta 69-B SAT: ${efosCount} comprobante(s) EFOS bloqueado(s) en lote (${res.count} pólizas creadas)`
+              : res.count === 0
+                ? `No se pudo contabilizar ninguno de los ${failedCount} comprobantes`
+                : `Contabilización parcial: ${res.count} póliza(s) generada(s) y ${failedCount} con error`,
           summary: firstErr || 'Revisa el detalle de cada comprobante rechazado.',
           items: errors.map((e) => ({ id: e.cfdiId, uuid: e.uuid, error: e.error }))
         });
       } else {
         setBatchPartialAlert(null);
       }
-      if (typedRes.count === 0 && failedCount > 0) {
+      if (res.count === 0 && failedCount > 0) {
         toast.error(
           `Error en contabilización en lote: fallaron los ${failedCount} comprobantes.${firstErr ? ` ${firstErr}` : ''}`
         );
       } else if (failedCount > 0) {
         toast.warning(
-          `Contabilización parcial: ${typedRes.count} póliza(s) generada(s) y ${failedCount} fallido(s).`
+          `Contabilización parcial: ${res.count} póliza(s) generada(s) y ${failedCount} bloqueado(s)/fallido(s).`
         );
       } else {
         toast.success(
-          `¡Contabilización en lote exitosa! Se generaron ${typedRes.count} pólizas cuadradas desde la Bóveda ADD.`
+          `¡Contabilización en lote exitosa! Se generaron ${res.count} pólizas cuadradas desde la Bóveda ADD.`
         );
       }
     },
@@ -240,26 +256,18 @@ export function useAddCfdiMutations({
 
   const verifySatMutation = useMutation({
     mutationFn: (cfdiId: string) => {
-      if (isReadOnlyClient) {
-        throw new Error('Acceso de solo lectura: validación SAT deshabilitada.');
-      }
+      if (isReadOnlyClient) throw new Error('Acceso de solo lectura: validación SAT deshabilitada.');
       return apiClient.verifyCfdiSatStatus(cfdiId);
     },
     onSuccess: (res) => {
       invalidateAccountingQueries(queryClient, ['cfdis']);
-      toast.info(
-        `Estatus SAT (${res.uuid.slice(0, 8)}...): ${res.estadoSat} • Lista 69-B: ${res.validacionEfos}`
-      );
+      toast.info(`Estatus SAT (${res.uuid.slice(0, 8)}...): ${res.estadoSat} • Lista 69-B: ${res.validacionEfos}`);
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    }
+    onError: (err: Error) => toast.error(err.message)
   });
 
   const [satBatchAlert, setSatBatchAlert] = useState<{
-    cancelledWithPolizaCount: number;
-    checkedCount: number;
-    alerts: Array<{ cfdiId: string; uuid: string }>;
+    cancelledWithPolizaCount: number; checkedCount: number; alerts: Array<{ cfdiId: string; uuid: string }>;
   } | null>(null);
 
   useEffect(() => {
@@ -268,55 +276,36 @@ export function useAddCfdiMutations({
 
   const verifySatBatchMutation = useMutation({
     mutationFn: async (cfdiIds: string[]) => {
-      if (isReadOnlyClient) {
-        throw new Error('Acceso de solo lectura: validación SAT en lote deshabilitada.');
-      }
+      if (isReadOnlyClient) throw new Error('Acceso de solo lectura: validación SAT en lote deshabilitada.');
       const targetCompanyId = activeCompanyId;
       const client = apiClient as SatBatchApiClient;
       if (typeof client.verifyCfdisSatBatch !== 'function') {
         throw new Error('El servicio de validación SAT en lote aún no está disponible.');
       }
-      const result = await client.verifyCfdisSatBatch(targetCompanyId, cfdiIds);
-      return { result, targetCompanyId };
+      return { result: await client.verifyCfdisSatBatch(targetCompanyId, cfdiIds), targetCompanyId };
     },
     onSuccess: ({ result: res, targetCompanyId }) => {
       void queryClient.invalidateQueries({ queryKey: ['cfdis', targetCompanyId] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard', targetCompanyId] });
       if (latestCompanyIdRef.current !== targetCompanyId) return;
       const failedCount = (res as { failedCount?: number }).failedCount ?? 0;
-      const errors = (res as { errors?: Array<{ error: string }> }).errors ?? [];
+      const errs = (res as { errors?: Array<{ error: string }> }).errors ?? [];
       if (res.cancelledWithPolizaCount > 0) {
-        const alerts = res.items
-          .filter((item) => item.cancelledWithPoliza)
-          .map((item) => ({ cfdiId: item.cfdiId, uuid: item.uuid }));
-        setSatBatchAlert({
-          cancelledWithPolizaCount: res.cancelledWithPolizaCount,
-          checkedCount: res.checkedCount,
-          alerts
-        });
-        toast.error(
-          `Alerta SAT: ${res.cancelledWithPolizaCount} de ${res.checkedCount} CFDI(s) cancelados ante el SAT aún tienen póliza contable.${failedCount > 0 ? ` (${failedCount} sin respuesta SAT)` : ''}`
-        );
+        const alerts = res.items.filter((i) => i.cancelledWithPoliza).map((i) => ({ cfdiId: i.cfdiId, uuid: i.uuid }));
+        setSatBatchAlert({ cancelledWithPolizaCount: res.cancelledWithPolizaCount, checkedCount: res.checkedCount, alerts });
+        toast.error(`Alerta SAT: ${res.cancelledWithPolizaCount} de ${res.checkedCount} CFDI(s) cancelados aún tienen póliza.${failedCount > 0 ? ` (${failedCount} sin respuesta SAT)` : ''}`);
       } else if (failedCount > 0 && res.updatedCount === 0 && res.checkedCount === 0) {
         setSatBatchAlert(null);
-        toast.error(
-          `No se pudo verificar ningún CFDI ante el SAT (${failedCount} error(es)/timeout). ${errors[0]?.error || ''}`
-        );
+        toast.error(`No se pudo verificar ningún CFDI ante el SAT (${failedCount} error(es)/timeout). ${errs[0]?.error || ''}`);
       } else if (failedCount > 0) {
         setSatBatchAlert(null);
-        toast.warning(
-          `Validación SAT parcial: ${res.checkedCount} verificados (${res.updatedCount} actualizados) y ${failedCount} con error/timeout del SAT.`
-        );
+        toast.warning(`Validación SAT parcial: ${res.checkedCount} verificados (${res.updatedCount} actualizados) y ${failedCount} con error/timeout del SAT.`);
       } else {
         setSatBatchAlert(null);
-        toast.success(
-          `Validación SAT en lote completada: ${res.checkedCount} comprobantes verificados (${res.updatedCount} actualizados).`
-        );
+        toast.success(`Validación SAT en lote completada: ${res.checkedCount} comprobantes verificados (${res.updatedCount} actualizados).`);
       }
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    }
+    onError: (err: Error) => toast.error(err.message)
   });
 
   return {

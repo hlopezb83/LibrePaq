@@ -18,6 +18,7 @@ export interface BalanzaValidationSummary {
   difference: number;
   anio?: string;
   mes?: string;
+  balanceField?: 'SaldoIni' | 'SaldoFin';
 }
 
 export interface CatalogoMigrationParseResult {
@@ -43,6 +44,7 @@ export function isValidMigrationAccountCode(code: string): boolean {
   return /^[A-Za-z0-9]{2,6}(-[A-Za-z0-9]{1,6}){1,4}$/.test(code);
 }
 
+/** Clasifica cuentas por prefijo numérico incluyendo 7xx (RIF) en INGRESOS/GASTOS, nunca ORDEN. */
 export function inferTypeFromCode(code: string, rawTypeHint?: string): AccountType {
   const hint = (rawTypeHint || '').trim().toUpperCase();
   if (hint && hint !== 'A' && hint !== 'D' && hint !== 'ACREEDORA' && hint !== 'DEUDORA') {
@@ -62,6 +64,10 @@ export function inferTypeFromCode(code: string, rawTypeHint?: string): AccountTy
   if (first === '4') return 'INGRESOS';
   if (first === '5') return 'COSTOS';
   if (first === '6') return 'GASTOS';
+  if (first === '7') {
+    const clean3 = code.replace(/[^0-9]/g, '').slice(0, 3);
+    return clean3 === '702' || clean3 === '704' ? 'INGRESOS' : 'GASTOS';
+  }
   return 'ORDEN';
 }
 
@@ -72,6 +78,42 @@ export function inferNatureFromType(type: AccountType, rawNat?: string): Account
   return type === 'PASIVO' || type === 'CAPITAL' || type === 'INGRESOS'
     ? 'ACREEDORA'
     : 'DEUDORA';
+}
+
+const CONTPAQI_TYPE_KEY_MAP: Record<string, { type: AccountType; nature: AccountNature }> = {
+  A: { type: 'ACTIVO', nature: 'DEUDORA' },
+  B: { type: 'ACTIVO', nature: 'ACREEDORA' },
+  C: { type: 'PASIVO', nature: 'DEUDORA' },
+  D: { type: 'PASIVO', nature: 'ACREEDORA' },
+  E: { type: 'CAPITAL', nature: 'DEUDORA' },
+  F: { type: 'CAPITAL', nature: 'ACREEDORA' },
+  G: { type: 'INGRESOS', nature: 'ACREEDORA' },
+  H: { type: 'GASTOS', nature: 'DEUDORA' },
+  I: { type: 'ORDEN', nature: 'DEUDORA' },
+  J: { type: 'ORDEN', nature: 'ACREEDORA' },
+  K: { type: 'ORDEN', nature: 'DEUDORA' },
+  L: { type: 'ORDEN', nature: 'ACREEDORA' }
+};
+
+/** Resuelve rubro y naturaleza en CONTPAQi TXT soportando claves oficiales A–L y hints de 2 letras (AD/PA/etc.). */
+export function resolveContpaqiTypeAndNature(
+  code: string,
+  rawHint?: string
+): { type: AccountType; nature: AccountNature } {
+  const hint = (rawHint || '').trim().toUpperCase();
+  const mapped = CONTPAQI_TYPE_KEY_MAP[hint];
+  if (mapped) {
+    if (hint === 'H' && code.startsWith('5')) {
+      return { type: 'COSTOS', nature: 'DEUDORA' };
+    }
+    if ((hint === 'G' || hint === 'H') && code.startsWith('7')) {
+      return { type: hint === 'G' ? 'INGRESOS' : 'GASTOS', nature: mapped.nature };
+    }
+    return mapped;
+  }
+  const type = inferTypeFromCode(code, hint);
+  const nature = inferNatureFromType(type, hint);
+  return { type, nature };
 }
 
 export function inferLevelFromCode(code: string): number {
@@ -104,6 +146,87 @@ export function inferParentCodeFromSet(code: string, knownCodes: ReadonlySet<str
 export function isContpaqiCatalogTxt(text: string): boolean {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   return lines.some((l) => /^C(?:\t|\|| +)[A-Za-z0-9-]{3,}/i.test(l));
+}
+
+function parseContpaqiSpaceLine(rawLine: string): {
+  rawCode: string;
+  rawName: string;
+  rawParent: string;
+  rawSat: string;
+  rawTypeOrNat: string;
+  rawBal: string;
+} {
+  const body = rawLine.replace(/^C\s+/i, '');
+  const segments = body.split(/\s{2,}/).map((s) => s.trim()).filter(Boolean);
+  let rawCode = '';
+  let rawName = '';
+  let tailTokens: string[] = [];
+
+  if (segments.length >= 2) {
+    const firstParts = segments[0]!.match(/^(\S+)\s+(.+)$/);
+    if (firstParts) {
+      rawCode = normalizeMigrationAccountCode(firstParts[1] ?? '');
+      rawName = firstParts[2]!.trim();
+      tailTokens = segments.slice(1).flatMap((s) => s.split(/\s+/)).filter(Boolean);
+    } else {
+      rawCode = normalizeMigrationAccountCode(segments[0]!);
+      rawName = segments[1] ?? '';
+      tailTokens = segments.slice(2).flatMap((s) => s.split(/\s+/)).filter(Boolean);
+    }
+  } else {
+    const match = rawLine.match(/^C\s+(\S+)\s+(.+)$/i);
+    if (match) {
+      rawCode = normalizeMigrationAccountCode(match[1] ?? '');
+      const words = (match[2] ?? '').trim().split(/\s+/);
+      const peeled: string[] = [];
+      while (words.length > 1) {
+        const last = words[words.length - 1]!;
+        const isSat = /^\d{3}\.\d{2}(?:\.\d+)?$/.test(last);
+        const isType = /^(?:[A-L]|A[AD]|P[AD]|C[AD]|I[AD]|E[AD]|G[AD]|O[AD])$/i.test(last);
+        const isBal = /^-?\$?[\d,]+(?:\.\d+)?$/.test(last) && !/^(?:19|20)\d{6}$/.test(last);
+        const normLast = normalizeMigrationAccountCode(last);
+        const isParent =
+          !/^(?:19|20)\d{6}$/.test(last) &&
+          (last.includes('-') || /^\d{8}$/.test(last) || /^\d{11}$/.test(last)) &&
+          isValidMigrationAccountCode(normLast);
+        if (isSat || isType || isBal || isParent) {
+          peeled.unshift(words.pop()!);
+        } else {
+          break;
+        }
+      }
+      rawName = words.join(' ').trim();
+      tailTokens = peeled;
+    }
+  }
+
+  let rawParent = '';
+  let rawSat = '';
+  let rawTypeOrNat = '';
+  let rawBal = '';
+
+  for (const tok of tailTokens) {
+    if (/^\d{3}\.\d{2}(?:\.\d+)?$/.test(tok)) {
+      rawSat = tok;
+    } else if (/^(?:[A-L]|A[AD]|P[AD]|C[AD]|I[AD]|E[AD]|G[AD]|O[AD])$/i.test(tok)) {
+      rawTypeOrNat = tok;
+    } else if (/^(?:19|20)\d{6}$/.test(tok)) {
+      continue;
+    } else if (
+      !rawParent &&
+      (tok.includes('-') || /^\d{8}$/.test(tok) || /^\d{11}$/.test(tok)) &&
+      isValidMigrationAccountCode(normalizeMigrationAccountCode(tok))
+    ) {
+      rawParent = normalizeMigrationAccountCode(tok);
+    } else if (/^-?\$?[\d,]+(?:\.\d+)?$/.test(tok)) {
+      const cleaned = tok.replace(/[$,]/g, '');
+      if (tok.includes('.') || Number(cleaned) > 10 || !rawBal) {
+        rawBal = tok;
+      }
+    }
+  }
+
+  return { rawCode, rawName, rawParent, rawSat, rawTypeOrNat, rawBal };
 }
 
 export function parseContpaqiTxtCatalog(text: string): CatalogoMigrationParseResult {
@@ -144,18 +267,7 @@ export function parseContpaqiTxtCatalog(text: string): CatalogoMigrationParseRes
         rawBal = c5IsSat ? c6 : c6IsSat ? '' : c5 || c6;
       }
     } else {
-      const match = rawLine.match(/^C\s+(\S+)\s+(.+)$/i);
-      if (match) {
-        rawCode = normalizeMigrationAccountCode(match[1] ?? '');
-        const rest = (match[2] ?? '').trim();
-        const satTrail = rest.match(/\s+(\d{3}\.\d{2})$/);
-        if (satTrail) {
-          rawSat = satTrail[1] ?? '';
-          rawName = rest.slice(0, satTrail.index).trim();
-        } else {
-          rawName = rest;
-        }
-      }
+      ({ rawCode, rawName, rawParent, rawSat, rawTypeOrNat, rawBal } = parseContpaqiSpaceLine(rawLine));
     }
 
     if (!isValidMigrationAccountCode(rawCode)) {
@@ -167,8 +279,7 @@ export function parseContpaqiTxtCatalog(text: string): CatalogoMigrationParseRes
       continue;
     }
 
-    const type = inferTypeFromCode(rawCode, rawTypeOrNat);
-    const nature = inferNatureFromType(type, rawTypeOrNat);
+    const { type, nature } = resolveContpaqiTypeAndNature(rawCode, rawTypeOrNat);
     const level = inferLevelFromCode(rawCode);
     const parsedBal = Number(rawBal.replace(/[$,\s]/g, ''));
 
@@ -180,15 +291,19 @@ export function parseContpaqiTxtCatalog(text: string): CatalogoMigrationParseRes
       type,
       nature,
       level,
-      isAffectable: level >= 3,
       initialBalance: Number.isFinite(parsedBal) ? parsedBal : 0
     });
   }
 
   const knownCodes = new Set(tempRows.map((r) => r.code));
-  const rows = tempRows.map((r) => ({
+  const withParents = tempRows.map((r) => ({
     ...r,
     parentCode: r.parentCode !== undefined ? r.parentCode : inferParentCodeFromSet(r.code, knownCodes)
+  }));
+  const parentSet = new Set(withParents.map((r) => r.parentCode).filter((p): p is string => Boolean(p)));
+  const rows = withParents.map((r) => ({
+    ...r,
+    isAffectable: (r.level ?? 1) >= 3 || ((r.level ?? 1) === 2 && !parentSet.has(r.code))
   }));
 
   return { format: 'CONTPAQI_TXT', rows, skipped };

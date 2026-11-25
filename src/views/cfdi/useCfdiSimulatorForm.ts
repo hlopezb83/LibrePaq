@@ -1,26 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { getDefaultDateForPeriod } from '../../lib/formatters';
-import { validateRfcModulo11 } from '../../shared/accounting-engine';
+import type { ForeignNoCfdiMode, ForeignNoCfdiPayload } from '../../shared/cfdi-xml-foreign';
 
-export type CfdiSimulatorPreset = 'NORMAL' | 'HONORARIOS_RET' | 'REP_PAGO';
+export type ForeignReceiptPreset = 'FOREIGN_USD' | 'FOREIGN_EUR' | 'NO_CFDI';
 
 export interface UseCfdiSimulatorFormProps {
   activeCompanyId: string;
   currentYear: number;
   currentPeriod: number;
-  onSubmit: (payload: {
-    companyId: string;
-    tipoComprobante: 'I' | 'P' | 'N';
-    direction: 'EMITIDO' | 'RECIBIDO';
-    counterpartyRfc: string;
-    counterpartyName: string;
-    conceptoPrincipal: string;
-    subtotal: number;
-    isrRetenido: number;
-    ivaRetenido: number;
-    metodoPago: 'PUE' | 'PPD';
-    fecha: string;
-  }) => void;
+  onSubmit: (payload: ForeignNoCfdiPayload) => void;
 }
 
 export function useCfdiSimulatorForm({
@@ -29,96 +17,137 @@ export function useCfdiSimulatorForm({
   currentPeriod,
   onSubmit
 }: UseCfdiSimulatorFormProps) {
-  const [simDirection, setSimDirection] = useState<'EMITIDO' | 'RECIBIDO'>('RECIBIDO');
-  const [simTipoComprobante, setSimTipoComprobante] = useState<'I' | 'P' | 'N'>('I');
-  const [simCounterpartyRfc, setSimCounterpartyRfc] = useState('LEN200512A19');
-  const [simCounterpartyName, setSimCounterpartyName] = useState(
-    'Lenovo Tecnología de México S.A. de C.V.'
-  );
-  const [simConcepto, setSimConcepto] = useState(
-    'Licenciamiento Anual y Soporte Técnico Empresarial'
-  );
-  const [simSubtotal, setSimSubtotal] = useState(35000);
-  const [simIsrRetenido, setSimIsrRetenido] = useState(0);
-  const [simIvaRetenido, setSimIvaRetenido] = useState(0);
-  const [simMetodoPago, setSimMetodoPago] = useState<'PUE' | 'PPD'>('PUE');
+  const [mode, setMode] = useState<ForeignNoCfdiMode>('EXTRANJERO');
+  const [numFactExt, setNumFactExt] = useState('INV-2026-1042');
+  const [taxId, setTaxId] = useState('US-91-2345678');
+  const [country, setCountry] = useState('USA');
+  const [counterpartyName, setCounterpartyName] = useState('Amazon Web Services, Inc.');
+  const [concepto, setConcepto] = useState('Servicios de Infraestructura Cloud (Regla 2.7.1.14 RMF)');
+  const [moneda, setMoneda] = useState('USD');
+  const [tipoCambio, setTipoCambio] = useState(20.0);
+  const [subtotal, setSubtotal] = useState(250);
+  const [ivaTrasladado, setIvaTrasladado] = useState(0);
+  const [deductiblePct, setDeductiblePct] = useState(100);
+  const [metodoPago, setMetodoPago] = useState<'PUE' | 'PPD'>('PUE');
+  const [fecha, setFecha] = useState(() => getDefaultDateForPeriod(currentYear, currentPeriod));
 
-  const simRfcModulo11 = useMemo(() => {
-    if (!simCounterpartyRfc) return null;
-    return validateRfcModulo11(simCounterpartyRfc);
-  }, [simCounterpartyRfc]);
+  const applyPreset = (preset: ForeignReceiptPreset) => {
+    setFecha(getDefaultDateForPeriod(currentYear, currentPeriod));
+    if (preset === 'FOREIGN_USD') {
+      setMode('EXTRANJERO');
+      setNumFactExt('INV-2026-1042');
+      setTaxId('US-91-2345678');
+      setCountry('USA');
+      setCounterpartyName('Amazon Web Services, Inc.');
+      setConcepto('Servicios de Infraestructura Cloud (Regla 2.7.1.14 RMF)');
+      setMoneda('USD');
+      setTipoCambio(20.0);
+      setSubtotal(250);
+      setIvaTrasladado(0);
+      setDeductiblePct(100);
+      setMetodoPago('PUE');
+    } else if (preset === 'FOREIGN_EUR') {
+      setMode('EXTRANJERO');
+      setNumFactExt('EU-2026-8831');
+      setTaxId('ESB12345678');
+      setCountry('ESP');
+      setCounterpartyName('Consultoría Tecnológica Europa S.L.');
+      setConcepto('Licenciamiento SaaS Internacional');
+      setMoneda('EUR');
+      setTipoCambio(21.5);
+      setSubtotal(500);
+      setIvaTrasladado(0);
+      setDeductiblePct(100);
+      setMetodoPago('PUE');
+    } else {
+      setMode('GASTO_SIN_CFDI');
+      setNumFactExt('VALE-001');
+      setTaxId('');
+      setCountry('MEX');
+      setCounterpartyName('Gastos Menores / Caja Chica Sin CFDI');
+      setConcepto('Gasto operativo sin comprobante fiscal (Art. 28 LISR)');
+      setMoneda('MXN');
+      setTipoCambio(1);
+      setSubtotal(500);
+      setIvaTrasladado(0);
+      setDeductiblePct(0);
+      setMetodoPago('PUE');
+    }
+  };
 
-  const applyPreset = (preset: 'NORMAL' | 'HONORARIOS_RET' | 'REP_PAGO') => {
-    if (preset === 'NORMAL') {
-      setSimTipoComprobante('I');
-      setSimDirection('RECIBIDO');
-      setSimMetodoPago('PUE');
-      setSimCounterpartyRfc('LEN200512A19');
-      setSimCounterpartyName('Lenovo Tecnología de México S.A. de C.V.');
-      setSimConcepto('Licenciamiento Anual y Soporte Técnico Empresarial');
-      setSimSubtotal(35000);
-      setSimIsrRetenido(0);
-      setSimIvaRetenido(0);
-    } else if (preset === 'HONORARIOS_RET') {
-      setSimTipoComprobante('I');
-      setSimDirection('RECIBIDO');
-      setSimMetodoPago('PUE');
-      setSimCounterpartyRfc('GARM850612H92');
-      setSimCounterpartyName('Mtro. Roberto Garza Martínez (Persona Física Honorarios)');
-      setSimConcepto('Servicios Profesionales con Retención ISR 10% e IVA 10.6667%');
-      setSimSubtotal(30000);
-      setSimIsrRetenido(3000);
-      setSimIvaRetenido(3200);
-    } else if (preset === 'REP_PAGO') {
-      setSimTipoComprobante('P');
-      setSimDirection('EMITIDO');
-      setSimMetodoPago('PUE');
-      setSimCounterpartyRfc('GLP1703198H4');
-      setSimCounterpartyName('Grupo Logístico Pacífico S.A. de C.V.');
-      setSimConcepto('Complemento de Pago REP 2.0 Liquida Factura PPD y Reclasifica IVA');
-      setSimSubtotal(185000);
-      setSimIsrRetenido(0);
-      setSimIvaRetenido(0);
+  const handleModeChange = (nextMode: ForeignNoCfdiMode) => {
+    setMode(nextMode);
+    if (nextMode === 'GASTO_SIN_CFDI') {
+      setMoneda('MXN');
+      setTipoCambio(1);
+      setCountry('MEX');
+      setDeductiblePct(0);
+    } else {
+      if (moneda === 'MXN') {
+        setMoneda('USD');
+        setTipoCambio(20.0);
+      }
+      if (country === 'MEX') setCountry('USA');
+      setDeductiblePct(100);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const effectiveCur = moneda.trim().toUpperCase() || 'MXN';
+    const effectiveTc = effectiveCur === 'MXN' ? 1 : Math.max(0.0001, Number(tipoCambio || 1));
     onSubmit({
       companyId: activeCompanyId,
-      tipoComprobante: simTipoComprobante,
-      direction: simDirection,
-      counterpartyRfc: simCounterpartyRfc.toUpperCase(),
-      counterpartyName: simCounterpartyName,
-      conceptoPrincipal: simConcepto,
-      subtotal: simSubtotal,
-      isrRetenido: simIsrRetenido,
-      ivaRetenido: simIvaRetenido,
-      metodoPago: simMetodoPago,
-      fecha: getDefaultDateForPeriod(currentYear, currentPeriod)
+      isForeignNoCfdi: true,
+      mode,
+      direction: 'RECIBIDO',
+      numFactExt: numFactExt.trim(),
+      taxId: mode === 'EXTRANJERO' ? taxId.trim() : undefined,
+      country: country.trim().toUpperCase(),
+      counterpartyRfc: mode === 'EXTRANJERO' ? 'XEXX010101000' : 'XAXX010101000',
+      counterpartyName: counterpartyName.trim(),
+      conceptoPrincipal: concepto.trim(),
+      moneda: effectiveCur,
+      tipoCambio: effectiveTc,
+      subtotal: Number(subtotal || 0),
+      ivaTrasladado: Number(ivaTrasladado || 0),
+      isrRetenido: 0,
+      ivaRetenido: 0,
+      metodoPago,
+      formaPago: '03',
+      fecha: fecha || getDefaultDateForPeriod(currentYear, currentPeriod),
+      deductiblePct,
+      tipoOperacionDiot: '85'
     });
   };
 
   return {
-    simDirection,
-    setSimDirection,
-    simTipoComprobante,
-    setSimTipoComprobante,
-    simCounterpartyRfc,
-    setSimCounterpartyRfc,
-    simCounterpartyName,
-    setSimCounterpartyName,
-    simConcepto,
-    setSimConcepto,
-    simSubtotal,
-    setSimSubtotal,
-    simIsrRetenido,
-    setSimIsrRetenido,
-    simIvaRetenido,
-    setSimIvaRetenido,
-    simMetodoPago,
-    setSimMetodoPago,
-    simRfcModulo11,
+    mode,
+    handleModeChange,
+    numFactExt,
+    setNumFactExt,
+    taxId,
+    setTaxId,
+    country,
+    setCountry,
+    counterpartyName,
+    setCounterpartyName,
+    concepto,
+    setConcepto,
+    moneda,
+    setMoneda,
+    tipoCambio,
+    setTipoCambio,
+    subtotal,
+    setSubtotal,
+    ivaTrasladado,
+    setIvaTrasladado,
+    deductiblePct,
+    setDeductiblePct,
+    metodoPago,
+    setMetodoPago,
+    fecha,
+    setFecha,
     applyPreset,
     handleSubmit
   };

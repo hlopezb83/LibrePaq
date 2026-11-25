@@ -29,10 +29,10 @@ export function CfdiDropzoneSecondaryActions({
             variant="secondary"
             size="md"
             onClick={onOpenSimulator}
-            title="Registrar comprobante o retención manual (Alt+S)"
+            title="Registrar comprobante extranjero (Invoice) o gasto sin CFDI (Alt+S)"
             leftIcon={<FilePlus2 className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />}
           >
-            <span>Captura Manual</span>
+            <span>Extranjero / Sin CFDI</span>
             <kbd className="font-mono text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-300 text-slate-600">
               Alt+S
             </kbd>
@@ -99,7 +99,7 @@ export function CfdiDropzoneSecondaryActions({
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <FilePlus2 className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
-                <span>Captura Manual (Alt+S)</span>
+                <span>Extranjero / Sin CFDI (Alt+S)</span>
               </button>
             )}
             <button

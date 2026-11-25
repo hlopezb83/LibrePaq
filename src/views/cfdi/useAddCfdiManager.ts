@@ -14,7 +14,8 @@ import {
 } from './cfdiXmlUploadHelpers';
 import { exportCfdisCsv } from './exportCfdisCsv';
 import { exportCfdisZip } from './exportCfdisZip';
-import { buildSimulatedCfdiXml, type SimulatedCfdiPayload } from './simulateCfdiXml';
+import type { ForeignNoCfdiPayload } from '../../shared/cfdi-xml-foreign';
+import type { BatchPolizaGroupingMode } from '../../shared/engine/auto-poliza-types';
 import { useAddCfdiMutations } from './useAddCfdiMutations';
 import { useCfdiFilters } from './useCfdiFilters';
 import { useBeforeUnloadGuard, useCfdiSelection, useCloud69BSync } from './useCfdiSelection';
@@ -40,6 +41,7 @@ export function useAddCfdiManager() {
   const [isExportingZip, setIsExportingZip] = useState(false);
   const [copiedUuid, setCopiedUuid] = useState<string | null>(null);
   const [confirmDeleteCfdiId, setConfirmDeleteCfdiId] = useState<string | null>(null);
+  const [batchGroupingMode, setBatchGroupingMode] = useState<BatchPolizaGroupingMode>('PER_CFDI');
   const [showSoapFielPanel, setShowSoapFielPanel] = useState(() => {
     if (typeof window === 'undefined') return false;
     const p = new URLSearchParams(window.location.search);
@@ -288,10 +290,9 @@ export function useAddCfdiManager() {
     toast.success('Descarga SAT Exitosa', msg);
   };
 
-  const handleSimulateSubmit = (payload: SimulatedCfdiPayload) => {
+  const handleSimulateSubmit = (payload: ForeignNoCfdiPayload) => {
     if (isReadOnlyClient) return;
-    const xmlRaw = buildSimulatedCfdiXml(payload, activeCompany);
-    uploadXmlMutation.mutate({ companyId: activeCompanyId, xmlRaw });
+    uploadXmlMutation.mutate(payload);
   };
 
   return {
@@ -318,6 +319,7 @@ export function useAddCfdiManager() {
     previewMovements, filteredCfdis, filteredTotals,
     toggleSelectAll, toggleSelectOne, handleExportCsv, handleExportZipSelected,
     handleSimulateSubmit, onSoapDownloadSuccess, batchProgress,
+    batchGroupingMode, setBatchGroupingMode,
     scopedCfdis, emitidosCount, recibidosCount
   };
 }

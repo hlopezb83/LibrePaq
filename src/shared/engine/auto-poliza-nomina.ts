@@ -61,7 +61,7 @@ export function buildPayrollNominaMovements(
     }
   }
   if (subsidioCents > 0) {
-    const accSubsidio = resolveFiscalAccount(accounts, 'ISR_ACREDITABLE_RETENIDO');
+    const accSubsidio = resolveFiscalAccount(accounts, 'SUBSIDIO_EMPLEO_POR_APLICAR');
     movements.push(
       makeDraft(accSubsidio, ref, subsidioCents, 0, `Subsidio al Empleo Nómina ${ref}`)
     );
