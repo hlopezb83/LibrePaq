@@ -17,6 +17,8 @@ export interface AutoPolizaMovementDraft {
   concepto: string;
 }
 
+export type BatchPolizaGroupingMode = 'PER_CFDI' | 'BY_DAY' | 'BY_RFC' | 'BY_NOMINA';
+
 export interface AutoPolizaOverrides {
   polizaType?: PolizaType;
   operationAccountCode?: string;
@@ -30,6 +32,8 @@ export interface AutoPolizaOverrides {
     | null;
   rules?: readonly AccountingRuleRecord[];
   deductiblePct?: number;
+  allowEfos69B?: boolean;
+  groupingMode?: BatchPolizaGroupingMode;
   relatedOriginalTipoCambio?: number;
   relatedOriginalTipoCambioByUuid?: Readonly<Record<string, number>>;
   relatedDocsMetaByUuid?: Readonly<Record<string, CfdiRelatedDocMeta>>;

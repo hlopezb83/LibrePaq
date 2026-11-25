@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Loader2, ShieldAlert, Sparkles } from 'lucide-react';
 import { AccountPickerCombobox } from '../../components/account-picker/AccountPickerCombobox';
-import { AlertBanner, Button, FormField, ModalShell } from '../../components/ui';
+import { AlertBanner, Button, FormField, ModalShell, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 import { checkRfc69BStatus } from '../../shared/sat-69b';
 import type { Account, CfdiDocument } from '../../shared/types';
@@ -222,10 +222,22 @@ export function CfdiContabilizarModal({
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
             <div>
               <div className="text-slate-500">Tipo CFDI</div>
-              <div className="font-bold text-slate-900 mt-0.5">
-                {selectedCfdi.tipoComprobante === 'P'
-                  ? 'REP 2.0 Pago'
-                  : `${selectedCfdi.direction} (${selectedCfdi.metodoPago})`}
+              <div className="font-bold text-slate-900 mt-0.5 flex flex-wrap items-center gap-1">
+                <span>
+                  {selectedCfdi.tipoComprobante === 'P'
+                    ? 'REP 2.0 Pago'
+                    : `${selectedCfdi.direction} (${selectedCfdi.metodoPago})`}
+                </span>
+                {selectedCfdi.moneda && selectedCfdi.moneda.toUpperCase() !== 'MXN' && (
+                  <StatusBadge tone="blue" shape="tag" className="font-mono">
+                    {selectedCfdi.moneda.toUpperCase()} · TC {(selectedCfdi.tipoCambio || 1).toFixed(4)}
+                  </StatusBadge>
+                )}
+                {selectedCfdi.isForeignNoCfdi && (
+                  <StatusBadge tone="purple" shape="tag">
+                    Sin CFDI
+                  </StatusBadge>
+                )}
               </div>
             </div>
             <div>
@@ -286,16 +298,18 @@ export function CfdiContabilizarModal({
             </FormField>
           </div>
 
-          <CfdiRuleLearningBar
-            direction={selectedCfdi.direction}
-            counterpartyRfc={counterpartyRfc}
-            matchedRule={matchedRule}
-            deductiblePct={deductiblePct}
-            setDeductiblePct={setDeductiblePct}
-            rememberRule={rememberRule}
-            setRememberRule={setRememberRule}
-            disabled={isWriteBlocked}
-          />
+          {selectedCfdi.tipoComprobante !== 'P' && (
+            <CfdiRuleLearningBar
+              direction={selectedCfdi.direction}
+              counterpartyRfc={counterpartyRfc}
+              matchedRule={matchedRule}
+              deductiblePct={deductiblePct}
+              setDeductiblePct={setDeductiblePct}
+              rememberRule={rememberRule}
+              setRememberRule={setRememberRule}
+              disabled={isWriteBlocked}
+            />
+          )}
 
           <CfdiPolizaPreviewTable
             effectivePreviewMovements={effectivePreviewMovements}

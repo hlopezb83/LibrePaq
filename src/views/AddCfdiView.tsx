@@ -48,6 +48,7 @@ export function AddCfdiView() {
     handleCopyUuid, handleDownloadSelectedXml, previewMovements,
     filteredCfdis, filteredTotals, toggleSelectAll, toggleSelectOne,
     handleExportCsv, handleExportZipSelected, handleSimulateSubmit, onSoapDownloadSuccess, batchProgress,
+    batchGroupingMode, setBatchGroupingMode,
     scopedCfdis, emitidosCount, recibidosCount
   } = manager;
 
@@ -187,7 +188,14 @@ export function AddCfdiView() {
         onClearSelection={() => setSelectedCfdiIds(new Set())}
         isBatchContabilizarPending={batchContabilizarMutation.isPending}
         batchProgress={batchProgress}
-        onBatchContabilizarSelected={() => batchContabilizarMutation.mutate(Array.from(selectedCfdiIds))}
+        batchGroupingMode={batchGroupingMode}
+        onChangeBatchGroupingMode={setBatchGroupingMode}
+        onBatchContabilizarSelected={() =>
+          batchContabilizarMutation.mutate({
+            ids: Array.from(selectedCfdiIds),
+            groupingMode: batchGroupingMode
+          })
+        }
         isVerifySatBatchPending={verifySatBatchMutation.isPending}
         onVerifySatBatchSelected={() => verifySatBatchMutation.mutate(Array.from(selectedCfdiIds))}
         isExportZipPending={isExportingZip}

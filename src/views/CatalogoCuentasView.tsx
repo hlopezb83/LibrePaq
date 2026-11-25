@@ -58,6 +58,8 @@ export function CatalogoCuentasView() {
     deletingAccountId,
     editingAccountId,
     editingIsAffectable,
+    isAffectable,
+    setIsAffectable,
     code,
     setCode,
     name,
@@ -85,7 +87,12 @@ export function CatalogoCuentasView() {
     csvPreview,
     setCsvPreview,
     isImportingCsv,
-    handleConfirmImportCsv
+    handleConfirmImportCsv,
+    hasPolizas,
+    bnBalanceField,
+    handleChangeBnBalanceField,
+    replaceBaseCatalog,
+    handleChangeReplaceBaseCatalog
   } = manager;
 
   useCatalogoKeyboardNavigation({
@@ -207,6 +214,8 @@ export function CatalogoCuentasView() {
         dialogRef={dialogRef}
         editingAccountId={editingAccountId}
         editingIsAffectable={editingIsAffectable}
+        isAffectable={isAffectable}
+        setIsAffectable={setIsAffectable}
         isJanLocked={isJanLocked}
         activeCompany={activeCompany}
         currentYear={currentYear}
@@ -238,6 +247,11 @@ export function CatalogoCuentasView() {
       <CatalogoCsvImportPreviewModal
         preview={csvPreview}
         isImporting={isImportingCsv}
+        hasPolizas={hasPolizas}
+        bnBalanceField={bnBalanceField}
+        onChangeBnBalanceField={handleChangeBnBalanceField}
+        replaceBaseCatalog={replaceBaseCatalog}
+        onChangeReplaceBaseCatalog={handleChangeReplaceBaseCatalog}
         onClose={() => setCsvPreview(null)}
         onConfirm={() => void handleConfirmImportCsv()}
       />

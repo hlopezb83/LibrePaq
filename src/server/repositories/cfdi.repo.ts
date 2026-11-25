@@ -10,6 +10,7 @@ import {
   type RelatedCfdiDbRowLike
 } from '../../shared/engine/auto-poliza-related';
 import type { ParsedCfdiPayload } from '../../shared/cfdi-xml';
+import { clampDeductiblePct } from '../../shared/engine/auto-poliza-deductible';
 import { parseCalendarDate } from '../../shared/date-utils';
 import { isCfdiBelongingToCompany } from '../../shared/xml-utils';
 import type { CfdiDocument, Company, Poliza } from '../../shared/types';
@@ -21,6 +22,29 @@ import { getPolizaById, insertMovementStmt, insertPolizaStmt, maxFolioQuery } fr
 import { getThirdPartyByRfc } from './third-parties.repo';
 import { listAccountingRulesRepo } from './accounting-rules.repo';
 
+type CfdiRowExtra = CfdiDbRow & {
+  validacion_efos?: string | null;
+  es_cancelable?: string | null;
+  estatus_cancelacion?: string | null;
+  deductible_pct?: number | null;
+  is_foreign_no_cfdi?: number | boolean | null;
+};
+
+function mapCfdiWithExtras(r: CfdiRowExtra): CfdiDocument {
+  const base = mapCfdiRow(r);
+  return {
+    ...base,
+    validacionEfos: r.validacion_efos ? String(r.validacion_efos) : null,
+    esCancelable: r.es_cancelable ? String(r.es_cancelable) : null,
+    estatusCancelacion: r.estatus_cancelacion ? String(r.estatus_cancelacion) : null,
+    deductiblePct:
+      r.deductible_pct !== undefined && r.deductible_pct !== null
+        ? Number(r.deductible_pct)
+        : undefined,
+    isForeignNoCfdi: Boolean(r.is_foreign_no_cfdi ?? false)
+  };
+}
+
 export function getCfdiDocuments(companyId: string, opts?: { includeXml?: boolean }): CfdiDocument[] {
   const projection = opts?.includeXml
     ? 'c.*'
@@ -28,7 +52,8 @@ export function getCfdiDocuments(companyId: string, opts?: { includeXml?: boolea
        c.emisor_rfc, c.emisor_nombre, c.receptor_rfc, c.receptor_nombre, c.concepto_principal,
        c.clave_prod_serv, c.moneda, c.tipo_cambio, c.subtotal, c.descuento, c.iva_trasladado,
        c.isr_retenido, c.iva_retenido, c.total, c.metodo_pago, c.forma_pago, c.uso_cfdi,
-       c.uuid_relacionado, c.status_sat, c.poliza_id, c.tax_breakdown, c.related_docs, '' as xml_raw`;
+       c.uuid_relacionado, c.status_sat, c.validacion_efos, c.es_cancelable, c.estatus_cancelacion,
+       c.poliza_id, c.deductible_pct, c.is_foreign_no_cfdi, c.tax_breakdown, c.related_docs, '' as xml_raw`;
 
   const rows = db
     .query(`
@@ -38,9 +63,9 @@ export function getCfdiDocuments(companyId: string, opts?: { includeXml?: boolea
       WHERE c.company_id = ?
       ORDER BY c.fecha DESC, c.id DESC
     `)
-    .all(companyId) as CfdiDbRow[];
+    .all(companyId) as CfdiRowExtra[];
 
-  return rows.map(mapCfdiRow);
+  return rows.map(mapCfdiWithExtras);
 }
 
 export function getCfdiXml(cfdiId: string): string | null {
@@ -58,8 +83,8 @@ export function getCfdiById(cfdiId: string): CfdiDocument | null {
       LEFT JOIN polizas p ON c.poliza_id = p.id
       WHERE c.id = ?
     `)
-    .get(cfdiId) as CfdiDbRow | null;
-  return row ? mapCfdiRow(row) : null;
+    .get(cfdiId) as CfdiRowExtra | null;
+  return row ? mapCfdiWithExtras(row) : null;
 }
 
 let _insertCfdiStmt: ReturnType<typeof db.prepare> | null = null;
@@ -226,7 +251,7 @@ export function generateAutoPolizaFromCfdiId(
       const ph = relUuids.map(() => '?').join(',');
       const relRows = db
         .query(
-          `SELECT uuid, moneda, tipo_cambio, metodo_pago, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, concepto_principal, clave_prod_serv, emisor_nombre, uso_cfdi, xml_raw FROM cfdi_documents WHERE company_id = ? AND UPPER(uuid) IN (${ph})`
+          `SELECT uuid, moneda, tipo_cambio, metodo_pago, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, concepto_principal, clave_prod_serv, emisor_nombre, uso_cfdi, deductible_pct, xml_raw FROM cfdi_documents WHERE company_id = ? AND UPPER(uuid) IN (${ph})`
         )
         .all(company.id, ...relUuids) as RelatedCfdiDbRowLike[];
       derivedRelated = buildRelatedCfdiOverridesFromRows(relRows, cfdi.tipoComprobante, relUuids.length);
@@ -283,7 +308,18 @@ export function generateAutoPolizaFromCfdiId(
       );
     }
 
-    db.prepare('UPDATE cfdi_documents SET poliza_id = ? WHERE id = ?').run(polizaId, cfdi.id);
+    const persistedDed = clampDeductiblePct(
+      overrides?.deductiblePct ?? derivedRelated.deductiblePct ?? plan.matchedRule?.deductiblePct ?? cfdi.deductiblePct
+    );
+    if (cfdi.tipoComprobante !== 'P') {
+      db.prepare('UPDATE cfdi_documents SET poliza_id = ?, deductible_pct = ? WHERE id = ?').run(
+        polizaId,
+        persistedDed,
+        cfdi.id
+      );
+    } else {
+      db.prepare('UPDATE cfdi_documents SET poliza_id = ? WHERE id = ?').run(polizaId, cfdi.id);
+    }
     db.prepare(
       'INSERT OR IGNORE INTO poliza_cfdis (id, company_id, poliza_id, cfdi_uuid) VALUES (?, ?, ?, ?)'
     ).run(`pc_${crypto.randomUUID().slice(0, 12)}`, company.id, polizaId, cfdi.uuid);

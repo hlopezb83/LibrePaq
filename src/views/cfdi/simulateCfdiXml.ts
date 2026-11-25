@@ -1,6 +1,10 @@
 import { buildCfdi40Xml } from '../../shared/cfdi-xml';
+import type { ForeignNoCfdiPayload } from '../../shared/cfdi-xml-foreign';
 import type { Company } from '../../shared/types';
 
+export type { ForeignNoCfdiPayload };
+
+/** @deprecated Conservado únicamente para compatibilidad de pruebas heredadas. */
 export interface SimulatedCfdiPayload {
   companyId: string;
   tipoComprobante: 'I' | 'P' | 'N';
@@ -15,6 +19,7 @@ export interface SimulatedCfdiPayload {
   fecha: string;
 }
 
+/** @deprecated Conservado únicamente para compatibilidad de pruebas heredadas; el registro en UI usa `ForeignNoCfdiPayload`. */
 export function buildSimulatedCfdiXml(
   payload: SimulatedCfdiPayload,
   activeCompany?: Company | null
@@ -24,7 +29,6 @@ export function buildSimulatedCfdiXml(
   const emisorNombre = isEmitido ? activeCompany?.name || 'Mi Empresa' : payload.counterpartyName;
   const receptorRfc = isEmitido ? payload.counterpartyRfc : activeCompany?.rfc || 'XAXX010101000';
   const receptorNombre = isEmitido ? payload.counterpartyName : activeCompany?.name || 'Mi Empresa';
-
   const ivaTrasladado = payload.tipoComprobante === 'I' ? payload.subtotal * 0.16 : 0;
 
   return buildCfdi40Xml({

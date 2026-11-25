@@ -19,6 +19,7 @@ export interface RelatedCfdiDbRowLike {
   clave_prod_serv?: string | null;
   emisor_nombre?: string | null;
   uso_cfdi?: string | null;
+  deductible_pct?: number | null;
   xml_raw?: string | null;
 }
 
@@ -42,6 +43,8 @@ export function buildRelatedCfdiOverridesFromRows(
   let relatedPpdIsrRetenido = 0;
   let relatedPpdIvaRetenido = 0;
   let relatedPpdTotal = 0;
+  let singleDeductiblePct: number | undefined;
+  let deductibleRowsCount = 0;
 
   for (const r of relRows) {
     const key = String(r.uuid ?? '').trim().toUpperCase();
@@ -60,6 +63,15 @@ export function buildRelatedCfdiOverridesFromRows(
     const ivaRetenidoMxn = Number((Number(r.iva_retenido ?? 0) * fx).toFixed(2));
     const totalMxn = Number((Number(r.total ?? 0) * fx).toFixed(2));
     const regimenEmisor = extractRegimenEmisorFromXml(r.xml_raw);
+    const hasDedPct =
+      r.deductible_pct !== undefined &&
+      r.deductible_pct !== null &&
+      Number.isFinite(Number(r.deductible_pct));
+    const rowDedPct = hasDedPct ? clampDeductiblePct(Number(r.deductible_pct)) : undefined;
+    if (rowDedPct !== undefined) {
+      deductibleRowsCount += 1;
+      singleDeductiblePct = rowDedPct;
+    }
 
     metaMap[key] = {
       moneda: cur,
@@ -69,6 +81,7 @@ export function buildRelatedCfdiOverridesFromRows(
       ...(regimenEmisor ? { regimenEmisor } : {}),
       ...(r.emisor_nombre ? { emisorNombre: String(r.emisor_nombre) } : {}),
       ...(r.uso_cfdi ? { usoCfdi: String(r.uso_cfdi) } : {}),
+      ...(rowDedPct !== undefined ? { deductiblePct: rowDedPct } : {}),
       subtotalMxn, ivaTrasladadoMxn, totalMxn, isrRetenidoMxn, ivaRetenidoMxn
     };
 
@@ -83,8 +96,14 @@ export function buildRelatedCfdiOverridesFromRows(
   }
 
   const allowScalarTc = requestedUuidCount <= 1 && foreignCount === 1 && singleForeignTc !== undefined;
+  const allowScalarDeductible =
+    tipoComprobante === 'P' &&
+    requestedUuidCount <= 1 &&
+    deductibleRowsCount === 1 &&
+    singleDeductiblePct !== undefined;
   return {
     ...(allowScalarTc ? { relatedOriginalTipoCambio: singleForeignTc } : {}),
+    ...(allowScalarDeductible ? { deductiblePct: singleDeductiblePct } : {}),
     ...(Object.keys(tcMap).length > 0 ? { relatedOriginalTipoCambioByUuid: tcMap } : {}),
     ...(Object.keys(metaMap).length > 0 ? { relatedDocsMetaByUuid: metaMap } : {}),
     ...(relatedIsPpd !== undefined ? { relatedIsPpd } : {}),

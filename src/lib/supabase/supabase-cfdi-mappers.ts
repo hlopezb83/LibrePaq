@@ -1,6 +1,10 @@
 import { supabase } from '../supabase';
 import { chunkArray } from '../../shared/array-utils';
 import type { parseCfdiXmlString } from '../../shared/cfdi-xml';
+import {
+  normalizeForeignNoCfdiRecord,
+  type ForeignNoCfdiPayload
+} from '../../shared/cfdi-xml-foreign';
 import { extractCfdiFechaPago } from '../../shared/xml-utils';
 import {
   buildRelatedCfdiOverridesFromRows,
@@ -105,8 +109,16 @@ export function mapSupabaseCfdi(
     usoCfdi: String(row.uso_cfdi || 'G03'),
     uuidRelacionado: row.uuid_relacionado ? String(row.uuid_relacionado) : null,
     statusSat: (row.status_sat as 'VIGENTE' | 'CANCELADO') || 'VIGENTE',
+    validacionEfos: row.validacion_efos ? String(row.validacion_efos) : null,
+    esCancelable: row.es_cancelable ? String(row.es_cancelable) : null,
+    estatusCancelacion: row.estatus_cancelacion ? String(row.estatus_cancelacion) : null,
     polizaId: row.poliza_id ? String(row.poliza_id) : null,
     polizaFolio,
+    deductiblePct:
+      row.deductible_pct !== undefined && row.deductible_pct !== null
+        ? Number(row.deductible_pct)
+        : undefined,
+    isForeignNoCfdi: Boolean(row.is_foreign_no_cfdi ?? false),
     taxBreakdown: parseJsonField<CfdiTaxBreakdown>(row.tax_breakdown),
     relatedDocs: parseJsonField<CfdiRelatedDoc[]>(row.related_docs),
     xmlRaw: row.xml_raw ? String(row.xml_raw) : ''
@@ -174,7 +186,7 @@ export async function fetchRelatedCfdiOverrides(
   const { data: relRows } = await client
     .from('cfdi_documents')
     .select(
-      'uuid, moneda, tipo_cambio, metodo_pago, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, concepto_principal, clave_prod_serv, emisor_nombre, uso_cfdi, xml_raw'
+      'uuid, moneda, tipo_cambio, metodo_pago, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, concepto_principal, clave_prod_serv, emisor_nombre, uso_cfdi, deductible_pct, xml_raw'
     )
     .eq('company_id', cfdi.companyId)
     .in('uuid', lookupKeys);
@@ -183,4 +195,88 @@ export async function fetchRelatedCfdiOverrides(
     cfdi.tipoComprobante,
     relUuids.length
   );
+}
+
+/** Inserta en Supabase un Comprobante Extranjero o Gasto Sin CFDI sin UUID SAT apócrifo y enlaza proveedor DIOT 05. */
+export async function insertForeignNoCfdiWithClient(
+  client: import('@supabase/supabase-js').SupabaseClient,
+  payload: ForeignNoCfdiPayload,
+  company: { rfc?: string | null; name?: string | null }
+): Promise<CfdiDocument> {
+  const norm = normalizeForeignNoCfdiRecord(payload, company);
+  const id = `cfdi_${crypto.randomUUID().slice(0, 12)}`;
+  const { data, error } = await client
+    .from('cfdi_documents')
+    .insert({
+      id,
+      company_id: payload.companyId,
+      uuid: norm.uuid,
+      fecha: norm.fecha,
+      fecha_pago: null,
+      tipo_comprobante: norm.tipoComprobante,
+      direction: norm.direction,
+      serie: norm.serie,
+      folio: norm.folio,
+      emisor_rfc: norm.emisorRfc,
+      emisor_nombre: norm.emisorNombre,
+      receptor_rfc: norm.receptorRfc,
+      receptor_nombre: norm.receptorNombre,
+      concepto_principal: norm.conceptoPrincipal,
+      clave_prod_serv: norm.claveProdServ,
+      moneda: norm.moneda,
+      tipo_cambio: norm.tipoCambio,
+      subtotal: norm.subtotal,
+      descuento: 0,
+      iva_trasladado: norm.ivaTrasladado,
+      isr_retenido: norm.isrRetenido,
+      iva_retenido: norm.ivaRetenido,
+      total: norm.total,
+      metodo_pago: norm.metodoPago,
+      forma_pago: norm.formaPago,
+      uso_cfdi: norm.usoCfdi,
+      uuid_relacionado: null,
+      status_sat: 'VIGENTE',
+      deductible_pct: norm.deductiblePct,
+      is_foreign_no_cfdi: true,
+      tax_breakdown: norm.taxBreakdown,
+      related_docs: null,
+      xml_raw: ''
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  if (norm.mode === 'EXTRANJERO' && norm.direction === 'RECIBIDO' && norm.emisorNombre) {
+    try {
+      const { data: existingTp } = await client
+        .from('third_parties')
+        .select('id')
+        .eq('company_id', payload.companyId)
+        .eq('rfc', norm.emisorRfc)
+        .eq('nombre', norm.emisorNombre)
+        .maybeSingle();
+      if (!existingTp) {
+        await client.from('third_parties').insert({
+          id: `tp_${crypto.randomUUID().slice(0, 12)}`,
+          company_id: payload.companyId,
+          rfc: norm.emisorRfc,
+          nombre: norm.emisorNombre,
+          rol: 'PROVEEDOR',
+          cuenta_operacion_code: '601-01-003',
+          cuenta_contrapartida_code: '201-01-099',
+          tipo_tercero_diot: '05',
+          tipo_operacion_diot: norm.tipoOperacionDiot,
+          tasa_iva_default: 0,
+          estatus_69b: 'LIMPIO',
+          id_fiscal: norm.taxId || null,
+          pais: norm.country || null,
+          deductible_pct: norm.deductiblePct,
+          updated_at: new Date().toISOString()
+        });
+      }
+    } catch {
+      // No bloquear el registro si el alta automática de tercero falla por índice
+    }
+  }
+  return mapSupabaseCfdi(data);
 }

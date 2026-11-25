@@ -37,11 +37,21 @@ export const CFDI_FORMA_PAGO_FILTERS: ReadonlyArray<{ id: CfdiFormaPagoFilter; l
   { id: '99', label: '99 Por def.' }
 ];
 
+export function getCfdiEffectivePeriodDate(
+  doc: Pick<CfdiDocument, 'tipoComprobante' | 'fecha' | 'fechaPago'>
+): string {
+  if ((doc.tipoComprobante === 'P' || doc.tipoComprobante === 'N') && doc.fechaPago) {
+    return doc.fechaPago;
+  }
+  return doc.fecha;
+}
+
 export function isCfdiPendingForPoliza(doc: CfdiDocument): boolean {
   return (
     doc.polizaId === null &&
     doc.statusSat !== 'CANCELADO' &&
     (doc.tipoComprobante as string) !== 'T' &&
+    !(doc.tipoComprobante === 'N' && doc.direction === 'RECIBIDO') &&
     (doc.total > 0 || doc.subtotal > 0)
   );
 }
@@ -60,9 +70,10 @@ export function filterCfdis(
   const yearPrefix = currentPeriodPrefix.slice(0, 4);
 
   return cfdis.filter((doc) => {
+    const effectiveDate = getCfdiEffectivePeriodDate(doc);
     if (periodScope === 'CURRENT') {
-      if (!doc.fecha.startsWith(currentPeriodPrefix)) return false;
-    } else if (yearPrefix && !doc.fecha.startsWith(yearPrefix)) {
+      if (!effectiveDate.startsWith(currentPeriodPrefix)) return false;
+    } else if (yearPrefix && !effectiveDate.startsWith(yearPrefix)) {
       return false;
     }
 

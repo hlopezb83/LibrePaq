@@ -18,6 +18,8 @@ export interface AccountEditorModalProps {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   editingAccountId: string | null;
   editingIsAffectable?: boolean;
+  isAffectable?: boolean;
+  setIsAffectable?: (val: boolean) => void;
   isJanLocked?: boolean;
   activeCompany?: Company | null;
   currentYear?: number;
@@ -47,8 +49,8 @@ export interface AccountEditorModalProps {
 }
 
 export function AccountEditorModal({
-  dialogRef, editingAccountId, editingIsAffectable = true, isJanLocked = false,
-  activeCompany, currentYear, formError, parentCode, setParentCode,
+  dialogRef, editingAccountId, editingIsAffectable = true, isAffectable = true, setIsAffectable,
+  isJanLocked = false, activeCompany, currentYear, formError, parentCode, setParentCode,
   parentAccounts, accounts, code, setCode, name, setName,
   satGroupCode, setSatGroupCode, type, setType, nature, setNature,
   setLevel, initialBalanceRaw, setInitialBalanceRaw,
@@ -63,18 +65,12 @@ export function AccountEditorModal({
         Math.abs(selectedParent.initialBalanceComputed) >= 0.01 ||
         Math.abs(selectedParent.initialBalance) >= 0.01)
   );
-  const hasBlockedAffectableParent = Boolean(
-    !editingAccountId && selectedParent?.isAffectable && parentHasActivity
-  );
+  const hasBlockedAffectableParent = Boolean(!editingAccountId && selectedParent?.isAffectable && parentHasActivity);
   const trimmedCode = code.trim();
-  const isDuplicateCode = Boolean(
-    !editingAccountId && trimmedCode && accounts.some((a) => a.code === trimmedCode)
-  );
-  const isMaskInvalid = Boolean(
-    !editingAccountId && trimmedCode && !isValidAccountMask(trimmedCode)
-  );
-
-  const isAccumulative = editingAccountId ? !editingIsAffectable : computedLevel < 3;
+  const isDuplicateCode = Boolean(!editingAccountId && trimmedCode && accounts.some((a) => a.code === trimmedCode));
+  const isMaskInvalid = Boolean(!editingAccountId && trimmedCode && !isValidAccountMask(trimmedCode));
+  const effectiveAffectable = editingAccountId ? editingIsAffectable : computedLevel === 1 ? false : computedLevel >= 3 ? true : isAffectable;
+  const isAccumulative = !effectiveAffectable;
   const isFinancialFieldsLocked = Boolean((editingAccountId && isJanLocked) || isAccumulative);
   const financialLockBadge =
     editingAccountId && isJanLocked
@@ -166,13 +162,16 @@ export function AccountEditorModal({
                 setParentCode(pCode);
                 const parentObj = accounts.find((a) => a.code === pCode);
                 if (parentObj) {
+                  const nextLvl = Math.min(4, parentObj.level + 1);
                   setType(parentObj.type);
                   setNature(parentObj.nature);
-                  setLevel(Math.min(4, parentObj.level + 1));
+                  setLevel(nextLvl);
+                  setIsAffectable?.(nextLvl >= 3);
                   if (parentObj.satGroupCode) setSatGroupCode(parentObj.satGroupCode);
                   setCode(suggestNextCodeForParent(pCode));
                 } else {
                   setLevel(1);
+                  setIsAffectable?.(false);
                 }
               }}
               className="font-mono"
@@ -191,8 +190,8 @@ export function AccountEditorModal({
               <label htmlFor="acc-code" className="block text-xs font-semibold text-slate-700">
                 Código ({activeCompany?.maskFormat || 'XXX-XX-XXX'}) <span className="text-red-700">*</span>
               </label>
-              <StatusBadge tone={computedLevel >= 3 ? 'emerald' : 'amber'} shape="tag">
-                N{computedLevel} · {computedLevel >= 3 ? 'Afectable' : 'Mayor'}
+              <StatusBadge tone={effectiveAffectable ? 'emerald' : 'amber'} shape="tag">
+                N{computedLevel} · {effectiveAffectable ? 'Afectable' : 'Mayor'}
               </StatusBadge>
             </div>
             <div className="flex items-center gap-1.5">
@@ -238,6 +237,13 @@ export function AccountEditorModal({
           </div>
         </div>
 
+        {!editingAccountId && computedLevel === 2 && setIsAffectable && (
+          <label className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs font-semibold text-blue-950 cursor-pointer select-none">
+            <input type="checkbox" checked={isAffectable} onChange={(e) => setIsAffectable(e.target.checked)} className="rounded border-blue-400 text-blue-700 focus:ring-blue-600" />
+            <span>Cuenta N2 afectable (permite recibir pólizas y saldo inicial directamente)</span>
+          </label>
+        )}
+
         <FormField label="Nombre de la Cuenta Contable" htmlFor="acc-name" required>
           <Input
             id="acc-name"
@@ -281,27 +287,14 @@ export function AccountEditorModal({
 
           <div>
             <div className="flex items-center justify-between gap-1 mb-1">
-              <label htmlFor="acc-nature" className="block text-xs font-semibold text-slate-700">
-                Naturaleza
-              </label>
+              <label htmlFor="acc-nature" className="block text-xs font-semibold text-slate-700">Naturaleza</label>
               {financialLockBadge && (
-                <StatusBadge
-                  tone="amber"
-                  shape="tag"
-                  icon={<Lock className="w-2.5 h-2.5" aria-hidden="true" />}
-                  className="text-[9px]!"
-                >
+                <StatusBadge tone="amber" shape="tag" icon={<Lock className="w-2.5 h-2.5" aria-hidden="true" />} className="text-[9px]!">
                   {financialLockBadge}
                 </StatusBadge>
               )}
             </div>
-            <Select
-              id="acc-nature"
-              disabled={isFinancialFieldsLocked}
-              title={financialLockTitle}
-              value={nature}
-              onChange={(e) => setNature(e.target.value as 'DEUDORA' | 'ACREEDORA')}
-            >
+            <Select id="acc-nature" disabled={isFinancialFieldsLocked} title={financialLockTitle} value={nature} onChange={(e) => setNature(e.target.value as 'DEUDORA' | 'ACREEDORA')}>
               <option value="DEUDORA">DEUDORA (Cargos +)</option>
               <option value="ACREEDORA">ACREEDORA (Abonos +)</option>
             </Select>
@@ -309,33 +302,17 @@ export function AccountEditorModal({
 
           <div>
             <div className="flex items-center justify-between gap-1 mb-1">
-              <label htmlFor="acc-init-bal" className="block text-xs font-semibold text-slate-700">
-                Saldo Apertura
-              </label>
+              <label htmlFor="acc-init-bal" className="block text-xs font-semibold text-slate-700">Saldo Apertura</label>
               {financialLockBadge && (
-                <StatusBadge
-                  tone="amber"
-                  shape="tag"
-                  icon={<Lock className="w-2.5 h-2.5" aria-hidden="true" />}
-                  className="text-[9px]!"
-                >
+                <StatusBadge tone="amber" shape="tag" icon={<Lock className="w-2.5 h-2.5" aria-hidden="true" />} className="text-[9px]!">
                   Bloqueado
                 </StatusBadge>
               )}
             </div>
             <Input
-              id="acc-init-bal"
-              type="text"
-              inputMode="decimal"
-              disabled={isFinancialFieldsLocked}
-              title={financialLockTitle}
-              value={initialBalanceRaw}
-              onChange={(e) => {
-                const cleaned = e.target.value.replace(/[^0-9.-]/g, '');
-                setInitialBalanceRaw(cleaned);
-              }}
-              placeholder="0.00"
-              className="font-mono tabular-nums text-right"
+              id="acc-init-bal" type="text" inputMode="decimal" disabled={isFinancialFieldsLocked} title={financialLockTitle}
+              value={initialBalanceRaw} onChange={(e) => setInitialBalanceRaw(e.target.value.replace(/[^0-9.-]/g, ''))}
+              placeholder="0.00" className="font-mono tabular-nums text-right"
             />
           </div>
         </div>

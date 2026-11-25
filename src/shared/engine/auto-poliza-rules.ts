@@ -113,7 +113,7 @@ export function buildCreditNoteEgresoMovements(
     movements.push(makeDraft(accIvaRet, ref, 0, ivaRetCents, `Ajuste Retención IVA Nota Crédito ${ref}`));
   }
   if (localRetenidoCents > 0) {
-    const accLocalRet = resolveFiscalAccount(accounts, 'ISR_ACREDITABLE_RETENIDO');
+    const accLocalRet = resolveFiscalAccount(accounts, 'IMPUESTOS_LOCALES_RETENIDOS_ACREDITABLES');
     movements.push(makeDraft(accLocalRet, ref, 0, localRetenidoCents, `Ajuste Retención Local Nota Crédito ${ref}`));
   }
   movements.push(
@@ -221,7 +221,7 @@ export function buildStandardIngresoMovements(
     movements.push(makeDraft(accIvaRet, ref, ivaRetCents, 0, `Retención IVA clientes ${ref}`));
   }
   if (localRetenidoCents > 0) {
-    const accLocalRet = resolveFiscalAccount(accounts, 'ISR_ACREDITABLE_RETENIDO');
+    const accLocalRet = resolveFiscalAccount(accounts, 'IMPUESTOS_LOCALES_RETENIDOS_ACREDITABLES');
     movements.push(makeDraft(accLocalRet, ref, localRetenidoCents, 0, `Retención Impuesto Local clientes ${ref}`));
   }
   movements.push(makeDraft(accIngreso, ref, 0, emitidaSubtotalCents, cfdi.conceptoPrincipal));

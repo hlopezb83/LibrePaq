@@ -12,6 +12,7 @@ export interface CreateCompanyDefaultsInput {
   currentYear: number;
   currentPeriod: number;
   catalogPreset?: CatalogPreset;
+  replaceBaseCatalog?: boolean;
   initialBankName?: string;
   initialBankAccount?: string;
   initialBankBalance?: number;
@@ -30,21 +31,25 @@ export async function seedCompanyDefaultsInSupabase(
     ? `${input.initialBankName} Cta ${input.initialBankAccount || 'Principal'}`
     : null;
 
-  const accountsToInsert = getSeedAccountsForPreset(input.catalogPreset ?? 'SAT_STANDARD').map(
-    (base) => ({
-    id: `${companyId}_${base.code}`,
-    company_id: companyId,
-    code: base.code,
-    name: base.code === '102-01-001' && bankName ? bankName : base.name,
-    parent_code: base.parentCode ?? null,
-    type: base.type,
-    nature: base.nature,
-    level: base.level,
-    is_affectable: base.isAffectable,
-    sat_group_code: base.satGroupCode,
-    currency: base.currency,
-    initial_balance: 0.0
-  }));
+  const accountsToInsert =
+    input.replaceBaseCatalog && input.catalogPreset === 'CUSTOM'
+      ? []
+      : getSeedAccountsForPreset(input.catalogPreset ?? 'SAT_STANDARD').map(
+          (base) => ({
+            id: `${companyId}_${base.code}`,
+            company_id: companyId,
+            code: base.code,
+            name: base.code === '102-01-001' && bankName ? bankName : base.name,
+            parent_code: base.parentCode ?? null,
+            type: base.type,
+            nature: base.nature,
+            level: base.level,
+            is_affectable: base.isAffectable,
+            sat_group_code: base.satGroupCode,
+            currency: base.currency,
+            initial_balance: 0.0
+          })
+        );
 
   for (let i = 0; i < accountsToInsert.length; i += 100) {
     const chunk = accountsToInsert.slice(i, i + 100);

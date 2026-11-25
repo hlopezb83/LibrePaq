@@ -3,10 +3,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { accountingRulesClient } from '../../lib/accounting-rules-client';
+import { apiClient } from '../../lib/api-client';
 import {
   buildAutoPolizaPlan,
   resolveMatchingAccountingRule
 } from '../../shared/engine/auto-poliza.engine';
+import {
+  buildRelatedCfdiOverridesFromRows,
+  type RelatedCfdiDbRowLike
+} from '../../shared/engine/auto-poliza-related';
 import type { Account, CfdiDocument } from '../../shared/types';
 import type { AccountingRuleRecord } from '../../shared/types/accounting-rules.types';
 
@@ -52,6 +57,53 @@ export function useCfdiContabilizarRules({
     enabled: Boolean(companyId)
   });
 
+  const isRep = selectedCfdi?.tipoComprobante === 'P';
+  const { data: companyCfdis = [] } = useQuery<CfdiDocument[]>({
+    queryKey: ['cfdis', companyId],
+    queryFn: () => apiClient.getCfdis(companyId),
+    enabled: Boolean(companyId && isRep)
+  });
+
+  const relatedOverrides = useMemo(() => {
+    if (!selectedCfdi || (selectedCfdi.tipoComprobante !== 'P' && selectedCfdi.tipoComprobante !== 'E')) {
+      return {};
+    }
+    const relUuids = Array.from(
+      new Set(
+        [
+          ...(selectedCfdi.relatedDocs?.map((d) => d.idDocumento) ?? []),
+          ...(selectedCfdi.uuidRelacionado ? [selectedCfdi.uuidRelacionado] : [])
+        ]
+          .map((u) => u.trim().toUpperCase())
+          .filter(Boolean)
+      )
+    );
+    if (relUuids.length === 0 || companyCfdis.length === 0) return {};
+    const uuidSet = new Set(relUuids);
+    const relRows: RelatedCfdiDbRowLike[] = companyCfdis
+      .filter((c) => uuidSet.has(c.uuid.trim().toUpperCase()))
+      .map((c) => ({
+        uuid: c.uuid,
+        moneda: c.moneda,
+        tipo_cambio: c.tipoCambio,
+        metodo_pago: c.metodoPago,
+        subtotal: c.subtotal,
+        descuento: c.descuento,
+        iva_trasladado: c.ivaTrasladado,
+        isr_retenido: c.isrRetenido,
+        iva_retenido: c.ivaRetenido,
+        total: c.total,
+        concepto_principal: c.conceptoPrincipal,
+        clave_prod_serv: c.claveProdServ,
+        emisor_nombre: c.emisorNombre,
+        uso_cfdi: c.usoCfdi,
+        deductible_pct:
+          c.deductiblePct ?? resolveMatchingAccountingRule(c, rules)?.deductiblePct ?? null,
+        xml_raw: c.xmlRaw
+      }));
+    return buildRelatedCfdiOverridesFromRows(relRows, selectedCfdi.tipoComprobante, relUuids.length);
+  }, [selectedCfdi, companyCfdis, rules]);
+
   const matchedRule = useMemo(
     () => (selectedCfdi ? resolveMatchingAccountingRule(selectedCfdi, rules) : null),
     [selectedCfdi, rules]
@@ -70,9 +122,14 @@ export function useCfdiContabilizarRules({
     }
     if (matchedRule && affectableAccounts.length === 0) return;
 
-    const key = `${selectedCfdi.id}:${matchedRule?.id ?? 'none'}`;
+    const key = `${selectedCfdi.id}:${matchedRule?.id ?? 'none'}:${relatedOverrides.deductiblePct ?? 'none'}`;
     if (appliedKeyRef.current === key) return;
     appliedKeyRef.current = key;
+
+    if (isRep) {
+      setDeductiblePct(relatedOverrides.deductiblePct ?? 100);
+      return;
+    }
 
     if (matchedRule) {
       if (affectableAccounts.some((a) => a.code === matchedRule.operationAccountCode)) {
@@ -86,11 +143,13 @@ export function useCfdiContabilizarRules({
       }
       setDeductiblePct(matchedRule.deductiblePct);
     } else {
-      setDeductiblePct(100);
+      setDeductiblePct(selectedCfdi.deductiblePct ?? 100);
     }
   }, [
     selectedCfdi,
+    isRep,
     matchedRule,
+    relatedOverrides.deductiblePct,
     affectableAccounts,
     setOperationAccountCode,
     setCounterAccountCode
@@ -102,10 +161,11 @@ export function useCfdiContabilizarRules({
     }
     try {
       const plan = buildAutoPolizaPlan(selectedCfdi, affectableAccounts, {
+        ...(isRep ? relatedOverrides : {}),
         operationAccountCode: operationAccountCode || undefined,
         counterAccountCode: counterAccountCode || undefined,
         rules,
-        deductiblePct
+        ...(isRep ? {} : { deductiblePct })
       });
       return plan.movements.map((m) => ({
         code: m.accountCode,
@@ -119,6 +179,8 @@ export function useCfdiContabilizarRules({
     }
   }, [
     selectedCfdi,
+    isRep,
+    relatedOverrides,
     affectableAccounts,
     operationAccountCode,
     counterAccountCode,
@@ -128,7 +190,7 @@ export function useCfdiContabilizarRules({
   ]);
 
   const saveLearnedRuleIfEnabled = async () => {
-    if (!rememberRule || !selectedCfdi || !companyId || !operationAccountCode) return;
+    if (!rememberRule || !selectedCfdi || selectedCfdi.tipoComprobante === 'P' || !companyId || !operationAccountCode) return;
     const counterpartyRfc = (
       selectedCfdi.direction === 'EMITIDO' ? selectedCfdi.receptorRfc : selectedCfdi.emisorRfc
     )

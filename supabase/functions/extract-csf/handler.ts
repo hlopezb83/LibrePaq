@@ -25,7 +25,7 @@ export type CsfExtractionResult =
 /** ~8 MB de archivo binario expresados en caracteres Base64. */
 export const MAX_BASE64_LENGTH = Math.ceil((8 * 1024 * 1024 * 4) / 3);
 export const ALLOWED_MIME_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
-const MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const PER_MODEL_TIMEOUT_MS = 12_000;
 const RFC_PATTERN = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/;
 

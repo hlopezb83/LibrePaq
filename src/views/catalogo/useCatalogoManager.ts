@@ -29,10 +29,14 @@ export function useCatalogoManager() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [ledgerAccountId, setLedgerAccountId] = useState<string | null>(null);
   const [csvPreview, setCsvPreview] = useState<CatalogoCsvImportPreview | null>(null);
+  const [importSource, setImportSource] = useState<{ fileName: string; text: string } | null>(null);
+  const [bnBalanceField, setBnBalanceField] = useState<'SaldoIni' | 'SaldoFin'>('SaldoIni');
+  const [replaceBaseCatalog, setReplaceBaseCatalog] = useState(false);
   const [isImportingCsv, setIsImportingCsv] = useState(false);
 
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editingIsAffectable, setEditingIsAffectable] = useState(true);
+  const [isAffectable, setIsAffectable] = useState(true);
   const [code, setCode] = useState('601-01-006');
   const [name, setName] = useState('');
   const [parentCode, setParentCode] = useState<string>('601-00-000');
@@ -58,6 +62,15 @@ export function useCatalogoManager() {
     queryFn: () => apiClient.getAccounts(activeCompanyId, currentYear, currentPeriod),
     enabled: Boolean(activeCompanyId)
   });
+
+  const { data: companyPolizas = [] } = useQuery({
+    queryKey: ['polizas', activeCompanyId, currentYear, 'ALL'],
+    queryFn: () => apiClient.getPolizas(activeCompanyId, currentYear, 'ALL'),
+    enabled: Boolean(activeCompanyId)
+  });
+  const hasPolizas =
+    companyPolizas.length > 0 ||
+    accounts.some((a) => a.periodCharges > 0 || a.periodCredits > 0);
 
   const { data: periodLock } = useQuery({
     queryKey: ['period-lock', activeCompanyId, currentYear, currentPeriod],
@@ -107,7 +120,9 @@ export function useCatalogoManager() {
     setSatGroupCode(defaultParentAcc?.satGroupCode || '601.84');
     setType(defaultParentAcc?.type || 'GASTOS');
     setNature(defaultParentAcc?.nature || 'DEUDORA');
-    setLevel(defaultParentAcc ? Math.min(SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL, defaultParentAcc.level + 1) : 1);
+    const nextLevel = defaultParentAcc ? Math.min(SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL, defaultParentAcc.level + 1) : 1;
+    setLevel(nextLevel);
+    setIsAffectable(nextLevel >= 3);
     setInitialBalanceRaw('0');
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     focusAccountName();
@@ -125,6 +140,7 @@ export function useCatalogoManager() {
     setType(acc.type);
     setNature(acc.nature);
     setLevel(acc.level);
+    setIsAffectable(acc.isAffectable);
     setInitialBalanceRaw(String(acc.initialBalance ?? 0));
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     focusAccountName();
@@ -148,7 +164,9 @@ export function useCatalogoManager() {
     setSatGroupCode(parentAcc.satGroupCode || '601.84');
     setType(parentAcc.type);
     setNature(parentAcc.nature);
-    setLevel(Math.min(SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL, parentAcc.level + 1));
+    const nextLevel = Math.min(SAFETY_BOUNDS.MAX_ACCOUNT_LEVEL, parentAcc.level + 1);
+    setLevel(nextLevel);
+    setIsAffectable(nextLevel >= 3);
     setInitialBalanceRaw('0');
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     focusAccountName();
@@ -180,7 +198,7 @@ export function useCatalogoManager() {
         type,
         nature,
         level,
-        isAffectable: level >= 3,
+        isAffectable: level === 1 ? false : level >= 3 ? true : isAffectable,
         satGroupCode,
         initialBalance
       });
@@ -261,7 +279,10 @@ export function useCatalogoManager() {
     if (!file) return;
     try {
       const text = await file.text();
-      setCsvPreview(buildCatalogoImportPreview(file.name, text, accounts));
+      setImportSource({ fileName: file.name, text });
+      setBnBalanceField('SaldoIni');
+      setReplaceBaseCatalog(false);
+      setCsvPreview(buildCatalogoImportPreview(file.name, text, accounts, { bnBalanceField: 'SaldoIni' }));
     } catch (err) {
       toast.error('Error al leer archivo de catálogo', (err as Error).message);
     } finally {
@@ -269,12 +290,31 @@ export function useCatalogoManager() {
     }
   };
 
+  const handleChangeBnBalanceField = (field: 'SaldoIni' | 'SaldoFin') => {
+    setBnBalanceField(field);
+    if (importSource) {
+      setCsvPreview(buildCatalogoImportPreview(importSource.fileName, importSource.text, accounts, { bnBalanceField: field, replaceBaseCatalog }));
+    }
+  };
+
+  const handleChangeReplaceBaseCatalog = (replace: boolean) => {
+    const allowed = replace && !hasPolizas;
+    setReplaceBaseCatalog(allowed);
+    if (importSource) {
+      setCsvPreview(buildCatalogoImportPreview(importSource.fileName, importSource.text, accounts, { bnBalanceField, replaceBaseCatalog: allowed }));
+    }
+  };
+
   const handleConfirmImportCsv = async () => {
     if (!csvPreview || isImportingCsv || isWriteBlocked) return;
     try {
       setIsImportingCsv(true);
-      await confirmImportCatalogoRows(csvPreview.allValidRows, activeCompanyId, queryClient, toast);
+      await confirmImportCatalogoRows(csvPreview.allValidRows, activeCompanyId, queryClient, toast, {
+        replaceBaseCatalog: replaceBaseCatalog && !hasPolizas,
+        existingAccounts: accounts
+      });
       setCsvPreview(null);
+      setImportSource(null);
     } catch (err) {
       toast.error('Error al importar cuentas', (err as Error).message);
     } finally {
@@ -289,7 +329,8 @@ export function useCatalogoManager() {
     isPeriodLocked, isJanLocked, isReadOnlyClient, isWriteBlocked, dialogRef, csvImportRef,
     accounts, isLoading, isError, error, refetch, parentAccounts, ...filters,
     formError, confirmDeleteId, setConfirmDeleteId, ledgerAccountId, setLedgerAccountId,
-    editingAccountId, editingIsAffectable, code, setCode, name, setName,
+    editingAccountId, editingIsAffectable, isAffectable, setIsAffectable,
+    code, setCode, name, setName,
     parentCode, setParentCode, satGroupCode, setSatGroupCode,
     type, setType, nature, setNature, level, setLevel,
     initialBalanceRaw, setInitialBalanceRaw,
@@ -298,6 +339,8 @@ export function useCatalogoManager() {
     saveAccountMutation, deleteAccountMutation,
     deletingAccountId: deleteAccountMutation.isPending ? (deleteAccountMutation.variables ?? null) : null,
     handleExportCsv, handleImportAccountsCsv,
-    csvPreview, setCsvPreview, isImportingCsv, handleConfirmImportCsv
+    csvPreview, setCsvPreview, isImportingCsv, handleConfirmImportCsv,
+    hasPolizas, bnBalanceField, handleChangeBnBalanceField,
+    replaceBaseCatalog, handleChangeReplaceBaseCatalog
   };
 }

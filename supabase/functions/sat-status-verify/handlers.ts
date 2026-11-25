@@ -246,7 +246,12 @@ async function verifySingleCfdiItem(params: {
   const newStatusSat: 'VIGENTE' | 'CANCELADO' = isCancelado ? 'CANCELADO' : 'VIGENTE';
   const { error: updErr } = await supabase
     .from('cfdi_documents')
-    .update({ status_sat: newStatusSat })
+    .update({
+      status_sat: newStatusSat,
+      validacion_efos: validacionEfos,
+      es_cancelable: esCancelable,
+      estatus_cancelacion: estatusCancelacion
+    })
     .eq('id', cfdiId)
     .eq('company_id', companyId);
 

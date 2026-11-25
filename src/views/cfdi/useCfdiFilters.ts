@@ -3,6 +3,7 @@ import type { CfdiDocument } from '../../shared/types';
 import {
   computeCfdiTotals,
   filterCfdis,
+  getCfdiEffectivePeriodDate,
   isCfdiPendingForPoliza,
   type CfdiFormaPagoFilter,
   type CfdiMetodoFilter,
@@ -26,20 +27,25 @@ export function useCfdiFilters(cfdis: CfdiDocument[], currentPeriodPrefix: strin
   const currentYearPrefix = currentPeriodPrefix.slice(0, 4);
 
   const countInCurrentPeriod = useMemo(
-    () => cfdis.filter((c) => c.fecha.startsWith(currentPeriodPrefix)).length,
+    () => cfdis.filter((c) => getCfdiEffectivePeriodDate(c).startsWith(currentPeriodPrefix)).length,
     [cfdis, currentPeriodPrefix]
   );
 
   const countInCurrentYear = useMemo(
-    () => (currentYearPrefix ? cfdis.filter((c) => c.fecha.startsWith(currentYearPrefix)).length : cfdis.length),
+    () =>
+      currentYearPrefix
+        ? cfdis.filter((c) => getCfdiEffectivePeriodDate(c).startsWith(currentYearPrefix)).length
+        : cfdis.length,
     [cfdis, currentYearPrefix]
   );
 
   const scopedCfdis = useMemo(() => {
     if (periodScope === 'CURRENT') {
-      return cfdis.filter((c) => c.fecha.startsWith(currentPeriodPrefix));
+      return cfdis.filter((c) => getCfdiEffectivePeriodDate(c).startsWith(currentPeriodPrefix));
     }
-    return currentYearPrefix ? cfdis.filter((c) => c.fecha.startsWith(currentYearPrefix)) : cfdis;
+    return currentYearPrefix
+      ? cfdis.filter((c) => getCfdiEffectivePeriodDate(c).startsWith(currentYearPrefix))
+      : cfdis;
   }, [cfdis, periodScope, currentPeriodPrefix, currentYearPrefix]);
 
   const pendingCfdis = useMemo(

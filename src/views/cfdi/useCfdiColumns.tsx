@@ -161,6 +161,13 @@ export function useCfdiColumns({
               <div className="text-[11px] font-mono text-slate-600 pl-4.5 whitespace-nowrap">
                 {formatShortDate(row.fecha)}
               </div>
+              {(row.tipoComprobante === 'P' || row.tipoComprobante === 'N') &&
+                row.fechaPago &&
+                row.fechaPago !== row.fecha.slice(0, 10) && (
+                  <div className="text-[10px] font-mono text-blue-700 pl-4.5 whitespace-nowrap">
+                    Pago: {formatShortDate(row.fechaPago)}
+                  </div>
+                )}
             </div>
           );
         }
@@ -229,11 +236,32 @@ export function useCfdiColumns({
             </button>
           </div>
         ),
-        cell: (info) => (
-          <div className={`text-right font-mono font-bold whitespace-nowrap tabular-nums ${info.row.original.statusSat === 'CANCELADO' ? 'line-through text-slate-500' : 'text-slate-900'}`}>
-            {formatCurrency(info.getValue())}
-          </div>
-        )
+        cell: (info) => {
+          const row = info.row.original;
+          const cur = (row.moneda || 'MXN').toUpperCase();
+          const isFx = cur !== 'MXN' && cur !== 'XXX';
+          return (
+            <div className="text-right space-y-0.5">
+              <div className={`font-mono font-bold whitespace-nowrap tabular-nums ${row.statusSat === 'CANCELADO' ? 'line-through text-slate-500' : 'text-slate-900'}`}>
+                {formatCurrency(info.getValue())}
+              </div>
+              {(isFx || row.isForeignNoCfdi) && (
+                <div className="flex items-center justify-end gap-1 flex-wrap">
+                  {isFx && (
+                    <StatusBadge tone="blue" shape="tag" className="font-mono text-[10px]">
+                      {cur} · TC {(row.tipoCambio || 1).toFixed(2)}
+                    </StatusBadge>
+                  )}
+                  {row.isForeignNoCfdi && (
+                    <StatusBadge tone="purple" shape="tag" className="text-[10px]">
+                      Sin CFDI
+                    </StatusBadge>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        }
       }),
       columnHelper.accessor('polizaId', {
         header: 'Estado Contable',
