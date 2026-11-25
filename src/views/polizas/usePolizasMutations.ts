@@ -2,6 +2,7 @@ import { type RefObject } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries, type AccountingQueryScope } from '../../lib/api-client';
+import { ronda11Client } from '../../lib/supabase/supabase-ronda11';
 import { formatCurrency, getDefaultDateForPeriod } from '../../lib/formatters';
 import { parseCalendarDate } from '../../shared/date-utils';
 import { buildInversePolizaDraft } from '../../shared/engine/poliza-productivity';
@@ -278,11 +279,47 @@ export function usePolizasMutations({
     }
   });
 
+  const savePolizaTemplateMutation = useMutation({
+    mutationFn: (templateName: string) => {
+      if (isReadOnlyClient) throw new Error('Modo solo lectura: no se pueden guardar plantillas.');
+      const accountById = new Map(accounts.map((a) => [a.id, a]));
+      const cleanRows = movements
+        .filter((m) => m.accountId && (m.cargo > 0 || m.abono > 0))
+        .map((m) => ({
+          accountCode: accountById.get(m.accountId)?.code || '',
+          referencia: m.referencia || undefined,
+          concepto: m.concepto || undefined,
+          cargoFixed: m.cargo > 0 ? m.cargo : 0,
+          abonoFixed: m.abono > 0 ? m.abono : 0,
+          businessSegmentId: m.businessSegmentId ?? null
+        }))
+        .filter((m) => Boolean(m.accountCode));
+      if (cleanRows.length < 2) {
+        throw new Error('Captura al menos 2 partidas con cuenta e importe antes de guardar plantilla.');
+      }
+      return ronda11Client.createPolizaTemplate({
+        companyId: activeCompanyId,
+        name: templateName.trim(),
+        tipo,
+        conceptoDefault: concepto.trim() || templateName.trim(),
+        movementsJson: cleanRows
+      });
+    },
+    onSuccess: (tpl) => {
+      queryClient.invalidateQueries({ queryKey: ['poliza-templates', activeCompanyId] });
+      toast.success(`Plantilla "${tpl.name}" guardada`, 'Disponible en 1 clic desde el editor o Pre-pólizas.');
+    },
+    onError: (err: Error) => {
+      toast.error('No se pudo guardar plantilla', err.message);
+    }
+  });
+
   return {
     savePolizaMutation,
     deletePolizaMutation,
     closeYearMutation,
     createPedimentoMutation,
-    reversePolizaMutation
+    reversePolizaMutation,
+    savePolizaTemplateMutation
   };
 }

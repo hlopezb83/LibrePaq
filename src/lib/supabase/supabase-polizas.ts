@@ -17,6 +17,7 @@ import {
   collectPolizaCfdiUuids,
   fetchPolizaCfdisMap,
   mapSupabasePoliza,
+  type PolizaMovementInput,
   resolveAccountsMap,
   resolveNextSupabasePolizaFolio,
   syncUpdatedPolizaCfdiLink
@@ -60,16 +61,7 @@ export const supabasePolizas = {
     origin?: 'MANUAL' | 'ADD_AUTO' | 'CIERRE_ANUAL';
     ejercicio?: number;
     periodo?: number;
-    movements: Array<{
-      accountId: string;
-      accountCode?: string;
-      accountName?: string;
-      referencia?: string;
-      concepto?: string;
-      cargo: number;
-      abono: number;
-      cfdiUuid?: string | null;
-    }>;
+    movements: PolizaMovementInput[];
   }): Promise<Poliza> {
     if (!supabase) throw new Error('Supabase no disponible');
 
@@ -158,16 +150,7 @@ export const supabasePolizas = {
       concepto: string;
       cfdiUuid?: string | null;
       cfdiUuids?: string[];
-      movements: Array<{
-        accountId: string;
-        accountCode?: string;
-        accountName?: string;
-        referencia?: string;
-        concepto?: string;
-        cargo: number;
-        abono: number;
-        cfdiUuid?: string | null;
-      }>;
+      movements: PolizaMovementInput[];
     }
   ): Promise<{ updated: boolean }> {
     if (!supabase) throw new Error('Supabase no disponible');

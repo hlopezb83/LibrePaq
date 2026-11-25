@@ -7,7 +7,7 @@ import {
   sumCents,
   toCents
 } from '../../shared/accounting-engine';
-import type { Account, PolizaType } from '../../shared/types';
+import type { Account, PolizaTemplate, PolizaType } from '../../shared/types';
 import type { DraftMovement } from './PolizaEditorModal';
 
 export function useDraftPolizaMovements(
@@ -128,40 +128,73 @@ export function useDraftPolizaMovements(
     const ref = `TPL-${String(predictedNextFolio).padStart(3, '0')}`;
     if (tpl === 'GASTO_16') {
       setTipo('EGRESO');
-      setConcepto('Pago de Servicios Operativos / Comisión Bancaria con IVA');
-      const g = resolveFiscalAccount(accounts, 'COMISIONES_BANCARIAS');
+      setConcepto('Pago de Servicios Operativos con IVA Acreditable 16%');
+      const g = resolveFiscalAccount(accounts, 'HONORARIOS_SERVICIOS');
       const i = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO');
       const b = resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL');
       setMovements([
-        { _rowId: crypto.randomUUID(), accountId: g.id, referencia: ref, concepto: 'Gasto operativo del periodo', cargo: 1000, abono: 0 },
-        { _rowId: crypto.randomUUID(), accountId: i.id, referencia: ref, concepto: 'IVA Acreditable 16%', cargo: 160, abono: 0 },
-        { _rowId: crypto.randomUUID(), accountId: b.id, referencia: ref, concepto: 'Salida de Bancos', cargo: 0, abono: 1160 }
+        { _rowId: crypto.randomUUID(), accountId: g.id, referencia: ref, concepto: 'Gasto operativo gravado 16%', cargo: 1000, abono: 0 },
+        { _rowId: crypto.randomUUID(), accountId: i.id, referencia: ref, concepto: 'IVA Acreditable Pagado 16%', cargo: 160, abono: 0 },
+        { _rowId: crypto.randomUUID(), accountId: b.id, referencia: ref, concepto: 'Pago desde Bancos', cargo: 0, abono: 1160 }
       ]);
     } else if (tpl === 'VENTA_PPD') {
-      setTipo('INGRESO');
-      setConcepto('Venta de Servicios y Cobro Inmediato en Banco');
-      const b = resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL');
+      setTipo('DIARIO');
+      setConcepto('Venta de Servicios a Crédito (PPD) con IVA por Cobrar');
+      const c = resolveFiscalAccount(accounts, 'CLIENTES_NACIONALES');
       const v = resolveFiscalAccount(accounts, 'INGRESOS_TASA_16');
-      const i = resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO');
+      const i = resolveFiscalAccount(accounts, 'IVA_TRASLADADO_NO_COBRADO');
       setMovements([
-        { _rowId: crypto.randomUUID(), accountId: b.id, referencia: ref, concepto: 'Depósito en Banco', cargo: 5800, abono: 0 },
-        { _rowId: crypto.randomUUID(), accountId: v.id, referencia: ref, concepto: 'Ingresos por Venta', cargo: 0, abono: 5000 },
-        { _rowId: crypto.randomUUID(), accountId: i.id, referencia: ref, concepto: 'IVA Trasladado 16%', cargo: 0, abono: 800 }
+        { _rowId: crypto.randomUUID(), accountId: c.id, referencia: ref, concepto: 'Cliente Nacional (Factura PPD)', cargo: 5800, abono: 0 },
+        { _rowId: crypto.randomUUID(), accountId: v.id, referencia: ref, concepto: 'Ingresos por Venta Tasa 16%', cargo: 0, abono: 5000 },
+        { _rowId: crypto.randomUUID(), accountId: i.id, referencia: ref, concepto: 'IVA Trasladado No Cobrado 16%', cargo: 0, abono: 800 }
       ]);
     } else {
-      setTipo('DIARIO');
-      setConcepto('Provisión de Compra a Proveedor Nacional');
-      const g = resolveFiscalAccount(accounts, 'HONORARIOS_SERVICIOS');
-      const i = resolveFiscalAccount(accounts, 'IVA_PENDIENTE_PAGO');
-      const p = resolveFiscalAccount(accounts, 'PROVEEDORES_NACIONALES');
+      setTipo('EGRESO');
+      setConcepto('Pago de Impuestos Federales SAT (ISR / IVA Día 17)');
+      const isrAcc = resolveFiscalAccount(accounts, 'PROVISION_ISR_POR_PAGAR');
+      const ivaAcc = resolveFiscalAccount(accounts, 'PROVISION_IVA_POR_PAGAR');
+      const b = resolveFiscalAccount(accounts, 'BANCO_PRINCIPAL');
       setMovements([
-        { _rowId: crypto.randomUUID(), accountId: g.id, referencia: ref, concepto: 'Gasto devengado', cargo: 2000, abono: 0 },
-        { _rowId: crypto.randomUUID(), accountId: i.id, referencia: ref, concepto: 'IVA por Acreditar 16%', cargo: 320, abono: 0 },
-        { _rowId: crypto.randomUUID(), accountId: p.id, referencia: ref, concepto: 'Cuenta por pagar Proveedor', cargo: 0, abono: 2320 }
+        { _rowId: crypto.randomUUID(), accountId: isrAcc.id, referencia: ref, concepto: 'Pago ISR Provisional del Periodo', cargo: 2000, abono: 0 },
+        { _rowId: crypto.randomUUID(), accountId: ivaAcc.id, referencia: ref, concepto: 'Pago IVA Definitivo del Periodo', cargo: 1500, abono: 0 },
+        { _rowId: crypto.randomUUID(), accountId: b.id, referencia: ref, concepto: 'Transferencia Pago de Impuestos SAT', cargo: 0, abono: 3500 }
       ]);
     }
-    toast.success('Plantilla Contable Aplicada', 'Se preconfiguraron las cuentas e IVA balanceados.');
+    toast.success('Plantilla Contable Aplicada', 'Se preconfiguraron las cuentas e importes balanceados.');
   }, [predictedNextFolio, accounts, setTipo, setConcepto, toast]);
+
+  const applySavedTemplate = useCallback((tpl: PolizaTemplate, baseAmount = 1000) => {
+    const affectable = accounts.filter((a) => a.isAffectable);
+    const byCode = new Map(accounts.map((a) => [a.code, a]));
+    setTipo(tpl.tipo);
+    setConcepto(tpl.conceptoDefault || tpl.name);
+    const nextMovs: DraftMovement[] = tpl.movementsJson.map((m, idx) => {
+      const resolvedAcc = byCode.get(m.accountCode) ?? affectable[0] ?? accounts[0];
+      const cargo =
+        m.cargoFixed !== undefined && m.cargoFixed > 0
+          ? Number(m.cargoFixed)
+          : m.cargoPct && m.cargoPct > 0
+            ? Math.round(baseAmount * m.cargoPct) / 100
+            : 0;
+      const abono =
+        m.abonoFixed !== undefined && m.abonoFixed > 0
+          ? Number(m.abonoFixed)
+          : m.abonoPct && m.abonoPct > 0
+            ? Math.round(baseAmount * m.abonoPct) / 100
+            : 0;
+      return {
+        _rowId: crypto.randomUUID(),
+        accountId: resolvedAcc?.id || '',
+        referencia: m.referencia || `PRE-${idx + 1}`,
+        concepto: m.concepto || tpl.conceptoDefault || tpl.name,
+        cargo,
+        abono,
+        businessSegmentId: m.businessSegmentId ?? null
+      };
+    });
+    if (nextMovs.length > 0) setMovements(nextMovs);
+    toast.success(`Pre-póliza "${tpl.name}" aplicada`, 'Revisa los importes antes de guardar.');
+  }, [accounts, setTipo, setConcepto, toast]);
 
   const resetDraftMovements = useCallback(() => {
     setMovements([
@@ -181,6 +214,7 @@ export function useDraftPolizaMovements(
     autoBalanceDifference,
     applyBalanceToRow,
     addIva16Line,
-    applyQuickTemplate
+    applyQuickTemplate,
+    applySavedTemplate
   };
 }

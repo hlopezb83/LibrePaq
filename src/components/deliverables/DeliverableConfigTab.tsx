@@ -85,7 +85,7 @@ export function DeliverableConfigTab({
     { id: 'deliv-include-balanza', label: '1. Balanza de Comprobación Anexo 24 (SAT)', checked: includeBalanza, set: setIncludeBalanza },
     { id: 'deliv-include-resultados', label: '2. Estado de Resultados Integral (NIF B-3 Mes + Acum. Ejercicio)', checked: includeResultados, set: setIncludeResultados },
     { id: 'deliv-include-balance', label: '3. Balance General Clasificado (NIF B-6)', checked: includeBalance, set: setIncludeBalance },
-    { id: 'deliv-include-nif-aging', label: '4. Flujos (NIF B-2), Capital (NIF B-4) y Antigüedad CxC/CxP', checked: includeNifAging, set: setIncludeNifAging },
+    { id: 'deliv-include-nif-aging', label: '4. Flujos (NIF B-2), Capital (NIF B-4), Conciliación Bancaria y CxC/CxP', checked: includeNifAging, set: setIncludeNifAging },
     { id: 'deliv-include-dia17', label: '5. Cédula Impuestos Federales Día 17', checked: includeDia17, set: setIncludeDia17 }
   ];
 

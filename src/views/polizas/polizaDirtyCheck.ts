@@ -13,8 +13,22 @@ export interface PolizaEditorSnapshot {
     cargo: number;
     abono: number;
     cfdiUuid: string | null;
+    paymentMethodSat: string | null;
+    bankCodeOri: string | null;
+    accountOri: string | null;
+    bankCodeDest: string | null;
+    accountDest: string | null;
+    beneficiaryName: string | null;
+    beneficiaryRfc: string | null;
+    chequeNum: string | null;
+    businessSegmentId: string | null;
   }>;
 }
+
+const normStr = (v?: string | null): string | null => {
+  const s = v?.trim() ?? '';
+  return s.length > 0 ? s : null;
+};
 
 export function createPolizaSnapshot(params: {
   tipo: PolizaType;
@@ -34,7 +48,16 @@ export function createPolizaSnapshot(params: {
       concepto: m.concepto,
       cargo: Number(m.cargo || 0),
       abono: Number(m.abono || 0),
-      cfdiUuid: m.cfdiUuid ? m.cfdiUuid.trim().toUpperCase() : null
+      cfdiUuid: m.cfdiUuid ? m.cfdiUuid.trim().toUpperCase() : null,
+      paymentMethodSat: normStr(m.paymentMethodSat),
+      bankCodeOri: normStr(m.bankCodeOri),
+      accountOri: normStr(m.accountOri),
+      bankCodeDest: normStr(m.bankCodeDest),
+      accountDest: normStr(m.accountDest),
+      beneficiaryName: normStr(m.beneficiaryName),
+      beneficiaryRfc: normStr(m.beneficiaryRfc)?.toUpperCase() ?? null,
+      chequeNum: normStr(m.chequeNum),
+      businessSegmentId: normStr(m.businessSegmentId)
     }))
   };
 }
@@ -71,7 +94,16 @@ export function isPolizaSnapshotDirty(
       a.concepto !== b.concepto ||
       a.cargo !== b.cargo ||
       a.abono !== b.abono ||
-      a.cfdiUuid !== b.cfdiUuid
+      a.cfdiUuid !== b.cfdiUuid ||
+      a.paymentMethodSat !== b.paymentMethodSat ||
+      a.bankCodeOri !== b.bankCodeOri ||
+      a.accountOri !== b.accountOri ||
+      a.bankCodeDest !== b.bankCodeDest ||
+      a.accountDest !== b.accountDest ||
+      a.beneficiaryName !== b.beneficiaryName ||
+      a.beneficiaryRfc !== b.beneficiaryRfc ||
+      a.chequeNum !== b.chequeNum ||
+      a.businessSegmentId !== b.businessSegmentId
     ) {
       return true;
     }
@@ -115,6 +147,15 @@ export function mapPolizaMovementsToDraft(pol: Poliza, preserveIds: boolean): Dr
     concepto: m.concepto,
     cargo: m.cargo,
     abono: m.abono,
-    ...(preserveIds ? { cfdiUuid: m.cfdiUuid ?? null } : {})
+    ...(preserveIds ? { cfdiUuid: m.cfdiUuid ?? null } : {}),
+    paymentMethodSat: m.paymentMethodSat ?? null,
+    bankCodeOri: m.bankCodeOri ?? null,
+    accountOri: m.accountOri ?? null,
+    bankCodeDest: m.bankCodeDest ?? null,
+    accountDest: m.accountDest ?? null,
+    beneficiaryName: m.beneficiaryName ?? null,
+    beneficiaryRfc: m.beneficiaryRfc ?? null,
+    chequeNum: m.chequeNum ?? null,
+    businessSegmentId: m.businessSegmentId ?? null
   }));
 }

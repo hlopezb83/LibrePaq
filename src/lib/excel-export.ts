@@ -1,7 +1,17 @@
 import writeXlsx, { type SheetData } from 'write-excel-file/browser';
 import { getFirstDateForPeriod, sanitizeSpreadsheetText } from '../shared/date-utils';
-import type { Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../shared/types';
+import type {
+  BankReconciliationResponse,
+  Company,
+  CxcCxpAgingResponse,
+  FinancialStatementsResponse,
+  FiscalWorkpaperResponse
+} from '../shared/types';
 import type { ExtendedFinancialStatementsResponse } from '../shared/types/extended-statements.types';
+import {
+  buildAgingCxcCxpSheetData,
+  buildConciliacionBancariaSheetData
+} from './excel-bancarios-cxc-sheets';
 import {
   buildBalanceGeneralSheetData,
   buildBalanzaSheetData,
@@ -137,12 +147,15 @@ export async function exportAccountLedgerXlsx(
 
 export interface ExportDeliverablesXlsxParams {
   reportsData: FinancialStatementsResponse | null | undefined;
+  prevMonthIncomeStatement?: FinancialStatementsResponse['incomeStatement'] | null;
   fiscalData: FiscalWorkpaperResponse | null | undefined;
   company: Company;
   year: number;
   period: number;
   formatVerticalPct: (amount: number, base: number) => string;
   extendedStatements?: ExtendedFinancialStatementsResponse | null;
+  bankReconciliations?: BankReconciliationResponse[] | null;
+  agingData?: CxcCxpAgingResponse | null;
   mesNombre?: string;
   hideZeroAccounts?: boolean;
   includeBalanza?: boolean;
@@ -154,8 +167,8 @@ export interface ExportDeliverablesXlsxParams {
 
 export function buildDeliverablesSheets(params: ExportDeliverablesXlsxParams): WorkbookSheetSpec[] {
   const {
-    reportsData, fiscalData, company, year, period, formatVerticalPct,
-    extendedStatements, mesNombre,
+    reportsData, prevMonthIncomeStatement, fiscalData, company, year, period, formatVerticalPct,
+    extendedStatements, bankReconciliations, agingData, mesNombre,
     hideZeroAccounts = false, includeBalanza = true, includeResultados = true,
     includeBalance = true, includeDia17 = true, includeNifAging = true
   } = params;
@@ -177,9 +190,12 @@ export function buildDeliverablesSheets(params: ExportDeliverablesXlsxParams): W
   if (includeResultados) {
     sheets.push({
       sheet: 'Estado de Resultados',
-      data: buildEstadoResultadosSheetData(reportsData, company, year, period, mesLabel, formatVerticalPct, hideZeroAccounts),
+      data: buildEstadoResultadosSheetData(
+        reportsData, company, year, period, mesLabel, formatVerticalPct, hideZeroAccounts, prevMonthIncomeStatement
+      ),
       columns: [
-        { width: 28 }, { width: 16 }, { width: 40 }, { width: 18 }, { width: 20 }, { width: 14 }
+        { width: 26 }, { width: 15 }, { width: 38 }, { width: 16 }, { width: 11 },
+        { width: 16 }, { width: 12 }, { width: 18 }, { width: 13 }
       ]
     });
   }
@@ -218,13 +234,28 @@ export function buildDeliverablesSheets(params: ExportDeliverablesXlsxParams): W
       }
     );
   }
+  if (includeNifAging && bankReconciliations && bankReconciliations.length > 0) {
+    sheets.push({
+      sheet: 'Conciliación Bancaria',
+      data: buildConciliacionBancariaSheetData(bankReconciliations, company, year, period, mesLabel),
+      columns: [{ width: 20 }, { width: 40 }, { width: 18 }, { width: 22 }, { width: 14 }, { width: 18 }]
+    });
+  }
+  if (includeNifAging && agingData) {
+    sheets.push({
+      sheet: 'Antigüedad CxC-CxP',
+      data: buildAgingCxcCxpSheetData(agingData, company, year, period, mesLabel),
+      columns: [{ width: 24 }, { width: 38 }, { width: 16 }, { width: 16 }, { width: 18 }, { width: 18 }]
+    });
+  }
   return sheets;
 }
 
-export async function exportDeliverablesXlsx(params: ExportDeliverablesXlsxParams): Promise<void> {
+export async function exportDeliverablesXlsx(params: ExportDeliverablesXlsxParams): Promise<boolean> {
   const sheets = buildDeliverablesSheets(params);
-  if (sheets.length === 0) return;
+  if (sheets.length === 0) return false;
   const safeFileRfc = params.company.rfc.replace(/[^a-zA-Z0-9]/g, '');
   const fileName = `Dossier_Ejecutivo_${safeFileRfc}_${params.year}_P${String(params.period).padStart(2, '0')}.xlsx`;
   await writeXlsx(sheets).toFile(fileName);
+  return true;
 }

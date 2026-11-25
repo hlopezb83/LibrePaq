@@ -1,7 +1,18 @@
 import { strToU8, zipSync } from 'fflate';
 import { downloadBlobFile } from '../../lib/formatters';
+import {
+  buildAgingCxcCxpCsvRows,
+  buildConciliacionBancariaCsvRows
+} from '../../lib/excel-bancarios-cxc-sheets';
 import { sanitizeSpreadsheetText } from '../../shared/date-utils';
-import type { AccountWithBalance, Company, FinancialStatementsResponse, FiscalWorkpaperResponse } from '../../shared/types';
+import type {
+  AccountWithBalance,
+  BankReconciliationResponse,
+  Company,
+  CxcCxpAgingResponse,
+  FinancialStatementsResponse,
+  FiscalWorkpaperResponse
+} from '../../shared/types';
 
 function buildCsvContent(
   headers: string[],
@@ -26,12 +37,16 @@ const isNonZeroRow = (a: AccountWithBalance) =>
   Math.abs(a.finalBalance) >= 0.01;
 
 export function exportAllDeliverablesCsv({
-  reportsData, fiscalData, company, year, period, formatVerticalPct,
+  reportsData, prevMonthIncomeStatement, fiscalData, agingData, bankReconciliations,
+  company, year, period, formatVerticalPct,
   hideZeroAccounts = false, includeBalanza = true, includeResultados = true,
-  includeBalance = true, includeDia17 = true
+  includeBalance = true, includeDia17 = true, includeNifAging = true
 }: {
   reportsData: FinancialStatementsResponse | null | undefined;
+  prevMonthIncomeStatement?: FinancialStatementsResponse['incomeStatement'] | null;
   fiscalData: FiscalWorkpaperResponse | null | undefined;
+  agingData?: CxcCxpAgingResponse | null;
+  bankReconciliations?: BankReconciliationResponse[] | null;
   company: Company;
   year: number;
   period: number;
@@ -41,8 +56,9 @@ export function exportAllDeliverablesCsv({
   includeResultados?: boolean;
   includeBalance?: boolean;
   includeDia17?: boolean;
-}) {
-  if (!reportsData) return;
+  includeNifAging?: boolean;
+}): boolean {
+  if (!reportsData) return false;
   const files: Record<string, Uint8Array> = {};
 
   if (includeBalanza) {
@@ -68,38 +84,59 @@ export function exportAllDeliverablesCsv({
   if (includeResultados) {
     const er = reportsData.incomeStatement;
     const p = er.periodTotals;
+    const pm = prevMonthIncomeStatement?.periodTotals;
     const utilOp = er.utilidadOperativa ?? er.utilidadBruta - er.totalGastos;
     const rifNeto = er.rifNeto ?? 0;
     const uai = er.utilidadAntesImpuestos ?? utilOp + rifNeto;
     const totalIsr = er.totalIsr ?? 0;
     const safePct = (val: number) =>
       !er.totalIngresos || Math.abs(er.totalIngresos) < 0.01 ? '0.0%' : formatVerticalPct(val, er.totalIngresos);
+    const safeMesPct = (val: number) =>
+      !(p?.totalIngresos) || Math.abs(p.totalIngresos) < 0.01 ? '0.0%' : formatVerticalPct(val, p.totalIngresos);
+    const momPct = (cur: number, prev: number) =>
+      Math.abs(prev) < 0.01 ? 'N/A' : `${(((cur - prev) / Math.abs(prev)) * 100).toFixed(1)}%`;
+    const prevMap = new Map<string, AccountWithBalance>();
+    if (prevMonthIncomeStatement) {
+      for (const grp of [
+        prevMonthIncomeStatement.ingresos, prevMonthIncomeStatement.costos,
+        prevMonthIncomeStatement.gastos, prevMonthIncomeStatement.rifProductos ?? [],
+        prevMonthIncomeStatement.rifGastos ?? [], prevMonthIncomeStatement.isrEjercicio ?? []
+      ]) {
+        for (const a of grp) prevMap.set(a.code, a);
+      }
+    }
     const filterEr = (list: AccountWithBalance[], expected: 'DEUDORA' | 'ACREEDORA') =>
       hideZeroAccounts ? list.filter((a) => Math.abs(a.finalBalance) >= 0.01 || Math.abs(signedMes(a, expected)) >= 0.01) : list;
     const mapEr = (rubro: string, a: AccountWithBalance, expected: 'DEUDORA' | 'ACREEDORA') => {
+      const mes = signedMes(a, expected);
+      const prevAcc = prevMap.get(a.code);
+      const prevMes = prevAcc ? signedMes(prevAcc, expected) : 0;
       const ytd = signedBal(a, expected);
-      return [rubro, a.code, a.name, signedMes(a, expected), ytd, safePct(ytd)];
+      return [rubro, a.code, a.name, mes, safeMesPct(mes), prevMes, momPct(mes, prevMes), ytd, safePct(ytd)];
     };
 
-    const erHeaders = ['Rubro Contable', 'Código', 'Nombre Cuenta', 'Del Mes MXN', 'Acum. Ejercicio MXN', '% s/Ventas'];
+    const erHeaders = [
+      'Rubro Contable', 'Código', 'Nombre Cuenta',
+      'Del Mes MXN', '% Vert. Mes', 'Mes Ant. MXN', 'Var. MoM %', 'Acum. Ejercicio MXN', '% s/Ventas YTD'
+    ];
     const erRows: Array<Array<string | number>> = [
       ...filterEr(er.ingresos, 'ACREEDORA').map((a) => mapEr('INGRESOS', a, 'ACREEDORA')),
-      ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos, safePct(er.totalIngresos)],
+      ['TOTAL INGRESOS', '', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, safeMesPct(p?.totalIngresos ?? 0), pm?.totalIngresos ?? 0, momPct(p?.totalIngresos ?? 0, pm?.totalIngresos ?? 0), er.totalIngresos, safePct(er.totalIngresos)],
       ...filterEr(er.costos, 'DEUDORA').map((a) => mapEr('COSTOS', a, 'DEUDORA')),
-      ['TOTAL COSTOS', '', 'Costo de Ventas', p?.totalCostos ?? 0, er.totalCostos, safePct(er.totalCostos)],
-      ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, er.utilidadBruta, safePct(er.utilidadBruta)],
+      ['TOTAL COSTOS', '', 'Costo de Ventas', p?.totalCostos ?? 0, safeMesPct(p?.totalCostos ?? 0), pm?.totalCostos ?? 0, momPct(p?.totalCostos ?? 0, pm?.totalCostos ?? 0), er.totalCostos, safePct(er.totalCostos)],
+      ['UTILIDAD BRUTA', '', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, safeMesPct(p?.utilidadBruta ?? 0), pm?.utilidadBruta ?? 0, momPct(p?.utilidadBruta ?? 0, pm?.utilidadBruta ?? 0), er.utilidadBruta, safePct(er.utilidadBruta)],
       ...filterEr(er.gastos, 'DEUDORA').map((a) => mapEr('GASTOS', a, 'DEUDORA')),
-      ['TOTAL GASTOS', '', 'Gastos Generales de Operación', p?.totalGastos ?? 0, er.totalGastos, safePct(er.totalGastos)],
-      ['UTILIDAD OPERACION', '', 'Utilidad de Operación (NIF B-3)', p?.utilidadOperativa ?? 0, utilOp, safePct(utilOp)],
+      ['TOTAL GASTOS', '', 'Gastos Generales de Operación', p?.totalGastos ?? 0, safeMesPct(p?.totalGastos ?? 0), pm?.totalGastos ?? 0, momPct(p?.totalGastos ?? 0, pm?.totalGastos ?? 0), er.totalGastos, safePct(er.totalGastos)],
+      ['UTILIDAD OPERACION', '', 'Utilidad de Operación (NIF B-3)', p?.utilidadOperativa ?? 0, safeMesPct(p?.utilidadOperativa ?? 0), pm?.utilidadOperativa ?? 0, momPct(p?.utilidadOperativa ?? 0, pm?.utilidadOperativa ?? 0), utilOp, safePct(utilOp)],
       ...filterEr(er.rifProductos ?? [], 'ACREEDORA').map((a) => mapEr('RIF PRODUCTOS', a, 'ACREEDORA')),
       ...filterEr(er.rifGastos ?? [], 'DEUDORA').map((a) => mapEr('RIF GASTOS', a, 'DEUDORA')),
-      ['RIF NETO', '', 'Resultado Integral de Financiamiento', p?.rifNeto ?? 0, rifNeto, safePct(rifNeto)],
-      ['UAI', '', 'Utilidad antes de Impuestos', p?.utilidadAntesImpuestos ?? 0, uai, safePct(uai)],
+      ['RIF NETO', '', 'Resultado Integral de Financiamiento', p?.rifNeto ?? 0, safeMesPct(p?.rifNeto ?? 0), pm?.rifNeto ?? 0, momPct(p?.rifNeto ?? 0, pm?.rifNeto ?? 0), rifNeto, safePct(rifNeto)],
+      ['UAI', '', 'Utilidad antes de Impuestos', p?.utilidadAntesImpuestos ?? 0, safeMesPct(p?.utilidadAntesImpuestos ?? 0), pm?.utilidadAntesImpuestos ?? 0, momPct(p?.utilidadAntesImpuestos ?? 0, pm?.utilidadAntesImpuestos ?? 0), uai, safePct(uai)],
       ...filterEr(er.isrEjercicio ?? [], 'DEUDORA').map((a) => mapEr('ISR EJERCICIO', a, 'DEUDORA')),
       ...(totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
-        ? [['PROVISION ISR', '', 'Provisión ISR del Ejercicio (NIF D-4)', p?.totalIsr ?? 0, totalIsr, safePct(totalIsr)]]
+        ? [['PROVISION ISR', '', 'Provisión ISR del Ejercicio (NIF D-4)', p?.totalIsr ?? 0, safeMesPct(p?.totalIsr ?? 0), pm?.totalIsr ?? 0, momPct(p?.totalIsr ?? 0, pm?.totalIsr ?? 0), totalIsr, safePct(totalIsr)]]
         : []),
-      ['UTILIDAD NETA', '', 'Utilidad Neta del Ejercicio (NIF B-3)', p?.utilidadNeta ?? 0, er.utilidadNeta, safePct(er.utilidadNeta)]
+      ['UTILIDAD NETA', '', 'Utilidad Neta del Ejercicio (NIF B-3)', p?.utilidadNeta ?? 0, safeMesPct(p?.utilidadNeta ?? 0), pm?.utilidadNeta ?? 0, momPct(p?.utilidadNeta ?? 0, pm?.utilidadNeta ?? 0), er.utilidadNeta, safePct(er.utilidadNeta)]
     ];
     files['Estado_Resultados.csv'] = strToU8(buildCsvContent(erHeaders, erRows));
   }
@@ -132,13 +169,24 @@ export function exportAllDeliverablesCsv({
     files['Papel_Fiscal.csv'] = strToU8(buildCsvContent(d17Headers, d17Rows));
   }
 
-  if (Object.keys(files).length === 0) return;
+  if (includeNifAging && bankReconciliations && bankReconciliations.length > 0) {
+    const bankHeaders = ['Cuenta Bancaria', 'Sección / Origen', 'Concepto', 'Ref. / Póliza', 'Fecha', 'Cargo / Saldo MXN', 'Abono MXN'];
+    files['Conciliacion_Bancaria.csv'] = strToU8(buildCsvContent(bankHeaders, buildConciliacionBancariaCsvRows(bankReconciliations)));
+  }
+
+  if (includeNifAging && agingData) {
+    const agingHeaders = ['Sección', 'RFC', 'Nombre / Cartera', '0-30d / Doctos', '31-60d / Máx.Días', '61-90d / Vencido>30d', '+90d', 'Saldo Total MXN'];
+    files['Antiguedad_CxC_CxP.csv'] = strToU8(buildCsvContent(agingHeaders, buildAgingCxcCxpCsvRows(agingData)));
+  }
+
+  if (Object.keys(files).length === 0) return false;
 
   const safeRfc = (company.rfc || 'EMPRESA').replace(/[^a-zA-Z0-9_-]/g, '');
   const periodCode = `P${String(period).padStart(2, '0')}`;
   const zipped = zipSync(files, { level: 6 });
   const zipBuffer = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
   downloadBlobFile(`Paquete_CSV_${safeRfc}_${year}_${periodCode}.zip`, zipBuffer, 'application/zip');
+  return true;
 }
 
 export function buildPapelFiscalCsvRows(

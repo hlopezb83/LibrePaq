@@ -3,10 +3,13 @@ import { Link } from '@tanstack/react-router';
 import { Button, EmptyState, getButtonClasses } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { useUIModal } from '../context/UIModalContext';
+import { AsambleaTraspasoModal } from './polizas/AsambleaTraspasoModal';
 import { PedimentoEditorModal } from './polizas/PedimentoEditorModal';
 import { PolizasFilterBar } from './polizas/PolizasFilterBar';
 import { PolizaCardItem } from './polizas/PolizaCardItem';
 import { PolizaEditorModal } from './polizas/PolizaEditorModal';
+import { PolizaImportModal } from './polizas/PolizaImportModal';
+import { PolizaTemplatesModal } from './polizas/PolizaTemplatesModal';
 import { printPolizasFormalPdf } from './polizas/polizaPrintDocument';
 import { usePolizasManager } from './polizas/usePolizasManager';
 
@@ -72,6 +75,13 @@ export function PolizasView() {
         isReadOnlyClient={m.isReadOnlyClient}
         hasPolizasToExport={m.filteredPolizas.length > 0}
         onNewPoliza={m.openNewPolizaModal}
+        onOpenTemplatesModal={() => m.setIsTemplatesModalOpen(true)}
+        onOpenImportModal={() => {
+          if (!m.isReadOnlyClient) m.setIsImportModalOpen(true);
+        }}
+        onOpenAsambleaModal={() => {
+          if (!m.isWriteBlocked) m.setIsAsambleaModalOpen(true);
+        }}
         onOpenPedimentoModal={() => {
           if (!m.isWriteBlocked) m.setIsPedimentoModalOpen(true);
         }}
@@ -275,7 +285,12 @@ export function PolizasView() {
         setMovements={m.setMovements}
         accounts={m.accounts}
         affectableAccounts={m.affectableAccounts}
+        businessSegments={m.businessSegments}
+        polizaTemplates={m.polizaTemplates}
         applyQuickTemplate={m.applyQuickTemplate}
+        applySavedTemplate={m.applySavedTemplate}
+        onSaveAsTemplate={m.handleSaveAsTemplate}
+        isSavingTemplate={m.isSavingTemplate}
         addIva16Line={m.addIva16Line}
         autoBalanceDifference={m.autoBalanceDifference}
         applyBalanceToRow={m.applyBalanceToRow}
@@ -292,15 +307,28 @@ export function PolizasView() {
       />
 
       <PedimentoEditorModal
-        isOpen={m.isPedimentoModalOpen}
-        onClose={() => m.setIsPedimentoModalOpen(false)}
-        currentYear={m.currentYear ?? 2026}
-        currentPeriod={m.currentPeriod ?? 10}
-        isPeriodLocked={m.isPeriodLocked}
-        isReadOnlyClient={m.isReadOnlyClient}
-        accounts={m.affectableAccounts}
-        onSavePoliza={(data) => m.createPedimentoMutation.mutate(data)}
+        isOpen={m.isPedimentoModalOpen} onClose={() => m.setIsPedimentoModalOpen(false)}
+        currentYear={m.currentYear ?? 2026} currentPeriod={m.currentPeriod ?? 10}
+        isPeriodLocked={m.isPeriodLocked} isReadOnlyClient={m.isReadOnlyClient}
+        accounts={m.affectableAccounts} onSavePoliza={(data) => m.createPedimentoMutation.mutate(data)}
         isSaving={m.createPedimentoMutation.isPending}
+      />
+      <PolizaTemplatesModal
+        isOpen={m.isTemplatesModalOpen} onClose={() => m.setIsTemplatesModalOpen(false)}
+        companyId={m.activeCompanyId} isWriteBlocked={m.isWriteBlocked}
+        templates={m.polizaTemplates} affectableAccounts={m.affectableAccounts}
+        onApplyTemplate={m.openNewPolizaWithTemplate}
+      />
+      <PolizaImportModal
+        isOpen={m.isImportModalOpen} onClose={() => m.setIsImportModalOpen(false)}
+        companyId={m.activeCompanyId} currentYear={m.currentYear ?? 2026}
+        affectableAccounts={m.affectableAccounts} isReadOnlyClient={m.isReadOnlyClient}
+      />
+      <AsambleaTraspasoModal
+        isOpen={m.isAsambleaModalOpen} onClose={() => m.setIsAsambleaModalOpen(false)}
+        companyId={m.activeCompanyId} currentYear={m.currentYear ?? 2026}
+        currentPeriod={m.currentPeriod ?? 1} isPeriodLocked={m.isPeriodLocked}
+        isReadOnlyClient={m.isReadOnlyClient} accounts={m.accounts}
       />
     </div>
   );

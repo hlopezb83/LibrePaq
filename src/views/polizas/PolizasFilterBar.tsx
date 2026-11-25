@@ -43,6 +43,9 @@ export interface PolizasFilterBarProps {
   isReadOnlyClient?: boolean;
   hasPolizasToExport?: boolean;
   onNewPoliza: () => void;
+  onOpenTemplatesModal?: () => void;
+  onOpenImportModal?: () => void;
+  onOpenAsambleaModal?: () => void;
   onOpenPedimentoModal?: () => void;
   onExportCsv: () => void;
   onPrintPdf?: () => void;
@@ -81,6 +84,9 @@ export function PolizasFilterBar({
   isReadOnlyClient = false,
   hasPolizasToExport = true,
   onNewPoliza,
+  onOpenTemplatesModal,
+  onOpenImportModal,
+  onOpenAsambleaModal,
   onOpenPedimentoModal,
   onExportCsv,
   onPrintPdf,
@@ -112,12 +118,16 @@ export function PolizasFilterBar({
         actions={
           <PolizasHeaderActions
             currentYear={currentYear}
+            currentPeriod={currentPeriod}
             isPeriodLocked={isPeriodLocked}
             isPeriod13Locked={isPeriod13Locked}
             isReadOnlyClient={isReadOnlyClient}
             isCloseYearPending={isCloseYearPending}
             hasPolizasToExport={hasPolizasToExport}
             onNewPoliza={onNewPoliza}
+            onOpenTemplatesModal={onOpenTemplatesModal}
+            onOpenImportModal={onOpenImportModal}
+            onOpenAsambleaModal={onOpenAsambleaModal}
             onOpenPedimentoModal={onOpenPedimentoModal}
             onExportCsv={onExportCsv}
             onPrintPdf={onPrintPdf}

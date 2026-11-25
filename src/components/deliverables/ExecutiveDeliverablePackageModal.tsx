@@ -8,6 +8,7 @@ import { DeliverableBalanzaDoc } from './DeliverableBalanzaDoc';
 import { DeliverableResultadosDoc } from './DeliverableResultadosDoc';
 import { DeliverableBalanceDoc } from './DeliverableBalanceDoc';
 import { DeliverableNifSummaryDoc } from './DeliverableNifSummaryDoc';
+import { DeliverableBancosCxcDoc } from './DeliverableBancosCxcDoc';
 import { DeliverableDia17Doc } from './DeliverableDia17Doc';
 import { DeliverableHeaderActions, DeliverableModalHeader } from './DeliverableModalHeader';
 import { DEFAULT_DELIVERABLE_CONFIG, useExecutiveDeliverables } from './useExecutiveDeliverables';
@@ -239,6 +240,7 @@ export function ExecutiveDeliverablePackageModal({
             company={company} year={year} period={period} mesNombre={d.mesNombre}
             hideZeroAccounts={d.hideZeroAccounts}
             incomeStatement={d.reportsData.incomeStatement}
+            prevMonthIncomeStatement={d.prevMonthReportsData?.incomeStatement}
             {...sigProps}
           />
         )}
@@ -256,6 +258,14 @@ export function ExecutiveDeliverablePackageModal({
           <DeliverableNifSummaryDoc
             company={company} year={year} period={period} mesNombre={d.mesNombre}
             extendedStatements={d.extendedStatements} agingData={d.agingData}
+            {...sigProps}
+          />
+        )}
+
+        {d.activeTab === 'DOSSIER' && d.includeNifAging && (d.bankReconciliations.length > 0 || d.agingData) && (
+          <DeliverableBancosCxcDoc
+            company={company} year={year} period={period} mesNombre={d.mesNombre}
+            bankReconciliations={d.bankReconciliations} agingData={d.agingData}
             {...sigProps}
           />
         )}

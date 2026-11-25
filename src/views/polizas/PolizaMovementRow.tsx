@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AccountPickerCombobox } from '../../components/account-picker/AccountPickerCombobox';
 import { formatCurrency } from '../../lib/formatters';
-import type { Account, CfdiDocument } from '../../shared/types';
+import type { Account, BusinessSegment, CfdiDocument } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
 import { PolizaMovementAmountCells } from './PolizaMovementAmountCells';
+import { PolizaMovementBankFields } from './PolizaMovementBankFields';
 import { shouldTriggerDittoKey } from './polizaDirtyCheck';
 
 export interface PolizaMovementRowProps {
@@ -13,6 +14,7 @@ export interface PolizaMovementRowProps {
   accounts?: Account[];
   accountsById?: Map<string, Account>;
   affectableAccounts: Account[];
+  businessSegments?: BusinessSegment[];
   cfdiUuids?: string[];
   cfdisByUuid?: Map<string, CfdiDocument>;
   concepto: string;
@@ -38,6 +40,7 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
   accounts,
   accountsById,
   affectableAccounts,
+  businessSegments = [],
   cfdiUuids = [],
   cfdisByUuid,
   concepto,
@@ -55,10 +58,14 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
   autoBalanceDifference,
   onLastRowSubmitFocus
 }: PolizaMovementRowProps) {
+  const [showBankFields, setShowBankFields] = useState(false);
   const isLastRow = idx === movementsCount - 1;
   const currentAcc = accountsById
     ? accountsById.get(mov.accountId)
     : accounts?.find((a) => a.id === mov.accountId);
+  const isBank102 = Boolean(
+    currentAcc && (currentAcc.code.startsWith('102') || currentAcc.satGroupCode?.startsWith('102'))
+  );
 
   return (
     <tr
@@ -118,6 +125,35 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
             )}
           </div>
         )}
+        {isBank102 && (
+          <PolizaMovementBankFields
+            idx={idx}
+            mov={mov}
+            isExpanded={showBankFields}
+            onToggle={() => setShowBankFields((prev) => !prev)}
+            setMovements={setMovements}
+          />
+        )}
+        {businessSegments.length > 0 && (
+          <select
+            aria-label={`Segmento de negocio partida ${idx + 1}`}
+            value={mov.businessSegmentId ?? ''}
+            onChange={(e) => {
+              const val = e.target.value || null;
+              setMovements((prev) =>
+                prev.map((item, i) => (i === idx ? { ...item, businessSegmentId: val } : item))
+              );
+            }}
+            className="w-full px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
+          >
+            <option value="">Segmento: Sin asignar</option>
+            {businessSegments.filter((s) => s.isActive || s.id === mov.businessSegmentId).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.code} — {s.name}
+              </option>
+            ))}
+          </select>
+        )}
       </td>
 
       <td className="p-2 w-28">
@@ -160,6 +196,26 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
           }}
           className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:ring-1 focus:ring-blue-600 focus:outline-none"
         />
+        {businessSegments.length > 0 && (
+          <select
+            aria-label={`Segmento de negocio partida ${idx + 1}`}
+            value={mov.businessSegmentId ?? ''}
+            onChange={(e) => {
+              const val = e.target.value || null;
+              setMovements((prev) =>
+                prev.map((item, i) => (i === idx ? { ...item, businessSegmentId: val } : item))
+              );
+            }}
+            className="w-full px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
+          >
+            <option value="">Segmento: Sin asignar</option>
+            {businessSegments.filter((s) => s.isActive || s.id === mov.businessSegmentId).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.code} — {s.name}
+              </option>
+            ))}
+          </select>
+        )}
       </td>
 
       <td className="p-2 min-w-[220px] space-y-1">
@@ -236,6 +292,26 @@ export const PolizaMovementRow = React.memo(function PolizaMovementRow({
                 </option>
               );
             })}
+          </select>
+        )}
+        {businessSegments.length > 0 && (
+          <select
+            aria-label={`Segmento de negocio partida ${idx + 1}`}
+            value={mov.businessSegmentId ?? ''}
+            onChange={(e) => {
+              const val = e.target.value || null;
+              setMovements((prev) =>
+                prev.map((item, i) => (i === idx ? { ...item, businessSegmentId: val } : item))
+              );
+            }}
+            className="w-full px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-[10px] text-slate-700"
+          >
+            <option value="">Segmento: Sin asignar</option>
+            {businessSegments.filter((s) => s.isActive || s.id === mov.businessSegmentId).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.code} — {s.name}
+              </option>
+            ))}
           </select>
         )}
       </td>

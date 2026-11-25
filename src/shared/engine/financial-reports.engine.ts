@@ -30,6 +30,7 @@ export interface JoinedPolizaMovementInput {
   account_id: string;
   cargo: number;
   abono: number;
+  business_segment_id?: string | null;
   polizas:
     | { company_id: string; ejercicio: number; periodo: number; origin?: string | null }
     | { company_id: string; ejercicio: number; periodo: number; origin?: string | null }[]
@@ -45,8 +46,13 @@ export function computeFinancialStatementsData(
   accounts: AccountWithBalance[],
   movs: JoinedPolizaMovementInput[],
   ejercicio: number,
-  periodo: number
+  periodo: number,
+  options?: { businessSegmentId?: string | null }
 ): FinancialStatementsResponse {
+  const segmentFilter = options?.businessSegmentId?.trim() || null;
+  const scopedMovs = segmentFilter
+    ? movs.filter((row) => (row.business_segment_id ?? null) === segmentFilter)
+    : movs;
   const isPersistentBalanceAcc = new Map(
     accounts.map((a) => [
       a.id,
@@ -66,7 +72,7 @@ export function computeFinancialStatementsData(
   let priorUnclosedAbonoCents = 0;
   let hasPriorYearMovements = false;
 
-  for (const row of movs) {
+  for (const row of scopedMovs) {
     const p = Array.isArray(row.polizas) ? row.polizas[0] : row.polizas;
     if (!p) continue;
     const accId = row.account_id;
@@ -138,7 +144,7 @@ export function computeFinancialStatementsData(
     priorCreditsMap,
     currentChargesMap,
     currentCreditsMap,
-    { zeroResultInitialBalances: hasPriorYearMovements }
+    { zeroResultInitialBalances: hasPriorYearMovements || Boolean(segmentFilter) }
   );
   if (closingMovementsMap.size > 0) {
     registerClosingMovementsForTrialBalance(computedAccounts, closingMovementsMap);

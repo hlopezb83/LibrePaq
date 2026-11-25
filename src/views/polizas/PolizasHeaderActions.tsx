@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Anchor, ChevronDown, Download, Loader2, Lock, Plus, Printer, SlidersHorizontal } from 'lucide-react';
-import { Button, InlineConfirm } from '../../components/ui';
+import { ChevronDown, Download, Lock, Plus, Printer, SlidersHorizontal } from 'lucide-react';
+import { Button } from '../../components/ui';
+import { PolizasToolsMenuItems } from './PolizasToolsMenuItems';
 
 export interface PolizasHeaderActionsProps {
   currentYear?: number;
+  currentPeriod?: number;
   isPeriodLocked: boolean;
   isPeriod13Locked?: boolean;
   isReadOnlyClient?: boolean;
   isCloseYearPending: boolean;
   hasPolizasToExport?: boolean;
   onNewPoliza: () => void;
+  onOpenTemplatesModal?: () => void;
+  onOpenImportModal?: () => void;
+  onOpenAsambleaModal?: () => void;
   onOpenPedimentoModal?: () => void;
   onExportCsv: () => void;
   onPrintPdf?: () => void;
@@ -18,12 +23,16 @@ export interface PolizasHeaderActionsProps {
 
 export function PolizasHeaderActions({
   currentYear = 2026,
+  currentPeriod,
   isPeriodLocked,
   isPeriod13Locked = false,
   isReadOnlyClient = false,
   isCloseYearPending,
   hasPolizasToExport = true,
   onNewPoliza,
+  onOpenTemplatesModal,
+  onOpenImportModal,
+  onOpenAsambleaModal,
   onOpenPedimentoModal,
   onExportCsv,
   onPrintPdf,
@@ -199,136 +208,27 @@ export function PolizasHeaderActions({
               aria-orientation="vertical"
               className={`absolute ${alignRight ? 'right-0 left-auto' : 'left-0 right-auto'} top-full mt-1.5 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30 divide-y divide-slate-100 text-xs`}
             >
-              <div className="sm:hidden py-1">
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={!hasPolizasToExport}
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onExportCsv();
-                  }}
-                  title={
-                    hasPolizasToExport
-                      ? 'Exportar pólizas visibles a CSV'
-                      : 'No hay pólizas visibles para exportar'
-                  }
-                  className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Download className="w-4 h-4 text-emerald-700" aria-hidden="true" />
-                  <span className="font-medium">Exportar Excel (.CSV)</span>
-                </button>
-
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={!hasPolizasToExport}
-                  title={printTooltip}
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    if (onPrintPdf) onPrintPdf();
-                    else window.print();
-                  }}
-                  className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Printer className="w-4 h-4 text-slate-500" aria-hidden="true" />
-                  <span className="font-medium">Imprimir / PDF Formal</span>
-                </button>
-              </div>
-
-              <div className="py-1">
-                {onOpenPedimentoModal && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={isWriteBlocked}
-                    onClick={() => {
-                      if (isWriteBlocked) return;
-                      setIsMenuOpen(false);
-                      onOpenPedimentoModal();
-                    }}
-                    title={
-                      isReadOnlyClient
-                        ? 'Modo solo lectura'
-                        : isPeriodLocked
-                        ? 'Periodo bloqueado ante el SAT'
-                        : 'Registrar Pedimento Aduanal'
-                    }
-                    className="w-full text-left px-3.5 py-2 flex items-start gap-2.5 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Anchor className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
-                    <div>
-                      <span className="font-medium block text-slate-800">Pedimento Aduanal</span>
-                      <span className="text-[10px] text-slate-500 leading-tight block">
-                        Importación con IVA y DTA (A1 / IN)
-                      </span>
-                    </div>
-                  </button>
-                )}
-
-                {confirmCloseYear ? (
-                  <div className="px-3 py-2.5 bg-amber-50 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
-                      <div>
-                        <span className="font-bold text-amber-950 block">
-                          Cierre Anual {currentYear} (Mes 13)
-                        </span>
-                        <span className="text-[10px] text-amber-900 leading-tight block">
-                          Cancela cuentas de resultados y traslada utilidad o pérdida al ejercicio {currentYear}.
-                        </span>
-                      </div>
-                    </div>
-                    <InlineConfirm
-                      tone="warning"
-                      confirmLabel={isCloseYearPending ? 'Generando...' : 'Confirmar cierre'}
-                      cancelLabel="Cancelar"
-                      busy={isCloseYearPending || isCloseYearBlocked}
-                      ariaLabel={`Confirmar cierre anual ${currentYear}`}
-                      className="w-full justify-end bg-transparent border-0 p-0"
-                      onCancel={() => setConfirmCloseYear(false)}
-                      onConfirm={() => {
-                        setIsMenuOpen(false);
-                        setConfirmCloseYear(false);
-                        onCloseYear();
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={isCloseYearPending || isCloseYearBlocked}
-                    aria-busy={isCloseYearPending}
-                    onClick={() => {
-                      if (isCloseYearBlocked) return;
-                      setConfirmCloseYear(true);
-                    }}
-                    title={
-                      isReadOnlyClient
-                        ? 'Modo solo lectura'
-                        : isPeriod13Locked
-                        ? 'Periodo 13 bloqueado ante el SAT'
-                        : `Generar póliza de cierre anual ${currentYear} (Mes 13)`
-                    }
-                    className="w-full text-left px-3.5 py-2 flex items-start gap-2.5 text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCloseYearPending ? (
-                      <Loader2 className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Lock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" aria-hidden="true" />
-                    )}
-                    <div>
-                      <span className="font-medium block text-slate-800">
-                        {isCloseYearPending ? 'Generando Cierre...' : `Cierre Anual ${currentYear} (Mes 13)`}
-                      </span>
-                      <span className="text-[10px] text-slate-500 leading-tight block">
-                        Pérdidas y ganancias del ejercicio {currentYear}
-                      </span>
-                    </div>
-                  </button>
-                )}
-              </div>
+              <PolizasToolsMenuItems
+                currentYear={currentYear}
+                currentPeriod={currentPeriod}
+                isPeriodLocked={isPeriodLocked}
+                isPeriod13Locked={isPeriod13Locked}
+                isReadOnlyClient={isReadOnlyClient}
+                isWriteBlocked={isWriteBlocked}
+                isCloseYearBlocked={isCloseYearBlocked}
+                isCloseYearPending={isCloseYearPending}
+                hasPolizasToExport={hasPolizasToExport}
+                confirmCloseYear={confirmCloseYear}
+                setConfirmCloseYear={setConfirmCloseYear}
+                closeMenu={() => setIsMenuOpen(false)}
+                onExportCsv={onExportCsv}
+                onPrintPdf={onPrintPdf}
+                onOpenTemplatesModal={onOpenTemplatesModal}
+                onOpenImportModal={onOpenImportModal}
+                onOpenAsambleaModal={onOpenAsambleaModal}
+                onOpenPedimentoModal={onOpenPedimentoModal}
+                onCloseYear={onCloseYear}
+              />
             </div>
           )}
         </div>

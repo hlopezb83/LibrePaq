@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react';
-import { AlertTriangle, Download, FileSpreadsheet, FolderTree, Loader2, Upload } from 'lucide-react';
+import { AlertTriangle, Download, FileSpreadsheet, FolderTree, Loader2, Lock, Upload } from 'lucide-react';
 import { AlertBanner, Button, FormField, Input, ModalShell } from '../../components/ui';
+import { useCompany } from '../../context/CompanyContext';
 import { downloadCsvFile } from '../../lib/formatters';
 import type { Company, CompanyBackupBundle } from '../../shared/types';
 import { AjustesRespaldosMetricsCard } from './AjustesRespaldosMetricsCard';
@@ -32,6 +33,7 @@ export interface AjustesRespaldosTabProps {
   handleImportCsvCatalog: (e: ChangeEvent<HTMLInputElement>) => void;
   restoreInputRef: RefObject<HTMLInputElement | null>;
   csvCatalogInputRef: RefObject<HTMLInputElement | null>;
+  canExportBackup?: boolean;
   canRestoreBackup?: boolean;
   canImportCsv?: boolean;
 }
@@ -55,9 +57,12 @@ export function AjustesRespaldosTab({
   handleImportCsvCatalog,
   restoreInputRef,
   csvCatalogInputRef,
+  canExportBackup,
   canRestoreBackup = true,
   canImportCsv = true
 }: AjustesRespaldosTabProps) {
+  const { isReadOnlyClient, effectiveCompanyRole } = useCompany();
+  const allowExportBackup = canExportBackup ?? (!isReadOnlyClient && effectiveCompanyRole !== 'CLIENTE_LECTURA');
   const restoreDialogRef = useRef<HTMLDialogElement>(null);
   const [confirmRfcText, setConfirmRfcText] = useState('');
 
@@ -101,12 +106,24 @@ export function AjustesRespaldosTab({
             variant="primary"
             size="lg"
             className="w-full"
-            disabled={isExportingBackup}
+            disabled={isExportingBackup || !allowExportBackup}
             loading={isExportingBackup}
-            leftIcon={<Download className="w-4 h-4 shrink-0" aria-hidden="true" />}
-            onClick={handleExportBackup}
+            title={!allowExportBackup ? 'Descarga de respaldo JSON completo restringida para rol Cliente (Solo lectura)' : undefined}
+            leftIcon={
+              !allowExportBackup
+                ? <Lock className="w-4 h-4 shrink-0" aria-hidden="true" />
+                : <Download className="w-4 h-4 shrink-0" aria-hidden="true" />
+            }
+            onClick={() => {
+              if (!allowExportBackup) return;
+              handleExportBackup();
+            }}
           >
-            {isExportingBackup ? 'Generando archivo...' : 'Descargar Respaldo Completo'}
+            {!allowExportBackup
+              ? 'Respaldo Restringido al Despacho'
+              : isExportingBackup
+              ? 'Generando archivo...'
+              : 'Descargar Respaldo Completo'}
           </Button>
         </div>
 
