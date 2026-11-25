@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import {
   computeTrialBalance,
+  db,
   getCfdiDocuments,
   getDiotReport,
   getPolizas
@@ -12,10 +13,58 @@ import {
   type Anexo24CfdiMetadata,
   type SatAnexo24Options
 } from '../../shared/sat-anexo24';
+import type { Poliza } from '../../shared/types';
 import { buildSatAnexo24Xml, resolveYearAndPeriod } from '../validators';
 import { getAuthorizedCompanyForRoute } from './route-helpers';
 
 export const reportsRoutes = new Hono();
+
+function enrichSqlitePolizaBankFields(polizas: Poliza[]): Poliza[] {
+  if (polizas.length === 0) return polizas;
+  const polizaIds = polizas.map((p) => p.id);
+  const placeholders = polizaIds.map(() => '?').join(',');
+  type BankMovRow = {
+    id: string;
+    payment_method_sat?: string | null;
+    bank_code_ori?: string | null;
+    account_ori?: string | null;
+    bank_code_dest?: string | null;
+    account_dest?: string | null;
+    beneficiary_name?: string | null;
+    beneficiary_rfc?: string | null;
+    cheque_num?: string | null;
+  };
+  let rows: BankMovRow[] = [];
+  try {
+    rows = db
+      .query(
+        `SELECT id, payment_method_sat, bank_code_ori, account_ori, bank_code_dest, account_dest, beneficiary_name, beneficiary_rfc, cheque_num
+         FROM poliza_movements WHERE poliza_id IN (${placeholders})`
+      )
+      .all(...polizaIds) as BankMovRow[];
+  } catch {
+    return polizas;
+  }
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return polizas.map((p) => ({
+    ...p,
+    movements: p.movements.map((m) => {
+      const ex = byId.get(m.id);
+      if (!ex) return m;
+      return {
+        ...m,
+        paymentMethodSat: ex.payment_method_sat ?? m.paymentMethodSat,
+        bankCodeOri: ex.bank_code_ori ?? m.bankCodeOri,
+        accountOri: ex.account_ori ?? m.accountOri,
+        bankCodeDest: ex.bank_code_dest ?? m.bankCodeDest,
+        accountDest: ex.account_dest ?? m.accountDest,
+        beneficiaryName: ex.beneficiary_name ?? m.beneficiaryName,
+        beneficiaryRfc: ex.beneficiary_rfc ?? m.beneficiaryRfc,
+        chequeNum: ex.cheque_num ?? m.chequeNum
+      };
+    })
+  }));
+}
 
 reportsRoutes.get('/reports', (c) => {
   const companyId = c.req.query('companyId') || 'comp_tnn_01';
@@ -41,6 +90,10 @@ reportsRoutes.get('/sat-xml', (c) => {
   const rawTipoEnvio = c.req.query('tipoEnvio')?.toUpperCase();
   const tipoEnvio = rawTipoEnvio === 'C' ? 'C' : rawTipoEnvio === 'N' ? 'N' : undefined;
   const fechaModBal = c.req.query('fechaModBal') || undefined;
+  const rawBalLvl = c.req.query('balanzaLevel')?.toUpperCase();
+  const balanzaLevel = rawBalLvl === 'N2' ? 'N2' : rawBalLvl === 'ALL' ? 'ALL' : undefined;
+  const rawOmitZero = c.req.query('omitZeroAccounts')?.toLowerCase();
+  const omitZeroAccounts = rawOmitZero === '1' || rawOmitZero === 'true';
   const rawSol = c.req.query('tipoSolicitud')?.toUpperCase();
   const tipoSolicitud =
     rawSol === 'AF' || rawSol === 'FC' || rawSol === 'DE' || rawSol === 'CO' ? rawSol : undefined;
@@ -64,7 +117,7 @@ reportsRoutes.get('/sat-xml', (c) => {
     type === 'polizas' || type === 'auxiliar_folios' || type === 'auxiliar_cuentas';
   const needsCfdiLookup = type === 'polizas' || type === 'auxiliar_folios';
 
-  const polizas = needsPolizas
+  let polizas = needsPolizas
     ? period === 13
       ? Array.from(
           new Map(
@@ -76,6 +129,10 @@ reportsRoutes.get('/sat-xml', (c) => {
         )
       : getPolizas(company.id, year, period)
     : [];
+
+  if (type === 'polizas' && polizas.length > 0) {
+    polizas = enrichSqlitePolizaBankFields(polizas);
+  }
 
   let trialBalance = rawTrialBalance;
   if ((type === 'auxiliar_cuentas' || type === 'xc') && period === 13) {
@@ -111,6 +168,8 @@ reportsRoutes.get('/sat-xml', (c) => {
   const options: SatAnexo24Options = {
     tipoEnvio,
     fechaModBal,
+    balanzaLevel,
+    omitZeroAccounts,
     tipoSolicitud,
     numOrden,
     numTramite,

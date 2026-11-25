@@ -36,9 +36,13 @@ export interface DiotSuppliersTableProps {
 }
 
 const OP_LABELS: Record<string, string> = {
+  '02': '02 Enajenación',
   '03': '03 Serv. Prof.',
   '06': '06 Arrend.',
-  '85': '85 Otros'
+  '07': '07 Imp. Bienes',
+  '08': '08 Imp. Serv.',
+  '85': '85 Otros',
+  '87': '87 Global'
 };
 
 const TERCERO_LABELS: Record<string, string> = {

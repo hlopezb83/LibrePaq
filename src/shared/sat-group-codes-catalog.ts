@@ -11,7 +11,6 @@ export interface SatGroupCodeItem {
  */
 export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   // 100 ACTIVO
-  { code: '100', name: 'Activo', type: 'ACTIVO', nature: 'DEUDORA' },
   { code: '101', name: 'Caja', type: 'ACTIVO', nature: 'DEUDORA' },
   { code: '101.01', name: 'Caja y efectivo', type: 'ACTIVO', nature: 'DEUDORA' },
   { code: '102', name: 'Bancos', type: 'ACTIVO', nature: 'DEUDORA' },
@@ -78,7 +77,6 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '183', name: 'Amortización acumulada de activos diferidos', type: 'ACTIVO', nature: 'ACREEDORA' },
   { code: '184', name: 'Depósitos en garantía', type: 'ACTIVO', nature: 'DEUDORA' },
   // 200 PASIVO
-  { code: '200', name: 'Pasivo', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '201', name: 'Proveedores', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '201.01', name: 'Proveedores nacionales', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '201.02', name: 'Proveedores extranjeros', type: 'PASIVO', nature: 'ACREEDORA' },
@@ -123,7 +121,6 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '252', name: 'Cuentas y créditos por pagar a largo plazo', type: 'PASIVO', nature: 'ACREEDORA' },
   { code: '252.01', name: 'Cuentas por pagar a largo plazo nacional', type: 'PASIVO', nature: 'ACREEDORA' },
   // 300 CAPITAL
-  { code: '300', name: 'Capital contable', type: 'CAPITAL', nature: 'ACREEDORA' },
   { code: '301', name: 'Capital social', type: 'CAPITAL', nature: 'ACREEDORA' },
   { code: '301.01', name: 'Capital fijo', type: 'CAPITAL', nature: 'ACREEDORA' },
   { code: '301.02', name: 'Capital variable', type: 'CAPITAL', nature: 'ACREEDORA' },
@@ -136,7 +133,6 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '305.01', name: 'Utilidad del ejercicio', type: 'CAPITAL', nature: 'ACREEDORA' },
   { code: '305.02', name: 'Pérdida del ejercicio', type: 'CAPITAL', nature: 'DEUDORA' },
   // 400 INGRESOS
-  { code: '400', name: 'Ingresos', type: 'INGRESOS', nature: 'ACREEDORA' },
   { code: '401', name: 'Ingresos propios', type: 'INGRESOS', nature: 'ACREEDORA' },
   { code: '401.01', name: 'Ventas y/o servicios gravados a la tasa general', type: 'INGRESOS', nature: 'ACREEDORA' },
   { code: '401.02', name: 'Ventas y/o servicios gravados a la tasa general de contado', type: 'INGRESOS', nature: 'ACREEDORA' },
@@ -149,7 +145,6 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '402.02', name: 'Devoluciones, descuentos o bonificaciones sobre ventas al 0%', type: 'INGRESOS', nature: 'DEUDORA' },
   { code: '403', name: 'Otros ingresos', type: 'INGRESOS', nature: 'ACREEDORA' },
   // 500 COSTOS
-  { code: '500', name: 'Costos', type: 'COSTOS', nature: 'DEUDORA' },
   { code: '501', name: 'Costo de venta y/o servicio', type: 'COSTOS', nature: 'DEUDORA' },
   { code: '501.01', name: 'Costo de venta', type: 'COSTOS', nature: 'DEUDORA' },
   { code: '501.02', name: 'Servicios y/o mano de obra directa', type: 'COSTOS', nature: 'DEUDORA' },
@@ -158,7 +153,6 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '502.01', name: 'Compras nacionales', type: 'COSTOS', nature: 'DEUDORA' },
   { code: '503', name: 'Devoluciones, descuentos o bonificaciones sobre compras', type: 'COSTOS', nature: 'ACREEDORA' },
   // 600 GASTOS
-  { code: '600', name: 'Gastos', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '601', name: 'Gastos generales', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '601.01', name: 'Sueldos y salarios', type: 'GASTOS', nature: 'DEUDORA' },
   { code: '601.06', name: 'Vacaciones', type: 'GASTOS', nature: 'DEUDORA' },
@@ -208,7 +202,6 @@ export const SAT_GROUP_CODES: SatGroupCodeItem[] = [
   { code: '702.04', name: 'Intereses a favor bancarios nacional', type: 'INGRESOS', nature: 'ACREEDORA' },
   { code: '702.10', name: 'Otros productos financieros', type: 'INGRESOS', nature: 'ACREEDORA' },
   // 800 CUENTAS DE ORDEN FISCALES
-  { code: '800', name: 'Cuentas de orden', type: 'ORDEN', nature: 'DEUDORA' },
   { code: '801', name: 'UFIN del ejercicio (Cuenta de orden)', type: 'ORDEN', nature: 'DEUDORA' },
   { code: '801.01', name: 'UFIN del ejercicio', type: 'ORDEN', nature: 'DEUDORA' },
   { code: '802', name: 'CUFIN del ejercicio (Cuenta de orden)', type: 'ORDEN', nature: 'DEUDORA' },

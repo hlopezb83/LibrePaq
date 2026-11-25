@@ -8,16 +8,20 @@ import type {
 import { fromCents, sumCents, toCents } from './invariants-and-math';
 import {
   computeSatAddPillar,
+  detectCancelledCfdisWithLivePoliza,
   detectManualIvaCauses,
   isIvaAccount,
-  isMonthlyIvaProvisionPoliza
+  isMonthlyIvaProvisionPoliza,
+  type CancelledCfdiWithLivePoliza
 } from './three-way-tieout.helpers';
 
+export type { CancelledCfdiWithLivePoliza };
 export type TieoutTrafficLight = 'VERDE' | 'AMARILLO' | 'ROJO';
 
 export type TieoutCauseCode =
   | 'MANUAL_IVA_SIN_CFDI'
   | 'CFDIS_PENDIENTES'
+  | 'CFDIS_CANCELADOS_CON_POLIZA'
   | 'DISCREPANCIA_ADD_LIBROS'
   | 'DISCREPANCIA_DIOT_LIBROS';
 
@@ -74,7 +78,21 @@ export interface ThreeWayTieoutResult {
     deltaIvaAcreditableDiot: number;
   };
   causes: TieoutCause[];
+  cancelledWithLivePoliza: CancelledCfdiWithLivePoliza[];
 }
+
+const isRevenueCode = (code: string) =>
+  code.startsWith('401') || code.startsWith('402') || code.startsWith('403');
+
+const isExpenseResultCode = (code: string) =>
+  code.startsWith('501') ||
+  code.startsWith('502') ||
+  code.startsWith('601') ||
+  code.startsWith('602') ||
+  code.startsWith('603');
+
+const isExpenseOrAssetCode = (code: string) =>
+  isExpenseResultCode(code) || code.startsWith('115') || /^15[1-7]/.test(code);
 
 function computeContabilidadPillar(params: {
   trialBalance: readonly AccountWithBalance[];
@@ -98,9 +116,9 @@ function computeContabilidadPillar(params: {
     const credits = toCents(acc.periodCredits);
     const ivaKind = isIvaAccount(code, acc.satGroupCode);
 
-    if (code.startsWith('401') || code.startsWith('402')) {
+    if (isRevenueCode(code)) {
       ingCents += credits - charges;
-    } else if (code.startsWith('501') || code.startsWith('601')) {
+    } else if (isExpenseOrAssetCode(code)) {
       gasCents += charges - credits;
     } else if (ivaKind === 'IVA_208') {
       iva208Cents += credits - charges;
@@ -127,11 +145,8 @@ function computeContabilidadPillar(params: {
     if (isMonthlyIvaProvisionPoliza(pol)) {
       for (const m of pol.movements) {
         const ivaKind = isIvaAccount((m.accountCode || '').trim());
-        if (ivaKind === 'IVA_208') {
-          iva208Cents -= toCents(m.abono) - toCents(m.cargo);
-        } else if (ivaKind === 'IVA_118') {
-          iva118Cents -= toCents(m.cargo) - toCents(m.abono);
-        }
+        if (ivaKind === 'IVA_208') iva208Cents -= toCents(m.abono) - toCents(m.cargo);
+        else if (ivaKind === 'IVA_118') iva118Cents -= toCents(m.cargo) - toCents(m.abono);
       }
     }
 
@@ -139,11 +154,8 @@ function computeContabilidadPillar(params: {
     if (periodo === 13 && origin === 'CIERRE_ANUAL') {
       for (const m of pol.movements) {
         const code = (m.accountCode || '').trim();
-        if (code.startsWith('401') || code.startsWith('402')) {
-          ingCents -= toCents(m.abono) - toCents(m.cargo);
-        } else if (code.startsWith('501') || code.startsWith('601')) {
-          gasCents -= toCents(m.cargo) - toCents(m.abono);
-        }
+        if (isRevenueCode(code)) ingCents -= toCents(m.abono) - toCents(m.cargo);
+        else if (isExpenseResultCode(code)) gasCents -= toCents(m.cargo) - toCents(m.abono);
       }
       continue;
     }
@@ -158,8 +170,7 @@ function computeContabilidadPillar(params: {
       const movUuid = (m.cfdiUuid || '').trim().toUpperCase();
       const isMovNomina = movUuid ? nominaUuids.has(movUuid) : isPolNomina;
       if (!isMovNomina) continue;
-      const code = (m.accountCode || '').trim();
-      if (code.startsWith('501') || code.startsWith('601')) {
+      if (isExpenseResultCode((m.accountCode || '').trim())) {
         gasCents -= toCents(m.cargo) - toCents(m.abono);
       }
     }
@@ -180,6 +191,7 @@ function computeContabilidadPillar(params: {
  * Motor puro de Amarre Integral 3-Vías (SAT ADD ↔ Contabilidad ↔ DIOT) en centavos enteros.
  */
 export function computeThreeWayTieout({
+  company,
   ejercicio,
   periodo,
   cfdis,
@@ -187,14 +199,9 @@ export function computeThreeWayTieout({
   trialBalance,
   diotReport
 }: ThreeWayTieoutInput): ThreeWayTieoutResult {
-  const sat = computeSatAddPillar(cfdis, ejercicio, periodo);
-  const libros = computeContabilidadPillar({
-    trialBalance,
-    polizas,
-    cfdis,
-    ejercicio,
-    periodo
-  });
+  const sat = computeSatAddPillar(cfdis, ejercicio, periodo, company);
+  const libros = computeContabilidadPillar({ trialBalance, polizas, cfdis, ejercicio, periodo });
+  const cancelledWithLivePoliza = detectCancelledCfdisWithLivePoliza(cfdis, polizas);
 
   const diotRows = diotReport?.rows ?? [];
   const diotActosTotalCents =
@@ -231,6 +238,17 @@ export function computeThreeWayTieout({
     });
   }
 
+  if (cancelledWithLivePoliza.length > 0) {
+    causes.push({
+      code: 'CFDIS_CANCELADOS_CON_POLIZA',
+      severity: 'HIGH',
+      title: `${cancelledWithLivePoliza.length} CFDI(s) cancelado(s) ante el SAT con póliza viva`,
+      detail: `UUID(s) afectados: ${cancelledWithLivePoliza.slice(0, 3).map((c) => c.uuid).join(', ')}${cancelledWithLivePoliza.length > 3 ? '…' : ''}.`,
+      amountImpact: fromCents(sumCents(cancelledWithLivePoliza.map((c) => c.total))),
+      targetRoute: '/add'
+    });
+  }
+
   if (sat.pendingCfdisCount > 0) {
     causes.push({
       code: 'CFDIS_PENDIENTES',
@@ -252,8 +270,8 @@ export function computeThreeWayTieout({
     causes.push({
       code: 'DISCREPANCIA_ADD_LIBROS',
       severity: 'HIGH',
-      title: 'Discrepancia entre Bóveda ADD (Flujo) y Libros Contables',
-      detail: 'Revisa pólizas manuales, provisiones devengadas PPD pendientes de cobro/pago o asientos en cuentas 401/402/501/601/118/208.',
+      title: 'Discrepancia entre Bóveda ADD y Libros Contables',
+      detail: 'Revisa pólizas manuales, provisiones o asientos en cuentas 401-403/501-502/601-603/115/151-157/118/208.',
       amountImpact: fromCents(maxAddLibrosDeltaCents),
       targetRoute: '/polizas'
     });
@@ -310,6 +328,7 @@ export function computeThreeWayTieout({
       deltaIvaTrasladado: fromCents(deltaIvaTrasCents),
       deltaIvaAcreditableDiot: fromCents(deltaIvaDiotCents)
     },
-    causes
+    causes,
+    cancelledWithLivePoliza
   };
 }

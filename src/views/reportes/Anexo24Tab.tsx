@@ -9,17 +9,16 @@ import {
   FileCode2,
   RefreshCw
 } from 'lucide-react';
-import { Button, EmptyState, StatusBadge, TabBar, type TabBarItem } from '../../components/ui';
+import { AlertBanner, Button, EmptyState, StatusBadge, TabBar, type TabBarItem } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { downloadBlobFile } from '../../lib/formatters';
+import type { SatXmlType } from '../../shared/sat-anexo24';
 import {
-  hasEmptyAnexo24Body,
-  isValidSatNumOrden,
-  isValidSatNumTramite,
-  type SatXmlType
-} from '../../shared/sat-anexo24';
-import { buildSatAnexo24Zip } from '../../shared/sat-anexo24-zip';
+  buildSatAnexo24Zip,
+  filterBalanzaXmlClientSide,
+  validateAnexo24XmlXsd
+} from '../../shared/sat-anexo24-zip';
 import { Anexo24OptionsBar, type Anexo24UiOptions } from './Anexo24OptionsBar';
 
 interface Anexo24TabProps {
@@ -30,7 +29,7 @@ interface Anexo24TabProps {
   setSatXmlType: (type: SatXmlType) => void;
   anexo24Options: Anexo24UiOptions;
   setAnexo24Options: (next: Anexo24UiOptions) => void;
-  satXmlData: { xml: string; filename: string; type: string } | undefined;
+  satXmlData: { xml: string; filename: string; type: string; warnings?: string[] } | undefined;
   isLoadingXml: boolean;
   isErrorXml?: boolean;
   xmlError?: unknown;
@@ -65,53 +64,47 @@ export function Anexo24Tab({
   const { copiedKey, copy } = useCopyToClipboard<'xml'>(1800);
   const copiedXml = copiedKey === 'xml';
 
-  const needsSolicitud =
-    satXmlType === 'polizas' ||
-    satXmlType === 'auxiliar_folios' ||
-    satXmlType === 'auxiliar_cuentas';
-  const isOrdenSolicitud =
-    anexo24Options.tipoSolicitud === 'AF' || anexo24Options.tipoSolicitud === 'FC';
-  const capturedFolio = isOrdenSolicitud
-    ? anexo24Options.numOrden.trim()
-    : anexo24Options.numTramite.trim();
-  const missingSolicitudFolio = needsSolicitud && capturedFolio.length === 0;
-  const invalidSolicitudFolio =
-    needsSolicitud &&
-    capturedFolio.length > 0 &&
-    (isOrdenSolicitud
-      ? !isValidSatNumOrden(capturedFolio)
-      : !isValidSatNumTramite(capturedFolio));
-  const hasSolicitudWarning = missingSolicitudFolio || invalidSolicitudFolio;
-  const isMissingFechaModBal =
-    satXmlType === 'balanza' &&
-    anexo24Options.tipoEnvio === 'C' &&
-    !anexo24Options.fechaModBal.trim();
-  const isEmptyXmlBody = Boolean(satXmlData?.xml && hasEmptyAnexo24Body(satXmlType, satXmlData.xml));
-  const isDownloadBlocked = !satXmlData || hasSolicitudWarning || isMissingFechaModBal || isEmptyXmlBody;
+  const effectiveXml =
+    satXmlData?.xml && satXmlType === 'balanza'
+      ? filterBalanzaXmlClientSide(satXmlData.xml, anexo24Options)
+      : (satXmlData?.xml ?? '');
+
+  const xsdValidation = satXmlData
+    ? validateAnexo24XmlXsd(satXmlType, effectiveXml, anexo24Options)
+    : { isValid: false, errors: [], warnings: [] };
+  const combinedWarnings = Array.from(
+    new Set([...(satXmlData?.warnings ?? []), ...xsdValidation.warnings])
+  );
+
+  const isDownloadBlocked = !satXmlData || !xsdValidation.isValid;
   const blockedDownloadTitle = !satXmlData
     ? 'Esperando generación del archivo XML Anexo 24...'
-    : isEmptyXmlBody
-      ? 'Archivo XML sin movimientos ni registros de detalle; el SAT rechaza archivos vacíos conforme al Anexo 24 v1.3.'
-      : isMissingFechaModBal
-        ? 'Captura la FechaModBal requerida para envío Complementario (C)'
-        : missingSolicitudFolio
-          ? `Captura ${isOrdenSolicitud ? 'el Número de Orden' : 'el Número de Trámite'} requerido para ${anexo24Options.tipoSolicitud}`
-          : `Corrige el formato de ${isOrdenSolicitud ? 'Número de Orden' : 'Número de Trámite'} antes de descargar`;
+    : xsdValidation.errors[0] || 'Corrige los errores de pre-validación XSD antes de descargar.';
 
   const handleCopy = () => {
-    if (!satXmlData?.xml) return;
-    void copy(satXmlData.xml, 'xml');
+    if (!effectiveXml) return;
+    void copy(effectiveXml, 'xml');
+  };
+
+  const handleDownloadFilteredXml = () => {
+    if (!satXmlData) return;
+    if (satXmlType === 'balanza' && (anexo24Options.balanzaLevel === 'N2' || anexo24Options.omitZeroAccounts)) {
+      downloadBlobFile(satXmlData.filename, effectiveXml, 'application/xml;charset=utf-8');
+      toast.success(`XML Anexo 24 descargado: ${satXmlData.filename}`);
+      return;
+    }
+    onDownloadXml();
   };
 
   const handleDownloadZip = () => {
-    if (!satXmlData?.xml || !satXmlData.filename) return;
+    if (!satXmlData || !effectiveXml || !satXmlData.filename) return;
     try {
       const zipRes = buildSatAnexo24Zip({
         company: { rfc: companyRfc },
         year: ejercicio,
         period: periodo,
         type: satXmlType,
-        xmlResult: satXmlData,
+        xmlResult: { ...satXmlData, xml: effectiveXml },
         tipoEnvio: anexo24Options.tipoEnvio
       });
       const zipBuffer = zipRes.zipBytes.buffer.slice(
@@ -134,7 +127,7 @@ export function Anexo24Tab({
             <span>Generador de Contabilidad Electrónica SAT (Anexo 24 v1.3)</span>
           </h2>
           <p className="text-xs text-slate-600 mt-0.5">
-            Archivos XML validados con la nomenclatura y estructura XSD oficial del SAT para buzón tributario
+            Archivos XML pre-validados con la nomenclatura y estructura XSD oficial del SAT para buzón tributario
           </p>
         </div>
 
@@ -187,7 +180,7 @@ export function Anexo24Tab({
             <Button
               variant="export-outline"
               size="md"
-              onClick={onDownloadXml}
+              onClick={handleDownloadFilteredXml}
               disabled={isDownloadBlocked}
               title={
                 isDownloadBlocked
@@ -244,25 +237,29 @@ export function Anexo24Tab({
           Generando estructura XML Anexo 24 oficial...
         </div>
       ) : (
-        <figure className="space-y-2">
+        <figure className="space-y-2.5">
           <figcaption className="text-xs font-mono text-slate-700 flex flex-wrap items-center justify-between gap-2 px-1">
             <span>
               Archivo oficial: <strong className="text-blue-700 break-all">{satXmlData.filename}</strong> ({satXmlData.type})
             </span>
-            {hasSolicitudWarning || isMissingFechaModBal || isEmptyXmlBody ? (
+            {!xsdValidation.isValid ? (
+              <span role="status">
+                <StatusBadge
+                  tone="red"
+                  shape="tag"
+                  icon={<AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />}
+                >
+                  Pre-validador XSD: {xsdValidation.errors.length} error(es)
+                </StatusBadge>
+              </span>
+            ) : combinedWarnings.length > 0 ? (
               <span role="status">
                 <StatusBadge
                   tone="amber"
                   shape="tag"
                   icon={<AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />}
                 >
-                  {isEmptyXmlBody
-                    ? 'Archivo XML vacío (sin registros de detalle requeridos por XSD SAT 1.3)'
-                    : isMissingFechaModBal
-                      ? 'Captura FechaModBal requerida para envío Complementario (C)'
-                      : missingSolicitudFolio
-                        ? `Captura ${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} requerido para ${anexo24Options.tipoSolicitud}`
-                        : `${isOrdenSolicitud ? 'NumOrden' : 'NumTramite'} con formato inválido`}
+                  XSD Válido con {combinedWarnings.length} advertencia(s)
                 </StatusBadge>
               </span>
             ) : (
@@ -272,11 +269,32 @@ export function Anexo24Tab({
                   shape="tag"
                   icon={<CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />}
                 >
-                  Esquema XSD SAT 1.3 Válido
+                  Pre-validación XSD SAT 1.3 OK
                 </StatusBadge>
               </span>
             )}
           </figcaption>
+
+          {xsdValidation.errors.length > 0 && (
+            <AlertBanner tone="danger" title="Errores detectados por el pre-validador XSD SAT 1.3">
+              <ul className="list-disc pl-4 text-[11px] space-y-0.5">
+                {xsdValidation.errors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            </AlertBanner>
+          )}
+
+          {combinedWarnings.length > 0 && (
+            <AlertBanner tone="warning" title="Advertencias fiscales antes de enviar al Buzón Tributario">
+              <ul className="list-disc pl-4 text-[11px] space-y-0.5">
+                {combinedWarnings.slice(0, 6).map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </AlertBanner>
+          )}
+
           <p className="text-[11px] text-slate-600 px-1">
             Regla 2.8.1.5 RMF:{' '}
             {satXmlType === 'polizas' || satXmlType === 'auxiliar_folios' || satXmlType === 'auxiliar_cuentas'
@@ -289,7 +307,7 @@ export function Anexo24Tab({
             aria-label="Vista previa del código XML Anexo 24"
             className="p-4 rounded-xl bg-[#0A1120] text-emerald-300 text-xs font-mono overflow-x-auto max-h-[460px] leading-relaxed border border-slate-800 shadow-inner"
           >
-            <code>{satXmlData.xml}</code>
+            <code>{effectiveXml}</code>
           </pre>
         </figure>
       )}

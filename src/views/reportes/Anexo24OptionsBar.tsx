@@ -10,6 +10,8 @@ import type { SatSolicitudTipo } from '../../shared/sat-anexo24-auxiliaries';
 export interface Anexo24UiOptions {
   tipoEnvio: 'N' | 'C';
   fechaModBal: string;
+  balanzaLevel?: 'ALL' | 'N2';
+  omitZeroAccounts?: boolean;
   tipoSolicitud: SatSolicitudTipo;
   numOrden: string;
   numTramite: string;
@@ -71,6 +73,35 @@ export function Anexo24OptionsBar({
             />
           </FormField>
         )}
+
+        <FormField label="Nivel en Balanza XML" htmlFor="anexo24-balanza-level">
+          <Select
+            id="anexo24-balanza-level"
+            size="sm"
+            value={options.balanzaLevel ?? 'ALL'}
+            onChange={(e) =>
+              onChange({ ...options, balanzaLevel: e.target.value === 'N2' ? 'N2' : 'ALL' })
+            }
+            className="font-semibold text-slate-800"
+          >
+            <option value="ALL">Todas las cuentas (N1–N3)</option>
+            <option value="N2">Solo Subcuentas (Hasta N2)</option>
+          </Select>
+        </FormField>
+
+        <label
+          htmlFor="anexo24-omit-zero"
+          className="inline-flex items-center gap-1.5 self-end pb-1.5 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap"
+        >
+          <input
+            id="anexo24-omit-zero"
+            type="checkbox"
+            checked={Boolean(options.omitZeroAccounts)}
+            onChange={(e) => onChange({ ...options, omitZeroAccounts: e.target.checked })}
+            className="rounded text-blue-700"
+          />
+          <span>Omitir cuentas en $0.00</span>
+        </label>
       </div>
     );
   }

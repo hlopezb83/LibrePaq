@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Building2, Calculator, ChevronDown, ChevronUp, Loader2, RefreshCw, Scale } from 'lucide-react';
+import { AlertCircle, Building2, Calculator, ChevronDown, ChevronUp, FileSpreadsheet, Loader2, RefreshCw, Scale } from 'lucide-react';
 import { AlertBanner, Button, EmptyState, StatusBadge } from '../../components/ui';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { annualTaxClient } from '../../lib/annual-tax-client';
 import { formatCurrency } from '../../lib/formatters';
 import type { AnnualInflationResult, AnnualTaxRegimeType, SaveAnnualTaxInputsPayload } from '../../shared/types/annual-tax.types';
+import type { FiscalLossCarryforward } from '../../shared/types/ronda11.types';
 import { DeclaracionAnualInputsCard } from './DeclaracionAnualInputsCard';
 import { DeclaracionAnualIsrCard, DeclaracionAnualKpiGrid } from './DeclaracionAnualIsrCard';
+import { DeclaracionAnualLossesCard, exportDeclaracionAnualXlsx } from './DeclaracionAnualLossesCard';
 
 interface DeclaracionAnualTabProps {
   companyId?: string;
@@ -80,12 +82,7 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
           title="Error al calcular la Declaración Anual"
           description={error instanceof Error ? error.message : 'Error al calcular la Declaración Anual'}
           actions={
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void refetch()}
-              leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
-            >
+            <Button variant="primary" size="sm" onClick={() => void refetch()} leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}>
               Reintentar
             </Button>
           }
@@ -106,16 +103,29 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
   const { inflation, reconciliation, determination, inputs } = data;
   const isPersonaFisica =
     determination.tipoRegimenAnual === 'PF_RESICO' || determination.tipoRegimenAnual === 'PF_ART152';
-  const conciliationRows: ReadonlyArray<{ label: string; value: number; rowClass?: string; labelClass?: string; valueClass?: string }> = [
-    { label: 'Utilidad / Pérdida Contable', value: reconciliation.utilidadContable, labelClass: 'font-semibold text-slate-800', valueClass: 'font-semibold text-slate-900' },
-    { label: '(+) Ingresos Fiscales No Contables (Ajuste Inflación)', value: reconciliation.ingresosFiscalesNoContables, valueClass: 'text-amber-800' },
-    { label: '(+) Deducciones Contables No Fiscales (Provisión ISR, Depreciación Contable y No Deducibles)', value: reconciliation.deduccionesContablesNoFiscales },
-    { label: '(-) Deducciones Fiscales No Contables (Inv. Art. 31 + Inflación Ded.)', value: -reconciliation.deduccionesFiscalesNoContables, valueClass: 'text-emerald-700' },
-    { label: '(-) PTU Pagada en el Ejercicio', value: -reconciliation.ptuPagadaEjercicio, valueClass: 'text-emerald-700' },
-    { label: '(=) Utilidad / Pérdida Fiscal', value: reconciliation.utilidadFiscal, rowClass: 'bg-slate-50 font-bold text-slate-900', labelClass: 'font-bold text-slate-900', valueClass: 'font-bold text-slate-900' },
-    { label: '(-) Pérdidas Fiscales Actualizadas Aplicadas', value: -reconciliation.perdidasFiscalesAplicadas, valueClass: 'text-emerald-700' },
-    { label: '(=) Resultado Fiscal Gravable', value: reconciliation.resultadoFiscal, rowClass: 'bg-blue-50/70 font-extrabold text-blue-950', labelClass: 'font-extrabold text-blue-950', valueClass: 'font-extrabold text-blue-950' }
-  ];
+  const isPmResico = determination.tipoRegimenAnual === 'PM_RESICO';
+  const pmResicoDedFlujo = determination.ingresosNominales - reconciliation.utilidadFiscalAntesPtu;
+
+  const conciliationRows: ReadonlyArray<{ label: string; value: number; rowClass?: string; labelClass?: string; valueClass?: string }> = isPmResico
+    ? [
+        { label: 'Ingresos Efectivamente Cobrados / Nominales', value: determination.ingresosNominales, labelClass: 'font-semibold text-slate-800', valueClass: 'font-semibold text-slate-900' },
+        { label: '(-) Deducciones Autorizadas Pagadas e Inv. Art. 31 (neto No Ded.)', value: -pmResicoDedFlujo, valueClass: 'text-emerald-700' },
+        { label: '(=) Utilidad Fiscal antes de PTU', value: reconciliation.utilidadFiscalAntesPtu, rowClass: 'bg-slate-50 font-semibold text-slate-900' },
+        { label: '(-) PTU Pagada en el Ejercicio', value: -reconciliation.ptuPagadaEjercicio, valueClass: 'text-emerald-700' },
+        { label: '(=) Utilidad / Pérdida Fiscal', value: reconciliation.utilidadFiscal, rowClass: 'bg-slate-50 font-bold text-slate-900', labelClass: 'font-bold text-slate-900', valueClass: 'font-bold text-slate-900' },
+        { label: '(-) Pérdidas Fiscales Actualizadas Aplicadas', value: -reconciliation.perdidasFiscalesAplicadas, valueClass: 'text-emerald-700' },
+        { label: '(=) Resultado Fiscal Gravable', value: reconciliation.resultadoFiscal, rowClass: 'bg-blue-50/70 font-extrabold text-blue-950', labelClass: 'font-extrabold text-blue-950', valueClass: 'font-extrabold text-blue-950' }
+      ]
+    : [
+        { label: 'Utilidad / Pérdida Contable', value: reconciliation.utilidadContable, labelClass: 'font-semibold text-slate-800', valueClass: 'font-semibold text-slate-900' },
+        { label: '(+) Ingresos Fiscales No Contables (Ajuste Inflación)', value: reconciliation.ingresosFiscalesNoContables, valueClass: 'text-amber-800' },
+        { label: '(+) Deducciones Contables No Fiscales (Provisión ISR, Depreciación Contable y No Deducibles)', value: reconciliation.deduccionesContablesNoFiscales },
+        { label: '(-) Deducciones Fiscales No Contables (Inv. Art. 31 + Inflación Ded.)', value: -reconciliation.deduccionesFiscalesNoContables, valueClass: 'text-emerald-700' },
+        { label: '(-) PTU Pagada en el Ejercicio', value: -reconciliation.ptuPagadaEjercicio, valueClass: 'text-emerald-700' },
+        { label: '(=) Utilidad / Pérdida Fiscal', value: reconciliation.utilidadFiscal, rowClass: 'bg-slate-50 font-bold text-slate-900', labelClass: 'font-bold text-slate-900', valueClass: 'font-bold text-slate-900' },
+        { label: '(-) Pérdidas Fiscales Actualizadas Aplicadas', value: -reconciliation.perdidasFiscalesAplicadas, valueClass: 'text-emerald-700' },
+        { label: '(=) Resultado Fiscal Gravable', value: reconciliation.resultadoFiscal, rowClass: 'bg-blue-50/70 font-extrabold text-blue-950', labelClass: 'font-extrabold text-blue-950', valueClass: 'font-extrabold text-blue-950' }
+      ];
 
   const inflationRows: ReadonlyArray<{ label: string; value: string; bold?: boolean }> = [
     { label: 'Promedio Anual de Créditos (102, 103, 105, 106, 107*, 113)', value: formatCurrency(inflation.promedioCreditos) },
@@ -129,6 +139,13 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
   const inflationEffectValue =
     inflation.tipo === 'ACUMULABLE' ? inflation.ajusteAcumulable : inflation.tipo === 'DEDUCIBLE' ? inflation.ajusteDeducible : 0;
 
+  const handleExportXlsx = () => {
+    const cachedLosses = queryClient.getQueryData<FiscalLossCarryforward[]>(['annual-tax-losses', targetCompanyId]) ?? [];
+    void exportDeclaracionAnualXlsx(data, cachedLosses).then(() =>
+      toast.success(`Declaración Anual ${data.ejercicio} exportada a Excel (.XLSX)`)
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
@@ -141,11 +158,21 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
             <p className="text-xs text-slate-600">{data.company.name} ({data.company.rfc}) • {REGIME_LABELS[determination.tipoRegimenAnual]}</p>
           </div>
         </div>
-        {!isPersonaFisica && (
-          <StatusBadge tone="slate" className="font-mono tabular-nums">
-            Factor Act. INPC: {determination.factorActualizacionInpc.toFixed(4)}
-          </StatusBadge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {!isPersonaFisica && (
+            <StatusBadge tone="slate" className="font-mono tabular-nums">
+              Factor Act. INPC: {determination.factorActualizacionInpc.toFixed(4)}
+            </StatusBadge>
+          )}
+          <Button
+            variant="export"
+            size="sm"
+            onClick={handleExportXlsx}
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5" aria-hidden="true" />}
+          >
+            Exportar Excel (.XLSX)
+          </Button>
+        </div>
       </div>
 
       <DeclaracionAnualKpiGrid determination={determination} reconciliation={reconciliation} />
@@ -198,9 +225,7 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
                 )}
                 <tr className="bg-blue-50/70 font-extrabold text-blue-950">
                   <th scope="row" className="py-2 px-2 text-left font-extrabold">(=) Base Gravable ISR Anual</th>
-                  <td className={`py-2 px-2 text-right font-mono tabular-nums whitespace-nowrap ${
-                    (determination.tipoRegimenAnual === 'PF_RESICO' ? determination.ingresosNominales : reconciliation.resultadoFiscal) < 0 ? 'text-red-700' : ''
-                  }`}>
+                  <td className={`py-2 px-2 text-right font-mono tabular-nums whitespace-nowrap ${(determination.tipoRegimenAnual === 'PF_RESICO' ? determination.ingresosNominales : reconciliation.resultadoFiscal) < 0 ? 'text-red-700' : ''}`}>
                     {formatCurrency(determination.tipoRegimenAnual === 'PF_RESICO' ? determination.ingresosNominales : reconciliation.resultadoFiscal)}
                   </td>
                 </tr>
@@ -209,7 +234,7 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
           </div>
           {determination.tipoRegimenAnual === 'PF_RESICO' && (
             <AlertBanner tone="blue">
-              <strong>Regla 3.13.7 RMF y Art. 113-G LISR:</strong> Las Personas Físicas en RESICO determinan su ISR anual sobre ingresos efectivamente cobrados (sin deducciones); no obstante, si realizaron pagos exclusivamente mediante transferencia/cheque o cuentan con CFDI, pueden quedar relevadas de presentar declaración anual conforme a RMF 3.13.7, y su base de PTU (10%) descuenta las erogaciones estrictamente indispensables pagadas ({formatCurrency(determination.ptuBase)}).
+              <strong>Regla 3.13.7 RMF y Art. 113-G LISR:</strong> Las Personas Físicas en RESICO determinan su ISR anual sobre ingresos efectivamente cobrados (sin deducciones); su base de PTU (10%) descuenta erogaciones estrictamente indispensables pagadas ({formatCurrency(determination.ptuBase)}).
             </AlertBanner>
           )}
         </section>
@@ -218,107 +243,98 @@ export function DeclaracionAnualTab({ companyId, ejercicio }: DeclaracionAnualTa
       {!isPersonaFisica && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <h3 id="annual-conciliation-heading" className="text-sm font-bold text-slate-900">Conciliación Contable-Fiscal</h3>
-            <Calculator className="w-4 h-4 text-blue-700" aria-hidden="true" />
-          </div>
-          <div tabIndex={0} role="region" aria-labelledby="annual-conciliation-heading" className="overflow-x-auto max-w-full">
-            <table className="w-full text-xs">
-              <caption className="visually-hidden">Conciliación Contable-Fiscal del ejercicio {data.ejercicio}</caption>
-              <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
-                <tr>
-                  <th scope="col" className="text-left py-1.5 px-2 font-bold">Concepto</th>
-                  <th scope="col" className="text-right py-1.5 px-2 font-bold whitespace-nowrap">Importe MXN</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {conciliationRows.map((row) => (
-                  <tr key={row.label} className={row.rowClass}>
-                    <th scope="row" className={`py-1.5 px-2 text-left font-normal ${row.labelClass ?? 'text-slate-700'}`}>{row.label}</th>
-                    <td className={`py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap ${row.value < 0 ? 'text-red-700' : row.valueClass ?? 'text-slate-900'}`}>{formatCurrency(row.value)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
-            <h3 id="annual-inflation-heading" className="text-sm font-bold text-slate-900">Ajuste Anual por Inflación (Art. 44–46)</h3>
-            <span role="status">
-              <StatusBadge
-                tone={inflation.tipo === 'ACUMULABLE' ? 'amber' : inflation.tipo === 'DEDUCIBLE' ? 'emerald' : 'slate'}
-              >
-                {INFLATION_TIPO_LABELS[inflation.tipo]}
-              </StatusBadge>
-            </span>
-          </div>
-          <div tabIndex={0} role="region" aria-labelledby="annual-inflation-heading" className="overflow-x-auto max-w-full">
-            <table className="w-full text-xs">
-              <caption className="visually-hidden">Cálculo del Ajuste Anual por Inflación conforme a los Artículos 44 al 46 de la LISR</caption>
-              <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
-                <tr>
-                  <th scope="col" className="text-left py-1.5 px-2 font-bold">Concepto</th>
-                  <th scope="col" className="text-right py-1.5 px-2 font-bold whitespace-nowrap">Importe / Factor</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {inflationRows.map((row) => (
-                  <tr key={row.label}>
-                    <th scope="row" className="py-1.5 px-2 text-left font-normal text-slate-700">{row.label}</th>
-                    <td className={`py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-900 ${row.bold ? 'font-semibold' : ''}`}>{row.value}</td>
-                  </tr>
-                ))}
-                <tr className="bg-slate-50 font-bold text-slate-900">
-                  <th scope="row" className="py-2 px-2 text-left font-bold text-slate-900">{inflationEffectLabel}</th>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-900">{formatCurrency(inflationEffectValue)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-expanded={showMonthlyInflation}
-            aria-controls="annual-inflation-monthly-panel"
-            onClick={() => setShowMonthlyInflation((prev) => !prev)}
-            className="text-blue-700 hover:text-blue-800 px-2"
-            leftIcon={showMonthlyInflation ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
-          >
-            {showMonthlyInflation ? 'Ocultar desglose mensual (12 meses)' : 'Ver desglose mensual (12 meses)'}
-          </Button>
-
-          {showMonthlyInflation && (
-            <div id="annual-inflation-monthly-panel" tabIndex={0} role="region" aria-labelledby="annual-inflation-monthly-heading" className="max-h-52 overflow-y-auto overflow-x-auto max-w-full border border-slate-200 rounded-xl">
-              <h4 id="annual-inflation-monthly-heading" className="visually-hidden">Desglose mensual de créditos y deudas (12 meses)</h4>
-              <table className="w-full text-[11px]">
-                <caption className="visually-hidden">Desglose mensual de créditos y deudas de cierre durante los 12 meses del ejercicio</caption>
-                <thead className="bg-slate-50 text-slate-700 sticky top-0">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <h3 id="annual-conciliation-heading" className="text-sm font-bold text-slate-900">
+                {isPmResico ? 'Conciliación en Flujo de Efectivo (PM RESICO)' : 'Conciliación Contable-Fiscal'}
+              </h3>
+              <Calculator className="w-4 h-4 text-blue-700" aria-hidden="true" />
+            </div>
+            <div tabIndex={0} role="region" aria-labelledby="annual-conciliation-heading" className="overflow-x-auto max-w-full">
+              <table className="w-full text-xs">
+                <caption className="visually-hidden">Conciliación fiscal del ejercicio {data.ejercicio}</caption>
+                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
                   <tr>
-                    <th scope="col" className="text-left py-1.5 px-2">Mes</th>
-                    <th scope="col" className="text-right py-1.5 px-2 whitespace-nowrap">Créditos</th>
-                    <th scope="col" className="text-right py-1.5 px-2 whitespace-nowrap">Deudas</th>
+                    <th scope="col" className="text-left py-1.5 px-2 font-bold">Concepto</th>
+                    <th scope="col" className="text-right py-1.5 px-2 font-bold whitespace-nowrap">Importe MXN</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {inflation.monthlyRows.map((row) => (
-                    <tr key={row.periodo}>
-                      <th scope="row" className="py-1 px-2 text-left font-medium text-slate-700">{row.mesNombre}</th>
-                      <td className="py-1 px-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-900">{formatCurrency(row.creditosCierre)}</td>
-                      <td className="py-1 px-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-900">{formatCurrency(row.deudasCierre)}</td>
+                  {conciliationRows.map((row) => (
+                    <tr key={row.label} className={row.rowClass}>
+                      <th scope="row" className={`py-1.5 px-2 text-left font-normal ${row.labelClass ?? 'text-slate-700'}`}>{row.label}</th>
+                      <td className={`py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap ${row.value < 0 ? 'text-red-700' : row.valueClass ?? 'text-slate-900'}`}>{formatCurrency(row.value)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+              <h3 id="annual-inflation-heading" className="text-sm font-bold text-slate-900">Ajuste Anual por Inflación (Art. 44–46)</h3>
+              <span role="status">
+                <StatusBadge tone={inflation.tipo === 'ACUMULABLE' ? 'amber' : inflation.tipo === 'DEDUCIBLE' ? 'emerald' : 'slate'}>
+                  {INFLATION_TIPO_LABELS[inflation.tipo]}
+                </StatusBadge>
+              </span>
+            </div>
+            <div tabIndex={0} role="region" aria-labelledby="annual-inflation-heading" className="overflow-x-auto max-w-full">
+              <table className="w-full text-xs">
+                <caption className="visually-hidden">Cálculo del Ajuste Anual por Inflación Artículos 44 al 46 LISR</caption>
+                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
+                  <tr>
+                    <th scope="col" className="text-left py-1.5 px-2 font-bold">Concepto</th>
+                    <th scope="col" className="text-right py-1.5 px-2 font-bold whitespace-nowrap">Importe / Factor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {inflationRows.map((row) => (
+                    <tr key={row.label}>
+                      <th scope="row" className="py-1.5 px-2 text-left font-normal text-slate-700">{row.label}</th>
+                      <td className={`py-1.5 px-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-900 ${row.bold ? 'font-semibold' : ''}`}>{row.value}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-slate-50 font-bold text-slate-900">
+                    <th scope="row" className="py-2 px-2 text-left font-bold text-slate-900">{inflationEffectLabel}</th>
+                    <td className="py-2 px-2 text-right font-mono tabular-nums whitespace-nowrap text-slate-900">{formatCurrency(inflationEffectValue)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <Button
+              variant="ghost" size="sm" aria-expanded={showMonthlyInflation} aria-controls="annual-inflation-monthly-panel"
+              onClick={() => setShowMonthlyInflation((prev) => !prev)} className="text-blue-700 hover:text-blue-800 px-2"
+              leftIcon={showMonthlyInflation ? <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />}
+            >
+              {showMonthlyInflation ? 'Ocultar desglose mensual (12 meses)' : 'Ver desglose mensual (12 meses)'}
+            </Button>
+            {showMonthlyInflation && (
+              <div id="annual-inflation-monthly-panel" tabIndex={0} role="region" aria-labelledby="annual-inflation-monthly-heading" className="max-h-52 overflow-y-auto overflow-x-auto max-w-full border border-slate-200 rounded-xl">
+                <h4 id="annual-inflation-monthly-heading" className="visually-hidden">Desglose mensual de créditos y deudas</h4>
+                <table className="w-full text-[11px]">
+                  <thead className="bg-slate-50 text-slate-700 sticky top-0">
+                    <tr><th scope="col" className="text-left py-1.5 px-2">Mes</th><th scope="col" className="text-right py-1.5 px-2">Créditos</th><th scope="col" className="text-right py-1.5 px-2">Deudas</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {inflation.monthlyRows.map((row) => (
+                      <tr key={row.periodo}>
+                        <th scope="row" className="py-1 px-2 text-left font-medium text-slate-700">{row.mesNombre}</th>
+                        <td className="py-1 px-2 text-right font-mono tabular-nums">{formatCurrency(row.creditosCierre)}</td>
+                        <td className="py-1 px-2 text-right font-mono tabular-nums">{formatCurrency(row.deudasCierre)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       )}
 
       <DeclaracionAnualIsrCard ejercicio={data.ejercicio} determination={determination} inputs={inputs} />
+
+      <DeclaracionAnualLossesCard companyId={targetCompanyId} ejercicio={data.ejercicio} tipoRegimenAnual={determination.tipoRegimenAnual} isReadOnly={isReadOnly} />
 
       <DeclaracionAnualInputsCard
         inputs={inputs}

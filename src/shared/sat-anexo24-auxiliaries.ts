@@ -314,7 +314,8 @@ export function buildAuxiliarCuentasXml(
       const desCta = truncXml(acc.name, 200);
       const saldoIni = (Number.isFinite(acc.initialBalanceComputed) ? acc.initialBalanceComputed : 0).toFixed(2);
       const saldoFin = (Number.isFinite(acc.finalBalance) ? acc.finalBalance : 0).toFixed(2);
-      const detalles = (movsByAccount.get(acc.code) ?? [])
+      const detalles = [...(movsByAccount.get(acc.code) ?? [])]
+        .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.polId.localeCompare(b.polId))
         .map(
           (d) =>
             `    <AuxiliarCtas:DetalleAux Fecha="${d.fecha}" NumUnIdenPol="${d.polId}" Concepto="${d.concepto}" Debe="${d.debe}" Haber="${d.haber}"/>`
