@@ -16,6 +16,15 @@ export interface PolizaMovementInput {
   cargo: number;
   abono: number;
   cfdiUuid?: string | null;
+  paymentMethodSat?: string | null;
+  bankCodeOri?: string | null;
+  accountOri?: string | null;
+  bankCodeDest?: string | null;
+  accountDest?: string | null;
+  beneficiaryName?: string | null;
+  beneficiaryRfc?: string | null;
+  chequeNum?: string | null;
+  businessSegmentId?: string | null;
 }
 
 export function collectPolizaCfdiUuids(
@@ -43,9 +52,8 @@ export function mapSupabasePoliza(
   movementsRaw: unknown = [],
   cfdiLinksRaw?: unknown
 ): Poliza {
-  const movsList = Array.isArray(movementsRaw)
-    ? (movementsRaw as Array<Record<string, unknown>>)
-    : [];
+  const movsList = Array.isArray(movementsRaw) ? (movementsRaw as Array<Record<string, unknown>>) : [];
+  const opt = (v: unknown) => (v ? String(v) : null);
   const movements = movsList.map((m, idx: number) => ({
     id: String(m.id || `mov_${idx}`),
     polizaId: String(m.poliza_id || row.id),
@@ -56,7 +64,16 @@ export function mapSupabasePoliza(
     concepto: String(m.concepto || ''),
     cargo: Number(m.cargo || 0),
     abono: Number(m.abono || 0),
-    cfdiUuid: m.cfdi_uuid ? String(m.cfdi_uuid) : null
+    cfdiUuid: opt(m.cfdi_uuid),
+    paymentMethodSat: opt(m.payment_method_sat),
+    bankCodeOri: opt(m.bank_code_ori),
+    accountOri: opt(m.account_ori),
+    bankCodeDest: opt(m.bank_code_dest),
+    accountDest: opt(m.account_dest),
+    beneficiaryName: opt(m.beneficiary_name),
+    beneficiaryRfc: opt(m.beneficiary_rfc),
+    chequeNum: opt(m.cheque_num),
+    businessSegmentId: opt(m.business_segment_id)
   }));
 
   const rawLinks = Array.isArray(cfdiLinksRaw)
@@ -237,7 +254,16 @@ export function buildPolizaMovementInsertRows(
       concepto: m.concepto || defaultConcepto,
       cargo: Number(m.cargo || 0),
       abono: Number(m.abono || 0),
-      cfdi_uuid: movUuid
+      cfdi_uuid: movUuid,
+      payment_method_sat: m.paymentMethodSat || null,
+      bank_code_ori: m.bankCodeOri || null,
+      account_ori: m.accountOri || null,
+      bank_code_dest: m.bankCodeDest || null,
+      account_dest: m.accountDest || null,
+      beneficiary_name: m.beneficiaryName || null,
+      beneficiary_rfc: m.beneficiaryRfc || null,
+      cheque_num: m.chequeNum || null,
+      business_segment_id: m.businessSegmentId || null
     };
   });
 }
@@ -305,22 +331,11 @@ export async function clearSupabaseBankMatchesForPoliza(
 
   const lineIdList = Array.from(affectedLineIds);
   for (const lineChunk of chunkArray(lineIdList, 100)) {
-    const { error: unmatchLineErr } = await supabase
-      .from('bank_statement_lines')
-      .update({ matched_movement_id: null })
-      .in('id', lineChunk);
+    const { error: unmatchLineErr } = await supabase.from('bank_statement_lines').update({ matched_movement_id: null }).in('id', lineChunk);
     if (unmatchLineErr) throw new Error(unmatchLineErr.message);
-
-    const { error: delLineMatchErr } = await supabase
-      .from('bank_statement_matches')
-      .delete()
-      .in('bank_line_id', lineChunk);
+    const { error: delLineMatchErr } = await supabase.from('bank_statement_matches').delete().in('bank_line_id', lineChunk);
     if (delLineMatchErr) throw new Error(delLineMatchErr.message);
   }
-
-  const { error: delPolMatchErr } = await supabase
-    .from('bank_statement_matches')
-    .delete()
-    .eq('poliza_id', polizaId);
+  const { error: delPolMatchErr } = await supabase.from('bank_statement_matches').delete().eq('poliza_id', polizaId);
   if (delPolMatchErr) throw new Error(delPolMatchErr.message);
 }

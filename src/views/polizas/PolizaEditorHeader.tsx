@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Lock, Wand2 } from 'lucide-react';
 import { AlertBanner, Button, FormField, INPUT_BASE_CLASS, Select } from '../../components/ui';
-import type { CfdiDocument, PolizaType } from '../../shared/types';
+import type { CfdiDocument, PolizaTemplate, PolizaType } from '../../shared/types';
 import { PolizaMultiCfdiBar } from './PolizaMultiCfdiBar';
 
 interface PolizaEditorHeaderProps {
@@ -27,6 +27,8 @@ interface PolizaEditorHeaderProps {
   isDateDifferentPeriod: boolean;
   onUseActivePeriodDate?: () => void;
   applyQuickTemplate: (tpl: 'GASTO_16' | 'VENTA_PPD' | 'PAGO_IMPUESTOS') => void;
+  polizaTemplates?: PolizaTemplate[];
+  applySavedTemplate?: (tpl: PolizaTemplate, baseAmount?: number) => void;
 }
 
 export function PolizaEditorHeader({
@@ -51,7 +53,9 @@ export function PolizaEditorHeader({
   formError,
   isDateDifferentPeriod,
   onUseActivePeriodDate,
-  applyQuickTemplate
+  applyQuickTemplate,
+  polizaTemplates = [],
+  applySavedTemplate
 }: PolizaEditorHeaderProps) {
   const fechaInputRef = useRef<HTMLInputElement>(null);
   const focusConcepto = () => {
@@ -114,10 +118,10 @@ export function PolizaEditorHeader({
             <button
               type="button"
               onClick={() => applyQuickTemplate('VENTA_PPD')}
-              title="Venta a clientes con cobro inmediato en banco (Atajo: Alt+2)"
+              title="Venta a crédito PPD con IVA trasladado no cobrado (Atajo: Alt+2)"
               className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white hover:bg-blue-50 text-slate-800 border border-slate-300 cursor-pointer transition shadow-2xs"
             >
-              <span>2. Venta 16% (Ingreso)</span>
+              <span>2. Venta PPD 16% (Diario)</span>
               <kbd className="hidden sm:inline font-mono text-[9px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded border border-slate-300 ml-1.5 font-bold">
                 Alt+2
               </kbd>
@@ -125,14 +129,35 @@ export function PolizaEditorHeader({
             <button
               type="button"
               onClick={() => applyQuickTemplate('PAGO_IMPUESTOS')}
-              title="Provisión de compra con cuenta por pagar a proveedor (Atajo: Alt+3)"
+              title="Pago de impuestos federales ISR e IVA en bancos (Atajo: Alt+3)"
               className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white hover:bg-blue-50 text-slate-800 border border-slate-300 cursor-pointer transition shadow-2xs"
             >
-              <span>3. Provisión Proveedor</span>
+              <span>3. Pago de Impuestos (Egreso)</span>
               <kbd className="hidden sm:inline font-mono text-[9px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded border border-slate-300 ml-1.5 font-bold">
                 Alt+3
               </kbd>
             </button>
+            {polizaTemplates.length > 0 && applySavedTemplate && (
+              <select
+                aria-label="Aplicar pre-póliza guardada"
+                defaultValue=""
+                onChange={(e) => {
+                  const found = polizaTemplates.find((t) => t.id === e.target.value);
+                  if (found) {
+                    applySavedTemplate(found);
+                    e.target.value = '';
+                  }
+                }}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-900 border border-blue-200 cursor-pointer"
+              >
+                <option value="">Aplicar pre-póliza ({polizaTemplates.length})...</option>
+                {polizaTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.tipo})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       )}

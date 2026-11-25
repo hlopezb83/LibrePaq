@@ -66,17 +66,27 @@ export function PolizaCardMovementsTable({
               </td>
               <td className="py-2 px-4 text-slate-600">
                 <div>{mov.concepto}</div>
-                {mov.cfdiUuid && (
-                  <span title={`UUID CFDI vinculado: ${mov.cfdiUuid}`} className="inline-block mt-0.5">
-                    <StatusBadge
-                      tone="slate"
-                      shape="tag"
-                      icon={<FileCode2 className="w-2.5 h-2.5 text-blue-700" aria-hidden="true" />}
-                    >
-                      UUID: {mov.cfdiUuid.slice(0, 12)}...
+                <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                  {mov.cfdiUuid && (
+                    <span title={`UUID CFDI vinculado: ${mov.cfdiUuid}`}>
+                      <StatusBadge
+                        tone="slate"
+                        shape="tag"
+                        icon={<FileCode2 className="w-2.5 h-2.5 text-blue-700" aria-hidden="true" />}
+                      >
+                        UUID: {mov.cfdiUuid.slice(0, 12)}...
+                      </StatusBadge>
+                    </span>
+                  )}
+                  {(mov.paymentMethodSat || mov.chequeNum || mov.accountDest) && (
+                    <StatusBadge tone="blue" shape="tag">
+                      {mov.chequeNum ? `Cheque ${mov.chequeNum}` : mov.paymentMethodSat ? `SAT ${mov.paymentMethodSat}` : 'Banco Anexo 24'}
                     </StatusBadge>
-                  </span>
-                )}
+                  )}
+                  {mov.businessSegmentId && (
+                    <StatusBadge tone="amber" shape="tag">Segmento</StatusBadge>
+                  )}
+                </div>
               </td>
               <td className="py-2 px-4 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                 {mov.cargo > 0 ? formatCurrency(mov.cargo) : '—'}

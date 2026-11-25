@@ -6,7 +6,11 @@ import type {
   FiscalWorkpaperResponse,
   Poliza
 } from '../types';
-import { normalizePostCloseP13Accounts } from './financial-reports-helpers';
+import {
+  classifyPnlBucket,
+  getLeafIds,
+  normalizePostCloseP13Accounts
+} from './financial-reports-helpers';
 import type { ClosingMovementCents } from './financial-reports-rollup';
 import { fromCents, toCents } from './invariants-and-math';
 
@@ -15,6 +19,26 @@ import { fromCents, toCents } from './invariants-and-math';
  */
 export function computeDashboardCashCoverage(efectivoBancos: number, totalPasivo: number): string {
   return totalPasivo > 0 ? (efectivoBancos / totalPasivo).toFixed(2) : 'S/D';
+}
+
+function sumCashGroupCents(
+  trialBalance: readonly AccountWithBalance[],
+  byCode: ReadonlyMap<string, AccountWithBalance>,
+  prefix: '101' | '102'
+): number {
+  const header = byCode.get(`${prefix}-00-000`);
+  if (header) {
+    return (header.nature === 'DEUDORA' ? 1 : -1) * toCents(header.finalBalance);
+  }
+  const leaves = trialBalance.filter(
+    (a) =>
+      a.isAffectable !== false &&
+      (a.code.startsWith(prefix) || a.satGroupCode?.startsWith(prefix))
+  );
+  return leaves.reduce(
+    (sum, a) => sum + (a.nature === 'DEUDORA' ? 1 : -1) * toCents(a.finalBalance),
+    0
+  );
 }
 
 /**
@@ -57,16 +81,7 @@ export function buildDashboardKpisFromTrialBalance(params: {
       ? normalizePostCloseP13Accounts(trialBalance, period, closingMap).accounts
       : trialBalance;
   const erByCode = new Map(erAccounts.map((a) => [a.code, a]));
-
-  const ingresosAcc = erByCode.get('400-00-000');
-  const costosAcc = erByCode.get('500-00-000');
-  const gastosAcc = erByCode.get('600-00-000');
-  const acc800 = erByCode.get('800-00-000');
-  const isrCandidate =
-    (acc800 && acc800.type !== 'ORDEN' ? acc800 : undefined) ||
-    erByCode.get('801-00-000') ||
-    erByCode.get('801-01-000');
-  const isrAcc = isrCandidate && isrCandidate.type !== 'ORDEN' ? isrCandidate : undefined;
+  const erLeafIds = getLeafIds(erAccounts);
 
   const isP13 = period === 13;
   const readCreditFlow = (acc?: AccountWithBalance): number =>
@@ -82,11 +97,40 @@ export function buildDashboardKpisFromTrialBalance(params: {
         : toCents(acc.periodCharges) - toCents(acc.periodCredits)
       : 0;
 
-  const ingresosCents = readCreditFlow(ingresosAcc);
-  const costosCents = readDebitFlow(costosAcc);
-  const gastosCents = readDebitFlow(gastosAcc);
-  const isrCents = readDebitFlow(isrAcc);
-  const egresosCents = costosCents + gastosCents + isrCents;
+  const pnlLeaves = erAccounts.filter(
+    (a) =>
+      (a.type === 'INGRESOS' || a.type === 'COSTOS' || a.type === 'GASTOS') &&
+      erLeafIds.has(a.id)
+  );
+
+  let ingresosCents = 0;
+  let egresosCents = 0;
+  if (pnlLeaves.length > 0) {
+    for (const acc of pnlLeaves) {
+      const bucket = classifyPnlBucket(acc);
+      if (bucket === 'INGRESOS' || bucket === 'RIF_PRODUCTOS') {
+        ingresosCents += readCreditFlow(acc);
+      } else {
+        egresosCents += readDebitFlow(acc);
+      }
+    }
+  } else {
+    const ingresosAcc = erByCode.get('400-00-000');
+    const costosAcc = erByCode.get('500-00-000');
+    const gastosAcc = erByCode.get('600-00-000');
+    const acc800 = erByCode.get('800-00-000');
+    const isrCandidate =
+      (acc800 && acc800.type !== 'ORDEN' ? acc800 : undefined) ||
+      erByCode.get('801-00-000') ||
+      erByCode.get('801-01-000');
+    const isrAcc = isrCandidate && isrCandidate.type !== 'ORDEN' ? isrCandidate : undefined;
+    ingresosCents = readCreditFlow(ingresosAcc) + readCreditFlow(erByCode.get('702-00-000'));
+    egresosCents =
+      readDebitFlow(costosAcc) +
+      readDebitFlow(gastosAcc) +
+      readDebitFlow(erByCode.get('701-00-000')) +
+      readDebitFlow(isrAcc);
+  }
 
   // Alinear IVA Neto del Mes con Día 17 (flujo del periodo en vez de acumulado YTD 208-118)
   let ivaPorPagarNetoCents: number;
@@ -131,12 +175,15 @@ export function buildDashboardKpisFromTrialBalance(params: {
   );
   const pendingCfdis = periodCfdis.filter((doc) => !doc.polizaId);
 
+  const cajaCents = sumCashGroupCents(trialBalance, byCode, '101');
+  const bancosCents = sumCashGroupCents(trialBalance, byCode, '102');
+
   return {
     kpis: {
       ingresosPeriodo: fromCents(ingresosCents),
       egresosPeriodo: fromCents(egresosCents),
       utilidadNeta: fromCents(ingresosCents - egresosCents),
-      efectivoBancos: byCode.get('102-00-000')?.finalBalance ?? 0,
+      efectivoBancos: fromCents(cajaCents + bancosCents),
       cuentasPorCobrar: byCode.get('105-00-000')?.finalBalance ?? 0,
       cuentasPorPagar: byCode.get('201-00-000')?.finalBalance ?? 0,
       totalPasivo: fromCents(totalPasivoCents),

@@ -180,6 +180,7 @@ export function AppShellModals({
             toast.info(`Espacio contable abierto: ${comp.name} (${comp.rfc})`);
           }}
           onOpenNewCompanyWizard={openNewCompanyModal}
+          isReadOnlyClient={isReadOnlyClient}
         />
       )}
 

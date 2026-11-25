@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertCircle, CheckCircle2, Info, Loader2, Lock, Scale } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertCircle, BookmarkPlus, CheckCircle2, Info, Loader2, Lock, Scale } from 'lucide-react';
 import { Button, InlineConfirm, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 
@@ -13,6 +13,8 @@ interface PolizaEditorFooterProps {
   editingPolizaId: string | null;
   submitButtonRef: React.RefObject<HTMLButtonElement | null>;
   autoBalanceDifference: () => void;
+  onSaveAsTemplate?: (name: string) => Promise<void>;
+  isSavingTemplate?: boolean;
   confirmDiscard?: boolean;
   onConfirmDiscard?: () => void;
   onCancelDiscard?: () => void;
@@ -29,11 +31,15 @@ export function PolizaEditorFooter({
   editingPolizaId,
   submitButtonRef,
   autoBalanceDifference,
+  onSaveAsTemplate,
+  isSavingTemplate = false,
   confirmDiscard,
   onConfirmDiscard,
   onCancelDiscard,
   onCancel
 }: PolizaEditorFooterProps) {
+  const [namingTemplate, setNamingTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
   const isEmpty = totalCargos === 0 && totalAbonos === 0;
   const isRealDiscrepancy = !isBalanced && !isEmpty;
 
@@ -98,6 +104,46 @@ export function PolizaEditorFooter({
           />
         ) : (
           <>
+            {onSaveAsTemplate && !isPeriodLocked && !isEmpty && (
+              namingTemplate ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="Nombre plantilla..."
+                    aria-label="Nombre de la pre-póliza"
+                    className="px-2 py-1 rounded-lg border border-slate-300 text-xs w-40"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={isSavingTemplate || !templateName.trim()}
+                    loading={isSavingTemplate}
+                    onClick={async () => {
+                      if (!templateName.trim()) return;
+                      await onSaveAsTemplate(templateName.trim());
+                      setTemplateName('');
+                      setNamingTemplate(false);
+                    }}
+                  >
+                    Guardar
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setNamingTemplate(false)}>
+                    ×
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setNamingTemplate(true)}
+                  leftIcon={<BookmarkPlus className="w-3.5 h-3.5" aria-hidden="true" />}
+                >
+                  Guardar como plantilla
+                </Button>
+              )
+            )}
             {isRealDiscrepancy && (
               <Button
                 variant="secondary"

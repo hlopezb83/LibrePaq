@@ -105,10 +105,12 @@ export function buildEstadoResultadosSheetData(
   period: number,
   mesLabel: string,
   formatVerticalPct: (amount: number, base: number) => string,
-  hideZeroAccounts: boolean
+  hideZeroAccounts: boolean,
+  prevMonthIncomeStatement?: FinancialStatementsResponse['incomeStatement'] | null
 ): SheetData {
   const er = reportsData.incomeStatement;
   const p = er.periodTotals;
+  const pm = prevMonthIncomeStatement?.periodTotals;
   const utilOp = er.utilidadOperativa ?? er.utilidadBruta - er.totalGastos;
   const rifNeto = er.rifNeto ?? 0;
   const uai = er.utilidadAntesImpuestos ?? utilOp + rifNeto;
@@ -116,6 +118,24 @@ export function buildEstadoResultadosSheetData(
   const cutoff = formatIncomePeriodLabel(year, period, mesLabel);
   const safePct = (val: number) =>
     !er.totalIngresos || Math.abs(er.totalIngresos) < 0.01 ? '0.0%' : formatVerticalPct(val, er.totalIngresos);
+  const safeMesPct = (val: number) =>
+    !(p?.totalIngresos) || Math.abs(p.totalIngresos) < 0.01 ? '0.0%' : formatVerticalPct(val, p.totalIngresos);
+  const momPct = (cur: number, prev: number) =>
+    Math.abs(prev) < 0.01 ? 'N/A' : `${(((cur - prev) / Math.abs(prev)) * 100).toFixed(1)}%`;
+
+  const prevAccMap = new Map<string, AccountWithBalance>();
+  if (prevMonthIncomeStatement) {
+    for (const grp of [
+      prevMonthIncomeStatement.ingresos,
+      prevMonthIncomeStatement.costos,
+      prevMonthIncomeStatement.gastos,
+      prevMonthIncomeStatement.rifProductos ?? [],
+      prevMonthIncomeStatement.rifGastos ?? [],
+      prevMonthIncomeStatement.isrEjercicio ?? []
+    ]) {
+      for (const a of grp) prevAccMap.set(a.code, a);
+    }
+  }
 
   const filterList = (list: AccountWithBalance[], expected: 'DEUDORA' | 'ACREEDORA') =>
     hideZeroAccounts
@@ -123,22 +143,31 @@ export function buildEstadoResultadosSheetData(
       : list;
 
   const mapRow = (label: string, a: AccountWithBalance, expected: 'DEUDORA' | 'ACREEDORA'): SheetData[number] => {
+    const mes = signedMes(a, expected);
+    const prevAcc = prevAccMap.get(a.code);
+    const prevMes = prevAcc ? signedMes(prevAcc, expected) : 0;
     const ytd = signedBal(a, expected);
     return [
       xStr(label),
       xStr(a.code),
       xStr(a.name),
-      xNum(signedMes(a, expected)),
+      xNum(mes),
+      xStr(safeMesPct(mes)),
+      xNum(prevMes),
+      xStr(momPct(mes, prevMes)),
       xNum(ytd),
       xStr(safePct(ytd))
     ];
   };
 
-  const subtotal = (rubro: string, desc: string, mesVal: number, ytdVal: number): SheetData[number] => [
+  const subtotal = (rubro: string, desc: string, mesVal: number, prevMesVal: number, ytdVal: number): SheetData[number] => [
     xStr(rubro, true),
     xStr(''),
     xStr(desc, true),
     xNum(mesVal, true),
+    xStr(safeMesPct(mesVal), true),
+    xNum(prevMesVal, true),
+    xStr(momPct(mesVal, prevMesVal), true),
     xNum(ytdVal, true),
     xStr(safePct(ytdVal), true)
   ];
@@ -146,36 +175,40 @@ export function buildEstadoResultadosSheetData(
   return [
     [xStr('LIBREPAQ PRO ERP — ESTADO DE RESULTADOS INTEGRAL (NIF B-3)', true)],
     [xStr(`${company.name} | RFC: ${company.rfc} | ${cutoff}`, true)],
-    [xStr('Comparativo Del Mes vs. Acumulado YTD • Cifras en MXN')],
+    [xStr('Comparativo Del Mes, Mes Anterior (MoM) y Acumulado YTD • Cifras en MXN')],
     [],
     [
       { value: 'Rubro Contable', fontWeight: 'bold' },
       { value: 'Código', fontWeight: 'bold' },
       { value: 'Nombre Cuenta', fontWeight: 'bold' },
       { value: 'Del Mes MXN', fontWeight: 'bold', align: 'right' },
+      { value: '% Vert. Mes', fontWeight: 'bold', align: 'right' },
+      { value: 'Mes Ant. MXN', fontWeight: 'bold', align: 'right' },
+      { value: 'Var. MoM %', fontWeight: 'bold', align: 'right' },
       { value: 'Acumulado YTD MXN', fontWeight: 'bold', align: 'right' },
-      { value: '% s/Ventas', fontWeight: 'bold', align: 'right' }
+      { value: '% s/Ventas YTD', fontWeight: 'bold', align: 'right' }
     ],
     ...filterList(er.ingresos, 'ACREEDORA').map((a) => mapRow('INGRESOS', a, 'ACREEDORA')),
-    subtotal('TOTAL INGRESOS', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, er.totalIngresos),
+    subtotal('TOTAL INGRESOS', 'Ventas Netas del Periodo', p?.totalIngresos ?? 0, pm?.totalIngresos ?? 0, er.totalIngresos),
     ...filterList(er.costos, 'DEUDORA').map((a) => mapRow('COSTOS', a, 'DEUDORA')),
-    subtotal('TOTAL COSTOS', 'Costo de Ventas NIF B-3', p?.totalCostos ?? 0, er.totalCostos),
-    subtotal('UTILIDAD BRUTA', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, er.utilidadBruta),
+    subtotal('TOTAL COSTOS', 'Costo de Ventas NIF B-3', p?.totalCostos ?? 0, pm?.totalCostos ?? 0, er.totalCostos),
+    subtotal('UTILIDAD BRUTA', 'Utilidad Bruta Operativa', p?.utilidadBruta ?? 0, pm?.utilidadBruta ?? 0, er.utilidadBruta),
     ...filterList(er.gastos, 'DEUDORA').map((a) => mapRow('GASTOS', a, 'DEUDORA')),
-    subtotal('TOTAL GASTOS', 'Gastos Generales de Operación', p?.totalGastos ?? 0, er.totalGastos),
-    subtotal('UTILIDAD DE OPERACIÓN', 'Resultado de Operación (NIF B-3)', p?.utilidadOperativa ?? 0, utilOp),
+    subtotal('TOTAL GASTOS', 'Gastos Generales de Operación', p?.totalGastos ?? 0, pm?.totalGastos ?? 0, er.totalGastos),
+    subtotal('UTILIDAD DE OPERACIÓN', 'Resultado de Operación (NIF B-3)', p?.utilidadOperativa ?? 0, pm?.utilidadOperativa ?? 0, utilOp),
     ...filterList(er.rifProductos ?? [], 'ACREEDORA').map((a) => mapRow('RIF PRODUCTOS', a, 'ACREEDORA')),
     ...filterList(er.rifGastos ?? [], 'DEUDORA').map((a) => mapRow('RIF GASTOS', a, 'DEUDORA')),
-    subtotal('RIF NETO', 'Resultado Integral de Financiamiento (702 - 701)', p?.rifNeto ?? 0, rifNeto),
-    subtotal('UTILIDAD ANTES DE IMPUESTOS', 'Utilidad antes de Impuestos (UAI)', p?.utilidadAntesImpuestos ?? 0, uai),
+    subtotal('RIF NETO', 'Resultado Integral de Financiamiento (702 - 701)', p?.rifNeto ?? 0, pm?.rifNeto ?? 0, rifNeto),
+    subtotal('UTILIDAD ANTES DE IMPUESTOS', 'Utilidad antes de Impuestos (UAI)', p?.utilidadAntesImpuestos ?? 0, pm?.utilidadAntesImpuestos ?? 0, uai),
     ...filterList(er.isrEjercicio ?? [], 'DEUDORA').map((a) => mapRow('ISR EJERCICIO', a, 'DEUDORA')),
     ...(totalIsr !== 0 || (er.isrEjercicio && er.isrEjercicio.length > 0)
-      ? [subtotal('PROVISIÓN ISR', 'Provisión ISR del Ejercicio (NIF D-4)', p?.totalIsr ?? 0, totalIsr)]
+      ? [subtotal('PROVISIÓN ISR', 'Provisión ISR del Ejercicio (NIF D-4)', p?.totalIsr ?? 0, pm?.totalIsr ?? 0, totalIsr)]
       : []),
     subtotal(
       er.utilidadNeta < 0 ? 'PÉRDIDA NETA DEL EJERCICIO' : 'UTILIDAD NETA DEL EJERCICIO',
       'Resultado Neto Contable del Periodo (NIF B-3)',
       p?.utilidadNeta ?? 0,
+      pm?.utilidadNeta ?? 0,
       er.utilidadNeta
     )
   ];

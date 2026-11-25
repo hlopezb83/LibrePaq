@@ -35,10 +35,23 @@ export function DeliverableCoverAndRatiosDoc({
   const cutoff = formatBalanceCutoffLabel(year, period, mesNombre);
   const er = reportsData.incomeStatement;
   const bs = reportsData.balanceSheet;
+  const p = er.periodTotals;
+  const bancosHead = reportsData.trialBalance.find((a) => a.code === '102-00-000');
+  const saldoBancos = bancosHead
+    ? bancosHead.finalBalance
+    : reportsData.trialBalance
+        .filter((a) => a.isAffectable && (a.code.startsWith('102') || a.satGroupCode?.startsWith('102')))
+        .reduce((s, a) => s + a.finalBalance, 0);
+  const gastosMes = (p?.totalCostos ?? 0) + (p?.totalGastos ?? 0);
+  const gastosAcum = er.totalCostos + er.totalGastos;
 
   const kpiCards = [
-    { label: 'Ingresos Netos (Acum. Ejercicio)', val: formatCurrency(er.totalIngresos), tone: 'text-slate-900' },
-    { label: er.utilidadNeta < 0 ? 'Pérdida Neta (Acum. Ejercicio)' : 'Utilidad Neta (Acum. Ejercicio)', val: formatCurrency(er.utilidadNeta), tone: er.utilidadNeta < 0 ? 'text-red-700' : 'text-emerald-800' },
+    { label: 'Ventas del Mes', val: formatCurrency(p?.totalIngresos ?? 0), tone: 'text-blue-900' },
+    { label: 'Ingresos Netos (Acum. Ejerc.)', val: formatCurrency(er.totalIngresos), tone: 'text-slate-900' },
+    { label: 'Costos y Gastos (Mes)', val: formatCurrency(gastosMes), tone: 'text-slate-800' },
+    { label: 'Costos y Gastos (Acum.)', val: formatCurrency(gastosAcum), tone: 'text-slate-700' },
+    { label: er.utilidadNeta < 0 ? 'Pérdida Neta (Acum. Ejerc.)' : 'Utilidad Neta (Acum. Ejerc.)', val: formatCurrency(er.utilidadNeta), tone: er.utilidadNeta < 0 ? 'text-red-700' : 'text-emerald-800' },
+    { label: 'Saldo en Bancos (102)', val: formatCurrency(saldoBancos), tone: 'text-emerald-800' },
     { label: 'Total Activo (NIF B-6)', val: formatCurrency(bs.totalActivo), tone: 'text-blue-900' },
     { label: 'Obligación SAT Día 17', val: formatCurrency(fiscalData?.resumenLineaCapturaSat.totalEstimadoDia17 ?? 0), tone: 'text-amber-800' }
   ];

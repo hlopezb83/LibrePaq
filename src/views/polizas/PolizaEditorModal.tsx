@@ -40,7 +40,12 @@ export function PolizaEditorModal({
   setMovements,
   accounts,
   affectableAccounts,
+  businessSegments = [],
+  polizaTemplates = [],
   applyQuickTemplate,
+  applySavedTemplate,
+  onSaveAsTemplate,
+  isSavingTemplate = false,
   addIva16Line,
   autoBalanceDifference,
   applyBalanceToRow,
@@ -179,6 +184,8 @@ export function PolizaEditorModal({
           editingPolizaId={editingPolizaId}
           submitButtonRef={submitButtonRef}
           autoBalanceDifference={autoBalanceDifference}
+          onSaveAsTemplate={onSaveAsTemplate}
+          isSavingTemplate={isSavingTemplate}
           confirmDiscard={confirmDiscard}
           onCancelDiscard={() => setConfirmDiscard(false)}
           onConfirmDiscard={() => {
@@ -215,6 +222,8 @@ export function PolizaEditorModal({
         isDateDifferentPeriod={isDateDifferentPeriod}
         onUseActivePeriodDate={onUseActivePeriodDate}
         applyQuickTemplate={applyQuickTemplate}
+        polizaTemplates={polizaTemplates}
+        applySavedTemplate={applySavedTemplate}
       />
 
       <form
@@ -233,6 +242,7 @@ export function PolizaEditorModal({
           setMovements={setMovements}
           accounts={accounts}
           affectableAccounts={affectableAccounts}
+          businessSegments={businessSegments}
           cfdiUuids={cfdiUuids}
           allCfdis={allCfdis}
           concepto={concepto}

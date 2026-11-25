@@ -256,6 +256,11 @@
     height: auto !important;
   }
 
+  #executive-deliverable-modal [class*="min-w-"],
+  main [class*="min-w-"] {
+    min-width: 0 !important;
+  }
+
   .print-only-signatures {
     display: grid !important;
   }

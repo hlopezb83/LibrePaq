@@ -2,7 +2,7 @@ import React from 'react';
 import { Calculator, Plus, Scale, Zap } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
-import type { Account, CfdiDocument } from '../../shared/types';
+import type { Account, BusinessSegment, CfdiDocument } from '../../shared/types';
 import type { DraftMovement } from './poliza-editor.types';
 import { PolizaMovementRow } from './PolizaMovementRow';
 
@@ -11,6 +11,7 @@ interface PolizaMovementsTableProps {
   setMovements: React.Dispatch<React.SetStateAction<DraftMovement[]>>;
   accounts: Account[];
   affectableAccounts: Account[];
+  businessSegments?: BusinessSegment[];
   cfdiUuids?: string[];
   allCfdis?: CfdiDocument[];
   concepto: string;
@@ -33,6 +34,7 @@ export function PolizaMovementsTable({
   setMovements,
   accounts,
   affectableAccounts,
+  businessSegments = [],
   cfdiUuids = [],
   allCfdis = [],
   concepto,
@@ -170,6 +172,7 @@ export function PolizaMovementsTable({
                 accounts={accounts}
                 accountsById={accountsById}
                 affectableAccounts={affectableAccounts}
+                businessSegments={businessSegments}
                 cfdiUuids={cfdiUuids}
                 cfdisByUuid={cfdisByUuid}
                 concepto={concepto}

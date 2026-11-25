@@ -79,11 +79,16 @@ export const insertMovementStmt = {
   run: (...args: SQLQueryBindings[]) => {
     if (!_insertMovementStmt) {
       _insertMovementStmt = db.prepare(`
-        INSERT INTO poliza_movements (id, poliza_id, account_id, account_code, account_name, referencia, concepto, cargo, abono, cfdi_uuid)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO poliza_movements (
+          id, poliza_id, account_id, account_code, account_name, referencia, concepto, cargo, abono, cfdi_uuid,
+          payment_method_sat, bank_code_ori, account_ori, bank_code_dest, account_dest,
+          beneficiary_name, beneficiary_rfc, cheque_num, business_segment_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
     }
-    return _insertMovementStmt.run(...args);
+    const padded = args.length >= 19 ? args.slice(0, 19) : [...args, ...Array(19 - args.length).fill(null)];
+    return _insertMovementStmt.run(...padded);
   }
 };
 
@@ -101,6 +106,43 @@ export const maxFolioQuery = {
   }
 };
 
+export interface PolizaMovementWriteInput {
+  accountId: string;
+  referencia?: string;
+  concepto?: string;
+  cargo: number;
+  abono: number;
+  cfdiUuid?: string | null;
+  paymentMethodSat?: string | null;
+  bankCodeOri?: string | null;
+  accountOri?: string | null;
+  bankCodeDest?: string | null;
+  accountDest?: string | null;
+  beneficiaryName?: string | null;
+  beneficiaryRfc?: string | null;
+  chequeNum?: string | null;
+  businessSegmentId?: string | null;
+}
+
+function insertMovementRow(
+  movId: string,
+  polizaId: string,
+  acc: { id: string; code: string; name: string },
+  m: PolizaMovementWriteInput,
+  fallbackRef: string,
+  fallbackConcepto: string,
+  movUuid: string | null
+): void {
+  insertMovementStmt.run(
+    movId, polizaId, acc.id, acc.code, acc.name,
+    m.referencia || fallbackRef, m.concepto || fallbackConcepto,
+    fromCents(toCents(m.cargo)), fromCents(toCents(m.abono)), movUuid,
+    m.paymentMethodSat ?? null, m.bankCodeOri ?? null, m.accountOri ?? null,
+    m.bankCodeDest ?? null, m.accountDest ?? null, m.beneficiaryName ?? null,
+    m.beneficiaryRfc ?? null, m.chequeNum ?? null, m.businessSegmentId ?? null
+  );
+}
+
 export function createPolizaTransaction(input: {
   companyId: string;
   ejercicio: number;
@@ -111,14 +153,7 @@ export function createPolizaTransaction(input: {
   cfdiUuid: string | null;
   cfdiUuids?: string[];
   origin: 'MANUAL' | 'ADD_AUTO';
-  movements: ReadonlyArray<{
-    accountId: string;
-    referencia?: string;
-    concepto?: string;
-    cargo: number;
-    abono: number;
-    cfdiUuid?: string | null;
-  }>;
+  movements: ReadonlyArray<PolizaMovementWriteInput>;
 }): Poliza {
   assertPeriodOpen(input.companyId, input.ejercicio, input.periodo);
 
@@ -163,17 +198,9 @@ export function createPolizaTransaction(input: {
         `Cuenta contable inválida: ${m.accountId}`
       );
       const movUuid = m.cfdiUuid?.trim().toUpperCase() || primaryUuid || null;
-      insertMovementStmt.run(
-        `${polizaId}_m${idx + 1}`,
-        polizaId,
-        acc.id,
-        acc.code,
-        acc.name,
-        m.referencia || `${input.tipo.slice(0, 1)}-${nextFolio}`,
-        m.concepto || input.concepto,
-        fromCents(toCents(m.cargo)),
-        fromCents(toCents(m.abono)),
-        movUuid
+      insertMovementRow(
+        `${polizaId}_m${idx + 1}`, polizaId, acc, m,
+        `${input.tipo.slice(0, 1)}-${nextFolio}`, input.concepto, movUuid
       );
     }
 
@@ -196,14 +223,7 @@ export function updatePolizaTransaction(
     concepto: string;
     cfdiUuid?: string | null;
     cfdiUuids?: string[];
-    movements: ReadonlyArray<{
-      accountId: string;
-      referencia?: string;
-      concepto?: string;
-      cargo: number;
-      abono: number;
-      cfdiUuid?: string | null;
-    }>;
+    movements: ReadonlyArray<PolizaMovementWriteInput>;
   }
 ): boolean {
   const existing = db.query('SELECT * FROM polizas WHERE id = ?').get(polizaId) as PolizaDbRow | null;
@@ -287,17 +307,9 @@ export function updatePolizaTransaction(
         `Cuenta inválida: ${m.accountId}`
       );
       const movUuid = m.cfdiUuid?.trim().toUpperCase() || cfdiUuid || null;
-      insertMovementStmt.run(
-        `${polizaId}_m${idx + 1}_${Date.now().toString(36)}`,
-        polizaId,
-        acc.id,
-        acc.code,
-        acc.name,
-        m.referencia || `${tipo.slice(0, 1)}-${nextFolio}`,
-        m.concepto || input.concepto,
-        fromCents(toCents(m.cargo)),
-        fromCents(toCents(m.abono)),
-        movUuid
+      insertMovementRow(
+        `${polizaId}_m${idx + 1}_${Date.now().toString(36)}`, polizaId, acc, m,
+        `${tipo.slice(0, 1)}-${nextFolio}`, input.concepto, movUuid
       );
     }
   });

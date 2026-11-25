@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
+import { ronda11Client } from '../../lib/supabase/supabase-ronda11';
 import { isCfdiPendingForPoliza } from '../cfdi/filterCfdis';
 import type { PolizaPeriodScope } from './filterPolizas';
 
@@ -57,6 +58,18 @@ export function usePolizasDataQueries(
     enabled: Boolean(activeCompanyId && currentYear)
   });
 
+  const { data: businessSegments = [] } = useQuery({
+    queryKey: ['business-segments', activeCompanyId],
+    queryFn: () => ronda11Client.listBusinessSegments(activeCompanyId),
+    enabled: Boolean(activeCompanyId)
+  });
+
+  const { data: polizaTemplates = [] } = useQuery({
+    queryKey: ['poliza-templates', activeCompanyId],
+    queryFn: () => ronda11Client.listPolizaTemplates(activeCompanyId),
+    enabled: Boolean(activeCompanyId)
+  });
+
   const isPeriodLocked = Boolean(periodLock?.isLocked);
   const isPeriod13Locked = currentPeriod === 13 ? isPeriodLocked : Boolean(period13Lock?.isLocked);
   const affectableAccounts = useMemo(() => accounts.filter((a) => a.isAffectable), [accounts]);
@@ -75,6 +88,8 @@ export function usePolizasDataQueries(
     isPeriodLocked,
     isPeriod13Locked,
     affectableAccounts,
-    pendingCfdis
+    pendingCfdis,
+    businessSegments,
+    polizaTemplates
   };
 }

@@ -7,6 +7,7 @@ import { setClientReadOnlyMode, useSupportSession } from '../lib/support-imperso
 import { workspaceRbacClient } from '../lib/workspace-rbac-client';
 import { loadStoredViewedPeriods, saveStoredViewedPeriods, type ViewedPeriodsMap } from './companyPeriodStorage';
 import { buildSupportCompany, readUrlCompanyParam, resolveWorkspaceName } from './companyContextHelpers';
+import { resolveClientDespachoName } from '../lib/supabase/supabase-ronda11';
 import type { Company } from '../shared/types';
 import type { DespachoRole } from '../shared/types/despacho-rbac.types';
 
@@ -69,15 +70,6 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     ? `Despacho Contable — ${user.user_metadata?.full_name || user.email?.split('@')[0] || 'Mi Cartera'}`
     : 'Mi Despacho Contable';
   const resolvedWsName = resolveWorkspaceName(workspaceNameOverride, user?.user_metadata?.workspace_name, defaultWorkspaceName);
-
-  const workspace: UserWorkspace | null = useMemo(() => {
-    if (!user || isOwner) return null;
-    return {
-      id: String(user.user_metadata?.workspace_id || `ws_${user.id.slice(0, 8)}`),
-      name: resolvedWsName,
-      ownerEmail: user.email || ''
-    };
-  }, [user, isOwner, resolvedWsName]);
 
   // Aprovisionar automáticamente el Workspace + atribución de Google Ads al primer ingreso real
   useEffect(() => {
@@ -262,6 +254,25 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         ? isRoleUnresolved || !effectiveRoleInfo?.role ? null : effectiveRoleInfo.role
         : baseActiveCompany ? 'OWNER' : null;
   const isReadOnlySupportMode = isSupportImpersonation || isReadOnlyClient;
+  const isExternalCompanyMember = Boolean(
+    isReadOnlyClient ||
+      (user && baseActiveCompany?.userId && baseActiveCompany.userId !== 'demo' && baseActiveCompany.userId !== user.id)
+  );
+  const { data: clientDespachoName } = useQuery({
+    queryKey: ['client-despacho-name', resolvedActiveCompanyId, baseActiveCompany?.organizationId],
+    queryFn: () => resolveClientDespachoName({ id: resolvedActiveCompanyId, organizationId: baseActiveCompany?.organizationId }),
+    enabled: Boolean(resolvedActiveCompanyId && isExternalCompanyMember),
+    staleTime: 300_000
+  });
+  const workspace: UserWorkspace | null = useMemo(() => {
+    if (!user || isOwner) return null;
+    const displayWsName = isExternalCompanyMember ? (clientDespachoName || 'Despacho Contable') : resolvedWsName;
+    return {
+      id: String(baseActiveCompany?.organizationId || user.user_metadata?.workspace_id || `ws_${user.id.slice(0, 8)}`),
+      name: displayWsName,
+      ownerEmail: user.email || ''
+    };
+  }, [user, isOwner, isExternalCompanyMember, clientDespachoName, resolvedWsName, baseActiveCompany?.organizationId]);
 
   useEffect(() => {
     setClientReadOnlyMode(isReadOnlyClient);

@@ -21,6 +21,7 @@ interface CompanySwitcherModalProps {
   activeCompanyId: string;
   onSelectCompany: (company: Company) => void;
   onOpenNewCompanyWizard: () => void;
+  isReadOnlyClient?: boolean;
 }
 
 export function CompanySwitcherModal({
@@ -28,7 +29,8 @@ export function CompanySwitcherModal({
   companies,
   activeCompanyId,
   onSelectCompany,
-  onOpenNewCompanyWizard
+  onOpenNewCompanyWizard,
+  isReadOnlyClient = false
 }: CompanySwitcherModalProps) {
   const [search, setSearch] = useState('');
   const [pendingTargetCompany, setPendingTargetCompany] = useState<Company | null>(null);
@@ -91,20 +93,22 @@ export function CompanySwitcherModal({
           Ctrl+E
         </kbd>
       }
-      footerJustify="between"
+      footerJustify={isReadOnlyClient ? 'end' : 'between'}
       footer={
         !pendingTargetCompany ? (
           <>
-            <Button
-              variant="secondary"
-              leftIcon={<Plus className="w-3.5 h-3.5" aria-hidden="true" />}
-              onClick={() => {
-                handleClose();
-                onOpenNewCompanyWizard();
-              }}
-            >
-              Nueva Empresa
-            </Button>
+            {!isReadOnlyClient && (
+              <Button
+                variant="secondary"
+                leftIcon={<Plus className="w-3.5 h-3.5" aria-hidden="true" />}
+                onClick={() => {
+                  handleClose();
+                  onOpenNewCompanyWizard();
+                }}
+              >
+                Nueva Empresa
+              </Button>
+            )}
             <Button variant="ghost" onClick={handleClose}>
               Cerrar (Esc)
             </Button>
@@ -162,7 +166,9 @@ export function CompanySwitcherModal({
               aria-live="polite"
               className="text-[11px] font-bold uppercase tracking-wider text-slate-600 px-1"
             >
-              Empresas Registradas en tu Despacho ({filteredCompanies.length})
+              {isReadOnlyClient
+                ? `Empresas Autorizadas (${filteredCompanies.length})`
+                : `Empresas Registradas en tu Despacho (${filteredCompanies.length})`}
             </div>
 
             {filteredCompanies.length === 0 && (
@@ -172,12 +178,16 @@ export function CompanySwitcherModal({
                 icon={<Building2 className="w-5 h-5" aria-hidden="true" />}
                 title={
                   companies.length === 0
-                    ? 'Tu Despacho aún no tiene empresas fiscales registradas.'
+                    ? isReadOnlyClient
+                      ? 'Aún no tienes empresas asignadas.'
+                      : 'Tu Despacho aún no tiene empresas fiscales registradas.'
                     : 'No se encontraron empresas con ese criterio de búsqueda.'
                 }
                 description={
                   companies.length === 0
-                    ? 'Usa el botón «Nueva Empresa» abajo para registrar tu primera razón social o RFC.'
+                    ? isReadOnlyClient
+                      ? 'Solicita a tu despacho contable que habilite acceso a tu RFC.'
+                      : 'Usa el botón «Nueva Empresa» abajo para registrar tu primera razón social o RFC.'
                     : undefined
                 }
                 actions={

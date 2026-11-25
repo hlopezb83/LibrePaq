@@ -86,6 +86,30 @@ export function collectPolizaCfdiUuidsRepo(
   return Array.from(seen);
 }
 
+function mapPolizaMovementRow(m: PolizaMovementDbRow & Record<string, unknown>): PolizaMovement {
+  return {
+    id: m.id,
+    polizaId: m.poliza_id,
+    accountId: m.account_id,
+    accountCode: m.account_code,
+    accountName: m.account_name,
+    referencia: m.referencia,
+    concepto: m.concepto,
+    cargo: Number(m.cargo),
+    abono: Number(m.abono),
+    cfdiUuid: m.cfdi_uuid,
+    paymentMethodSat: m.payment_method_sat ? String(m.payment_method_sat) : null,
+    bankCodeOri: m.bank_code_ori ? String(m.bank_code_ori) : null,
+    accountOri: m.account_ori ? String(m.account_ori) : null,
+    bankCodeDest: m.bank_code_dest ? String(m.bank_code_dest) : null,
+    accountDest: m.account_dest ? String(m.account_dest) : null,
+    beneficiaryName: m.beneficiary_name ? String(m.beneficiary_name) : null,
+    beneficiaryRfc: m.beneficiary_rfc ? String(m.beneficiary_rfc) : null,
+    chequeNum: m.cheque_num ? String(m.cheque_num) : null,
+    businessSegmentId: m.business_segment_id ? String(m.business_segment_id) : null
+  };
+}
+
 export function getPolizas(companyId: string, ejercicio?: number, periodo?: number): Poliza[] {
   let sql = 'SELECT * FROM polizas WHERE company_id = ?';
   const params: Array<string | number> = [companyId];
@@ -129,18 +153,7 @@ export function getPolizas(companyId: string, ejercicio?: number, periodo?: numb
       list = [];
       movMap.set(m.poliza_id, list);
     }
-    list.push({
-      id: m.id,
-      polizaId: m.poliza_id,
-      accountId: m.account_id,
-      accountCode: m.account_code,
-      accountName: m.account_name,
-      referencia: m.referencia,
-      concepto: m.concepto,
-      cargo: Number(m.cargo),
-      abono: Number(m.abono),
-      cfdiUuid: m.cfdi_uuid
-    });
+    list.push(mapPolizaMovementRow(m as PolizaMovementDbRow & Record<string, unknown>));
   }
 
   return polizaRows.map((p) => {
@@ -188,18 +201,9 @@ export function getPolizaById(polizaId: string): Poliza | null {
     // Fallback
   }
 
-  const movements: PolizaMovement[] = movRows.map((m) => ({
-    id: m.id,
-    polizaId: m.poliza_id,
-    accountId: m.account_id,
-    accountCode: m.account_code,
-    accountName: m.account_name,
-    referencia: m.referencia,
-    concepto: m.concepto,
-    cargo: Number(m.cargo),
-    abono: Number(m.abono),
-    cfdiUuid: m.cfdi_uuid
-  }));
+  const movements: PolizaMovement[] = movRows.map((m) =>
+    mapPolizaMovementRow(m as PolizaMovementDbRow & Record<string, unknown>)
+  );
 
   const totalCargosCents = sumCents(movements.map((m) => m.cargo));
   const totalAbonosCents = sumCents(movements.map((m) => m.abono));

@@ -4,6 +4,7 @@ import { REGIMENES_FISCALES_SAT } from '../../shared/sat-constants';
 import type { Company } from '../../shared/types';
 import { AccountingRulesCard } from './AccountingRulesCard';
 import { AjustesEmpresaComplianceCards } from './AjustesEmpresaComplianceCards';
+import { BusinessSegmentsCard } from './BusinessSegmentsCard';
 
 export interface AjustesEmpresaTabProps {
   activeCompany: Company;
@@ -260,6 +261,9 @@ export function AjustesEmpresaTab({
 
       {/* Reglas Contables Aprendidas por RFC / ClaveProdServ y No Deducibles (801) */}
       <AccountingRulesCard companyId={activeCompany.id} />
+
+      {/* Segmentos de Negocio / Centros de Costos */}
+      <BusinessSegmentsCard companyId={activeCompany.id} isReadOnly={!canEditRules} />
     </section>
   );
 }

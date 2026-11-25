@@ -3,7 +3,7 @@ import { useRouterState } from '@tanstack/react-router';
 import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { getDefaultDateForPeriod } from '../../lib/formatters';
-import type { Poliza, PolizaType } from '../../shared/types';
+import type { Poliza, PolizaTemplate, PolizaType } from '../../shared/types';
 import { exportPolizasCsv } from './exportPolizasCsv';
 import {
   buildPlanDraftsFromCfdi, collectPolizaUniqueUuids, computePolizasTotals,
@@ -48,6 +48,9 @@ export function usePolizasManager() {
   const [ledgerAccountId, setLedgerAccountId] = useState<string | null>(null);
   const [copiedPolizaId, setCopiedPolizaId] = useState<string | null>(null);
   const [isPedimentoModalOpen, setIsPedimentoModalOpen] = useState(false);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAsambleaModalOpen, setIsAsambleaModalOpen] = useState(false);
 
   const clearAllFiltersRef = useRef(searchFilters.clearAllFilters);
   clearAllFiltersRef.current = searchFilters.clearAllFilters;
@@ -120,7 +123,7 @@ export function usePolizasManager() {
 
   const {
     savePolizaMutation, deletePolizaMutation, closeYearMutation,
-    createPedimentoMutation, reversePolizaMutation
+    createPedimentoMutation, reversePolizaMutation, savePolizaTemplateMutation
   } = usePolizasMutations({
     activeCompanyId, currentYear, currentPeriod, isPeriodLocked, isPeriod13Locked,
     isReadOnlyClient, editingPolizaId, editingPolizaPeriodo, tipo, fecha, concepto,
@@ -210,6 +213,16 @@ export function usePolizasManager() {
     });
     toast.info('Póliza Duplicada', 'Revisa los importes y fecha antes de guardar.');
   };
+
+  const openNewPolizaWithTemplate = useCallback((tpl: PolizaTemplate) => {
+    if (isWriteBlocked) return;
+    openNewPolizaModal();
+    draft.applySavedTemplate(tpl);
+  }, [isWriteBlocked, openNewPolizaModal, draft]);
+
+  const handleSaveAsTemplate = useCallback(async (name: string) => {
+    await savePolizaTemplateMutation.mutateAsync(name);
+  }, [savePolizaTemplateMutation]);
 
   const handleCopyPoliza = (pol: Poliza) => {
     navigator.clipboard
@@ -308,7 +321,11 @@ export function usePolizasManager() {
     predictedNextFolio, isDateDifferentPeriod, savePolizaMutation, deletePolizaMutation,
     closeYearMutation, createPedimentoMutation, reversePolizaMutation,
     isPedimentoModalOpen, setIsPedimentoModalOpen,
-    openNewPolizaModal, openEditPolizaModal, openDuplicatePolizaModal,
+    isTemplatesModalOpen, setIsTemplatesModalOpen,
+    isImportModalOpen, setIsImportModalOpen,
+    isAsambleaModalOpen, setIsAsambleaModalOpen,
+    openNewPolizaModal, openEditPolizaModal, openDuplicatePolizaModal, openNewPolizaWithTemplate,
+    handleSaveAsTemplate, isSavingTemplate: savePolizaTemplateMutation.isPending,
     handleCopyPoliza, handleSelectCfdiForForm, handleAddCfdiUuid, handleRemoveCfdiUuid,
     handleExportPolizasCsv,
     ...draft

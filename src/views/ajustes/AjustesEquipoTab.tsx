@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, Info, Loader2, RefreshCw, ShieldCheck, UserPlus, Users } from 'lucide-react';
 import { AlertBanner, Button, EmptyState, FormField, Input, Select, StatusBadge } from '../../components/ui';
@@ -23,7 +23,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
   const isAuthenticated = Boolean(user && (session || isGuest));
   const supportSession = useSupportSession();
   const isSupportImpersonation = Boolean(supportSession && (hasAdminAccess || checkIsSuperAdmin(user)));
-  const { workspace, isReadOnlySupportMode, effectiveCompanyRole } = useCompany();
+  const { workspace, isReadOnlySupportMode, isReadOnlyClient, effectiveCompanyRole } = useCompany();
   const queryClient = useQueryClient();
   const { copiedKey, copy } = useCopyToClipboard<string>(2200);
 
@@ -34,7 +34,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
     : isOwnWorkspace
       ? ownWorkspaceId
       : `ws_${activeCompany.userId!.slice(0, 8)}`;
-  const isReadOnlyClientRole = effectiveCompanyRole === 'CLIENTE_LECTURA';
+  const isReadOnlyClientRole = effectiveCompanyRole === 'CLIENTE_LECTURA' || isReadOnlyClient;
   const canManageTeam = !isReadOnlySupportMode && !isSupportImpersonation && (effectiveCompanyRole === 'OWNER' || effectiveCompanyRole === 'SOCIO');
 
   const [inviteEmail, setInviteEmail] = useState('');
@@ -106,6 +106,23 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
       else toast.error('No se pudo copiar las instrucciones al portapapeles.');
     });
   };
+
+  const visibleAuditLogs = useMemo(() => {
+    if (!isReadOnlyClientRole) return auditLogs;
+    const ownEmail = (user?.email || '').trim().toLowerCase();
+    return auditLogs.map((log) => {
+      const actorLower = (log.actorEmail || '').trim().toLowerCase();
+      const maskedEmail = ownEmail && actorLower === ownEmail ? log.actorEmail : 'Despacho Contable';
+      const cleanMeta: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(log.metadata || {})) {
+        if (k.toLowerCase().includes('email') || (typeof v === 'string' && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(v))) {
+          continue;
+        }
+        cleanMeta[k] = v;
+      }
+      return { ...log, actorEmail: maskedEmail, metadata: cleanMeta };
+    });
+  }, [auditLogs, isReadOnlyClientRole, user?.email]);
 
   const sharedRowProps = {
     companies, canManageTeam, editingCompanyIds, setEditingCompanyIds, confirmRevokeId, setConfirmRevokeId,
@@ -303,7 +320,7 @@ export function AjustesEquipoTab({ activeCompany, companies, toast }: AjustesEqu
         )}
       </div>
 
-      <AjustesBitacoraCard activeCompany={activeCompany} auditLogs={auditLogs} isLoading={auditLoading} isError={auditIsError} error={auditError} onRefresh={() => void refetchAudit()} />
+      <AjustesBitacoraCard activeCompany={activeCompany} auditLogs={visibleAuditLogs} isLoading={auditLoading} isError={auditIsError} error={auditError} onRefresh={() => void refetchAudit()} />
     </section>
   );
 }
