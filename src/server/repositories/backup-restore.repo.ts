@@ -14,6 +14,12 @@ import {
   type SqliteExtendedBackupBundle
 } from './backup-restore-optional.repo';
 import {
+  clearRonda11SqliteBackupTables,
+  enrichRonda11SqliteExport,
+  exportRonda11SqliteBackupTables,
+  restoreRonda11SqliteBackupTables
+} from './backup-restore-ronda11.repo';
+import {
   assertNoCrossTenantRowId,
   ensureBackupSqliteColumns,
   restoreSqliteAccounts,
@@ -59,6 +65,7 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
     );
 
     clearOptionalSqliteBackupTables(comp.id);
+    clearRonda11SqliteBackupTables(comp.id);
     db.prepare('DELETE FROM polizas WHERE company_id = ?').run(comp.id);
     db.prepare('DELETE FROM cfdi_documents WHERE company_id = ?').run(comp.id);
     db.prepare('DELETE FROM bank_statement_lines WHERE company_id = ?').run(comp.id);
@@ -93,8 +100,9 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
         INSERT OR REPLACE INTO fixed_assets (
           id, company_id, codigo, nombre, categoria, fecha_adquisicion, cfdi_uuid,
           monto_original_inversion, tasa_anual_pct, meses_depreciados_previos,
-          inpc_adquisicion, inpc_medio_periodo, cuenta_activo_code, cuenta_dep_acum_code, cuenta_gasto_dep_code, estatus, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          inpc_adquisicion, inpc_medio_periodo, cuenta_activo_code, cuenta_dep_acum_code, cuenta_gasto_dep_code,
+          estatus, fecha_baja, precio_venta, baja_poliza_id, vehicle_cap_type, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const fa of bundle.fixedAssets) {
         assertNoCrossTenantRowId('fixed_assets', fa.id, comp.id);
@@ -103,7 +111,8 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
           fa.cfdiUuid || null, fa.montoOriginalInversion, fa.tasaAnualPct,
           fa.mesesDepreciadosPrevios || 0, fa.inpcAdquisicion || 1, fa.inpcMedioPeriodo || 1,
           fa.cuentaActivoCode || '', fa.cuentaDepAcumCode || '', fa.cuentaGastoDepCode || '',
-          fa.estatus || 'ACTIVO', fa.createdAt || new Date().toISOString()
+          fa.estatus || 'ACTIVO', fa.fechaBaja || null, fa.precioVenta ?? null,
+          fa.bajaPolizaId || null, fa.vehicleCapType || null, fa.createdAt || new Date().toISOString()
         );
       }
     }
@@ -127,6 +136,7 @@ export function restoreCompanyBackupBundle(bundle: CompanyBackupBundle, actorUse
 
     restoreSqliteThirdPartiesAndBank(comp.id, bundle);
     restoreOptionalSqliteBackupTables(comp.id, bundle as SqliteExtendedBackupBundle);
+    restoreRonda11SqliteBackupTables(comp.id, bundle);
   });
 
   tx();
@@ -229,19 +239,22 @@ export function exportCompanyBackupBundle(
   }));
 
   const optionalTables = exportOptionalSqliteBackupTables(company.id);
+  const ronda11Tables = exportRonda11SqliteBackupTables(company.id);
+  const enriched = enrichRonda11SqliteExport(company.id, cfdis, polizas, thirdParties, fixedAssets);
 
   return {
-    version: '2.0',
+    version: '2.1',
     exportedAt: new Date().toISOString(),
     company,
     accounts,
-    cfdis,
-    polizas,
-    thirdParties,
-    fixedAssets,
+    cfdis: enriched.cfdis,
+    polizas: enriched.polizas,
+    thirdParties: enriched.thirdParties,
+    fixedAssets: enriched.fixedAssets,
     periodLocks,
     taxParameters,
     bankStatementLines,
-    ...optionalTables
+    ...optionalTables,
+    ...ronda11Tables
   };
 }

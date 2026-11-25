@@ -11,6 +11,13 @@ import {
   type ExtendedBackupBundle
 } from './supabase-backup-optional';
 import {
+  enrichRonda11SupabaseCfdi,
+  enrichRonda11SupabaseFixedAsset,
+  enrichRonda11SupabasePoliza,
+  enrichRonda11SupabaseThirdParty,
+  exportRonda11BackupTables
+} from './supabase-backup-ronda11';
+import {
   batchImportAccountsWithClient,
   type BatchImportAccountRow
 } from './supabase-backup-accounts';
@@ -48,7 +55,7 @@ export const supabaseBackupRestore = {
     const [
       rawAccounts, rawCfdis, rawPolizas,
       rawThirdParties, rawFixedAssets,
-      rawPeriodLocks, rawTaxParams, rawBankLines, optionalTables
+      rawPeriodLocks, rawTaxParams, rawBankLines, optionalTables, ronda11Tables
     ] = await Promise.all([
       fetchAllRows((from, to) => client.from('accounts').select('*').eq('company_id', companyId).order('id').range(from, to)),
       fetchAllRows((from, to) => client.from('cfdi_documents').select('*').eq('company_id', companyId).order('id').range(from, to)),
@@ -58,19 +65,22 @@ export const supabaseBackupRestore = {
       fetchAllRows((from, to) => client.from('period_locks').select('*').eq('company_id', companyId).order('ejercicio').order('periodo').range(from, to)),
       fetchAllRows((from, to) => client.from('tax_parameters').select('*').eq('company_id', companyId).order('ejercicio').order('periodo').range(from, to)),
       fetchAllRows((from, to) => client.from('bank_statement_lines').select('*').eq('company_id', companyId).order('id').range(from, to)),
-      exportOptionalBackupTables(client, companyId)
+      exportOptionalBackupTables(client, companyId),
+      exportRonda11BackupTables(client, companyId)
     ]);
 
     const accounts: Account[] = rawAccounts.map((r) => mapSupabaseAccount(r as Record<string, unknown>));
-    const cfdis = rawCfdis.map((r) => mapSupabaseCfdi(r as Record<string, unknown>));
-    const polizas: Poliza[] = rawPolizas.map((r) =>
-      mapSupabasePoliza(r as Record<string, unknown>, (r as Record<string, unknown>).poliza_movements)
+    const cfdis = (rawCfdis as Array<Record<string, unknown>>).map((r) =>
+      enrichRonda11SupabaseCfdi(mapSupabaseCfdi(r), r)
+    );
+    const polizas: Poliza[] = (rawPolizas as Array<Record<string, unknown>>).map((r) =>
+      enrichRonda11SupabasePoliza(mapSupabasePoliza(r, r.poliza_movements), r.poliza_movements)
     );
     const thirdParties = (rawThirdParties as Array<Record<string, unknown>>).map((r) =>
-      mapSupabaseThirdParty(r)
+      enrichRonda11SupabaseThirdParty(mapSupabaseThirdParty(r), r)
     );
     const fixedAssets: FixedAssetRecord[] = (rawFixedAssets as Array<Record<string, unknown>>).map((r) =>
-      mapSupabaseFixedAsset(r)
+      enrichRonda11SupabaseFixedAsset(mapSupabaseFixedAsset(r), r)
     );
 
     const periodLocks: PeriodLock[] = (rawPeriodLocks as Array<Record<string, unknown>>).map((r) => ({
@@ -104,7 +114,7 @@ export const supabaseBackupRestore = {
     }));
 
     return {
-      version: '2.0',
+      version: '2.1',
       exportedAt: new Date().toISOString(),
       company,
       accounts,
@@ -122,7 +132,11 @@ export const supabaseBackupRestore = {
       payrollPeriodSettings: optionalTables.payrollPeriodSettings,
       polizaCfdis: optionalTables.polizaCfdis,
       bankReconciliationClosures: optionalTables.bankReconciliationClosures,
-      deliverableBranding: optionalTables.deliverableBranding
+      deliverableBranding: optionalTables.deliverableBranding,
+      businessSegments: ronda11Tables.businessSegments,
+      polizaTemplates: ronda11Tables.polizaTemplates,
+      customInpcEntries: ronda11Tables.customInpcEntries,
+      fiscalLossCarryforwards: ronda11Tables.fiscalLossCarryforwards
     };
   },
 

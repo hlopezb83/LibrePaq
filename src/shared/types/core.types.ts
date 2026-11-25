@@ -62,6 +62,15 @@ export interface PolizaMovement {
   cfdiTotal?: number | null;
   cfdiMoneda?: string | null;
   cfdiTipoCambio?: number | null;
+  paymentMethodSat?: string | null;
+  bankCodeOri?: string | null;
+  accountOri?: string | null;
+  bankCodeDest?: string | null;
+  accountDest?: string | null;
+  beneficiaryName?: string | null;
+  beneficiaryRfc?: string | null;
+  chequeNum?: string | null;
+  businessSegmentId?: string | null;
 }
 
 export interface Poliza {
@@ -154,9 +163,13 @@ export interface CfdiDocument {
   usoCfdi: string;
   uuidRelacionado?: string | null;
   statusSat: 'VIGENTE' | 'CANCELADO';
+  validacionEfos?: string | null;
+  esCancelable?: string | null;
+  estatusCancelacion?: string | null;
   polizaId: string | null;
   polizaFolio?: string | null;
   deductiblePct?: number;
+  isForeignNoCfdi?: boolean;
   xmlRaw: string;
   taxBreakdown?: CfdiTaxBreakdown | null;
   relatedDocs?: CfdiRelatedDoc[] | null;

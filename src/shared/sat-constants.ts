@@ -48,6 +48,18 @@ export const FISCAL_ACCOUNT_ROLES = {
     satGroupCode: '113.02',
     fallbackType: 'ACTIVO' as const
   },
+  SUBSIDIO_EMPLEO_POR_APLICAR: {
+    code: '110-01-001',
+    aliases: [],
+    satGroupCode: '110.01',
+    fallbackType: 'ACTIVO' as const
+  },
+  IMPUESTOS_LOCALES_RETENIDOS_ACREDITABLES: {
+    code: '113-03-001',
+    aliases: [],
+    satGroupCode: '113.03',
+    fallbackType: 'ACTIVO' as const
+  },
   IVA_ACREDITABLE_PAGADO: {
     code: '118-01-001',
     aliases: [],
@@ -134,7 +146,7 @@ export const FISCAL_ACCOUNT_ROLES = {
   },
   IVA_RETENIDO_POR_PAGAR: {
     code: '216-01-002',
-    aliases: ['216-02-001'],
+    aliases: [],
     satGroupCode: '216.10',
     fallbackType: 'PASIVO' as const
   },
@@ -213,7 +225,7 @@ export const FISCAL_ACCOUNT_ROLES = {
   GASTO_NO_DEDUCIBLE: {
     code: '801-01-002',
     aliases: ['801-01-001'],
-    satGroupCode: '601.74',
+    satGroupCode: '601.84',
     fallbackType: 'GASTOS' as const
   },
   IVA_A_FAVOR: {

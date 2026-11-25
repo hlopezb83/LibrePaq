@@ -1,14 +1,8 @@
 import type {
-  Account,
   AccountWithBalance,
-  CfdiDocument,
-  Company,
-  Poliza
+  Company
 } from './core.types';
-import type { AccountingRuleRecord } from './accounting-rules.types';
-import type { AnnualTaxInputs } from './annual-tax.types';
-import type { BankN1MatchRecord } from './bank-n1.types';
-import type { InventoryPeriodRecord } from './cost-of-sales.types';
+import type { VehicleCapType } from './ronda11.types';
 
 export interface DiotSupplierRow {
   rfc: string;
@@ -167,6 +161,8 @@ export interface ThirdPartyRecord {
   idFiscal?: string | null;
   pais?: string | null;
   jurisdiccionFiscal?: string | null;
+  regionFronteriza?: 'NORTE' | 'SUR';
+  deductiblePct?: number;
   updatedAt: string;
 }
 
@@ -194,8 +190,14 @@ export interface FixedAssetRecord {
   cuentaDepAcumCode: string;
   cuentaGastoDepCode: string;
   estatus: 'ACTIVO' | 'BAJA' | 'TOTALMENTE_DEPRECIADO';
+  fechaBaja?: string | null;
+  precioVenta?: number | null;
+  bajaPolizaId?: string | null;
+  vehicleCapType?: VehicleCapType | null;
   createdAt: string;
 }
+
+export type FixedAsset = FixedAssetRecord;
 
 export interface FixedAssetWithCalculation extends FixedAssetRecord {
   depreciacionMensualContable: number;
@@ -325,21 +327,4 @@ export interface FiscalWorkpaperResponse {
 }
 
 export * from './cxc-sat.types';
-
-export interface CompanyBackupBundle {
-  version: '2.0';
-  exportedAt: string;
-  company: Company;
-  accounts: Account[];
-  cfdis: CfdiDocument[];
-  polizas: Poliza[];
-  thirdParties: ThirdPartyRecord[];
-  fixedAssets: FixedAssetRecord[];
-  periodLocks: PeriodLock[];
-  taxParameters: TaxParametersRecord[];
-  bankStatementLines?: BankStatementLine[];
-  accountingRules?: AccountingRuleRecord[];
-  annualTaxSnapshots?: AnnualTaxInputs[];
-  inventoryPeriods?: InventoryPeriodRecord[];
-  bankStatementMatches?: BankN1MatchRecord[];
-}
+export * from './ronda11.types';

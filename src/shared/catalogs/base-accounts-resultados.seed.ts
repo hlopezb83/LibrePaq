@@ -53,7 +53,7 @@ export const BASE_ACCOUNTS_RESULTADOS: ReadonlyArray<SeedAccount> = [
   acc('GASTOS', 'DEUDORA', '601-01-009', 'Combustibles y Lubricantes', '601-00-000', 3, true, '601.48'),
   acc('GASTOS', 'DEUDORA', '601-01-010', 'Energía Eléctrica, Agua y Servicios', '601-00-000', 3, true, '601.52'),
   acc('GASTOS', 'DEUDORA', '601-01-011', 'Impuesto Sobre Nóminas ISN', '601-00-000', 3, true, '601.29'),
-  acc('GASTOS', 'DEUDORA', '601-01-012', 'IVA No Acreditable Art. 5 LIVA', '601-00-000', 3, true, '601.56'),
+  acc('GASTOS', 'DEUDORA', '601-01-012', 'IVA No Acreditable Art. 5 LIVA', '601-00-000', 3, true, '601.84'),
   // CUENTAS COMPLEMENTARIAS DE ACTIVO / PROVISIÓN IMPUESTOS / FINANCIERAS
   acc('ACTIVO', 'ACREEDORA', '171-00-000', 'Depreciación Acumulada de Activos Fijos', '100-00-000', 2, false, '171'),
   acc('ACTIVO', 'ACREEDORA', '171-01-001', 'Depreciación Acumulada de Activos Fijos', '171-00-000', 3, true, '171.01', 65000),
@@ -68,5 +68,5 @@ export const BASE_ACCOUNTS_RESULTADOS: ReadonlyArray<SeedAccount> = [
   acc('GASTOS', 'DEUDORA', '801-00-000', 'Impuesto Sobre la Renta y No Deducibles', null, 1, false, '611'),
   acc('GASTOS', 'DEUDORA', '801-01-000', 'ISR del Ejercicio y Partidas No Deducibles', '801-00-000', 2, false, '611'),
   acc('GASTOS', 'DEUDORA', '801-01-001', 'Provisión de ISR Ejercicio (No Deducible Art. 28 LISR)', '801-01-000', 3, true, '611.01'),
-  acc('GASTOS', 'DEUDORA', '801-01-002', 'Gastos No Deducibles (Art. 28 LISR)', '801-01-000', 3, true, '601.74')
+  acc('GASTOS', 'DEUDORA', '801-01-002', 'Gastos No Deducibles (Art. 28 LISR)', '801-01-000', 3, true, '601.84')
 ];

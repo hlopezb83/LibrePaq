@@ -57,7 +57,12 @@ export const CREATE_TABLES_DDL = `
     uso_cfdi TEXT NOT NULL DEFAULT 'G03',
     uuid_relacionado TEXT,
     status_sat TEXT NOT NULL DEFAULT 'VIGENTE',
+    validacion_efos TEXT,
+    es_cancelable TEXT,
+    estatus_cancelacion TEXT,
     poliza_id TEXT,
+    deductible_pct INTEGER NOT NULL DEFAULT 100,
+    is_foreign_no_cfdi INTEGER NOT NULL DEFAULT 0,
     tax_breakdown TEXT,
     related_docs TEXT,
     xml_raw TEXT NOT NULL,
@@ -89,7 +94,16 @@ export const CREATE_TABLES_DDL = `
     concepto TEXT NOT NULL DEFAULT '',
     cargo REAL NOT NULL DEFAULT 0,
     abono REAL NOT NULL DEFAULT 0,
-    cfdi_uuid TEXT
+    cfdi_uuid TEXT,
+    payment_method_sat TEXT,
+    bank_code_ori TEXT,
+    account_ori TEXT,
+    bank_code_dest TEXT,
+    account_dest TEXT,
+    beneficiary_name TEXT,
+    beneficiary_rfc TEXT,
+    cheque_num TEXT,
+    business_segment_id TEXT
   );
 
   CREATE TABLE IF NOT EXISTS bank_statement_lines (
@@ -157,14 +171,15 @@ export const CREATE_TABLES_DDL = `
     cuenta_operacion_code TEXT NOT NULL,
     cuenta_contrapartida_code TEXT NOT NULL,
     tipo_tercero_diot TEXT NOT NULL DEFAULT '04',
-    tipo_operacion_diot TEXT NOT NULL DEFAULT '85',
+    tipo_operacion_diot TEXT NOT NULL DEFAULT '85' CHECK (tipo_operacion_diot IN ('02','03','06','07','08','85','87')),
     tasa_iva_default INTEGER NOT NULL DEFAULT 16,
     estatus_69b TEXT NOT NULL DEFAULT 'LIMPIO',
     id_fiscal TEXT,
     pais TEXT,
     jurisdiccion_fiscal TEXT,
-    updated_at TEXT NOT NULL,
-    UNIQUE(company_id, rfc)
+    region_fronteriza TEXT NOT NULL DEFAULT 'NORTE',
+    deductible_pct INTEGER NOT NULL DEFAULT 100,
+    updated_at TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS fixed_assets (
@@ -184,6 +199,10 @@ export const CREATE_TABLES_DDL = `
     cuenta_dep_acum_code TEXT NOT NULL DEFAULT '171-01-001',
     cuenta_gasto_dep_code TEXT NOT NULL DEFAULT '601-01-006',
     estatus TEXT NOT NULL DEFAULT 'ACTIVO',
+    fecha_baja TEXT,
+    precio_venta REAL,
+    baja_poliza_id TEXT,
+    vehicle_cap_type TEXT,
     created_at TEXT NOT NULL
   );
 
@@ -305,8 +324,10 @@ export const CREATE_TABLES_DDL = `
 
 export type { SqliteDdlTarget } from './db-migrations';
 import { ensureOptionalColumnMigrations, type SqliteDdlTarget } from './db-migrations';
+import { ensureRonda11TablesAndMigrations } from './db-ddl-ronda11';
 
 export function ensureBaseTables(database: SqliteDdlTarget): void {
   database.exec(CREATE_TABLES_DDL);
   ensureOptionalColumnMigrations(database);
+  ensureRonda11TablesAndMigrations(database);
 }

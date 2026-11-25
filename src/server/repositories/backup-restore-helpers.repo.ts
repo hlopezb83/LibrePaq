@@ -1,4 +1,5 @@
 import { db } from '../connection';
+import { ensureRonda11TablesAndMigrations } from '../db-ddl-ronda11';
 import { assertAccountingInvariant, fromCents, toCents } from '../../shared/accounting-engine';
 import type { Account, CfdiDocument, CompanyBackupBundle, Poliza } from '../../shared/types';
 
@@ -87,13 +88,10 @@ export function sqliteTableExists(tableName: string): boolean {
 }
 
 export function ensureBackupSqliteColumns(): void {
+  ensureRonda11TablesAndMigrations(db);
   const cfdiCols = db.query('PRAGMA table_info(cfdi_documents)').all() as Array<{ name: string }>;
   if (cfdiCols.length > 0 && !cfdiCols.some((c) => c.name === 'fecha_pago')) {
     db.exec('ALTER TABLE cfdi_documents ADD COLUMN fecha_pago TEXT;');
-  }
-  const tpCols = db.query('PRAGMA table_info(third_parties)').all() as Array<{ name: string }>;
-  if (tpCols.length > 0 && !tpCols.some((c) => c.name === 'deductible_pct')) {
-    db.exec('ALTER TABLE third_parties ADD COLUMN deductible_pct REAL NOT NULL DEFAULT 100;');
   }
 }
 
@@ -162,8 +160,12 @@ export function restoreSqlitePolizas(companyId: string, polizas: Poliza[]): void
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertMov = db.prepare(`
-    INSERT OR REPLACE INTO poliza_movements (id, poliza_id, account_id, account_code, account_name, referencia, concepto, cargo, abono, cfdi_uuid)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO poliza_movements (
+      id, poliza_id, account_id, account_code, account_name, referencia, concepto, cargo, abono, cfdi_uuid,
+      payment_method_sat, bank_code_ori, account_ori, bank_code_dest, account_dest,
+      beneficiary_name, beneficiary_rfc, cheque_num, business_segment_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const p of polizas) {
     assertNoCrossTenantRowId('polizas', p.id, companyId);
@@ -193,7 +195,16 @@ export function restoreSqlitePolizas(companyId: string, polizas: Poliza[]): void
           m.concepto || '',
           m.cargo || 0,
           m.abono || 0,
-          m.cfdiUuid || null
+          m.cfdiUuid || null,
+          m.paymentMethodSat ?? null,
+          m.bankCodeOri ?? null,
+          m.accountOri ?? null,
+          m.bankCodeDest ?? null,
+          m.accountDest ?? null,
+          m.beneficiaryName ?? null,
+          m.beneficiaryRfc ?? null,
+          m.chequeNum ?? null,
+          m.businessSegmentId ?? null
         );
       }
     }
@@ -207,8 +218,10 @@ export function restoreSqliteCfdis(companyId: string, cfdis: CfdiDocument[]): vo
       emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre,
       concepto_principal, clave_prod_serv, moneda, tipo_cambio,
       subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total,
-      metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs, xml_raw
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat,
+      validacion_efos, es_cancelable, estatus_cancelacion, poliza_id,
+      deductible_pct, is_foreign_no_cfdi, tax_breakdown, related_docs, xml_raw
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const c of cfdis) {
     assertNoCrossTenantRowId('cfdi_documents', c.id, companyId);
@@ -241,7 +254,12 @@ export function restoreSqliteCfdis(companyId: string, cfdis: CfdiDocument[]): vo
       c.usoCfdi || 'G03',
       c.uuidRelacionado || null,
       c.statusSat || 'VIGENTE',
+      c.validacionEfos ?? null,
+      c.esCancelable ?? null,
+      c.estatusCancelacion ?? null,
       c.polizaId || null,
+      Math.max(0, Math.min(100, Math.round(Number(c.deductiblePct ?? 100)))),
+      c.isForeignNoCfdi ? 1 : 0,
       c.taxBreakdown ? JSON.stringify(c.taxBreakdown) : null,
       c.relatedDocs ? JSON.stringify(c.relatedDocs) : null,
       c.xmlRaw || ''
@@ -258,14 +276,15 @@ export function restoreSqliteThirdPartiesAndBank(
       INSERT OR REPLACE INTO third_parties (
         id, company_id, rfc, nombre, rol, cuenta_operacion_code, cuenta_contrapartida_code,
         tipo_tercero_diot, tipo_operacion_diot, tasa_iva_default, deductible_pct, estatus_69b,
-        id_fiscal, pais, jurisdiccion_fiscal, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id_fiscal, pais, jurisdiccion_fiscal, region_fronteriza, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const tp of bundle.thirdParties) {
       assertNoCrossTenantRowId('third_parties', tp.id, companyId);
       const ext = tp as unknown as Record<string, unknown>;
-      const deductiblePct = Math.max(0, Math.min(100, Number(ext.deductiblePct ?? 100)));
+      const deductiblePct = Math.max(0, Math.min(100, Math.round(Number(ext.deductiblePct ?? 100))));
       const cleanPais = tp.pais?.trim().toUpperCase() || null;
+      const region = String(tp.regionFronteriza ?? 'NORTE').toUpperCase() === 'SUR' ? 'SUR' : 'NORTE';
       insertTp.run(
         tp.id,
         companyId,
@@ -282,6 +301,7 @@ export function restoreSqliteThirdPartiesAndBank(
         tp.idFiscal?.trim() || null,
         cleanPais,
         cleanPais === 'ZZZ' ? (tp.jurisdiccionFiscal?.trim() || null) : null,
+        region,
         tp.updatedAt || new Date().toISOString()
       );
     }

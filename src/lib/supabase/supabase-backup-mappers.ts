@@ -6,6 +6,10 @@ import {
   clearOptionalBackupTables,
   restoreOptionalBackupTables
 } from './supabase-backup-optional';
+import {
+  clearRonda11BackupTables,
+  restoreRonda11BackupTables
+} from './supabase-backup-ronda11';
 
 type UpsertRow = Record<string, unknown>;
 
@@ -28,6 +32,7 @@ export async function clearCompanyChildTables(
   if (lockErr) throw new Error(`[Clear period_locks] ${lockErr.message}`);
 
   await clearOptionalBackupTables(client, companyId);
+  await clearRonda11BackupTables(client, companyId);
   const tables = [
     'bank_statement_lines',
     'cfdi_documents',
@@ -109,7 +114,16 @@ export async function restoreBackupChildTables(
         concepto: m.concepto || '',
         cargo: Number(m.cargo || 0),
         abono: Number(m.abono || 0),
-        cfdi_uuid: m.cfdiUuid || null
+        cfdi_uuid: m.cfdiUuid || null,
+        payment_method_sat: m.paymentMethodSat ?? null,
+        bank_code_ori: m.bankCodeOri ?? null,
+        account_ori: m.accountOri ?? null,
+        bank_code_dest: m.bankCodeDest ?? null,
+        account_dest: m.accountDest ?? null,
+        beneficiary_name: m.beneficiaryName ?? null,
+        beneficiary_rfc: m.beneficiaryRfc ?? null,
+        cheque_num: m.chequeNum ?? null,
+        business_segment_id: m.businessSegmentId ?? null
       }))
     );
     for (const chunk of chunkArray(movsToUpsert, 150)) {
@@ -147,7 +161,12 @@ export async function restoreBackupChildTables(
       uso_cfdi: c.usoCfdi || 'G03',
       uuid_relacionado: c.uuidRelacionado || null,
       status_sat: c.statusSat || 'VIGENTE',
+      validacion_efos: c.validacionEfos ?? null,
+      es_cancelable: c.esCancelable ?? null,
+      estatus_cancelacion: c.estatusCancelacion ?? null,
       poliza_id: c.polizaId || null,
+      deductible_pct: Math.max(0, Math.min(100, Math.round(Number(c.deductiblePct ?? 100)))),
+      is_foreign_no_cfdi: Boolean(c.isForeignNoCfdi ?? false),
       tax_breakdown: c.taxBreakdown ?? null,
       related_docs: c.relatedDocs ?? null,
       xml_raw: c.xmlRaw || ''
@@ -175,6 +194,10 @@ export async function restoreBackupChildTables(
       cuenta_dep_acum_code: fa.cuentaDepAcumCode || '',
       cuenta_gasto_dep_code: fa.cuentaGastoDepCode || '',
       estatus: fa.estatus || 'ACTIVO',
+      fecha_baja: fa.fechaBaja || null,
+      precio_venta: fa.precioVenta ?? null,
+      baja_poliza_id: fa.bajaPolizaId || null,
+      vehicle_cap_type: fa.vehicleCapType || null,
       created_at: fa.createdAt || new Date().toISOString()
     }));
     for (const chunk of chunkArray(faToUpsert, 100)) {
@@ -186,8 +209,9 @@ export async function restoreBackupChildTables(
     const tpToUpsert = bundle.thirdParties.map((tp) => {
       const ext = tp as unknown as Record<string, unknown>;
       const estatus = (tp.estatus69B || ext.estatus69b || 'LIMPIO') as string;
-      const deductiblePct = Math.max(0, Math.min(100, Number(ext.deductiblePct ?? 100)));
+      const deductiblePct = Math.max(0, Math.min(100, Math.round(Number(ext.deductiblePct ?? 100))));
       const cleanPais = tp.pais?.trim().toUpperCase() || null;
+      const regionFronteriza = String(tp.regionFronteriza ?? 'NORTE').toUpperCase() === 'SUR' ? 'SUR' : 'NORTE';
       return {
         id: tp.id,
         company_id: companyId,
@@ -203,7 +227,8 @@ export async function restoreBackupChildTables(
         estatus_69b: estatus,
         id_fiscal: tp.idFiscal?.trim() || null,
         pais: cleanPais,
-        jurisdiccion_fiscal: cleanPais === 'ZZZ' ? (tp.jurisdiccionFiscal?.trim() || null) : null
+        jurisdiccion_fiscal: cleanPais === 'ZZZ' ? (tp.jurisdiccionFiscal?.trim() || null) : null,
+        region_fronteriza: regionFronteriza
       };
     });
     for (const chunk of chunkArray(tpToUpsert, 100)) {
@@ -231,6 +256,7 @@ export async function restoreBackupChildTables(
   }
 
   await restoreOptionalBackupTables(client, companyId, bundle);
+  await restoreRonda11BackupTables(client, companyId, bundle);
 
   // Restaurar period_locks AL FINAL para no bloquear triggers de inserción en tablas hijas/opcionales
   if (Array.isArray(bundle.periodLocks) && bundle.periodLocks.length > 0) {
