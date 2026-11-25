@@ -2,14 +2,17 @@ import { getRequiredSupabase } from '../supabase';
 import { toCents } from '../../shared/accounting-engine';
 import { parseCalendarDate } from '../../shared/date-utils';
 import {
+  buildFixedAssetDisposalPolizaPlan,
   computeAssetPostDepreciationUpdate,
   extractDepreciatedAssetCodes,
   hasExistingDepreciationPoliza
 } from '../../shared/engine/fixed-assets.engine';
-import type { FixedAssetCategory, FixedAssetRecord, Poliza } from '../../shared/types';
+import type { FixedAssetCategory, FixedAssetRecord, Poliza, VehicleCapType } from '../../shared/types';
 import { logCompanyAuditEvent } from './audit-logger';
 import { fetchAllRows } from './supabase-pagination';
-import { assertSupabasePeriodOpen } from './supabase-polizas';
+import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
+import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
+import { mapSupabaseFixedAsset } from './supabase-fiscal-assets-helpers';
 
 export interface UpdateFixedAssetPayload {
   codigo?: string;
@@ -22,6 +25,10 @@ export interface UpdateFixedAssetPayload {
   inpcAdquisicion?: number;
   inpcMedioPeriodo?: number;
   estatus?: FixedAssetRecord['estatus'];
+  fechaBaja?: string | null;
+  precioVenta?: number | null;
+  bajaPolizaId?: string | null;
+  vehicleCapType?: VehicleCapType | null;
 }
 
 export async function executeSupabaseFixedAssetUpdate(
@@ -41,12 +48,11 @@ export async function executeSupabaseFixedAssetUpdate(
     .from('companies').select('current_year, current_period').eq('id', companyId).maybeSingle();
   const effYear = targetYear || Number(comp?.current_year) || 2026;
   const effPeriod = targetPeriod || Number(comp?.current_period) || 10;
+  // Validar candado en el periodo de movimiento/baja, nunca por fecha_adquisicion histórica
   await assertSupabasePeriodOpen(companyId, effYear, effPeriod);
-  const origAcq = parseCalendarDate(String(existing.fecha_adquisicion || ''), effYear, effPeriod);
-  await assertSupabasePeriodOpen(companyId, origAcq.year, origAcq.month);
-  if (payload.fechaAdquisicion) {
-    const nextAcq = parseCalendarDate(payload.fechaAdquisicion, effYear, effPeriod);
-    await assertSupabasePeriodOpen(companyId, nextAcq.year, nextAcq.month);
+  if (payload.fechaBaja) {
+    const bajaDate = parseCalendarDate(payload.fechaBaja, effYear, effPeriod);
+    await assertSupabasePeriodOpen(companyId, bajaDate.year, bajaDate.month);
   }
 
   const nextMoi = payload.montoOriginalInversion ?? Number(existing.monto_original_inversion || 0);
@@ -77,6 +83,10 @@ export async function executeSupabaseFixedAssetUpdate(
       meses_depreciados_previos: nextMonths,
       ...(payload.inpcAdquisicion !== undefined ? { inpc_adquisicion: payload.inpcAdquisicion } : {}),
       ...(payload.inpcMedioPeriodo !== undefined ? { inpc_medio_periodo: payload.inpcMedioPeriodo } : {}),
+      ...(payload.fechaBaja !== undefined ? { fecha_baja: payload.fechaBaja } : {}),
+      ...(payload.precioVenta !== undefined ? { precio_venta: payload.precioVenta } : {}),
+      ...(payload.bajaPolizaId !== undefined ? { baja_poliza_id: payload.bajaPolizaId } : {}),
+      ...(payload.vehicleCapType !== undefined ? { vehicle_cap_type: payload.vehicleCapType } : {}),
       estatus: autoEstatus
     })
     .eq('id', assetId);
@@ -90,6 +100,63 @@ export async function executeSupabaseFixedAssetUpdate(
     metadata: { estatus: autoEstatus, mesesDepreciadosPrevios: nextMonths }
   });
   return { companyId, effYear, effPeriod };
+}
+
+export async function executeSupabaseFixedAssetBaja(
+  assetId: string,
+  payload: { fechaBaja: string; precioVenta: number; generatePoliza?: boolean; cuentaCobroCode?: string }
+): Promise<{ companyId: string; effYear: number; effPeriod: number; poliza: Poliza | null }> {
+  const sb = getRequiredSupabase();
+  const { data: existing, error: fetchErr } = await sb.from('fixed_assets').select('*').eq('id', assetId).maybeSingle();
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (!existing) throw new Error('Activo fijo no encontrado');
+
+  const asset = mapSupabaseFixedAsset(existing as Record<string, unknown>);
+  if (asset.estatus === 'BAJA') throw new Error('El activo ya se encuentra dado de baja.');
+  const bajaDate = parseCalendarDate(payload.fechaBaja);
+  await assertSupabasePeriodOpen(asset.companyId, bajaDate.year, bajaDate.month);
+
+  let createdPoliza: Poliza | null = null;
+  if (payload.generatePoliza !== false) {
+    const accounts = await supabaseCompaniesAndAccounts.getAccounts(asset.companyId, bajaDate.year, bajaDate.month);
+    const plan = buildFixedAssetDisposalPolizaPlan({
+      asset,
+      accounts,
+      fechaBaja: payload.fechaBaja,
+      precioVenta: payload.precioVenta,
+      cuentaCobroCode: payload.cuentaCobroCode
+    });
+    createdPoliza = await supabasePolizas.createPoliza({
+      companyId: asset.companyId,
+      tipo: plan.polizaType,
+      fecha: payload.fechaBaja,
+      ejercicio: bajaDate.year,
+      periodo: bajaDate.month,
+      concepto: plan.polizaConcept,
+      cfdiUuid: null,
+      movements: plan.movements
+    });
+  }
+
+  const { error } = await sb
+    .from('fixed_assets')
+    .update({
+      estatus: 'BAJA',
+      fecha_baja: payload.fechaBaja,
+      precio_venta: Math.max(0, payload.precioVenta),
+      baja_poliza_id: createdPoliza?.id ?? null
+    })
+    .eq('id', assetId);
+  if (error) throw new Error(error.message);
+
+  logCompanyAuditEvent({
+    companyId: asset.companyId,
+    action: 'FIXED_ASSET_BAJA',
+    entityType: 'fixed_assets',
+    entityId: assetId,
+    metadata: { fechaBaja: payload.fechaBaja, precioVenta: payload.precioVenta, bajaPolizaId: createdPoliza?.id ?? null }
+  });
+  return { companyId: asset.companyId, effYear: bajaDate.year, effPeriod: bajaDate.month, poliza: createdPoliza };
 }
 
 export async function applySupabaseAssetPostDepreciationUpdates(

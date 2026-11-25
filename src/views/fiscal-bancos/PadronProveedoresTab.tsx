@@ -53,12 +53,18 @@ export function PadronProveedoresTab({
     setTpPais,
     tpJurisdiccionFiscal,
     setTpJurisdiccionFiscal,
+    tpContrapartidaAcc,
+    setTpContrapartidaAcc,
     tpOperacion,
     setTpOperacion,
     tpExpenseAcc,
     setTpExpenseAcc,
     tpIvaRate,
     setTpIvaRate,
+    tpRegionFronteriza,
+    setTpRegionFronteriza,
+    tpDeductiblePct,
+    setTpDeductiblePct,
     tpEfos,
     setTpEfos,
     is69BModalOpen,
@@ -66,7 +72,8 @@ export function PadronProveedoresTab({
     tpRfcRes,
     handleRfcChange,
     handle69BImportComplete,
-    saveThirdPartyMutation
+    saveThirdPartyMutation,
+    deleteThirdPartyMutation
   } = usePadronProveedores({ companyId, accounts, isReadOnlyClient: isReadOnly, onFeedback });
 
   const checkedCloudKeyRef = useRef<string>('');
@@ -157,10 +164,16 @@ export function PadronProveedoresTab({
           setTpPais={setTpPais}
           tpJurisdiccionFiscal={tpJurisdiccionFiscal}
           setTpJurisdiccionFiscal={setTpJurisdiccionFiscal}
+          tpContrapartidaAcc={tpContrapartidaAcc}
+          setTpContrapartidaAcc={setTpContrapartidaAcc}
           tpExpenseAcc={tpExpenseAcc}
           setTpExpenseAcc={setTpExpenseAcc}
           tpIvaRate={tpIvaRate}
           setTpIvaRate={setTpIvaRate}
+          tpRegionFronteriza={tpRegionFronteriza}
+          setTpRegionFronteriza={setTpRegionFronteriza}
+          tpDeductiblePct={tpDeductiblePct}
+          setTpDeductiblePct={setTpDeductiblePct}
           tpOperacion={tpOperacion}
           setTpOperacion={setTpOperacion}
           tpEfos={tpEfos}
@@ -225,7 +238,9 @@ export function PadronProveedoresTab({
             totalCount={thirdParties.length}
             editingRfc={tpRfc}
             isReadOnlyClient={isReadOnly}
+            isDeleting={deleteThirdPartyMutation.isPending}
             onEditThirdParty={selectThirdPartyForEdit}
+            onDeleteThirdParty={(id) => deleteThirdPartyMutation.mutate(id)}
             onClearSearch={() => setSearchQuery('')}
           />
         )}

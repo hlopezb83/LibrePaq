@@ -8,18 +8,33 @@ import type { Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
 import { getCompanyById } from './companies.repo';
 
+type ThirdPartyFullRow = ThirdPartyDbRow & {
+  region_fronteriza?: string | null;
+  deductible_pct?: number | null;
+};
+
+function mapThirdPartyFullRow(r: ThirdPartyFullRow): ThirdPartyRecord {
+  const base = mapThirdPartyRow(r);
+  const reg = String(r.region_fronteriza ?? 'NORTE').toUpperCase();
+  return {
+    ...base,
+    regionFronteriza: reg === 'SUR' ? 'SUR' : 'NORTE',
+    deductiblePct: r.deductible_pct !== undefined && r.deductible_pct !== null ? Number(r.deductible_pct) : 100
+  };
+}
+
 export function getThirdPartiesByCompany(companyId: string): ThirdPartyRecord[] {
   const rows = db
     .query('SELECT * FROM third_parties WHERE company_id = ? ORDER BY rol DESC, nombre ASC')
-    .all(companyId) as ThirdPartyDbRow[];
-  return rows.map(mapThirdPartyRow);
+    .all(companyId) as ThirdPartyFullRow[];
+  return rows.map(mapThirdPartyFullRow);
 }
 
 export function getThirdPartyByRfc(companyId: string, rfc: string): ThirdPartyRecord | null {
   const row = db
     .query('SELECT * FROM third_parties WHERE company_id = ? AND rfc = ?')
-    .get(companyId, rfc.trim().toUpperCase()) as ThirdPartyDbRow | null;
-  return row ? mapThirdPartyRow(row) : null;
+    .get(companyId, rfc.trim().toUpperCase()) as ThirdPartyFullRow | null;
+  return row ? mapThirdPartyFullRow(row) : null;
 }
 
 export function syncThirdPartiesFromCfdis(companyId: string): ThirdPartyRecord[] {
@@ -87,8 +102,8 @@ export function syncThirdPartiesFromCfdis(companyId: string): ThirdPartyRecord[]
 
   const rows = db
     .query('SELECT * FROM third_parties WHERE company_id = ? ORDER BY rol DESC, nombre ASC')
-    .all(company.id) as ThirdPartyDbRow[];
-  return rows.map(mapThirdPartyRow);
+    .all(company.id) as ThirdPartyFullRow[];
+  return rows.map(mapThirdPartyFullRow);
 }
 
 export function upsertThirdPartyRecord(
@@ -100,58 +115,67 @@ export function upsertThirdPartyRecord(
     cuentaOperacionCode: string;
     cuentaContrapartidaCode: string;
     tipoTerceroDiot: '04' | '05' | '15';
-    tipoOperacionDiot: '03' | '06' | '85';
+    tipoOperacionDiot: '02' | '03' | '06' | '07' | '08' | '85' | '87';
     tasaIvaDefault: 16 | 8 | 0;
     estatus69B: Efos69BStatus;
     idFiscal?: string | null;
     pais?: string | null;
     jurisdiccionFiscal?: string | null;
+    regionFronteriza?: 'NORTE' | 'SUR';
+    deductiblePct?: number;
   }
 ): ThirdPartyRecord {
   const cleanRfc = input.rfc.trim().toUpperCase();
-  const id = `tp_${companyId}_${cleanRfc}`;
-  const now = new Date().toISOString();
+  const cleanNombre = input.nombre.trim();
+  const cleanIdFiscal = input.idFiscal?.trim() || null;
   const cleanPais = input.pais?.trim().toUpperCase() || null;
   const cleanJuris = cleanPais === 'ZZZ' ? (input.jurisdiccionFiscal?.trim() || null) : null;
+  const cleanRegion = input.regionFronteriza === 'SUR' ? 'SUR' : 'NORTE';
+  const cleanDeductiblePct = Math.max(0, Math.min(100, Math.round(Number(input.deductiblePct ?? 100))));
+  const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO third_parties (
-      id, company_id, rfc, nombre, rol, cuenta_operacion_code, cuenta_contrapartida_code,
-      tipo_tercero_diot, tipo_operacion_diot, tasa_iva_default, estatus_69b,
-      id_fiscal, pais, jurisdiccion_fiscal, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(company_id, rfc) DO UPDATE SET
-      nombre = excluded.nombre,
-      rol = excluded.rol,
-      cuenta_operacion_code = excluded.cuenta_operacion_code,
-      cuenta_contrapartida_code = excluded.cuenta_contrapartida_code,
-      tipo_tercero_diot = excluded.tipo_tercero_diot,
-      tipo_operacion_diot = excluded.tipo_operacion_diot,
-      tasa_iva_default = excluded.tasa_iva_default,
-      estatus_69b = excluded.estatus_69b,
-      id_fiscal = excluded.id_fiscal,
-      pais = excluded.pais,
-      jurisdiccion_fiscal = excluded.jurisdiccion_fiscal,
-      updated_at = excluded.updated_at
-  `).run(
-    id,
-    companyId,
-    cleanRfc,
-    input.nombre.trim(),
-    input.rol,
-    input.cuentaOperacionCode,
-    input.cuentaContrapartidaCode,
-    input.tipoTerceroDiot,
-    input.tipoOperacionDiot,
-    input.tasaIvaDefault,
-    input.estatus69B,
-    input.idFiscal?.trim() || null,
-    cleanPais,
-    cleanJuris,
-    now
-  );
+  const existing = (input.tipoTerceroDiot === '05'
+    ? db
+        .query("SELECT id FROM third_parties WHERE company_id = ? AND rfc = ? AND tipo_tercero_diot = '05' AND COALESCE(id_fiscal, '') = ? AND nombre = ?")
+        .get(companyId, cleanRfc, cleanIdFiscal ?? '', cleanNombre)
+    : db
+        .query("SELECT id FROM third_parties WHERE company_id = ? AND rfc = ? AND tipo_tercero_diot <> '05'")
+        .get(companyId, cleanRfc)) as { id: string } | null;
 
-  const saved = getThirdPartyByRfc(companyId, cleanRfc);
+  const id = existing?.id ?? (input.tipoTerceroDiot === '05' ? `tp_${companyId}_${cleanRfc}_${crypto.randomUUID().slice(0, 6)}` : `tp_${companyId}_${cleanRfc}`);
+
+  if (existing) {
+    db.prepare(`
+      UPDATE third_parties SET
+        nombre = ?, rol = ?, cuenta_operacion_code = ?, cuenta_contrapartida_code = ?,
+        tipo_tercero_diot = ?, tipo_operacion_diot = ?, tasa_iva_default = ?, estatus_69b = ?,
+        id_fiscal = ?, pais = ?, jurisdiccion_fiscal = ?, region_fronteriza = ?, deductible_pct = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      cleanNombre, input.rol, input.cuentaOperacionCode, input.cuentaContrapartidaCode,
+      input.tipoTerceroDiot, input.tipoOperacionDiot, input.tasaIvaDefault, input.estatus69B,
+      cleanIdFiscal, cleanPais, cleanJuris, cleanRegion, cleanDeductiblePct, now, id
+    );
+  } else {
+    db.prepare(`
+      INSERT INTO third_parties (
+        id, company_id, rfc, nombre, rol, cuenta_operacion_code, cuenta_contrapartida_code,
+        tipo_tercero_diot, tipo_operacion_diot, tasa_iva_default, estatus_69b,
+        id_fiscal, pais, jurisdiccion_fiscal, region_fronteriza, deductible_pct, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, companyId, cleanRfc, cleanNombre, input.rol, input.cuentaOperacionCode, input.cuentaContrapartidaCode,
+      input.tipoTerceroDiot, input.tipoOperacionDiot, input.tasaIvaDefault, input.estatus69B,
+      cleanIdFiscal, cleanPais, cleanJuris, cleanRegion, cleanDeductiblePct, now
+    );
+  }
+
+  const saved = db.query('SELECT * FROM third_parties WHERE id = ?').get(id) as ThirdPartyFullRow | null;
   assertAccountingInvariant(saved !== null, 'THIRD_PARTY_SAVE_ERROR', 'Error al guardar tercero.');
-  return saved;
+  return mapThirdPartyFullRow(saved);
+}
+
+export function deleteThirdPartyRecord(companyId: string, thirdPartyId: string): boolean {
+  const res = db.prepare('DELETE FROM third_parties WHERE id = ? AND company_id = ?').run(thirdPartyId, companyId);
+  return res.changes > 0;
 }

@@ -1,7 +1,9 @@
 import { Fragment } from 'react';
-import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Copy, Landmark } from 'lucide-react';
+import { StatusBadge } from '../../components/ui';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
+import type { CxcCxpBankMatchInfo } from '../../shared/engine/cxc-cxp-helpers';
 import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
 import type { CxcCxpAgingBucket, CxcCxpDocumentRow } from '../../shared/types';
 
@@ -17,6 +19,7 @@ export interface CxcCxpTableProps {
   bucketMeta: readonly BucketMeta[];
   expandedIds: ReadonlySet<string>;
   onToggleExpanded: (cfdiId: string) => void;
+  bankMatchesByCfdiId?: ReadonlyMap<string, CxcCxpBankMatchInfo[]>;
 }
 
 export function CxcCxpTable({
@@ -24,7 +27,8 @@ export function CxcCxpTable({
   items,
   bucketMeta,
   expandedIds,
-  onToggleExpanded
+  onToggleExpanded,
+  bankMatchesByCfdiId
 }: CxcCxpTableProps) {
   const { copiedKey, copy } = useCopyToClipboard<string>(2000);
   const totalOriginal = fromCents(sumCents(items.map((r) => r.totalOriginalMxn)));
@@ -131,6 +135,18 @@ export function CxcCxpTable({
                     <div className="text-[11px] text-slate-600 mt-0.5">
                       {row.parcialidades.length} {row.parcialidades.length === 1 ? 'parcialidad' : 'parcialidades'} ({paidPct}%)
                     </div>
+                    {(bankMatchesByCfdiId?.get(row.cfdiId)?.length ?? 0) > 0 && (
+                      <div
+                        className="mt-1"
+                        title={(bankMatchesByCfdiId?.get(row.cfdiId) ?? [])
+                          .map((m) => `${m.fecha} ${m.referencia} (${formatCurrency(m.amount)}): ${m.descripcion}`)
+                          .join(' | ')}
+                      >
+                        <StatusBadge tone="amber" icon={<Landmark className="w-3 h-3" aria-hidden="true" />}>
+                          Posible pago en banco sin REP
+                        </StatusBadge>
+                      </div>
+                    )}
                   </td>
                 </tr>
 

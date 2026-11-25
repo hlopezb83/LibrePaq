@@ -9,7 +9,7 @@ export interface ActivosFijosTableProps {
   isPeriodLocked?: boolean;
   isReadOnlyClient?: boolean;
   onEditAsset?: (asset: FixedAssetWithCalculation) => void;
-  onRetireAsset?: (id: string) => void;
+  onRetireAsset?: (asset: FixedAssetWithCalculation) => void;
   onDeleteAsset: (id: string) => void;
   isDeleting: boolean;
 }
@@ -30,7 +30,6 @@ export function ActivosFijosTable({
   isDeleting
 }: ActivosFijosTableProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [confirmRetireId, setConfirmRetireId] = useState<string | null>(null);
   const isWriteLocked = isPeriodLocked || isReadOnlyClient;
   const lockReason = isPeriodLocked
     ? 'Periodo fiscal bloqueado ante el SAT'
@@ -112,6 +111,12 @@ export function ActivosFijosTable({
                   </td>
                   <td className="py-2 px-2.5 text-center whitespace-nowrap">
                     <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
+                    {asset.estatus === 'BAJA' && asset.fechaBaja && (
+                      <div className="text-[10px] font-mono text-slate-600 mt-0.5">
+                        {formatShortDate(asset.fechaBaja)}
+                        {asset.precioVenta != null ? ` · ${formatCurrency(asset.precioVenta)}` : ''}
+                      </div>
+                    )}
                   </td>
                   <td className="py-2 px-2.5 text-right whitespace-nowrap">
                     {confirmDeleteId === asset.id ? (
@@ -142,42 +147,24 @@ export function ActivosFijosTable({
                           </button>
                         )}
                         {onRetireAsset && asset.estatus === 'ACTIVO' && (
-                          confirmRetireId === asset.id ? (
-                            <InlineConfirm
-                              ariaLabel={`Confirmar baja de activo ${asset.codigo}`}
-                              tone="warning"
-                              busy={isDeleting || isWriteLocked}
-                              confirmLabel="Confirmar Baja"
-                              cancelLabel="Cancelar"
-                              onCancel={() => setConfirmRetireId(null)}
-                              onConfirm={() => {
-                                setConfirmRetireId(null);
-                                onRetireAsset(asset.id);
-                              }}
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={isDeleting || isWriteLocked}
-                              onClick={() => {
-                                setConfirmDeleteId(null);
-                                setConfirmRetireId(asset.id);
-                              }}
-                              title={lockReason ?? 'Dar de baja activo (BAJA)'}
-                              aria-label={`Dar de baja activo fijo ${asset.codigo}`}
-                              className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <ArchiveX className="w-3.5 h-3.5" aria-hidden="true" />
-                            </button>
-                          )
+                          <button
+                            type="button"
+                            disabled={isDeleting || isWriteLocked}
+                            onClick={() => {
+                              setConfirmDeleteId(null);
+                              onRetireAsset(asset);
+                            }}
+                            title={lockReason ?? 'Dar de baja / enajenar activo (Art. 31 LISR)'}
+                            aria-label={`Dar de baja activo fijo ${asset.codigo}`}
+                            className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <ArchiveX className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
                         )}
                         <button
                           type="button"
                           disabled={isDeleting || isWriteLocked}
-                          onClick={() => {
-                            setConfirmRetireId(null);
-                            setConfirmDeleteId(asset.id);
-                          }}
+                          onClick={() => setConfirmDeleteId(asset.id)}
                           title={lockReason ?? 'Eliminar activo fijo'}
                           aria-label={`Eliminar activo fijo ${asset.codigo} — ${asset.nombre}`}
                           className="min-h-[28px] min-w-[28px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"

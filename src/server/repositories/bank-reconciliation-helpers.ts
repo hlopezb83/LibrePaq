@@ -197,10 +197,86 @@ export function executeManualBankMatchSqlite(
     'INCOMPATIBLE_BANK_SIGN',
     'El signo del movimiento contable no corresponde con el cargo/abono bancario.'
   );
+  assertAccountingInvariant(
+    Math.abs(signCheck.bankAmountCents - signCheck.bookAmountCents) <= 5,
+    'BANK_AMOUNT_MISMATCH',
+    'El importe bancario y el movimiento contable deben coincidir (tolerancia ±$0.05).'
+  );
 
   database
     .prepare('UPDATE bank_statement_lines SET matched_movement_id = ? WHERE id = ? AND matched_movement_id IS NULL')
     .run(movementId, lineId);
 
   return { companyId: bLine.company_id, accountId: bLine.account_id, lineYear, linePeriod };
+}
+
+export function ensureBankClosuresTable(database: Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS bank_reconciliation_closures (
+      id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      account_id TEXT NOT NULL,
+      ejercicio INTEGER NOT NULL,
+      periodo INTEGER NOT NULL,
+      saldo_banco_cierre REAL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(company_id, account_id, ejercicio, periodo)
+    );
+  `);
+}
+
+export function getBankClosureBalanceSqlite(
+  database: Database,
+  companyId: string,
+  accountId: string,
+  ejercicio: number,
+  periodo: number
+): number | null {
+  ensureBankClosuresTable(database);
+  const row = database
+    .query(
+      'SELECT saldo_banco_cierre FROM bank_reconciliation_closures WHERE company_id = ? AND account_id = ? AND ejercicio = ? AND periodo = ?'
+    )
+    .get(companyId, accountId, ejercicio, periodo) as { saldo_banco_cierre: number | null } | null;
+  if (!row || row.saldo_banco_cierre == null) return null;
+  const n = Number(row.saldo_banco_cierre);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function upsertBankClosureBalanceSqlite(
+  database: Database,
+  companyId: string,
+  accountId: string,
+  ejercicio: number,
+  periodo: number,
+  saldoBancoCierre: number | null
+): void {
+  ensureBankClosuresTable(database);
+  assertPeriodOpen(companyId, ejercicio, periodo);
+  if (saldoBancoCierre === null) {
+    database
+      .prepare(
+        'DELETE FROM bank_reconciliation_closures WHERE company_id = ? AND account_id = ? AND ejercicio = ? AND periodo = ?'
+      )
+      .run(companyId, accountId, ejercicio, periodo);
+    return;
+  }
+  database
+    .prepare(`
+      INSERT INTO bank_reconciliation_closures (
+        id, company_id, account_id, ejercicio, periodo, saldo_banco_cierre, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(company_id, account_id, ejercicio, periodo) DO UPDATE SET
+        saldo_banco_cierre = excluded.saldo_banco_cierre,
+        updated_at = excluded.updated_at
+    `)
+    .run(
+      `bclose_${companyId}_${accountId}_${ejercicio}_${periodo}`,
+      companyId,
+      accountId,
+      ejercicio,
+      periodo,
+      saldoBancoCierre,
+      new Date().toISOString()
+    );
 }

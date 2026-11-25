@@ -1,6 +1,6 @@
 import { Plus, Save, X } from 'lucide-react';
 import { Button, FormField, Input, Select, StatusBadge } from '../../components/ui';
-import type { FixedAssetCategory, FixedAssetRecord } from '../../shared/types';
+import type { FixedAssetCategory, FixedAssetRecord, VehicleCapType } from '../../shared/types';
 
 function sanitizeNumberInput(raw: string): number {
   const n = Number(raw);
@@ -20,6 +20,8 @@ interface ActivosFijosFormProps {
   handleDateChange: (v: string) => void;
   assetCat: FixedAssetCategory;
   setAssetCat: (v: FixedAssetCategory) => void;
+  vehicleCapType: VehicleCapType;
+  setVehicleCapType: (v: VehicleCapType) => void;
   setAssetRate: (v: number) => void;
   assetMoi: string;
   setAssetMoi: (v: string) => void;
@@ -48,6 +50,8 @@ export function ActivosFijosForm({
   handleDateChange,
   assetCat,
   setAssetCat,
+  vehicleCapType,
+  setVehicleCapType,
   setAssetRate,
   assetMoi,
   setAssetMoi,
@@ -211,6 +215,22 @@ export function ActivosFijosForm({
           className="font-mono"
         />
       </FormField>
+
+      {assetCat === 'TRANSPORTE_25' && (
+        <FormField label="Tope Vehicular Art. 36 LISR" htmlFor="asset-vehicle-cap" className="lg:col-span-2">
+          <Select
+            id="asset-vehicle-cap"
+            size="sm"
+            disabled={isWriteLocked}
+            value={vehicleCapType}
+            onChange={(e) => setVehicleCapType(e.target.value as VehicleCapType)}
+          >
+            <option value="AUTO_COMBUSTION">Automóvil Combustión (Tope $175,000 MXN)</option>
+            <option value="AUTO_ELECTRICO">Automóvil Eléctrico / Híbrido (Tope $250,000 MXN)</option>
+            <option value="CARGA_EXENTO">Camión / Carga / Reparto (Sin Tope)</option>
+          </Select>
+        </FormField>
+      )}
 
       {isEditing && (
         <FormField label="Estatus del Bien" htmlFor="asset-status">

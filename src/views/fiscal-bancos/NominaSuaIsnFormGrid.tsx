@@ -1,5 +1,5 @@
 import { FormField, Input, LABEL_CLASS, Select } from '../../components/ui';
-import { MEXICO_ISN_RATES } from '../../shared/engine/payroll-summary.engine';
+import { MEXICO_ISN_RATES, type PayrollExtendedAmarre } from '../../shared/engine/payroll-summary.engine';
 
 export interface NominaSuaIsnFormGridProps {
   isLocked: boolean;
@@ -13,6 +13,7 @@ export interface NominaSuaIsnFormGridProps {
   imssInput: string;
   rcvInput: string;
   infonavitInput: string;
+  infonavitEstimate?: PayrollExtendedAmarre['infonavitEstimate'];
   onStateChange: (code: string) => void;
   onIsnRateChange: (val: string) => void;
   onBaseChange: (val: string | null) => void;
@@ -33,6 +34,7 @@ export function NominaSuaIsnFormGrid({
   imssInput,
   rcvInput,
   infonavitInput,
+  infonavitEstimate,
   onStateChange,
   onIsnRateChange,
   onBaseChange,
@@ -40,6 +42,11 @@ export function NominaSuaIsnFormGrid({
   onRcvChange,
   onInfonavitChange
 }: NominaSuaIsnFormGridProps) {
+  const estimatedInfonavit = infonavitEstimate?.usedXmlSbc ? infonavitEstimate.infonavit5Pct : resolvedBase * 0.05;
+  const infonavitHint = lockReason
+    ?? (infonavitEstimate?.usedXmlSbc
+      ? `5% sobre SalarioBaseCotApor × NumDiasPagados (tope 25 UMAs, ${infonavitEstimate.receiptsWithSbc} recibos)`
+      : 'Estimar INFONAVIT como 5% de la base gravable ISN (sin SBC en XML)');
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 text-xs">
       <FormField label="Estado ISN (32 Entidades)" htmlFor="isn-state-select" hint={selectedStateNotes}>
@@ -137,8 +144,8 @@ export function NominaSuaIsnFormGrid({
           <button
             type="button"
             disabled={isLocked}
-            onClick={() => onInfonavitChange((resolvedBase * 0.05).toFixed(2))}
-            title={lockReason ?? 'Estimar INFONAVIT como 5% de la base gravable ISN'}
+            onClick={() => onInfonavitChange(estimatedInfonavit.toFixed(2))}
+            title={infonavitHint}
             className="text-[11px] font-semibold text-blue-700 hover:underline disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             Estimar 5%

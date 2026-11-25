@@ -1,9 +1,9 @@
 import { getRequiredSupabase, supabase } from '../supabase';
 import {
   buildBankLinePolizaPlan,
-  fromCents,
-  sumCents
-} from '../../shared/accounting-engine';
+  type BankCounterLineInput
+} from '../../shared/engine/bank-and-closing.engine';
+import { fromCents, sumCents } from '../../shared/engine/invariants-and-math';
 import { parseCalendarDate } from '../../shared/date-utils';
 import { findBankReconciliationMatches } from '../../shared/engine/bank-and-closing.engine';
 import type { BankReconciliationResponse } from '../../shared/types';
@@ -13,7 +13,7 @@ import { assertSupabasePeriodOpen, supabasePolizas } from './supabase-polizas';
 import {
   buildBankReconciliationViewRows,
   deduplicateBankLinesByOccurrence,
-  fetchActiveN1MatchedMovementIds,
+  fetchActiveN1MatchedMap,
   fetchBankClosureBalance,
   mapBankStatementLine,
   upsertBankClosureBalance
@@ -65,8 +65,8 @@ export const supabaseBank = {
       .filter((l) => l.ejercicio < currentYear! || (l.ejercicio === currentYear && l.periodo <= currentPeriod!));
 
     const allLineIds = new Set(allMappedLines.filter((l) => Boolean(l.matchedMovementId)).map((l) => l.id));
-    const [n1MatchedIds, allPolizas, saldoBancoCierre] = await Promise.all([
-      fetchActiveN1MatchedMovementIds(companyId, allLineIds),
+    const [n1Map, allPolizas, saldoBancoCierre] = await Promise.all([
+      fetchActiveN1MatchedMap(companyId, allLineIds),
       supabasePolizas.getPolizas(companyId),
       fetchBankClosureBalance(companyId, effectiveAcc.id, currentYear, currentPeriod).catch(() => null)
     ]);
@@ -74,7 +74,8 @@ export const supabaseBank = {
     const { statementLines, bookMovements } = buildBankReconciliationViewRows({
       allMappedLines,
       allPolizas,
-      n1MatchedIds,
+      n1MatchedIds: n1Map.matchedIds,
+      n1MovsByLineId: n1Map.byLineId,
       accountId: effectiveAcc.id,
       accountCode: effectiveAcc.code,
       currentYear,
@@ -262,7 +263,7 @@ export const supabaseBank = {
 
   async createPolizaFromBankLine(
     lineId: string,
-    options?: { counterAccountCode?: string; desglosarIva?: boolean }
+    options?: { counterAccountCode?: string; desglosarIva?: boolean; counterLines?: ReadonlyArray<BankCounterLineInput> }
   ): Promise<{ createdPolizaId: string; reconciliation: BankReconciliationResponse }> {
     if (!supabase) throw new Error('Supabase no disponible');
     const { data: bLine, error: fetchErr } = await supabase
@@ -287,7 +288,8 @@ export const supabaseBank = {
       referencia: String(bLine.referencia || ''),
       descripcion: String(bLine.descripcion || ''),
       desglosarIva: options?.desglosarIva,
-      counterAccountCode: options?.counterAccountCode
+      counterAccountCode: options?.counterAccountCode,
+      counterLines: options?.counterLines
     });
 
     const poliza = await supabasePolizas.createPoliza({

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { AlertCircle, BookOpen, Building, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertCircle, BookOpen, Building, FileSpreadsheet, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { AlertBanner, Button, EmptyState, KpiCard } from '../../components/ui';
 import { useCompany } from '../../context/CompanyContext';
-import { formatCurrency } from '../../lib/formatters';
+import { formatCurrency, getDefaultDateForPeriod } from '../../lib/formatters';
 import type { AccountWithBalance } from '../../shared/types';
+import { ActivosFijosBajaModal } from './ActivosFijosBajaModal';
+import { exportFixedAssetsXlsx } from './ActivosFijosExport';
 import { ActivosFijosForm } from './ActivosFijosForm';
 import { ActivosFijosTable } from './ActivosFijosTable';
 import { InpcCatalogModal } from './InpcCatalogModal';
@@ -28,7 +30,7 @@ export function ActivosFijosTab({
   isReadOnlyClient: isReadOnlyClientProp = false,
   onFeedback
 }: ActivosFijosTabProps) {
-  const { isReadOnlyClient, isReadOnlySupportMode } = useCompany();
+  const { activeCompany, isReadOnlyClient, isReadOnlySupportMode } = useCompany();
   const isReadOnly = Boolean(isReadOnlyClientProp) || isReadOnlyClient || isReadOnlySupportMode;
   const isWriteLocked = isPeriodLocked || isReadOnly;
   const lockTitle = isReadOnly ? 'Modo solo lectura' : 'Periodo fiscal bloqueado ante el SAT';
@@ -118,6 +120,22 @@ export function ActivosFijosTab({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <Button
+                  variant="export-outline"
+                  disabled={fa.fixedAssetsData.assets.length === 0}
+                  onClick={() => {
+                    void exportFixedAssetsXlsx({
+                      companyName: activeCompany?.name ?? 'Empresa',
+                      companyRfc: activeCompany?.rfc ?? 'XAXX010101000',
+                      year,
+                      period: fa.activePeriod,
+                      data: fa.fixedAssetsData!
+                    }).then(() => onFeedback('Cédula de Activos Fijos exportada en Excel (.xlsx).'));
+                  }}
+                  leftIcon={<FileSpreadsheet className="w-4 h-4" aria-hidden="true" />}
+                >
+                  Excel (.XLSX)
+                </Button>
                 <Button
                   variant="secondary"
                   onClick={() => fa.setIsInpcModalOpen(true)}
@@ -212,6 +230,8 @@ export function ActivosFijosTab({
               handleDateChange={fa.handleDateChange}
               assetCat={fa.assetCat}
               setAssetCat={fa.setAssetCat}
+              vehicleCapType={fa.vehicleCapType}
+              setVehicleCapType={fa.setVehicleCapType}
               setAssetRate={fa.setAssetRate}
               assetMoi={fa.assetMoi}
               setAssetMoi={fa.setAssetMoi}
@@ -235,16 +255,27 @@ export function ActivosFijosTab({
               isPeriodLocked={isPeriodLocked}
               isReadOnlyClient={isReadOnly}
               onEditAsset={fa.startEditAsset}
-              onRetireAsset={(id) => fa.retireAssetMutation.mutate(id)}
+              onRetireAsset={(asset) => fa.setBajaModalAsset(asset)}
               onDeleteAsset={(id) => fa.deleteAssetMutation.mutate(id)}
               isDeleting={fa.deleteAssetMutation.isPending || fa.retireAssetMutation.isPending}
             />
           </div>
 
+          <ActivosFijosBajaModal
+            asset={fa.bajaModalAsset}
+            defaultDate={getDefaultDateForPeriod(year, fa.activePeriod)}
+            accounts={accounts}
+            isSubmitting={fa.retireAssetMutation.isPending}
+            onClose={() => fa.setBajaModalAsset(null)}
+            onConfirm={(payload) => fa.retireAssetMutation.mutate(payload)}
+          />
+
           <InpcCatalogModal
             isOpen={fa.isInpcModalOpen}
             onClose={() => fa.setIsInpcModalOpen(false)}
             activeYear={year}
+            companyId={companyId}
+            isReadOnly={isReadOnly}
           />
         </>
       )}

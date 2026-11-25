@@ -18,6 +18,7 @@ import { getDefaultDateForPeriod } from '../formatters';
 import { parseCalendarDate } from '../../shared/date-utils';
 import {
   applySupabaseAssetPostDepreciationUpdates,
+  executeSupabaseFixedAssetBaja,
   executeSupabaseFixedAssetUpdate,
   revertSupabaseDepreciationForPoliza,
   type UpdateFixedAssetPayload
@@ -28,7 +29,8 @@ import type {
   FixedAssetsResponse,
   PeriodLock,
   Poliza,
-  ThirdPartyRecord
+  ThirdPartyRecord,
+  VehicleCapType
 } from '../../shared/types';
 import {
   fetchPeriodLockRecord,
@@ -59,6 +61,17 @@ export const supabaseFiscalAndAssets = {
   async saveThirdParty(payload: Omit<ThirdPartyRecord, 'id' | 'updatedAt'>): Promise<ThirdPartyRecord> {
     if (!supabase) throw new Error('Supabase no disponible');
     return saveThirdPartyWithClient(supabase, payload);
+  },
+
+  async deleteThirdParty(companyId: string, thirdPartyId: string): Promise<{ deleted: boolean }> {
+    if (!supabase) throw new Error('Supabase no disponible');
+    const { error } = await supabase
+      .from('third_parties')
+      .delete()
+      .eq('id', thirdPartyId)
+      .eq('company_id', companyId);
+    if (error) throw new Error(error.message);
+    return { deleted: true };
   },
 
   async getFixedAssets(
@@ -138,6 +151,7 @@ export const supabaseFiscalAndAssets = {
     cuentaActivoCode?: string;
     cuentaDepAcumCode?: string;
     cuentaGastoDepCode?: string;
+    vehicleCapType?: VehicleCapType | null;
   }): Promise<FixedAssetsResponse> {
     if (!supabase) throw new Error('Supabase no disponible');
     const { data: comp } = await supabase
@@ -148,9 +162,11 @@ export const supabaseFiscalAndAssets = {
     const activeYear = Number(comp?.current_year) || 2026;
     const activePeriod = Number(comp?.current_period) || 10;
     await assertSupabasePeriodOpen(payload.companyId, activeYear, activePeriod);
-    const acq = parseCalendarDate(payload.fechaAdquisicion, activeYear, activePeriod);
-    await assertSupabasePeriodOpen(payload.companyId, acq.year, acq.month);
     const priorMonths = Math.max(0, Math.floor(payload.mesesDepreciadosPrevios || 0));
+    if (priorMonths === 0) {
+      const acq = parseCalendarDate(payload.fechaAdquisicion, activeYear, activePeriod);
+      if (acq.year === activeYear) await assertSupabasePeriodOpen(payload.companyId, acq.year, acq.month);
+    }
     const moiCents = Math.max(0, toCents(payload.montoOriginalInversion));
     const annualRate = Math.max(0, Math.min(100, payload.tasaAnualPct)) / 100;
     const priorAccumCents = priorMonths > 0 ? Math.round((moiCents * annualRate * priorMonths) / 12) : 0;
@@ -174,6 +190,7 @@ export const supabaseFiscalAndAssets = {
       cuenta_activo_code: payload.cuentaActivoCode || '156-01-001',
       cuenta_dep_acum_code: payload.cuentaDepAcumCode || '171-01-001',
       cuenta_gasto_dep_code: payload.cuentaGastoDepCode || '601-01-006',
+      vehicle_cap_type: payload.vehicleCapType ?? null,
       estatus,
       created_at: new Date().toISOString()
     });
@@ -197,10 +214,20 @@ export const supabaseFiscalAndAssets = {
     return this.getFixedAssets(companyId, effYear, effPeriod);
   },
 
+  async retireFixedAsset(
+    assetId: string,
+    payload: { fechaBaja: string; precioVenta: number; generatePoliza?: boolean; cuentaCobroCode?: string }
+  ): Promise<{ assets: FixedAssetsResponse; poliza: Poliza | null }> {
+    if (!supabase) throw new Error('Supabase no disponible');
+    const { companyId, effYear, effPeriod, poliza } = await executeSupabaseFixedAssetBaja(assetId, payload);
+    const assets = await this.getFixedAssets(companyId, effYear, effPeriod);
+    return { assets, poliza };
+  },
+
   async deleteFixedAsset(assetId: string): Promise<{ deleted: boolean }> {
     if (!supabase) return { deleted: false };
     const { data: existing, error: fetchErr } = await supabase
-      .from('fixed_assets').select('company_id, fecha_adquisicion').eq('id', assetId).maybeSingle();
+      .from('fixed_assets').select('company_id').eq('id', assetId).maybeSingle();
     if (fetchErr) throw new Error(fetchErr.message);
     if (!existing) return { deleted: false };
 
@@ -213,8 +240,6 @@ export const supabaseFiscalAndAssets = {
     const activeYear = Number(comp?.current_year) || 2026;
     const activePeriod = Number(comp?.current_period) || 10;
     await assertSupabasePeriodOpen(companyId, activeYear, activePeriod);
-    const acq = parseCalendarDate(String(existing.fecha_adquisicion || ''), activeYear, activePeriod);
-    await assertSupabasePeriodOpen(companyId, acq.year, acq.month);
     const { error } = await supabase.from('fixed_assets').delete().eq('id', assetId);
     if (error) throw new Error(error.message);
     return { deleted: true };

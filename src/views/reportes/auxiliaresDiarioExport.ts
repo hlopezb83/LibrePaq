@@ -185,6 +185,7 @@ export async function exportAuxiliaresRangeXlsx(params: {
       sCell('Póliza', true),
       sCell('Referencia', true),
       sCell('Concepto', true),
+      sCell('UUID CFDI', true),
       sCell('Cargo (Debe)', true),
       sCell('Abono (Haber)', true),
       sCell('Saldo Progresivo', true)
@@ -198,6 +199,7 @@ export async function exportAuxiliaresRangeXlsx(params: {
       sCell(''),
       sCell(''),
       sCell(`Naturaleza ${b.account.nature}`),
+      sCell(''),
       { type: Number, value: 0, format: '$#,##0.00' },
       { type: Number, value: 0, format: '$#,##0.00' },
       { type: Number, value: b.initialBalance, format: '$#,##0.00', fontWeight: 'bold' }
@@ -209,6 +211,7 @@ export async function exportAuxiliaresRangeXlsx(params: {
         sCell(`${e.tipoPoliza} #${e.folioPoliza}`),
         sCell(e.referencia),
         sCell(e.concepto),
+        sCell(e.cfdiUuid || ''),
         { type: Number, value: e.cargo, format: '$#,##0.00' },
         { type: Number, value: e.abono, format: '$#,##0.00' },
         { type: Number, value: e.runningBalance, format: '$#,##0.00' }
@@ -220,6 +223,7 @@ export async function exportAuxiliaresRangeXlsx(params: {
       sCell(''),
       sCell(''),
       sCell('Saldo Final de Cuenta', true),
+      sCell(''),
       { type: Number, value: b.totalCharges, format: '$#,##0.00', fontWeight: 'bold' },
       { type: Number, value: b.totalCredits, format: '$#,##0.00', fontWeight: 'bold' },
       { type: Number, value: b.finalBalance, format: '$#,##0.00', fontWeight: 'bold' }
@@ -232,7 +236,7 @@ export async function exportAuxiliaresRangeXlsx(params: {
       data: rows,
       columns: [
         { width: 32 }, { width: 13 }, { width: 15 }, { width: 14 },
-        { width: 34 }, { width: 16 }, { width: 16 }, { width: 18 }
+        { width: 34 }, { width: 36 }, { width: 16 }, { width: 16 }, { width: 18 }
       ]
     }
   ]).toFile(`Auxiliar_Movimientos_${company.rfc}_${ejercicio}_P${String(periodFrom).padStart(2, '0')}-P${String(periodTo).padStart(2, '0')}.xlsx`);
@@ -294,26 +298,26 @@ export function printDiarioOrAuxiliarReport(params: {
       .flatMap((p) =>
         p.movements.map(
           (m) =>
-            `<tr><td class="mono">${escapeHtml(p.fecha)}</td><td class="mono">${escapeHtml(p.tipo)} #${escapeHtml(p.folio)}</td><td class="mono">${escapeHtml(m.accountCode)}</td><td>${escapeHtml(m.accountName)}</td><td>${escapeHtml(m.concepto || p.concepto)}</td><td class="right tabular">${m.cargo > 0 ? escapeHtml(formatCurrency(m.cargo)) : '—'}</td><td class="right tabular">${m.abono > 0 ? escapeHtml(formatCurrency(m.abono)) : '—'}</td></tr>`
+            `<tr><td class="mono">${escapeHtml(p.fecha)}</td><td class="mono">${escapeHtml(p.tipo)} #${escapeHtml(p.folio)}</td><td class="mono">${escapeHtml(p.cfdiUuid || '')}</td><td class="mono">${escapeHtml(m.accountCode)}</td><td>${escapeHtml(m.accountName)}</td><td>${escapeHtml(m.concepto || p.concepto)}</td><td class="right tabular">${m.cargo > 0 ? escapeHtml(formatCurrency(m.cargo)) : '—'}</td><td class="right tabular">${m.abono > 0 ? escapeHtml(formatCurrency(m.abono)) : '—'}</td></tr>`
         )
       )
       .join('');
     return printReportHtmlDocument(
       `Diario General — ${company.name} (${company.rfc})`,
       pLabel,
-      `<table><thead><tr><th>Fecha</th><th>Póliza</th><th>Cuenta</th><th>Nombre</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono</th></tr></thead><tbody>${rowsHtml}</tbody><tfoot><tr><td colspan="5" class="right">SUMAS IGUALES:</td><td class="right tabular">${escapeHtml(formatCurrency(diarioTotals.cargos))}</td><td class="right tabular">${escapeHtml(formatCurrency(diarioTotals.abonos))}</td></tr></tfoot></table>`
+      `<table><thead><tr><th>Fecha</th><th>Póliza</th><th>UUID CFDI</th><th>Cuenta</th><th>Nombre</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono</th></tr></thead><tbody>${rowsHtml}</tbody><tfoot><tr><td colspan="6" class="right">SUMAS IGUALES:</td><td class="right tabular">${escapeHtml(formatCurrency(diarioTotals.cargos))}</td><td class="right tabular">${escapeHtml(formatCurrency(diarioTotals.abonos))}</td></tr></tfoot></table>`
     );
   }
 
   const bodyHtml = auxiliarBlocks
     .map(
       (b) =>
-        `<table><thead><tr><th colspan="7">${escapeHtml(b.account.code)} — ${escapeHtml(b.account.name)} (Saldo Inicial: ${escapeHtml(formatCurrency(b.initialBalance))})</th></tr><tr><th>Fecha</th><th>Póliza</th><th>Referencia</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono</th><th class="right">Saldo Progresivo</th></tr></thead><tbody>${b.entries
+        `<table><thead><tr><th colspan="8">${escapeHtml(b.account.code)} — ${escapeHtml(b.account.name)} (Saldo Inicial: ${escapeHtml(formatCurrency(b.initialBalance))})</th></tr><tr><th>Fecha</th><th>Póliza</th><th>Referencia</th><th>UUID CFDI</th><th>Concepto</th><th class="right">Cargo</th><th class="right">Abono</th><th class="right">Saldo Progresivo</th></tr></thead><tbody>${b.entries
           .map(
             (e) =>
-              `<tr><td class="mono">${escapeHtml(e.fecha)}</td><td class="mono">${escapeHtml(e.tipoPoliza)} #${escapeHtml(e.folioPoliza)}</td><td class="mono">${escapeHtml(e.referencia)}</td><td>${escapeHtml(e.concepto)}</td><td class="right tabular">${e.cargo > 0 ? escapeHtml(formatCurrency(e.cargo)) : '—'}</td><td class="right tabular">${e.abono > 0 ? escapeHtml(formatCurrency(e.abono)) : '—'}</td><td class="right tabular">${escapeHtml(formatCurrency(e.runningBalance))}</td></tr>`
+              `<tr><td class="mono">${escapeHtml(e.fecha)}</td><td class="mono">${escapeHtml(e.tipoPoliza)} #${escapeHtml(e.folioPoliza)}</td><td class="mono">${escapeHtml(e.referencia)}</td><td class="mono">${escapeHtml(e.cfdiUuid || '')}</td><td>${escapeHtml(e.concepto)}</td><td class="right tabular">${e.cargo > 0 ? escapeHtml(formatCurrency(e.cargo)) : '—'}</td><td class="right tabular">${e.abono > 0 ? escapeHtml(formatCurrency(e.abono)) : '—'}</td><td class="right tabular">${escapeHtml(formatCurrency(e.runningBalance))}</td></tr>`
           )
-          .join('')}</tbody><tfoot><tr><td colspan="4" class="right">Totales ${escapeHtml(b.account.code)}:</td><td class="right tabular">${escapeHtml(formatCurrency(b.totalCharges))}</td><td class="right tabular">${escapeHtml(formatCurrency(b.totalCredits))}</td><td class="right tabular">${escapeHtml(formatCurrency(b.finalBalance))}</td></tr></tfoot></table>`
+          .join('')}</tbody><tfoot><tr><td colspan="5" class="right">Totales ${escapeHtml(b.account.code)}:</td><td class="right tabular">${escapeHtml(formatCurrency(b.totalCharges))}</td><td class="right tabular">${escapeHtml(formatCurrency(b.totalCredits))}</td><td class="right tabular">${escapeHtml(formatCurrency(b.finalBalance))}</td></tr></tfoot></table>`
     )
     .join('');
 

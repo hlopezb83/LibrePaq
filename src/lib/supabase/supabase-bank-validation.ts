@@ -150,6 +150,9 @@ export async function executeManualBankMatch(
   if (!signCheck.compatible) {
     throw new Error('El signo del movimiento contable no es compatible con el cargo/abono bancario.');
   }
+  if (Math.abs(signCheck.bankAmountCents - signCheck.bookAmountCents) > 5) {
+    throw new Error('El importe bancario y el movimiento contable deben coincidir (tolerancia ±$0.05).');
+  }
 
   const { error: updErr } = await sb
     .from('bank_statement_lines')
