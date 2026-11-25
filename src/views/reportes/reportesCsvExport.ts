@@ -6,18 +6,69 @@ import type {
 import type { AnnualTaxSummaryResponse } from '../../shared/types/annual-tax.types';
 import type { ReportTabId } from './ReportesHeaderBar';
 
+export interface BalanzaExportFilterOptions {
+  levelScope?: 'ALL' | 'MAYOR' | 'SUBCUENTAS' | 'AFECTABLES' | 'N2';
+  omitZeroAccounts?: boolean;
+}
+
+export function filterBalanzaAccounts(
+  accounts: readonly AccountWithBalance[],
+  options?: BalanzaExportFilterOptions
+): AccountWithBalance[] {
+  const scope = options?.levelScope ?? 'ALL';
+  const omitZero = Boolean(options?.omitZeroAccounts);
+  return accounts.filter((r) => {
+    if (scope === 'MAYOR' && r.level !== 1) return false;
+    if ((scope === 'SUBCUENTAS' || scope === 'N2') && r.level > 2) return false;
+    if (scope === 'AFECTABLES' && !r.isAffectable) return false;
+    if (
+      omitZero &&
+      Math.abs(r.initialBalanceComputed) < 0.01 &&
+      Math.abs(r.periodCharges) < 0.01 &&
+      Math.abs(r.periodCredits) < 0.01 &&
+      Math.abs(r.finalBalance) < 0.01
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 const signedYtd = (a: AccountWithBalance, expected: 'ACREEDORA' | 'DEUDORA') =>
   a.nature === expected ? a.finalBalance : -a.finalBalance;
 
 const signedMes = (a: AccountWithBalance, expected: 'ACREEDORA' | 'DEUDORA') =>
   expected === 'ACREEDORA' ? a.periodCredits - a.periodCharges : a.periodCharges - a.periodCredits;
 
+export function exportBalanzaCsvOnly(params: {
+  company: FinancialStatementsResponse['company'];
+  ejercicio: number;
+  periodo: number;
+  trialBalance: readonly AccountWithBalance[];
+  balanzaOptions?: BalanzaExportFilterOptions;
+}): string {
+  const { company, ejercicio, periodo, trialBalance, balanzaOptions } = params;
+  const periodCode = `P${String(periodo).padStart(2, '0')}`;
+  const headers = [
+    'Código Cuenta', 'Nombre de la Cuenta', 'Agrupador SAT', 'Naturaleza',
+    'Nivel', 'Saldo Inicial', 'Cargos (Debe)', 'Abonos (Haber)', 'Saldo Final'
+  ];
+  const filtered = filterBalanzaAccounts(trialBalance, balanzaOptions);
+  const rows = filtered.map((r) => [
+    r.code, r.name, r.satGroupCode, r.nature, r.level,
+    r.initialBalanceComputed, r.periodCharges, r.periodCredits, r.finalBalance
+  ]);
+  downloadCsvFile(`Balanza_${company.rfc}_${ejercicio}_${periodCode}.csv`, headers, rows);
+  return 'Balanza de Comprobación exportada en CSV';
+}
+
 export function exportActiveReportCsv(params: {
   activeTab: ReportTabId;
   data: FinancialStatementsResponse;
   annualTaxData?: AnnualTaxSummaryResponse | null;
+  balanzaOptions?: BalanzaExportFilterOptions;
 }): string {
-  const { activeTab, data, annualTaxData } = params;
+  const { activeTab, data, annualTaxData, balanzaOptions } = params;
   const periodCode = `P${String(data.periodo).padStart(2, '0')}`;
 
   if (activeTab === 'RESULTADOS') {
@@ -98,6 +149,8 @@ export function exportActiveReportCsv(params: {
     const isPersonaFisica =
       det.tipoRegimenAnual === 'PF_RESICO' || det.tipoRegimenAnual === 'PF_ART152';
     const isPfResico = det.tipoRegimenAnual === 'PF_RESICO';
+    const isPmResico = det.tipoRegimenAnual === 'PM_RESICO';
+    const pmResicoDedFlujo = det.ingresosNominales - rec.utilidadFiscalAntesPtu;
     const anualRows: Array<Array<string | number>> = isPersonaFisica
       ? [
           ['Base Gravable Persona Física', 'Ingresos Cobrados / Acumulables del Ejercicio', det.ingresosNominales],
@@ -117,14 +170,26 @@ export function exportActiveReportCsv(params: {
           ...(det.ptuPorPagar10Pct > 0 ? [['Determinación ISR Anual', 'PTU por Pagar (10%)', det.ptuPorPagar10Pct]] : [])
         ]
       : [
-          ['Conciliación Contable-Fiscal', 'Utilidad / Pérdida Contable', rec.utilidadContable],
-          ['Conciliación Contable-Fiscal', '(+) Ingresos Fiscales No Contables', rec.ingresosFiscalesNoContables],
-          ['Conciliación Contable-Fiscal', '(+) Deducciones Contables No Fiscales', rec.deduccionesContablesNoFiscales],
-          ['Conciliación Contable-Fiscal', '(-) Deducciones Fiscales No Contables', -rec.deduccionesFiscalesNoContables],
-          ['Conciliación Contable-Fiscal', '(-) PTU Pagada en el Ejercicio', -rec.ptuPagadaEjercicio],
-          ['Conciliación Contable-Fiscal', '(=) Utilidad / Pérdida Fiscal', rec.utilidadFiscal],
-          ['Conciliación Contable-Fiscal', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
-          ['Conciliación Contable-Fiscal', '(=) Resultado Fiscal Gravable', rec.resultadoFiscal],
+          ...(isPmResico
+            ? [
+                ['Conciliación Flujo PM RESICO', 'Ingresos Efectivamente Cobrados / Nominales', det.ingresosNominales],
+                ['Conciliación Flujo PM RESICO', '(-) Deducciones Autorizadas Pagadas e Inv. Art. 31', -pmResicoDedFlujo],
+                ['Conciliación Flujo PM RESICO', '(=) Utilidad Fiscal antes de PTU', rec.utilidadFiscalAntesPtu],
+                ['Conciliación Flujo PM RESICO', '(-) PTU Pagada en el Ejercicio', -rec.ptuPagadaEjercicio],
+                ['Conciliación Flujo PM RESICO', '(=) Utilidad / Pérdida Fiscal', rec.utilidadFiscal],
+                ['Conciliación Flujo PM RESICO', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
+                ['Conciliación Flujo PM RESICO', '(=) Resultado Fiscal Gravable', rec.resultadoFiscal]
+              ]
+            : [
+                ['Conciliación Contable-Fiscal', 'Utilidad / Pérdida Contable', rec.utilidadContable],
+                ['Conciliación Contable-Fiscal', '(+) Ingresos Fiscales No Contables', rec.ingresosFiscalesNoContables],
+                ['Conciliación Contable-Fiscal', '(+) Deducciones Contables No Fiscales', rec.deduccionesContablesNoFiscales],
+                ['Conciliación Contable-Fiscal', '(-) Deducciones Fiscales No Contables', -rec.deduccionesFiscalesNoContables],
+                ['Conciliación Contable-Fiscal', '(-) PTU Pagada en el Ejercicio', -rec.ptuPagadaEjercicio],
+                ['Conciliación Contable-Fiscal', '(=) Utilidad / Pérdida Fiscal', rec.utilidadFiscal],
+                ['Conciliación Contable-Fiscal', '(-) Pérdidas Fiscales Aplicadas', -rec.perdidasFiscalesAplicadas],
+                ['Conciliación Contable-Fiscal', '(=) Resultado Fiscal Gravable', rec.resultadoFiscal]
+              ]),
           ['Ajuste Anual por Inflación', 'Promedio Anual de Créditos', inf.promedioCreditos],
           ['Ajuste Anual por Inflación', 'Promedio Anual de Deudas', inf.promedioDeudas],
           ['Ajuste Anual por Inflación', `Efecto (${inf.tipo})`, inf.tipo === 'ACUMULABLE' ? inf.ajusteAcumulable : inf.tipo === 'DEDUCIBLE' ? -inf.ajusteDeducible : 0],
@@ -145,14 +210,11 @@ export function exportActiveReportCsv(params: {
     return 'Declaración Anual exportada en CSV';
   }
 
-  const headers = [
-    'Código Cuenta', 'Nombre de la Cuenta', 'Agrupador SAT', 'Naturaleza',
-    'Nivel', 'Saldo Inicial', 'Cargos (Debe)', 'Abonos (Haber)', 'Saldo Final'
-  ];
-  const rows = data.trialBalance.map((r) => [
-    r.code, r.name, r.satGroupCode, r.nature, r.level,
-    r.initialBalanceComputed, r.periodCharges, r.periodCredits, r.finalBalance
-  ]);
-  downloadCsvFile(`Balanza_${data.company.rfc}_${data.ejercicio}_${periodCode}.csv`, headers, rows);
-  return 'Balanza de Comprobación exportada en CSV';
+  return exportBalanzaCsvOnly({
+    company: data.company,
+    ejercicio: data.ejercicio,
+    periodo: data.periodo,
+    trialBalance: data.trialBalance,
+    balanzaOptions
+  });
 }

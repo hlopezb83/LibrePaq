@@ -16,6 +16,7 @@ import type {
   SaveAnnualTaxInputsPayload
 } from '../../shared/types/annual-tax.types';
 import type { FixedAssetCategory, FixedAssetRecord } from '../../shared/types/fiscal.types';
+import type { FiscalLossCarryforward } from '../../shared/types/ronda11.types';
 import { mapSupabaseCfdi } from './supabase-cfdi-mappers';
 import { mapSupabaseAccount, mapSupabaseCompany } from './supabase-mappers';
 import { fetchAllRows } from './supabase-pagination';
@@ -66,7 +67,7 @@ function mapAsset(row: Record<string, unknown>): FixedAssetRecord {
     fechaAdquisicion: String(row.fecha_adquisicion ?? ''),
     cfdiUuid: row.cfdi_uuid ? String(row.cfdi_uuid) : null,
     montoOriginalInversion: Number(row.monto_original_inversion ?? 0),
-    tasaAnualPct: Number(row.tasa_anual_pct ?? 10),
+    tasaAnualPct: Number(row.tasaAnualPct ?? row.tasa_anual_pct ?? 10),
     mesesDepreciadosPrevios: Number(row.meses_depreciados_previos ?? 0),
     inpcAdquisicion: Number(row.inpc_adquisicion ?? 138),
     inpcMedioPeriodo: Number(row.inpc_medio_periodo ?? 138),
@@ -74,7 +75,26 @@ function mapAsset(row: Record<string, unknown>): FixedAssetRecord {
     cuentaDepAcumCode: String(row.cuenta_dep_acum_code ?? '171-01-001'),
     cuentaGastoDepCode: String(row.cuenta_gasto_dep_code ?? '601-01-006'),
     estatus: (row.estatus as FixedAssetRecord['estatus']) || 'ACTIVO',
+    fechaBaja: row.fecha_baja ? String(row.fecha_baja) : null,
+    precioVenta: row.precio_venta !== null && row.precio_venta !== undefined ? Number(row.precio_venta) : null,
+    bajaPolizaId: row.baja_poliza_id ? String(row.baja_poliza_id) : null,
+    vehicleCapType: row.vehicle_cap_type ? String(row.vehicle_cap_type) : null,
     createdAt: String(row.created_at ?? '')
+  };
+}
+
+function mapFiscalLoss(row: Record<string, unknown>): FiscalLossCarryforward {
+  return {
+    id: String(row.id),
+    companyId: String(row.company_id),
+    lossYear: Number(row.loss_year),
+    originalAmount: Number(row.original_amount ?? 0),
+    appliedAmount: Number(row.applied_amount ?? 0),
+    remainingAmount: Number(row.remaining_amount ?? 0),
+    inpcFirstUpdateMonth: row.inpc_first_update_month !== null && row.inpc_first_update_month !== undefined ? Number(row.inpc_first_update_month) : null,
+    inpcLastApplied: row.inpc_last_applied !== null && row.inpc_last_applied !== undefined ? Number(row.inpc_last_applied) : null,
+    notes: String(row.notes ?? ''),
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined
   };
 }
 
@@ -82,6 +102,60 @@ const CFDI_ANNUAL_PROJECTION =
   'id, company_id, uuid, fecha, fecha_pago, tipo_comprobante, direction, serie, folio, emisor_rfc, emisor_nombre, receptor_rfc, receptor_nombre, concepto_principal, clave_prod_serv, moneda, tipo_cambio, subtotal, descuento, iva_trasladado, isr_retenido, iva_retenido, total, metodo_pago, forma_pago, uso_cfdi, uuid_relacionado, status_sat, poliza_id, tax_breakdown, related_docs';
 
 export const supabaseAnnualTax = {
+  async listFiscalLosses(companyId: string): Promise<FiscalLossCarryforward[]> {
+    if (!supabase) return [];
+    const { data, error } = await getRequiredSupabase()
+      .from('fiscal_loss_carryforwards')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('loss_year', { ascending: true });
+    if (error) {
+      if (/fiscal_loss_carryforwards/i.test(error.message)) return [];
+      throw new Error(error.message);
+    }
+    return ((data ?? []) as Array<Record<string, unknown>>).map(mapFiscalLoss);
+  },
+
+  async upsertFiscalLoss(
+    companyId: string,
+    payload: Omit<FiscalLossCarryforward, 'id' | 'companyId' | 'updatedAt'> & { id?: string }
+  ): Promise<FiscalLossCarryforward[]> {
+    if (!supabase) throw new Error('Supabase no disponible');
+    const sb = getRequiredSupabase();
+    const original = fromCents(Math.max(0, toCents(payload.originalAmount)));
+    const applied = fromCents(Math.max(0, toCents(payload.appliedAmount)));
+    const remaining =
+      payload.remainingAmount !== undefined
+        ? fromCents(Math.max(0, toCents(payload.remainingAmount)))
+        : fromCents(Math.max(0, toCents(original - applied)));
+    const row = {
+      id: payload.id || `flc_${companyId}_${payload.lossYear}`,
+      company_id: companyId,
+      loss_year: Math.round(payload.lossYear),
+      original_amount: original,
+      applied_amount: applied,
+      remaining_amount: remaining,
+      inpc_first_update_month: payload.inpcFirstUpdateMonth ?? null,
+      inpc_last_applied: payload.inpcLastApplied ?? null,
+      notes: payload.notes ?? '',
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from('fiscal_loss_carryforwards').upsert(row, { onConflict: 'company_id,loss_year' });
+    if (error) throw new Error(error.message);
+    return this.listFiscalLosses(companyId);
+  },
+
+  async deleteFiscalLoss(companyId: string, lossId: string): Promise<FiscalLossCarryforward[]> {
+    if (!supabase) throw new Error('Supabase no disponible');
+    const { error } = await getRequiredSupabase()
+      .from('fiscal_loss_carryforwards')
+      .delete()
+      .eq('company_id', companyId)
+      .eq('id', lossId);
+    if (error) throw new Error(error.message);
+    return this.listFiscalLosses(companyId);
+  },
+
   async getAnnualTaxSummary(companyId: string, ejercicio?: number): Promise<AnnualTaxSummaryResponse> {
     if (!supabase) throw new Error('Supabase no disponible');
     const sb = getRequiredSupabase();
@@ -90,19 +164,13 @@ export const supabaseAnnualTax = {
     const company = mapSupabaseCompany(cRow as Record<string, unknown>);
     const targetYear = ejercicio && ejercicio > 2000 ? ejercicio : company.currentYear;
 
-    const [rawAccounts, movs, nextJanMovs, snapRes, taxRes, rawAssets, rawCfdis, rules] = await Promise.all([
+    const [rawAccounts, movs, nextJanMovs, snapRes, taxRes, rawAssets, rawCfdis, rules, lossCarryforwards] = await Promise.all([
       fetchAllRows(async (from, to) =>
-        sb
-          .from('accounts')
-          .select('*')
-          .eq('company_id', company.id)
-          .order('code', { ascending: true })
-          .order('id', { ascending: true })
-          .range(from, to)
+        sb.from('accounts').select('*').eq('company_id', company.id).order('code', { ascending: true }).order('id', { ascending: true }).range(from, to)
       ),
       fetchAllRows(async (from, to) =>
         sb.from('poliza_movements')
-          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo)')
+          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo, origin)')
           .eq('polizas.company_id', company.id)
           .lte('polizas.ejercicio', targetYear)
           .order('id', { ascending: true })
@@ -110,7 +178,7 @@ export const supabaseAnnualTax = {
       ),
       fetchAllRows(async (from, to) =>
         sb.from('poliza_movements')
-          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo)')
+          .select('account_id, cargo, abono, polizas!inner(company_id, ejercicio, periodo, origin)')
           .eq('polizas.company_id', company.id)
           .eq('polizas.ejercicio', targetYear + 1)
           .eq('polizas.periodo', 1)
@@ -120,24 +188,13 @@ export const supabaseAnnualTax = {
       sb.from('annual_tax_snapshots').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).maybeSingle(),
       sb.from('tax_parameters').select('*').eq('company_id', company.id).eq('ejercicio', targetYear).order('periodo', { ascending: false }),
       fetchAllRows(async (from, to) =>
-        sb
-          .from('fixed_assets')
-          .select('*')
-          .eq('company_id', company.id)
-          .order('fecha_adquisicion', { ascending: true })
-          .order('id', { ascending: true })
-          .range(from, to)
+        sb.from('fixed_assets').select('*').eq('company_id', company.id).order('fecha_adquisicion', { ascending: true }).order('id', { ascending: true }).range(from, to)
       ),
       fetchAllRows(async (from, to) =>
-        sb
-          .from('cfdi_documents')
-          .select(CFDI_ANNUAL_PROJECTION)
-          .eq('company_id', company.id)
-          .order('fecha', { ascending: false })
-          .order('id', { ascending: true })
-          .range(from, to)
+        sb.from('cfdi_documents').select(CFDI_ANNUAL_PROJECTION).eq('company_id', company.id).order('fecha', { ascending: false }).order('id', { ascending: true }).range(from, to)
       ),
-      supabaseAccountingRules.listAccountingRules(company.id)
+      supabaseAccountingRules.listAccountingRules(company.id),
+      this.listFiscalLosses(company.id)
     ]);
 
     const accounts = rawAccounts.map((r) => mapSupabaseAccount(r as Record<string, unknown>));
@@ -185,6 +242,7 @@ export const supabaseAnnualTax = {
       fixedAssetsFiscalDeduction,
       paymentsProvisioned,
       perdidasFiscalesPendientes: Number(taxRow?.perdidas_fiscales_pendientes ?? 0),
+      lossCarryforwards,
       isrRetenidoAcreditable,
       inputs,
       cfdis,

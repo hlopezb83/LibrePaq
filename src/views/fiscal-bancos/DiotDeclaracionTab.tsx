@@ -8,6 +8,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { checkRfcsAgainstCloud69B } from '../../lib/supabase/supabase-cxc-sat';
 import { checkRfc69BStatus, getLoaded69BDatabase, getLoaded69BMeta } from '../../shared/sat-69b';
 import { MESES_SAT } from '../../shared/sat-constants';
+import { validateDiotBatchLines } from '../../shared/engine/diot.engine';
 import type { DiotReportResponse } from '../../shared/types';
 import { DiotStatusBanners } from './DiotStatusBanners';
 import { DiotSuppliersTable, type DiotSupplierRowWithEfos } from './DiotSuppliersTable';
@@ -111,6 +112,7 @@ export function DiotDeclaracionTab({
   void cloudSyncTick;
   const efosCount = rowsWithEfos.filter((r) => r.isEfos).length;
   const hasRows = diotData.rows.length > 0;
+  const batchWarnings = validateDiotBatchLines(diotData.rows);
   const noRowsTitle = 'No hay operaciones pagadas con terceros en este periodo para exportar';
   const totalRetenciones = diotData.totals.isrRetenido + diotData.totals.ivaRetenido;
 
@@ -152,7 +154,7 @@ export function DiotDeclaracionTab({
             <div className="flex flex-wrap items-center gap-2.5">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-blue-700" aria-hidden="true" />
-                Declaración Informativa de Operaciones con Terceros (DIOT Formato A-29)
+                Declaración Informativa de Operaciones con Terceros — DIOT 2025/2026 (54 campos)
               </h2>
               {efosCount > 0 ? (
                 <span
@@ -232,6 +234,7 @@ export function DiotDeclaracionTab({
           isTruncatedLocal69B={isTruncatedLocal69B}
           cachedCount69B={meta69B?.cachedCount ?? getLoaded69BDatabase().size}
           totalCount69B={meta69B?.totalCount ?? db69BCount}
+          batchWarnings={batchWarnings}
         />
 
         <DiotSuppliersTable

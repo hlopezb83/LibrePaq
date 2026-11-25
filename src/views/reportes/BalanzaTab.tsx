@@ -1,19 +1,15 @@
 import { useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import {
-  flexRender,
-  useTable,
-  type SortingState
-} from '@tanstack/react-table';
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  Search
-} from 'lucide-react';
-import { ClearFiltersButton, EmptyState } from '../../components/ui';
+import { flexRender, useTable, type SortingState } from '@tanstack/react-table';
+import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react';
+import { AlertBanner, ClearFiltersButton, EmptyState } from '../../components/ui';
+import { useToast } from '../../context/ToastContext';
+import { formatCurrency } from '../../lib/formatters';
 import { toCents } from '../../shared/accounting-engine';
+import type { CancelledCfdiWithLivePoliza } from '../../shared/engine/three-way-tieout.helpers';
 import type { AccountWithBalance, Company } from '../../shared/types';
+import { exportBalanzaXlsx } from './balanzaExcelExport';
+import { exportBalanzaCsvOnly } from './reportesCsvExport';
 import { balanzaTableFeatures, useBalanzaColumns } from './useBalanzaColumns';
 import { BalanzaToolbar, type BalanzaLevelScope } from './BalanzaToolbar';
 import { BalanzaTotalsFooter } from './BalanzaTotalsFooter';
@@ -22,17 +18,22 @@ interface BalanzaTabProps {
   trialBalance: AccountWithBalance[];
   company: Company;
   ejercicio: number;
+  periodo?: number;
   mesNombre: string;
   onSelectAccount: (accountId: string) => void;
+  cancelledCfdisWithPoliza?: ReadonlyArray<CancelledCfdiWithLivePoliza>;
 }
 
 export function BalanzaTab({
   trialBalance,
   company,
   ejercicio,
+  periodo,
   mesNombre,
-  onSelectAccount
+  onSelectAccount,
+  cancelledCfdisWithPoliza = []
 }: BalanzaTabProps) {
+  const toast = useToast();
   const [levelScope, setLevelScope] = useState<BalanzaLevelScope>('ALL');
   const [hideZeroBalances, setHideZeroBalances] = useState(false);
   const [balanzaSearch, setBalanzaSearch] = useState('');
@@ -108,9 +109,7 @@ export function BalanzaTab({
 
   const { filteredBalanzaTotals, rootRowsCount } = useMemo(() => {
     const visibleCodes = new Set(balanzaRows.map((r) => r.code));
-    const rootRows = balanzaRows.filter(
-      (r) => !r.parentCode || !visibleCodes.has(r.parentCode)
-    );
+    const rootRows = balanzaRows.filter((r) => !r.parentCode || !visibleCodes.has(r.parentCode));
     const totals = rootRows.reduce(
       (acc, r) => {
         if (r.nature === 'DEUDORA') {
@@ -124,27 +123,17 @@ export function BalanzaTab({
         acc.abonos += r.periodCredits;
         return acc;
       },
-      {
-        initialDeudor: 0,
-        initialAcreedor: 0,
-        cargos: 0,
-        abonos: 0,
-        finalDeudor: 0,
-        finalAcreedor: 0
-      }
+      { initialDeudor: 0, initialAcreedor: 0, cargos: 0, abonos: 0, finalDeudor: 0, finalAcreedor: 0 }
     );
     return { filteredBalanzaTotals: totals, rootRowsCount: rootRows.length };
   }, [balanzaRows]);
 
   const columns = useBalanzaColumns(onSelectAccount);
-
   const table = useTable({
     features: balanzaTableFeatures,
     data: balanzaRows,
     columns,
-    state: {
-      sorting
-    },
+    state: { sorting },
     onSortingChange: setSorting
   });
 
@@ -170,6 +159,24 @@ export function BalanzaTab({
     setBalanzaSearch('');
   };
 
+  const targetPeriodo = periodo ?? company.currentPeriod ?? 1;
+  const exportOpts = { levelScope, omitZeroAccounts: hideZeroBalances };
+
+  const handleExportCsv = () => {
+    toast.success(exportBalanzaCsvOnly({ company, ejercicio, periodo: targetPeriodo, trialBalance, balanzaOptions: exportOpts }));
+  };
+
+  const handleExportXlsx = () => {
+    void exportBalanzaXlsx({
+      company,
+      ejercicio,
+      periodo: targetPeriodo,
+      mesNombre,
+      trialBalance,
+      options: exportOpts
+    }).then((count) => toast.success(`Balanza exportada a Excel (${count} cuentas)`));
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
       <BalanzaToolbar
@@ -185,7 +192,27 @@ export function BalanzaTab({
         zeroCount={zeroCount}
         filteredCount={rows.length}
         totalCount={trialBalance.length}
+        cancelledCount={cancelledCfdisWithPoliza.length}
+        onExportCsv={handleExportCsv}
+        onExportXlsx={handleExportXlsx}
       />
+
+      {cancelledCfdisWithPoliza.length > 0 && (
+        <div className="mx-4 my-3">
+          <AlertBanner
+            tone="danger"
+            title={`${cancelledCfdisWithPoliza.length} CFDI(s) cancelado(s) ante el SAT siguen vinculados a póliza viva`}
+          >
+            <ul className="list-disc pl-4 text-[11px] space-y-0.5 font-mono">
+              {cancelledCfdisWithPoliza.slice(0, 8).map((c) => (
+                <li key={c.uuid}>
+                  {c.uuid} • {c.polizaFolio ?? c.polizaId} ({c.direction}) • {formatCurrency(c.total)}
+                </li>
+              ))}
+            </ul>
+          </AlertBanner>
+        </div>
+      )}
 
       <div
         ref={parentRef}
@@ -213,11 +240,7 @@ export function BalanzaTab({
                       scope="col"
                       aria-sort={
                         isSortable
-                          ? sorted === 'asc'
-                            ? 'ascending'
-                            : sorted === 'desc'
-                            ? 'descending'
-                            : 'none'
+                          ? sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'
                           : undefined
                       }
                       className="py-3 px-4 whitespace-nowrap"
@@ -229,9 +252,7 @@ export function BalanzaTab({
                           className="w-full flex items-center gap-1.5 uppercase tracking-wider font-bold text-left hover:text-blue-800 transition cursor-pointer"
                         >
                           <span className="flex-1">
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(header.column.columnDef.header, header.getContext())}
+                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                           </span>
                           <span className="text-slate-600 shrink-0" aria-hidden="true">
                             {sorted === 'asc' ? (
@@ -246,9 +267,7 @@ export function BalanzaTab({
                       ) : (
                         <div className="flex items-center gap-1.5">
                           <span>
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(header.column.columnDef.header, header.getContext())}
+                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                           </span>
                         </div>
                       )}
@@ -275,11 +294,7 @@ export function BalanzaTab({
               <>
                 {paddingTop > 0 && (
                   <tr aria-hidden="true" data-spacer="true">
-                    <td
-                      data-spacer="true"
-                      colSpan={table.getAllLeafColumns().length}
-                      style={{ height: `${paddingTop}px` }}
-                    />
+                    <td data-spacer="true" colSpan={table.getAllLeafColumns().length} style={{ height: `${paddingTop}px` }} />
                   </tr>
                 )}
                 {virtualItems.map((virtualRow) => {
@@ -291,13 +306,7 @@ export function BalanzaTab({
                       key={row.id}
                       ref={rowVirtualizer.measureElement}
                       data-index={virtualRow.index}
-                      className={
-                        lvl === 1
-                          ? 'bg-slate-100'
-                          : lvl === 2
-                          ? 'bg-slate-50/70'
-                          : 'hover:bg-blue-50/30'
-                      }
+                      className={lvl === 1 ? 'bg-slate-100' : lvl === 2 ? 'bg-slate-50/70' : 'hover:bg-blue-50/30'}
                     >
                       {row.getAllCells().map((cell) => (
                         <td key={cell.id} className="py-2.5 px-4 whitespace-nowrap">
@@ -309,11 +318,7 @@ export function BalanzaTab({
                 })}
                 {paddingBottom > 0 && (
                   <tr aria-hidden="true" data-spacer="true">
-                    <td
-                      data-spacer="true"
-                      colSpan={table.getAllLeafColumns().length}
-                      style={{ height: `${paddingBottom}px` }}
-                    />
+                    <td data-spacer="true" colSpan={table.getAllLeafColumns().length} style={{ height: `${paddingBottom}px` }} />
                   </tr>
                 )}
               </>

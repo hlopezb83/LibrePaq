@@ -4,10 +4,12 @@ import type {
 } from '../types/annual-tax.types';
 import type { AccountWithBalance, CfdiDocument, Company } from '../types/core.types';
 import type { AccountingRuleRecord } from '../types/accounting-rules.types';
+import type { FiscalLossCarryforward } from '../types/ronda11.types';
 import { getInpcMedioPeriodo } from '../sat-inpc-catalog';
 import { calculateArt106PfIsr } from './art106-tax.engine';
 import {
   computeAnnualInflation,
+  computeArt57LossCarryforwards,
   pickEvalAccounts,
   resolveAnnualInpcPair,
   sumMonthlyIsrRetentionChargesCents,
@@ -33,6 +35,7 @@ export interface ComputeAnnualTaxParams {
   paymentsProvisioned: number;
   inputs: Partial<AnnualTaxInputs>;
   perdidasFiscalesPendientes?: number;
+  lossCarryforwards?: readonly FiscalLossCarryforward[];
   isrRetenidoAcreditable?: number;
   cfdis?: readonly CfdiDocument[];
   rules?: readonly AccountingRuleRecord[];
@@ -68,6 +71,7 @@ function summarizeLedgerAndReconcile(params: {
   deduccionesPersonales: number;
   perdidasPendientes: number;
   factorActualizacionPerdidas: number;
+  lossCarryforwards?: readonly FiscalLossCarryforward[];
   cashOverride?: { ingresosCents: number; deduccionesCents: number; isPfResico: boolean } | null;
 }): {
   ingresosContablesCents: number;
@@ -151,9 +155,17 @@ function summarizeLedgerAndReconcile(params: {
   const utilidadFiscalCents = cashOv?.isPfResico
     ? utilidadFiscalAntesPtuCents
     : utilidadFiscalAntesPtuCents - ptuPagadaCents;
-  const perdidasActCents = Math.round(perdidasPendCents * params.factorActualizacionPerdidas);
-  const perdidasAplicadasCents =
-    !cashOv?.isPfResico && utilidadFiscalCents > 0
+  const hasPerYearLosses = Boolean(params.lossCarryforwards && params.lossCarryforwards.length > 0);
+  const art57 = hasPerYearLosses
+    ? computeArt57LossCarryforwards(params.lossCarryforwards!, params.ejercicio, !cashOv?.isPfResico ? utilidadFiscalCents : 0)
+    : null;
+  const effectivePerdidasPendCents = art57 ? art57.pendientesNominalCents : perdidasPendCents;
+  const perdidasActCents = art57 ? art57.actualizadasCents : Math.round(perdidasPendCents * params.factorActualizacionPerdidas);
+  const perdidasAplicadasCents = art57
+    ? !cashOv?.isPfResico && utilidadFiscalCents > 0
+      ? art57.aplicadasCents
+      : 0
+    : !cashOv?.isPfResico && utilidadFiscalCents > 0
       ? Math.min(utilidadFiscalCents, perdidasActCents)
       : 0;
   const ingresosForCapCents = Math.max(0, cashOv ? cashOv.ingresosCents : ingresosContablesCents);
@@ -187,7 +199,7 @@ function summarizeLedgerAndReconcile(params: {
       ptuPagadaEjercicio: fromCents(ptuPagadaCents),
       utilidadFiscalAntesPtu: fromCents(utilidadFiscalAntesPtuCents),
       utilidadFiscal: fromCents(utilidadFiscalCents),
-      perdidasFiscalesPendientes: fromCents(perdidasPendCents),
+      perdidasFiscalesPendientes: fromCents(effectivePerdidasPendCents),
       perdidasFiscalesActualizadas: fromCents(perdidasActCents),
       perdidasFiscalesAplicadas: fromCents(perdidasAplicadasCents),
       deduccionesPersonalesAplicadas: params.applyPersonalDeductions ? fromCents(dedPersonalAplicadasCents) : 0,
@@ -257,6 +269,7 @@ export function computeAnnualTaxSummary(params: ComputeAnnualTaxParams): AnnualT
       deduccionesPersonales: resolvedInputs.deduccionesPersonales ?? 0,
       perdidasPendientes: params.perdidasFiscalesPendientes ?? 0,
       factorActualizacionPerdidas,
+      lossCarryforwards: params.lossCarryforwards,
       cashOverride: cashSummary
         ? {
             ingresosCents: toCents(cashSummary.ingresosAcumulados),

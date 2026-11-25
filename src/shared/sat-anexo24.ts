@@ -38,16 +38,22 @@ export interface SatAnexo24XmlResult {
   filename: string;
   type: string;
   xml: string;
+  warnings?: string[];
 }
 
 const UUID_V4_LIKE_REGEX = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
 
+function isZeroBalanceAccount(acc: AccountWithBalance): boolean {
+  return (
+    Math.abs(acc.initialBalanceComputed || 0) < 0.005 &&
+    Math.abs(acc.periodCharges || 0) < 0.005 &&
+    Math.abs(acc.periodCredits || 0) < 0.005 &&
+    Math.abs(acc.finalBalance || 0) < 0.005
+  );
+}
+
 /**
  * Generador Oficial de Archivos XML de Contabilidad Electrónica SAT (Anexo 24 v1.3).
- * Cumple con los esquemas XSD oficiales v1.3 del SAT (sin el atributo obsoleto TotalCtas):
- * - CatalogoCuentas_1_3.xsd (CT.xml)
- * - BalanzaComprobacion_1_3.xsd (BN.xml / BC.xml)
- * - PolizasPeriodo_1_3.xsd (PL.xml)
  */
 export function buildSatAnexo24Xml(
   company: Company,
@@ -105,6 +111,7 @@ ${ctasXml}
     const solicitudAttrs = buildAnexo24SolicitudAttrs(options);
     assertSolicitudAttrsIfStrict(solicitudAttrs, options?.strictSolicitud);
     const { tipoSolicitud, reqSolicitudAttr } = solicitudAttrs;
+    const warnings: string[] = [];
 
     const polizasXml = polizas
       .map((p) => {
@@ -122,6 +129,7 @@ ${ctasXml}
         const unassignedHeaderUuids = headerUuids.filter((u) => !movExplicitSet.has(u));
         const firstUnlinkedIdx = movements.findIndex((mv) => !mv.cfdiUuid?.trim());
         const attachHeaderIdx = firstUnlinkedIdx >= 0 ? firstUnlinkedIdx : 0;
+        let polMissingRfcWarned = false;
 
         const transaccionesXml = movements
           .map((m, idx) => {
@@ -142,6 +150,10 @@ ${ctasXml}
               if (!candUuid || emittedPolizaUuids.has(candUuid)) continue;
               emittedPolizaUuids.add(candUuid);
               const resolved = resolveMovementCounterpart(cleanRfc, p, m, options, candUuid);
+              if (resolved.missingCounterpartRfc && !polMissingRfcWarned) {
+                polMissingRfcWarned = true;
+                warnings.push(`Póliza ${polId}: falta RFC de contraparte; se usó XAXX010101000.`);
+              }
               const montoReal =
                 resolved.cfdiInfo?.total && resolved.cfdiInfo.total > 0
                   ? resolved.cfdiInfo.total
@@ -167,6 +179,10 @@ ${ctasXml}
               primaryCounterpart.fxAttrs,
               primaryCounterpart.cfdiInfo
             );
+            if (paymentNode && primaryCounterpart.missingCounterpartRfc && !m.beneficiaryRfc && !polMissingRfcWarned) {
+              polMissingRfcWarned = true;
+              warnings.push(`Póliza ${polId}: falta RFC en nodo de pago bancario; se usó XAXX010101000.`);
+            }
 
             return `  <PLZ:Transaccion NumCta="${numCta}" DesCta="${desCta}" Concepto="${movConcepto}" Debe="${debe}" Haber="${haber}">${compNodes}${paymentNode}\n  </PLZ:Transaccion>`;
           })
@@ -184,11 +200,12 @@ ${polizasXml}
     return {
       filename: `${cleanRfc}${year}${polMesStr}PL.xml`,
       type: 'Pólizas del Periodo Anexo 24 (1.3)',
-      xml
+      xml,
+      ...(warnings.length > 0 ? { warnings } : {})
     };
   }
 
-  // 3. Balanza de Comprobación (BN.xml / BC.xml — Mes permitido 01..13)
+  // 4. Balanza de Comprobación (BN.xml / BC.xml — Mes permitido 01..13)
   const tipoEnvio = options?.tipoEnvio || 'N';
   const fechaModBalAttr =
     tipoEnvio === 'C'
@@ -197,7 +214,12 @@ ${polizasXml}
   const fileSuffix = `B${tipoEnvio}.xml`;
 
   const balanzaCtasXml = trialBalance
-    .filter((acc) => !isLevel1StructuralRubro(acc))
+    .filter((acc) => {
+      if (isLevel1StructuralRubro(acc)) return false;
+      if (options?.balanzaLevel === 'N2' && acc.level > 2) return false;
+      if (options?.omitZeroAccounts && isZeroBalanceAccount(acc)) return false;
+      return true;
+    })
     .map((acc) => {
       const numCta = truncXml(acc.code, 100);
       const fmtVal = (n: number) => {

@@ -1,7 +1,10 @@
 import type { Account, AccountWithBalance } from '../types/core.types';
 import type { FixedAssetRecord as FaRecord } from '../types/fiscal.types';
+import type { FiscalLossCarryforward } from '../types/ronda11.types';
 import { parseCalendarDate } from '../date-utils';
+import { getInpcMedioPeriodo, getOfficialInpc } from '../sat-inpc-catalog';
 import { resolveFiscalAccount } from './auto-poliza.engine';
+import { isResultOfExerciseAccount } from './financial-reports-helpers';
 import { rollUpTrialBalanceAccounts, type JoinedPolizaMovementInput } from './financial-reports.engine';
 import { computeFixedAssetWithDepreciation } from './fixed-assets.engine';
 import { fromCents, toCents } from './invariants-and-math';
@@ -24,7 +27,7 @@ export {
 
 /**
  * Construye los 12 cortes mensuales acumulados (periodos 1..12) y la balanza anual
- * a partir de cuentas y movimientos contables, reutilizable en SQLite y Supabase.
+ * incluyendo ajustes de Periodo 13 (excluyendo `CIERRE_ANUAL`).
  */
 export function buildAnnualMonthlyBalancesFromMovements(
   accounts: readonly Account[],
@@ -33,6 +36,9 @@ export function buildAnnualMonthlyBalancesFromMovements(
 ): { trialBalance: AccountWithBalance[]; monthlyBalancesByPeriod: AnnualTaxMonthlyBalance[] } {
   const isBsMap = new Map(
     accounts.map((a) => [a.id, a.type === 'ACTIVO' || a.type === 'PASIVO' || a.type === 'CAPITAL'])
+  );
+  const resultAccIds = new Set(
+    accounts.filter((a) => isResultOfExerciseAccount(a)).map((a) => a.id)
   );
 
   const openingCharges = new Map<string, number>();
@@ -47,6 +53,9 @@ export function buildAnnualMonthlyBalancesFromMovements(
     yearMonthCharges.set(m, new Map<string, number>());
     yearMonthCredits.set(m, new Map<string, number>());
   }
+
+  const p13UnoriginedRows: Array<{ account_id: string; cargoCents: number; abonoCents: number }> = [];
+  let p13UnoriginedHitsResultAcc = false;
 
   for (const row of movs) {
     const p = Array.isArray(row.polizas) ? row.polizas[0] : row.polizas;
@@ -67,6 +76,27 @@ export function buildAnnualMonthlyBalancesFromMovements(
       const credMap = yearMonthCredits.get(p.periodo)!;
       chgMap.set(row.account_id, (chgMap.get(row.account_id) || 0) + cargoCents);
       credMap.set(row.account_id, (credMap.get(row.account_id) || 0) + abonoCents);
+    } else if (p.ejercicio === ejercicio && p.periodo === 13) {
+      const origin = String(p.origin ?? '').trim();
+      if (origin === 'CIERRE_ANUAL') continue;
+      if (origin) {
+        const chgMap = yearMonthCharges.get(12)!;
+        const credMap = yearMonthCredits.get(12)!;
+        chgMap.set(row.account_id, (chgMap.get(row.account_id) || 0) + cargoCents);
+        credMap.set(row.account_id, (credMap.get(row.account_id) || 0) + abonoCents);
+      } else {
+        if (resultAccIds.has(row.account_id)) p13UnoriginedHitsResultAcc = true;
+        p13UnoriginedRows.push({ account_id: row.account_id, cargoCents, abonoCents });
+      }
+    }
+  }
+
+  if (!p13UnoriginedHitsResultAcc && p13UnoriginedRows.length > 0) {
+    const chgMap = yearMonthCharges.get(12)!;
+    const credMap = yearMonthCredits.get(12)!;
+    for (const r of p13UnoriginedRows) {
+      chgMap.set(r.account_id, (chgMap.get(r.account_id) || 0) + r.cargoCents);
+      credMap.set(r.account_id, (credMap.get(r.account_id) || 0) + r.abonoCents);
     }
   }
 
@@ -109,8 +139,8 @@ export function buildAnnualMonthlyBalancesFromMovements(
 }
 
 /**
- * Suma la deducción fiscal anual actualizada de inversiones (Art. 31 LISR) de los 12 meses del ejercicio,
- * incluyendo activos `TOTALMENTE_DEPRECIADO` que concluyeron su vida útil dentro de `ejercicio`.
+ * Suma la deducción fiscal anual actualizada de inversiones (Art. 31 LISR) de los 12 meses,
+ * conservando meses completos usados antes de `BAJA` y activos `TOTALMENTE_DEPRECIADO` concluidos en `ejercicio`.
  */
 export function computeAnnualFixedAssetFiscalDeduction(
   assets: readonly FaRecord[],
@@ -118,10 +148,34 @@ export function computeAnnualFixedAssetFiscalDeduction(
 ): number {
   let totalCents = 0;
   for (const asset of assets) {
-    if (asset.estatus === 'BAJA') continue;
+    const acq = parseCalendarDate(asset.fechaAdquisicion || `${ejercicio}-01-01`, ejercicio, 1);
+    if (acq.year > ejercicio) continue;
+
+    if (asset.estatus === 'BAJA') {
+      if (!asset.fechaBaja) continue;
+      const baja = parseCalendarDate(asset.fechaBaja, ejercicio, 1);
+      if (baja.year < ejercicio) continue;
+      const lastUsedMonth = baja.year > ejercicio ? 12 : baja.month - 1;
+      if (lastUsedMonth <= 0) continue;
+      const monthsBeforeYear = asset.fechaAdquisicion
+        ? Math.max(0, (ejercicio - acq.year) * 12 - acq.month)
+        : Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
+      let extraMonths = 0;
+      for (let m = 1; m <= lastUsedMonth; m += 1) {
+        const calc = computeFixedAssetWithDepreciation(
+          { ...asset, estatus: 'ACTIVO', mesesDepreciadosPrevios: monthsBeforeYear + extraMonths },
+          { ejercicio, periodo: m }
+        );
+        const fiscalCents = toCents(calc.depreciacionMensualFiscalActualizada);
+        if (fiscalCents > 0) {
+          totalCents += fiscalCents;
+          extraMonths += 1;
+        }
+      }
+      continue;
+    }
+
     if (asset.estatus === 'TOTALMENTE_DEPRECIADO') {
-      const acq = parseCalendarDate(asset.fechaAdquisicion || `${ejercicio}-01-01`, ejercicio, 1);
-      if (acq.year > ejercicio) continue;
       const totalLifeMonths = asset.tasaAnualPct > 0 ? Math.ceil((100 / asset.tasaAnualPct) * 12) : 0;
       const depTotalMonths = Math.min(
         totalLifeMonths,
@@ -141,8 +195,7 @@ export function computeAnnualFixedAssetFiscalDeduction(
       }
       continue;
     }
-    const acq = parseCalendarDate(asset.fechaAdquisicion || `${ejercicio}-01-01`, ejercicio, 1);
-    if (acq.year > ejercicio) continue;
+
     const monthsBeforeYear = asset.fechaAdquisicion
       ? Math.max(0, (ejercicio - acq.year) * 12 - acq.month)
       : Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
@@ -163,8 +216,55 @@ export function computeAnnualFixedAssetFiscalDeduction(
 }
 
 /**
- * Consolida los pagos provisionales reales de los 12 meses (P01-P12, incluyendo P12 y RESICO PF)
- * desde movimientos contables de ISR provisional por pagar (213-01-002 / 213.03) y parámetros guardados.
+ * Actualiza y aplica pérdidas fiscales pendientes por año de origen conforme al Art. 57 LISR (vigencia 10 años).
+ */
+export function computeArt57LossCarryforwards(
+  losses: readonly FiscalLossCarryforward[],
+  ejercicio: number,
+  utilidadFiscalCents: number
+): {
+  pendientesNominalCents: number;
+  actualizadasCents: number;
+  aplicadasCents: number;
+} {
+  const inpcJunActual = getInpcMedioPeriodo(ejercicio, 6);
+  const eligible = [...losses]
+    .filter((l) => l.lossYear < ejercicio && ejercicio - l.lossYear <= 10 && l.remainingAmount > 0)
+    .sort((a, b) => a.lossYear - b.lossYear);
+
+  let pendientesNominalCents = 0;
+  let actualizadasCents = 0;
+  let appliedTotalCents = 0;
+  let remainingUtilCents = Math.max(0, utilidadFiscalCents);
+
+  for (const loss of eligible) {
+    const remCents = Math.max(0, toCents(loss.remainingAmount));
+    let factor = 1;
+    if (loss.inpcLastApplied && loss.inpcLastApplied > 0 && inpcJunActual >= loss.inpcLastApplied) {
+      factor = Math.max(1, truncate4(inpcJunActual / loss.inpcLastApplied));
+    } else {
+      const firstMonth = loss.inpcFirstUpdateMonth && loss.inpcFirstUpdateMonth >= 1 && loss.inpcFirstUpdateMonth <= 12
+        ? loss.inpcFirstUpdateMonth
+        : 7;
+      const inpcFirst = getOfficialInpc(loss.lossYear, firstMonth) ?? getInpcMedioPeriodo(loss.lossYear, firstMonth);
+      const inpcDicLoss = getOfficialInpc(loss.lossYear, 12) ?? getInpcMedioPeriodo(loss.lossYear, 12);
+      const f1 = inpcFirst > 0 && inpcDicLoss >= inpcFirst ? Math.max(1, truncate4(inpcDicLoss / inpcFirst)) : 1;
+      const f2 = inpcDicLoss > 0 && inpcJunActual >= inpcDicLoss ? Math.max(1, truncate4(inpcJunActual / inpcDicLoss)) : 1;
+      factor = Math.max(1, truncate4(f1 * f2));
+    }
+    const updCents = Math.round(remCents * factor);
+    const appCents = remainingUtilCents > 0 ? Math.min(remainingUtilCents, updCents) : 0;
+    remainingUtilCents -= appCents;
+    pendientesNominalCents += remCents;
+    actualizadasCents += updCents;
+    appliedTotalCents += appCents;
+  }
+
+  return { pendientesNominalCents, actualizadasCents, aplicadasCents: appliedTotalCents };
+}
+
+/**
+ * Consolida los pagos provisionales reales de los 12 meses (P01-P12, incluyendo P12 y RESICO PF).
  */
 export function computeAnnualProvisionalPayments(params: {
   accounts: readonly Account[];

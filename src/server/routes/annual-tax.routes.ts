@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
 import { resolveRequestActor } from '../auth-actor';
 import {
+  deleteFiscalLossRepo,
   getAnnualTaxSummaryRepo,
-  saveAnnualTaxInputsRepo
+  listFiscalLossesRepo,
+  saveAnnualTaxInputsRepo,
+  upsertFiscalLossRepo
 } from '../repositories/annual-tax.repo';
 import { assertRouteCompanyAccess, errorStatus } from './route-helpers';
 
@@ -65,6 +68,66 @@ annualTaxRoutes.post('/companies/:companyId/annual-tax', async (c) => {
     }, userId);
 
     return c.json(getAnnualTaxSummaryRepo(companyId, ejercicio, userId));
+  } catch (err) {
+    const { message, status } = errorStatus(err);
+    return c.json({ error: message }, status);
+  }
+});
+
+annualTaxRoutes.get('/companies/:companyId/annual-tax/losses', (c) => {
+  try {
+    const companyId = c.req.param('companyId');
+    const denied = assertRouteCompanyAccess(c, companyId);
+    if (denied) return denied;
+    const { userId } = resolveRequestActor(c);
+    return c.json(listFiscalLossesRepo(companyId, userId));
+  } catch (err) {
+    const { message, status } = errorStatus(err);
+    return c.json({ error: message }, status);
+  }
+});
+
+annualTaxRoutes.post('/companies/:companyId/annual-tax/losses', async (c) => {
+  try {
+    const companyId = c.req.param('companyId');
+    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
+    if (denied) return denied;
+    const { userId } = resolveRequestActor(c);
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const rows = upsertFiscalLossRepo(
+      companyId,
+      {
+        id: body.id ? String(body.id) : undefined,
+        lossYear: Number(body.lossYear),
+        originalAmount: Number(body.originalAmount ?? 0),
+        appliedAmount: Number(body.appliedAmount ?? 0),
+        remainingAmount: Number(body.remainingAmount ?? body.originalAmount ?? 0),
+        inpcFirstUpdateMonth:
+          body.inpcFirstUpdateMonth !== undefined && body.inpcFirstUpdateMonth !== null
+            ? Number(body.inpcFirstUpdateMonth)
+            : null,
+        inpcLastApplied:
+          body.inpcLastApplied !== undefined && body.inpcLastApplied !== null
+            ? Number(body.inpcLastApplied)
+            : null,
+        notes: body.notes ? String(body.notes) : ''
+      },
+      userId
+    );
+    return c.json(rows);
+  } catch (err) {
+    const { message, status } = errorStatus(err);
+    return c.json({ error: message }, status);
+  }
+});
+
+annualTaxRoutes.delete('/companies/:companyId/annual-tax/losses/:lossId', (c) => {
+  try {
+    const companyId = c.req.param('companyId');
+    const denied = assertRouteCompanyAccess(c, companyId, { requireWrite: true });
+    if (denied) return denied;
+    const { userId } = resolveRequestActor(c);
+    return c.json(deleteFiscalLossRepo(companyId, c.req.param('lossId'), userId));
   } catch (err) {
     const { message, status } = errorStatus(err);
     return c.json({ error: message }, status);

@@ -1,5 +1,6 @@
 import { ShieldAlert } from 'lucide-react';
 import { AlertBanner } from '../../components/ui';
+import type { DiotBatchValidationWarning } from '../../shared/engine/diot-txt';
 
 export interface DiotStatusBannersProps {
   efosCount: number;
@@ -8,6 +9,7 @@ export interface DiotStatusBannersProps {
   isTruncatedLocal69B: boolean;
   cachedCount69B: number;
   totalCount69B: number;
+  batchWarnings?: ReadonlyArray<DiotBatchValidationWarning>;
 }
 
 export function DiotStatusBanners({
@@ -16,10 +18,16 @@ export function DiotStatusBanners({
   regimenFiscal,
   isTruncatedLocal69B,
   cachedCount69B,
-  totalCount69B
+  totalCount69B,
+  batchWarnings = []
 }: DiotStatusBannersProps) {
   const isResico = regimenFiscal.startsWith('626');
-  const hasAny = efosCount > 0 || isTruncatedLocal69B || unpostedPaidCfdisCount > 0 || isResico;
+  const hasAny =
+    efosCount > 0 ||
+    isTruncatedLocal69B ||
+    unpostedPaidCfdisCount > 0 ||
+    batchWarnings.length > 0 ||
+    isResico;
   if (!hasAny) return null;
 
   return (
@@ -55,6 +63,21 @@ export function DiotStatusBanners({
           <span className="block text-[11px]">
             La DIOT solo reporta CFDIs efectivamente pagados y contabilizados en pólizas del periodo. Contabiliza estos comprobantes para incluirlos en el archivo batch.
           </span>
+        </AlertBanner>
+      )}
+
+      {batchWarnings.length > 0 && (
+        <AlertBanner
+          tone="warning"
+          title={`${batchWarnings.length} validación(es) de layout DIOT 54 campos (Campo 13 <= Campo 12)`}
+        >
+          <ul className="list-disc pl-4 text-[11px] space-y-0.5">
+            {batchWarnings.slice(0, 5).map((w, idx) => (
+              <li key={`${w.rfc}-${idx}`}>
+                <strong className="font-mono">{w.rfc}</strong> ({w.nombre}): {w.message}
+              </li>
+            ))}
+          </ul>
         </AlertBanner>
       )}
 

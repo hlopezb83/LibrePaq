@@ -1,5 +1,5 @@
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { ClearFiltersButton, SearchInput, StatusBadge } from '../../components/ui';
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, ShieldAlert } from 'lucide-react';
+import { Button, ClearFiltersButton, SearchInput, StatusBadge } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
 
 export type BalanzaLevelScope = 'ALL' | 'MAYOR' | 'SUBCUENTAS' | 'AFECTABLES';
@@ -17,6 +17,9 @@ interface BalanzaToolbarProps {
   zeroCount: number;
   filteredCount: number;
   totalCount: number;
+  cancelledCount?: number;
+  onExportCsv?: () => void;
+  onExportXlsx?: () => void;
 }
 
 const LEVEL_OPTIONS: ReadonlyArray<{ id: BalanzaLevelScope; label: string }> = [
@@ -38,7 +41,10 @@ export function BalanzaToolbar({
   onClearFilters,
   zeroCount,
   filteredCount,
-  totalCount
+  totalCount,
+  cancelledCount = 0,
+  onExportCsv,
+  onExportXlsx
 }: BalanzaToolbarProps) {
   const activeFilterCount =
     (balanzaSearch.trim() ? 1 : 0) + (levelScope !== 'ALL' ? 1 : 0) + (hideZeroBalances ? 1 : 0);
@@ -55,6 +61,11 @@ export function BalanzaToolbar({
             Diferencia en Balanza: {formatCurrency(trialDiff)}
           </StatusBadge>
         )}
+        {cancelledCount > 0 && (
+          <StatusBadge tone="red" icon={<ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />}>
+            {cancelledCount} CFDI(s) cancelado(s) con póliza viva
+          </StatusBadge>
+        )}
         <SearchInput
           id="balanza-search-input"
           size="sm"
@@ -69,11 +80,7 @@ export function BalanzaToolbar({
           Mostrando {filteredCount} de {totalCount} cuentas
         </span>
         {activeFilterCount > 0 && (
-          <ClearFiltersButton
-            onClick={onClearFilters}
-            count={activeFilterCount}
-            className="no-print"
-          />
+          <ClearFiltersButton onClick={onClearFilters} count={activeFilterCount} className="no-print" />
         )}
       </div>
 
@@ -111,8 +118,29 @@ export function BalanzaToolbar({
             onChange={(e) => onToggleHideZero(e.target.checked)}
             className="rounded text-blue-700"
           />
-          <span>Ocultar saldo $0.00 {zeroCount > 0 && `(${zeroCount})`}</span>
+          <span>Omitir cuentas en $0.00 {zeroCount > 0 && `(${zeroCount})`}</span>
         </label>
+
+        {onExportCsv && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onExportCsv}
+            leftIcon={<Download className="w-3.5 h-3.5" aria-hidden="true" />}
+          >
+            CSV
+          </Button>
+        )}
+        {onExportXlsx && (
+          <Button
+            variant="export"
+            size="sm"
+            onClick={onExportXlsx}
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5" aria-hidden="true" />}
+          >
+            Excel (.XLSX)
+          </Button>
+        )}
       </div>
     </div>
   );
