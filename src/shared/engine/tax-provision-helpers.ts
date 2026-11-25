@@ -1,4 +1,4 @@
-import type { Account, FiscalWorkpaperResponse } from '../types';
+import type { Account, AccountWithBalance, FiscalWorkpaperResponse } from '../types';
 import {
   assertAccountingInvariant,
   fromCents,
@@ -9,15 +9,153 @@ import {
   type AutoPolizaMovementDraft
 } from './auto-poliza.engine';
 
+export interface Iva118SubaccountSlot {
+  account: Account;
+  remainingCents: number;
+}
+
+export function resolveIvaCobradoAccounts(accounts: readonly Account[]): Account[] {
+  const matched = accounts.filter((a) => {
+    if (!a.isAffectable) return false;
+    const sat = (a.satGroupCode ?? '').trim();
+    if (sat === '208.02' || a.code.startsWith('208-02')) return false;
+    return (
+      sat === '208.01' ||
+      sat.startsWith('208.01') ||
+      a.code.startsWith('208-01') ||
+      (sat.startsWith('208') && a.name.toLowerCase().includes('iva'))
+    );
+  });
+  return matched.length > 0 ? matched : [resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO')];
+}
+
+export function resolveIvaPagadoAccounts(accounts: readonly Account[]): Account[] {
+  const matched = accounts.filter((a) => {
+    if (!a.isAffectable) return false;
+    const sat = (a.satGroupCode ?? '').trim();
+    if (sat === '118.03' || a.code.startsWith('118-03')) return false;
+    return (
+      sat === '118.01' ||
+      sat === '118.02' ||
+      sat.startsWith('118.01') ||
+      sat.startsWith('118.02') ||
+      a.code.startsWith('118-01') ||
+      a.code.startsWith('118-02') ||
+      (sat.startsWith('118') && a.name.toLowerCase().includes('iva'))
+    );
+  });
+  return matched.length > 0 ? matched : [resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO')];
+}
+
+export function push208Subaccounts(
+  movements: AutoPolizaMovementDraft[],
+  cobradoAccounts: readonly (Account | AccountWithBalance)[],
+  fallbackAcc: Account,
+  ivaCobradoCents: number,
+  referencia: string
+): void {
+  if (ivaCobradoCents <= 0) return;
+  const slots = cobradoAccounts
+    .map((a) => {
+      const bal = a as Account & Partial<AccountWithBalance>;
+      const avail = typeof bal.finalBalance === 'number' ? Math.max(0, toCents(bal.finalBalance)) : 0;
+      return { account: a, avail };
+    })
+    .filter((s) => s.avail > 0);
+  if (slots.length === 0) {
+    movements.push({
+      accountId: fallbackAcc.id,
+      accountCode: fallbackAcc.code,
+      accountName: fallbackAcc.name,
+      referencia,
+      concepto: 'Cancelación mensual de IVA Trasladado Cobrado',
+      cargo: fromCents(ivaCobradoCents),
+      abono: 0
+    });
+    return;
+  }
+  let rem = ivaCobradoCents;
+  for (const s of slots) {
+    if (rem <= 0) break;
+    const amt = Math.min(rem, s.avail);
+    if (amt <= 0) continue;
+    rem -= amt;
+    movements.push({
+      accountId: s.account.id,
+      accountCode: s.account.code,
+      accountName: s.account.name,
+      referencia,
+      concepto: 'Cancelación mensual de IVA Trasladado Cobrado',
+      cargo: fromCents(amt),
+      abono: 0
+    });
+  }
+  if (rem > 0) {
+    movements.push({
+      accountId: fallbackAcc.id,
+      accountCode: fallbackAcc.code,
+      accountName: fallbackAcc.name,
+      referencia,
+      concepto: 'Cancelación mensual de IVA Trasladado Cobrado',
+      cargo: fromCents(rem),
+      abono: 0
+    });
+  }
+}
+
+export function credit118Subaccounts(
+  movements: AutoPolizaMovementDraft[],
+  slots: Iva118SubaccountSlot[],
+  fallbackAcc: Account,
+  desiredCents: number,
+  enforceCap: boolean,
+  referencia: string,
+  concepto118: string
+): number {
+  if (desiredCents <= 0) return 0;
+  if (!enforceCap) {
+    movements.push({
+      accountId: fallbackAcc.id,
+      accountCode: fallbackAcc.code,
+      accountName: fallbackAcc.name,
+      referencia,
+      concepto: concepto118,
+      cargo: 0,
+      abono: fromCents(desiredCents)
+    });
+    return desiredCents;
+  }
+  let rem = desiredCents;
+  let totalCredited = 0;
+  for (const slot of slots) {
+    if (rem <= 0) break;
+    const creditCents = Math.min(rem, slot.remainingCents);
+    if (creditCents <= 0) continue;
+    slot.remainingCents -= creditCents;
+    rem -= creditCents;
+    totalCredited += creditCents;
+    movements.push({
+      accountId: slot.account.id,
+      accountCode: slot.account.code,
+      accountName: slot.account.name,
+      referencia,
+      concepto: concepto118,
+      cargo: 0,
+      abono: fromCents(creditCents)
+    });
+  }
+  return totalCredited;
+}
+
 export function push118WithCap(
   movements: AutoPolizaMovementDraft[],
   accIvaPagado: Account,
-  accIvaPendiente: Account | null,
+  _accIvaPendiente: Account | null,
   desiredCents: number,
   remaining118Ref: { cents: number },
   referencia: string,
   concepto118: string,
-  concepto119: string
+  _concepto119?: string
 ): number {
   if (desiredCents <= 0) return 0;
   const credit118 = Math.min(desiredCents, remaining118Ref.cents);
@@ -32,19 +170,6 @@ export function push118WithCap(
       cargo: 0,
       abono: fromCents(credit118)
     });
-  }
-  const shortfall = desiredCents - credit118;
-  if (shortfall > 0 && accIvaPendiente) {
-    movements.push({
-      accountId: accIvaPendiente.id,
-      accountCode: accIvaPendiente.code,
-      accountName: accIvaPendiente.name,
-      referencia,
-      concepto: concepto119,
-      cargo: 0,
-      abono: fromCents(shortfall)
-    });
-    return desiredCents;
   }
   return credit118;
 }
@@ -127,10 +252,10 @@ export function buildExchangeFluctuationMovements(
 export function appendIvaNoAcreditableMovements(
   movements: AutoPolizaMovementDraft[],
   accounts: readonly Account[],
-  accIvaPagado: Account,
-  accIvaPendienteRaw: Account | null,
+  slots118: Iva118SubaccountSlot[],
+  accIvaPagadoFallback: Account,
+  enforce118Cap: boolean,
   ivaNoAcreditableCents: number,
-  remaining118Ref: { cents: number },
   periodo: number
 ): void {
   if (ivaNoAcreditableCents <= 0) return;
@@ -139,15 +264,14 @@ export function appendIvaNoAcreditableMovements(
     accounts.find((a) => a.isAffectable && /iva\s*no\s*acreditable/i.test(a.name)) ??
     accounts.find((a) => a.isAffectable && a.satGroupCode === '601.56') ??
     resolveFiscalAccount(accounts, 'HONORARIOS_SERVICIOS');
-  const noAcredTransferred = push118WithCap(
+  const noAcredTransferred = credit118Subaccounts(
     movements,
-    accIvaPagado,
-    accIvaPendienteRaw,
+    slots118,
+    accIvaPagadoFallback,
     ivaNoAcreditableCents,
-    remaining118Ref,
+    enforce118Cap,
     `IVA-M${periodo}`,
-    'Cancelación de IVA no acreditable por prorrateo Art. 5 LIVA',
-    'Cancelación de IVA pendiente no acreditable por prorrateo Art. 5 LIVA'
+    'Cancelación de IVA no acreditable por prorrateo Art. 5 LIVA'
   );
   if (noAcredTransferred > 0) {
     movements.push({

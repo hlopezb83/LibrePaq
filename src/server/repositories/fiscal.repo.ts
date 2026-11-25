@@ -1,4 +1,4 @@
-import { db } from '../connection';
+import { db, mapFixedAssetRow, type FixedAssetDbRow } from '../connection';
 import {
   assertAccountingInvariant,
   computeCxcCxpAging,
@@ -6,6 +6,7 @@ import {
   fromCents,
   toCents
 } from '../../shared/accounting-engine';
+import { advanceCarryforwardTaxParameters } from '../../shared/engine/fiscal.engine';
 import { computeDiotReportData } from '../../shared/engine/diot.engine';
 import { querySatCfdiStatusSoap } from '../sat-soap';
 import type {
@@ -59,45 +60,24 @@ export function getDiotReport(
   });
 }
 
-export function getTaxParameters(
+type TaxParamRow = {
+  company_id: string;
+  ejercicio: number;
+  periodo?: number;
+  coeficiente_utilidad: number;
+  perdidas_fiscales_pendientes: number;
+  pagos_provisionales_anteriores: number;
+  saldo_favor_iva_anterior: number;
+  tipo_cambio_dof_cierre: number;
+  ptu_pagada_ejercicio?: number;
+};
+
+function mapTaxParamRow(
   companyId: string,
   ejercicio: number,
-  periodo = 0
+  periodo: number,
+  row?: TaxParamRow | null
 ): TaxParametersRecord {
-  type TaxParamRow = {
-    company_id: string;
-    ejercicio: number;
-    periodo?: number;
-    coeficiente_utilidad: number;
-    perdidas_fiscales_pendientes: number;
-    pagos_provisionales_anteriores: number;
-    saldo_favor_iva_anterior: number;
-    tipo_cambio_dof_cierre: number;
-    ptu_pagada_ejercicio?: number;
-  };
-
-  const rowExact = db
-    .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo = ?')
-    .get(companyId, ejercicio, periodo) as TaxParamRow | null;
-
-  const rowPrior =
-    !rowExact && periodo > 0
-      ? (db
-          .query(
-            'SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo > 0 AND periodo < ? ORDER BY periodo DESC LIMIT 1'
-          )
-          .get(companyId, ejercicio, periodo) as TaxParamRow | null)
-      : null;
-
-  const row =
-    rowExact ??
-    rowPrior ??
-    (periodo !== 0
-      ? (db
-          .query('SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo = 0')
-          .get(companyId, ejercicio) as TaxParamRow | null)
-      : null);
-
   return {
     companyId,
     ejercicio,
@@ -109,6 +89,82 @@ export function getTaxParameters(
     tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0),
     ptuPagadaEjercicio: Number(row?.ptu_pagada_ejercicio ?? 0)
   };
+}
+
+function getYtd113IsrCharges(companyId: string, ejercicio: number, cutoffPeriod: number): number {
+  const ytdRow = db
+    .query(`
+      SELECT COALESCE(SUM(m.cargo), 0) as sum_cargo
+      FROM poliza_movements m
+      INNER JOIN polizas p ON m.poliza_id = p.id
+      INNER JOIN accounts a ON m.account_id = a.id
+      WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo >= 1 AND p.periodo <= ?
+        AND (a.code = '113-02-001' OR a.sat_group_code = '113.02')
+        AND LOWER(COALESCE(m.concepto, '')) NOT LIKE '%subsidio al empleo%'
+        AND LOWER(COALESCE(m.concepto, '')) NOT LIKE '%impuesto local%'
+    `)
+    .get(companyId, ejercicio, cutoffPeriod) as { sum_cargo: number } | null;
+  return fromCents(toCents(ytdRow?.sum_cargo ?? 0));
+}
+
+export function getTaxParameters(
+  companyId: string,
+  ejercicio: number,
+  periodo = 0
+): TaxParametersRecord {
+  const rows = db
+    .query(
+      'SELECT * FROM tax_parameters WHERE company_id = ? AND ejercicio = ? AND periodo <= ? ORDER BY periodo ASC'
+    )
+    .all(companyId, ejercicio, Math.max(0, periodo)) as TaxParamRow[];
+
+  const byPeriod = new Map<number, TaxParametersRecord>();
+  for (const r of rows) {
+    const p = Number(r.periodo ?? 0);
+    byPeriod.set(p, mapTaxParamRow(companyId, ejercicio, p, r));
+  }
+  if (periodo <= 0 || byPeriod.has(periodo)) {
+    return byPeriod.get(periodo) ?? mapTaxParamRow(companyId, ejercicio, periodo, null);
+  }
+  const fallback0 = byPeriod.get(0) ?? mapTaxParamRow(companyId, ejercicio, 0, null);
+  if (periodo === 1) return { ...fallback0, periodo: 1 };
+
+  const priorSaved = Array.from(byPeriod.keys()).filter((p) => p > 0 && p < periodo);
+  const startPeriod = priorSaved.length > 0 ? Math.max(...priorSaved) : 1;
+  let carried: TaxParametersRecord = { ...(byPeriod.get(startPeriod) ?? fallback0), periodo: startPeriod };
+  const cutoff = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo - 1));
+  const company = getCompanyById(companyId);
+  if (!company) return { ...carried, periodo };
+
+  const cfdis = getCfdiDocuments(company.id);
+  const hasPols = db
+    .query('SELECT 1 as found FROM polizas WHERE company_id = ? AND ejercicio = ? AND periodo >= 1 AND periodo <= ? LIMIT 1')
+    .get(company.id, ejercicio, cutoff);
+  if (cfdis.length === 0 && !hasPols) return { ...carried, periodo };
+
+  const rules = listAccountingRulesRepo(company.id);
+  const thirdParties = getThirdPartiesByCompany(company.id);
+  const fixedAssets = (
+    db.query('SELECT * FROM fixed_assets WHERE company_id = ?').all(company.id) as FixedAssetDbRow[]
+  ).map(mapFixedAssetRow);
+
+  for (let m = startPeriod; m <= cutoff; m += 1) {
+    const wpM = computeFiscalWorkpaperFromTrialBalance({
+      company,
+      ejercicio,
+      periodo: m,
+      parameters: carried,
+      trialBalance: computeTrialBalance(company.id, ejercicio, m),
+      cfdis,
+      rules,
+      thirdParties,
+      fixedAssets,
+      ytdIsrRetenidoCharges: getYtd113IsrCharges(company.id, ejercicio, m),
+      periodPolizas: getPolizas(company.id, ejercicio, m)
+    });
+    carried = advanceCarryforwardTaxParameters(carried, wpM, m + 1);
+  }
+  return { ...carried, periodo };
 }
 
 export function saveTaxParameters(
@@ -180,18 +236,11 @@ export function getFiscalWorkpaperReport(
   const rules = listAccountingRulesRepo(company.id);
   const thirdParties = getThirdPartiesByCompany(company.id);
   const periodPolizas = getPolizas(company.id, ejercicio, periodo);
+  const fixedAssets = (
+    db.query('SELECT * FROM fixed_assets WHERE company_id = ?').all(company.id) as FixedAssetDbRow[]
+  ).map(mapFixedAssetRow);
   const cutoffPeriod = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
-  const ytdRow = db
-    .query(`
-      SELECT COALESCE(SUM(m.cargo), 0) as sum_cargo
-      FROM poliza_movements m
-      INNER JOIN polizas p ON m.poliza_id = p.id
-      INNER JOIN accounts a ON m.account_id = a.id
-      WHERE p.company_id = ? AND p.ejercicio = ? AND p.periodo >= 1 AND p.periodo <= ?
-        AND (a.code = '113-02-001' OR a.sat_group_code = '113.02')
-    `)
-    .get(company.id, ejercicio, cutoffPeriod) as { sum_cargo: number } | null;
-  const ytdIsrRetenidoCharges = fromCents(toCents(ytdRow?.sum_cargo ?? 0));
+  const ytdIsrRetenidoCharges = getYtd113IsrCharges(company.id, ejercicio, cutoffPeriod);
 
   return computeFiscalWorkpaperFromTrialBalance({
     company,
@@ -202,6 +251,7 @@ export function getFiscalWorkpaperReport(
     cfdis,
     rules,
     thirdParties,
+    fixedAssets,
     ytdIsrRetenidoCharges,
     periodPolizas
   });

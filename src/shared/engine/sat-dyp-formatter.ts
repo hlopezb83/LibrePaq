@@ -79,6 +79,28 @@ export function buildSatDypCasillas(
   if (isResicoPm || isPfGeneral) {
     push('isr-ded-acum', 'ISR', 'Deducciones autorizadas acumuladas', 'DyP ISR · Deducciones autorizadas', dedAcum);
   }
+  if (!isr.esResico && !isPersonaFisica) {
+    const cuVal = Number(isr.coeficienteUtilidadAplicado.toFixed(4));
+    items.push({
+      id: 'isr-cu',
+      section: 'ISR',
+      label: 'Coeficiente de Utilidad aplicado (Art. 14 LISR)',
+      satFieldHint: 'DyP ISR · Coeficiente de utilidad',
+      valuePesos: cuVal,
+      formatted: cuVal.toFixed(4)
+    });
+  }
+  if (!isResicoPf) {
+    push(
+      'isr-utilidad',
+      'ISR',
+      isResicoPm || isPfGeneral
+        ? 'Utilidad fiscal del periodo (Ingresos - Deducciones)'
+        : 'Utilidad fiscal estimada (Ingresos x C.U.)',
+      'DyP ISR · Utilidad fiscal',
+      isr.utilidadFiscalEstimada
+    );
+  }
   if ((isr.ptuPagadaAplicada ?? 0) > 0 && !isResicoPf) {
     push('isr-ptu', 'ISR', 'PTU pagada en el ejercicio disminuible', 'DyP ISR · PTU pagada', isr.ptuPagadaAplicada ?? 0);
   }
@@ -96,9 +118,22 @@ export function buildSatDypCasillas(
   const bd = workpaper.ivaBreakdown;
   if (bd) {
     push('iva-b16', 'IVA', 'Valor de actos gravados tasa 16%', 'DyP IVA · Actos 16%', bd.base16);
-    if (bd.base8 > 0) push('iva-b8', 'IVA', 'Valor de actos gravados tasa 8%', 'DyP IVA · Actos 8%', bd.base8);
+    if (bd.base16 > 0) push('iva-tras-16', 'IVA', 'IVA trasladado tasa 16%', 'DyP IVA · IVA 16%', bd.base16 * 0.16);
+    if (bd.base8 > 0) {
+      push('iva-b8', 'IVA', 'Valor de actos gravados tasa 8%', 'DyP IVA · Actos 8%', bd.base8);
+      push('iva-tras-8', 'IVA', 'IVA trasladado tasa 8%', 'DyP IVA · IVA 8%', bd.base8 * 0.08);
+    }
     if (bd.base0 > 0) push('iva-b0', 'IVA', 'Valor de actos gravados tasa 0%', 'DyP IVA · Actos 0%', bd.base0);
     if (bd.baseExento > 0) push('iva-bex', 'IVA', 'Valor de actos exentos', 'DyP IVA · Actos exentos', bd.baseExento);
+    const prorationVal = Number(bd.prorationFactor.toFixed(4));
+    items.push({
+      id: 'iva-prorrateo',
+      section: 'IVA',
+      label: 'Factor de prorrateo Art. 5 LIVA',
+      satFieldHint: 'DyP IVA · Proporción acreditable',
+      valuePesos: prorationVal,
+      formatted: `${(prorationVal * 100).toFixed(2)}%`
+    });
   } else {
     push('iva-b16', 'IVA', 'Valor de actos gravados tasa 16%', 'DyP IVA · Actos 16%', iva.actosGravadosCobrado16);
   }

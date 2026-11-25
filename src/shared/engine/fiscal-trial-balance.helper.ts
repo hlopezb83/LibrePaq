@@ -1,5 +1,6 @@
-import type { AccountWithBalance, CfdiDocument, Poliza } from '../types';
+import type { AccountWithBalance, CfdiDocument, FixedAssetRecord, Poliza } from '../types';
 import { parseCalendarDate } from '../date-utils';
+import { computeFixedAssetWithDepreciation } from './fixed-assets.engine';
 import type { UsdMonetaryItemInput } from './fiscal.engine';
 import { fromCents, sumCents, toCents } from './invariants-and-math';
 
@@ -236,8 +237,19 @@ export function isIvaRetentionAccount(a: AccountWithBalance): boolean {
   if (sat === '216.10') return true;
   if (sat.startsWith('216.') && sat !== '216.10') return false;
   if (a.code === '216-01-002') return true;
+  if (a.code === '216-01-006') return false;
   const lower = a.name.toLowerCase();
   return lower.includes('iva') && !lower.includes('isr');
+}
+
+export function resolve216SatGroupCode(a: AccountWithBalance): string {
+  const sat = (a.satGroupCode ?? '').trim();
+  if (sat) return sat;
+  if (a.code === '216-01-006' || a.name.toLowerCase().includes('asimilad')) return '216.02';
+  if (a.code === '216-01-003') return '216.03';
+  if (a.code === '216-01-004') return '216.04';
+  if (a.code === '216-01-005') return '216.09';
+  return isIvaRetentionAccount(a) ? '216.10' : '216.01';
 }
 
 export function isImss216Account(a: AccountWithBalance): boolean {
@@ -250,4 +262,82 @@ export function isPpdPendingRetentionAccount(a: AccountWithBalance): boolean {
   const code = a.code.trim();
   const lower = a.name.toLowerCase();
   return code.startsWith('216-02') || lower.includes('ppd') || lower.includes('pendiente de pago');
+}
+
+export function extractContaminated113PeriodCents(
+  accIsrFavor: AccountWithBalance | undefined,
+  periodPolizas?: readonly Poliza[]
+): number {
+  if (!accIsrFavor || !periodPolizas || periodPolizas.length === 0) return 0;
+  let contaminatedCents = 0;
+  for (const p of periodPolizas) {
+    for (const m of p.movements) {
+      if (m.accountId !== accIsrFavor.id && m.accountCode !== accIsrFavor.code) continue;
+      const lower = (m.concepto || '').toLowerCase();
+      if (lower.includes('subsidio al empleo') || lower.includes('impuesto local')) {
+        contaminatedCents += Math.max(0, toCents(m.cargo));
+      }
+    }
+  }
+  return contaminatedCents;
+}
+
+export function computeFixedAssetsCashBasisDeductionCents(
+  fixedAssets: readonly FixedAssetRecord[] | undefined,
+  cfdis: readonly CfdiDocument[],
+  ejercicio: number,
+  periodo: number
+): { depPeriodCents: number; depAcumCents: number; hasEligibleAssets: boolean } {
+  if (!fixedAssets || fixedAssets.length === 0) return { depPeriodCents: 0, depAcumCents: 0, hasEligibleAssets: false };
+  const cutoff = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
+  const cfdiByUuid = new Map(
+    cfdis.filter((c) => c.statusSat !== 'CANCELADO' && c.uuid).map((c) => [c.uuid.trim().toUpperCase(), c])
+  );
+  const xmlDeductedUuids = new Set<string>();
+  const isNonFixed = (uso?: string | null) => !/^I0/i.test((uso || '').trim());
+  for (const c of cfdis) {
+    if (c.statusSat === 'CANCELADO' || c.direction !== 'RECIBIDO') continue;
+    const cal = parseCalendarDate(c.tipoComprobante === 'P' ? (c.fechaPago || c.fecha) : c.fecha, ejercicio, cutoff);
+    if (cal.year !== ejercicio || cal.month > cutoff) continue;
+    if (c.tipoComprobante === 'I' && c.metodoPago === 'PUE' && isNonFixed(c.usoCfdi) && c.uuid) {
+      xmlDeductedUuids.add(c.uuid.trim().toUpperCase());
+    } else if (c.tipoComprobante === 'P') {
+      const refs = [...(c.relatedDocs ?? []).map((dr) => dr.idDocumento), ...(c.uuidRelacionado ? [c.uuidRelacionado] : [])];
+      for (const raw of refs) {
+        const u = (raw || '').trim().toUpperCase();
+        if (u && isNonFixed(cfdiByUuid.get(u)?.usoCfdi)) xmlDeductedUuids.add(u);
+      }
+    }
+  }
+  let depPeriodCents = 0, depAcumCents = 0, hasEligibleAssets = false;
+  for (const asset of fixedAssets) {
+    if (asset.estatus === 'BAJA') continue;
+    const assetUuid = (asset.cfdiUuid || '').trim().toUpperCase();
+    if (assetUuid && xmlDeductedUuids.has(assetUuid)) continue;
+    hasEligibleAssets = true;
+    const acq = parseCalendarDate(asset.fechaAdquisicion || `${ejercicio}-01-01`, ejercicio, 1);
+    if (acq.year > ejercicio) continue;
+    const isTotalDep = asset.estatus === 'TOTALMENTE_DEPRECIADO';
+    const totalLife = asset.tasaAnualPct > 0 ? Math.ceil((100 / asset.tasaAnualPct) * 12) : 0;
+    const beforeYear = isTotalDep
+      ? (acq.year < ejercicio ? (ejercicio - acq.year) * 12 + (1 - acq.month) : 0)
+      : asset.fechaAdquisicion ? Math.max(0, (ejercicio - acq.year) * 12 - acq.month) : Math.max(0, Math.floor(asset.mesesDepreciadosPrevios));
+    const maxM = isTotalDep ? Math.max(0, Math.min(12, Math.min(totalLife, Math.max(0, Math.floor(asset.mesesDepreciadosPrevios || totalLife))) - beforeYear)) : cutoff;
+    const startM = isTotalDep && acq.year === ejercicio ? acq.month : 1;
+    for (let idx = 0, extra = 0; idx < maxM; idx += 1) {
+      const m = isTotalDep ? Math.min(12, startM + idx) : idx + 1;
+      if (m > cutoff) break;
+      const calc = computeFixedAssetWithDepreciation(
+        { ...asset, estatus: 'ACTIVO', mesesDepreciadosPrevios: beforeYear + (isTotalDep ? idx : extra) },
+        { ejercicio, periodo: m }
+      );
+      const fCents = toCents(calc.depreciacionMensualFiscalActualizada);
+      if (fCents > 0) {
+        depAcumCents += fCents;
+        if (m === cutoff) depPeriodCents += fCents;
+        if (!isTotalDep) extra += 1;
+      }
+    }
+  }
+  return { depPeriodCents, depAcumCents, hasEligibleAssets };
 }

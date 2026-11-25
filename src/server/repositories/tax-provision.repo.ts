@@ -75,7 +75,9 @@ export function generateTaxProvisionPoliza(
 
   const wp = getFiscalWorkpaperReport(companyId, ejercicio, periodo);
   const accounts = computeTrialBalance(companyId, ejercicio, periodo);
-  const movements = buildTaxProvisionMovements(wp, accounts, periodo, ejercicio);
+  const movements = buildTaxProvisionMovements(wp, accounts, periodo, ejercicio, {
+    roundArt20Cff: true
+  });
   const fecha = getDefaultDateForPeriod(ejercicio, periodo);
 
   return createPolizaTransaction({

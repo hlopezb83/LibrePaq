@@ -3,6 +3,7 @@ import type {
   CfdiDocument,
   Company,
   FiscalWorkpaperResponse,
+  FixedAssetRecord,
   Poliza,
   RetencionDesgloseItem,
   TaxParametersRecord,
@@ -12,12 +13,15 @@ import type { AccountingRuleRecord } from '../types/accounting-rules.types';
 import { computeCashBasisFiscalSummary } from './cash-basis-fiscal.engine';
 import { computeFiscalWorkpaper } from './fiscal.engine';
 import {
+  computeFixedAssetsCashBasisDeductionCents,
+  extractContaminated113PeriodCents,
   hasUnpaidPpdInvoicesByDirection,
   isImss216Account,
   isIvaRetentionAccount,
   isNonCfdiCashDeductionAccount,
   isPpdPendingRetentionAccount,
   reconstructGrossIvaAfterProvision,
+  resolve216SatGroupCode,
   resolveOpenUsdPpdCfdis
 } from './fiscal-trial-balance.helper';
 import { fromCents, sumCents, toCents } from './invariants-and-math';
@@ -37,6 +41,7 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
   cfdis: readonly CfdiDocument[];
   rules?: readonly AccountingRuleRecord[];
   thirdParties?: readonly ThirdPartyRecord[];
+  fixedAssets?: readonly FixedAssetRecord[];
   ytdIsrRetenidoCharges?: number;
   periodPolizas?: readonly Poliza[];
 }): FiscalWorkpaperResponse {
@@ -49,6 +54,7 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
     cfdis,
     rules,
     thirdParties,
+    fixedAssets,
     ytdIsrRetenidoCharges,
     periodPolizas
   } = params;
@@ -150,14 +156,13 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
       : prorationFactor < 1
         ? fromCents(Math.round(toCents(tbIvaPagado) * prorationFactor))
         : tbIvaPagado;
-  const effectiveIvaBreakdown =
-    !useCashFlow && prorationFactor < 1 && tbIvaPagado > 0 && cashResult.ivaBreakdown.ivaAcreditableSinProrrateo === 0
-      ? {
-          ...cashResult.ivaBreakdown,
-          ivaAcreditableSinProrrateo: tbIvaPagado,
-          ivaAcreditableProrrateado: ivaAcreditablePagado
-        }
-      : cashResult.ivaBreakdown;
+  const effectiveIvaBreakdown = !useCashFlow
+    ? {
+        ...cashResult.ivaBreakdown,
+        ivaAcreditableSinProrrateo: tbIvaPagado,
+        ivaAcreditableProrrateado: ivaAcreditablePagado
+      }
+    : cashResult.ivaBreakdown;
 
   const ivaTrasladadoCobrado =
     useCashFlow && (cashResult.hasEmitidosCashActivity || hasUnpaidPpdEmitidos)
@@ -167,7 +172,8 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
   const has113Activity =
     accIsrFavor !== undefined &&
     (accIsrFavor.finalBalance > 0 || accIsrFavor.periodCharges > 0 || accIsrFavor.periodCredits > 0);
-  const tbIsrMes = Math.max(0, accIsrFavor?.periodCharges ?? 0);
+  const contaminated113PeriodCents = extractContaminated113PeriodCents(accIsrFavor, periodPolizas);
+  const tbIsrMes = Math.max(0, fromCents(toCents(accIsrFavor?.periodCharges ?? 0) - contaminated113PeriodCents));
   const tbIsrYtd =
     ytdIsrRetenidoCharges !== undefined
       ? Math.max(ytdIsrRetenidoCharges, tbIsrMes, accIsrFavor?.finalBalance ?? 0)
@@ -219,8 +225,10 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
         : tbIvaFavor
     : tbIvaFavor;
 
+  const net216Cents = (a: AccountWithBalance) =>
+    Math.max(0, toCents(a.periodCredits) - toCents(a.periodCharges));
   const tbIsrPorPagar = fromCents(
-    sumCents(accRetIsrList.map((a) => Math.max(0, a.periodCredits)))
+    accRetIsrList.reduce((sum, a) => sum + net216Cents(a), 0)
   );
   const isrRetenidoPorPagar =
     useCashFlow &&
@@ -230,7 +238,7 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
       : tbIsrPorPagar;
 
   const tbIvaPorPagar = fromCents(
-    sumCents(accRetIvaList.map((a) => Math.max(0, a.periodCredits)))
+    accRetIvaList.reduce((sum, a) => sum + net216Cents(a), 0)
   );
   const ivaRetenidoPorPagar =
     useCashFlow && cashResult.hasRecibidosCashActivity && tbIvaPorPagar === 0
@@ -238,15 +246,16 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
       : tbIvaPorPagar;
 
   const retencionesDesglose: RetencionDesgloseItem[] = retention216Accounts
-    .filter((a) => toCents(a.periodCredits) > 0)
+    .filter((a) => net216Cents(a) > 0)
     .map((a) => {
       const isIva = isIvaRetentionAccount(a);
+      const net = net216Cents(a);
       return {
         code: a.code,
-        satGroupCode: a.satGroupCode || (isIva ? '216.10' : '216.01'),
+        satGroupCode: resolve216SatGroupCode(a),
         name: a.name,
         tipo: isIva ? 'IVA' : 'ISR',
-        amount: fromCents(Math.max(0, toCents(a.periodCredits)))
+        amount: fromCents(net)
       };
     });
   if (retencionesDesglose.length === 0) {
@@ -274,13 +283,35 @@ export function computeFiscalWorkpaperFromTrialBalance(params: {
   let extraDedPeriodoCents = 0;
   let extraDedAcumCents = 0;
   if (includeNonCfdiPayrollAndDep) {
+    let hasExplicit613Dep = false;
     for (const a of egresosAccounts) {
       if (!isNonCfdiCashDeductionAccount(a)) continue;
-      extraDedPeriodoCents += Math.max(0, toCents(a.periodCharges - a.periodCredits));
-      extraDedAcumCents += Math.max(
+      const pCents = Math.max(0, toCents(a.periodCharges - a.periodCredits));
+      const aCents = Math.max(
         0,
         toCents(a.nature === 'ACREEDORA' ? -a.finalBalance : a.finalBalance)
       );
+      if ((a.satGroupCode ?? '').startsWith('613') && (pCents > 0 || aCents > 0)) {
+        hasExplicit613Dep = true;
+      }
+      extraDedPeriodoCents += pCents;
+      extraDedAcumCents += aCents;
+    }
+    if (!hasExplicit613Dep) {
+      const faDep = computeFixedAssetsCashBasisDeductionCents(fixedAssets, cfdis, ejercicio, periodo);
+      if (faDep.hasEligibleAssets) {
+        extraDedPeriodoCents += faDep.depPeriodCents;
+        extraDedAcumCents += faDep.depAcumCents;
+      } else {
+        const accDep = trialBalance.find((a) => a.isAffectable && a.code === '601-01-006');
+        if (accDep) {
+          extraDedPeriodoCents += Math.max(0, toCents(accDep.periodCharges - accDep.periodCredits));
+          extraDedAcumCents += Math.max(
+            0,
+            toCents(accDep.nature === 'ACREEDORA' ? -accDep.finalBalance : accDep.finalBalance)
+          );
+        }
+      }
     }
   }
   const cashDedPeriodo = fromCents(toCents(cashResult.deduccionesPeriodo) + extraDedPeriodoCents);

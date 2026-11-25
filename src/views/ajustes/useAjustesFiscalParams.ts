@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
 import type { ToastContextType } from '../../context/ToastContext';
@@ -9,6 +9,7 @@ export interface FiscalParamsDraft {
   perdidasAnt: string;
   pagosAnt: string;
   saldoIvaAnt: string;
+  ptuPagada?: string;
 }
 
 export interface FiscalSavedParams {
@@ -17,6 +18,34 @@ export interface FiscalSavedParams {
   perdidasFiscalesPendientes: number;
   pagosProvisionalesAnteriores: number;
   saldoFavorIvaAnterior: number;
+  ptuPagadaEjercicio?: number;
+}
+
+const ptuDraftStore = new Map<string, string>();
+const ptuSetterStore = new Map<string, (v: string) => void>();
+const ptuListeners = new Set<() => void>();
+
+function notifyPtuListeners() {
+  for (const l of ptuListeners) l();
+}
+
+export function useSharedPtuDraft(year: number, period: number, fallback = 0): [string, (v: string) => void] {
+  const key = `${year}-${period}`;
+  const value = useSyncExternalStore(
+    (cb) => {
+      ptuListeners.add(cb);
+      return () => ptuListeners.delete(cb);
+    },
+    () => ptuDraftStore.get(key) ?? String(fallback),
+    () => String(fallback)
+  );
+  const setValue = (v: string) => {
+    const setter = ptuSetterStore.get(key);
+    if (setter) setter(v);
+    ptuDraftStore.set(key, v);
+    notifyPtuListeners();
+  };
+  return [value, setValue];
 }
 
 function parseNonNegative(raw: string): number {
@@ -48,7 +77,9 @@ export function isFiscalParamsDirty(
     parseNonNegative(draft.tcDof) !== savedParams.tipoCambioDofCierre ||
     parseNonNegative(draft.perdidasAnt) !== savedParams.perdidasFiscalesPendientes ||
     parseNonNegative(draft.pagosAnt) !== savedParams.pagosProvisionalesAnteriores ||
-    parseNonNegative(draft.saldoIvaAnt) !== savedParams.saldoFavorIvaAnterior
+    parseNonNegative(draft.saldoIvaAnt) !== savedParams.saldoFavorIvaAnterior ||
+    (draft.ptuPagada !== undefined &&
+      parseNonNegative(draft.ptuPagada) !== (savedParams.ptuPagadaEjercicio ?? 0))
   );
 }
 
@@ -73,6 +104,20 @@ export function useAjustesFiscalParams(
   const [perdidasAnt, setPerdidasAnt] = useState<string>('0');
   const [pagosAnt, setPagosAnt] = useState<string>('0');
   const [saldoIvaAnt, setSaldoIvaAnt] = useState<string>('0');
+  const [ptuPagada, setPtuPagada] = useState<string>('0');
+
+  const periodKey = `${currentYear}-${currentPeriod}`;
+  const syncSharedPtu = (val: string) => {
+    ptuDraftStore.set(periodKey, val);
+    notifyPtuListeners();
+  };
+
+  React.useEffect(() => {
+    ptuSetterStore.set(periodKey, setPtuPagada);
+    return () => {
+      ptuSetterStore.delete(periodKey);
+    };
+  }, [periodKey]);
 
   React.useEffect(() => {
     setCoefUtilidad('0.1845');
@@ -80,6 +125,8 @@ export function useAjustesFiscalParams(
     setPerdidasAnt('0');
     setPagosAnt('0');
     setSaldoIvaAnt('0');
+    setPtuPagada('0');
+    syncSharedPtu('0');
   }, [activeCompanyId]);
 
   React.useEffect(() => {
@@ -89,6 +136,9 @@ export function useAjustesFiscalParams(
       setPerdidasAnt(String(fiscalWp.parameters.perdidasFiscalesPendientes));
       setPagosAnt(String(fiscalWp.parameters.pagosProvisionalesAnteriores));
       setSaldoIvaAnt(String(fiscalWp.parameters.saldoFavorIvaAnterior));
+      const ptuStr = String(fiscalWp.parameters.ptuPagadaEjercicio ?? 0);
+      setPtuPagada(ptuStr);
+      syncSharedPtu(ptuStr);
     }
   }, [fiscalWp]);
 
@@ -102,12 +152,15 @@ export function useAjustesFiscalParams(
       const perdidasNum = parseNonNegative(perdidasAnt);
       const pagosNum = parseNonNegative(pagosAnt);
       const ivaNum = parseNonNegative(saldoIvaAnt);
+      const ptuNum = parseNonNegative(ptuPagada);
 
       setCoefUtilidad(String(cuNum));
       setTcDof(String(tcNum));
       setPerdidasAnt(String(perdidasNum));
       setPagosAnt(String(pagosNum));
       setSaldoIvaAnt(String(ivaNum));
+      setPtuPagada(String(ptuNum));
+      syncSharedPtu(String(ptuNum));
 
       return apiClient.saveTaxParameters({
         companyId: activeCompanyId,
@@ -117,7 +170,8 @@ export function useAjustesFiscalParams(
         tipoCambioDofCierre: tcNum,
         perdidasFiscalesPendientes: perdidasNum,
         pagosProvisionalesAnteriores: pagosNum,
-        saldoFavorIvaAnterior: ivaNum
+        saldoFavorIvaAnterior: ivaNum,
+        ptuPagadaEjercicio: ptuNum
       });
     },
     onSuccess: () => {
@@ -130,7 +184,7 @@ export function useAjustesFiscalParams(
   });
 
   const isFiscalDirty = isFiscalParamsDirty(
-    { coefUtilidad, tcDof, perdidasAnt, pagosAnt, saldoIvaAnt },
+    { coefUtilidad, tcDof, perdidasAnt, pagosAnt, saldoIvaAnt, ptuPagada },
     fiscalWp?.parameters
   );
 
@@ -141,6 +195,8 @@ export function useAjustesFiscalParams(
       setPerdidasAnt('0');
       setPagosAnt('0');
       setSaldoIvaAnt('0');
+      setPtuPagada('0');
+      syncSharedPtu('0');
       return;
     }
     setCoefUtilidad(String(fiscalWp.parameters.coeficienteUtilidad));
@@ -148,6 +204,9 @@ export function useAjustesFiscalParams(
     setPerdidasAnt(String(fiscalWp.parameters.perdidasFiscalesPendientes));
     setPagosAnt(String(fiscalWp.parameters.pagosProvisionalesAnteriores));
     setSaldoIvaAnt(String(fiscalWp.parameters.saldoFavorIvaAnterior));
+    const ptuStr = String(fiscalWp.parameters.ptuPagadaEjercicio ?? 0);
+    setPtuPagada(ptuStr);
+    syncSharedPtu(ptuStr);
   };
 
   return {
@@ -163,6 +222,11 @@ export function useAjustesFiscalParams(
     setPagosAnt,
     saldoIvaAnt,
     setSaldoIvaAnt,
+    ptuPagada,
+    setPtuPagada: (v: string) => {
+      setPtuPagada(v);
+      syncSharedPtu(v);
+    },
     isFiscalDirty,
     resetFiscalForm,
     saveFiscalParamsMutation

@@ -1,6 +1,31 @@
 import type { CfdiDocument, FiscalWorkpaperResponse, ThirdPartyRecord } from '../types';
 import type { AccountingRuleRecord } from '../types/accounting-rules.types';
+import { extractNominaOtrosPagos } from '../cfdi-xml';
+import { stripXmlAddenda } from '../xml-utils';
 import { sumCents, toCents } from './invariants-and-math';
+
+/**
+ * Extrae el Subsidio al Empleo (crédito fiscal no deducible) de un CFDI de Nómina 1.2.
+ * Cuando existen nodos <OtroPago>, suma únicamente TipoOtroPago="002"; sin nodos, usa TotalOtrosPagos.
+ */
+export function extractNominaSubsidioCents(xmlRaw: string, tc: number): number {
+  const clean = stripXmlAddenda(xmlRaw || '');
+  if (!clean) return 0;
+  if (/<(?:[a-z0-9_]+:)?OtroPago\b/i.test(clean)) {
+    const otroRe = /<(?:[a-z0-9_]+:)?OtroPago\b([^>]*)\/?>/gi;
+    let totalCents = 0;
+    let m: RegExpExecArray | null;
+    while ((m = otroRe.exec(clean)) !== null) {
+      const attrs = m[1] ?? '';
+      if (!/TipoOtroPago=["']002["']/i.test(attrs)) continue;
+      const imp = Number.parseFloat(/Importe=["']([0-9]+(?:\.[0-9]+)?)["']/i.exec(attrs)?.[1] ?? '0') || 0;
+      if (imp > 0) totalCents += Math.round(toCents(imp) * tc);
+    }
+    return totalCents;
+  }
+  const otrosPagos = extractNominaOtrosPagos(clean);
+  return otrosPagos > 0 ? Math.round(toCents(otrosPagos) * tc) : 0;
+}
 
 export function resolveRecibidoDeductiblePct(
   doc: CfdiDocument,

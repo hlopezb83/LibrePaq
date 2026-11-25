@@ -1,4 +1,4 @@
-import { supabase } from '../supabase';
+import { getRequiredSupabase, supabase } from '../supabase';
 import {
   buildExchangeFluctuationMovements,
   buildTaxProvisionMovements,
@@ -6,6 +6,7 @@ import {
   fromCents,
   toCents
 } from '../../shared/accounting-engine';
+import { advanceCarryforwardTaxParameters } from '../../shared/engine/fiscal.engine';
 import { getDefaultDateForPeriod } from '../formatters';
 import type {
   FiscalWorkpaperResponse,
@@ -17,7 +18,57 @@ import { supabaseAccountingRules } from './supabase-accounting-rules';
 import { supabaseCompaniesAndAccounts } from './supabase-companies-accounts';
 import { supabaseCfdi } from './supabase-cfdi';
 import { supabaseFiscalAndAssets } from './supabase-fiscal-assets';
+import { fetchAllRows } from './supabase-pagination';
 import { supabasePolizas } from './supabase-polizas';
+
+function mapSupabaseTaxParamRow(
+  companyId: string,
+  ejercicio: number,
+  periodo: number,
+  row?: Record<string, unknown> | null
+): TaxParametersRecord {
+  return {
+    companyId,
+    ejercicio,
+    periodo,
+    coeficienteUtilidad: Number(row?.coeficiente_utilidad ?? 0),
+    perdidasFiscalesPendientes: Number(row?.perdidas_fiscales_pendientes ?? 0),
+    pagosProvisionalesAnteriores: Number(row?.pagos_provisionales_anteriores ?? 0),
+    saldoFavorIvaAnterior: Number(row?.saldo_favor_iva_anterior ?? 0),
+    tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0),
+    ptuPagadaEjercicio: Number(row?.ptu_pagada_ejercicio ?? 0)
+  };
+}
+
+async function fetchYtd113IsrCharges(
+  companyId: string,
+  ejercicio: number,
+  cutoffPeriod: number,
+  trialBalance: ReadonlyArray<{ id: string; code: string; satGroupCode: string; isAffectable: boolean }>
+): Promise<number> {
+  const isrFavorIds = trialBalance
+    .filter((a) => a.isAffectable && (a.code === '113-02-001' || a.satGroupCode === '113.02'))
+    .map((a) => a.id);
+  if (!supabase || isrFavorIds.length === 0) return 0;
+  const ytdMovs = await fetchAllRows<{ cargo?: number; concepto?: string }>(async (from, to) =>
+    getRequiredSupabase()
+      .from('poliza_movements')
+      .select('cargo, concepto, polizas!inner(company_id, ejercicio, periodo)')
+      .in('account_id', isrFavorIds)
+      .eq('polizas.company_id', companyId)
+      .eq('polizas.ejercicio', ejercicio)
+      .gte('polizas.periodo', 1)
+      .lte('polizas.periodo', cutoffPeriod)
+      .order('id', { ascending: true })
+      .range(from, to)
+  );
+  const ytdCents = ytdMovs.reduce((sum, r) => {
+    const concept = (r.concepto ?? '').toLowerCase();
+    if (concept.includes('subsidio al empleo') || concept.includes('impuesto local')) return sum;
+    return sum + Math.max(0, toCents(Number(r.cargo ?? 0)));
+  }, 0);
+  return fromCents(ytdCents);
+}
 
 export const supabaseFiscalWorkpaper = {
   async getTaxParameters(
@@ -25,62 +76,62 @@ export const supabaseFiscalWorkpaper = {
     ejercicio: number,
     periodo = 0
   ): Promise<TaxParametersRecord> {
-    const emptyDefaults: TaxParametersRecord = {
-      companyId,
-      ejercicio,
-      periodo,
-      coeficienteUtilidad: 0,
-      perdidasFiscalesPendientes: 0,
-      pagosProvisionalesAnteriores: 0,
-      saldoFavorIvaAnterior: 0,
-      tipoCambioDofCierre: 0,
-      ptuPagadaEjercicio: 0
-    };
-    if (!supabase) return emptyDefaults;
+    const empty = mapSupabaseTaxParamRow(companyId, ejercicio, periodo, null);
+    if (!supabase) return empty;
 
-    const { data: exact } = await supabase
+    const { data: rows } = await supabase
       .from('tax_parameters')
       .select('*')
       .eq('company_id', companyId)
       .eq('ejercicio', ejercicio)
-      .eq('periodo', periodo)
-      .maybeSingle();
+      .lte('periodo', Math.max(0, periodo))
+      .order('periodo', { ascending: true });
 
-    let row = exact;
-    if (!row && periodo > 0) {
-      const { data: priorRows } = await supabase
-        .from('tax_parameters')
-        .select('*')
-        .eq('company_id', companyId)
-        .eq('ejercicio', ejercicio)
-        .gt('periodo', 0)
-        .lt('periodo', periodo)
-        .order('periodo', { ascending: false })
-        .limit(1);
-      row = priorRows?.[0] ?? null;
+    const byPeriod = new Map<number, TaxParametersRecord>();
+    for (const r of rows ?? []) {
+      const p = Number((r as { periodo?: number }).periodo ?? 0);
+      byPeriod.set(p, mapSupabaseTaxParamRow(companyId, ejercicio, p, r as Record<string, unknown>));
     }
-    if (!row && periodo !== 0) {
-      const { data: fallback } = await supabase
-        .from('tax_parameters')
-        .select('*')
-        .eq('company_id', companyId)
-        .eq('ejercicio', ejercicio)
-        .eq('periodo', 0)
-        .maybeSingle();
-      row = fallback;
-    }
+    if (periodo <= 0 || byPeriod.has(periodo)) return byPeriod.get(periodo) ?? empty;
+    const fallback0 = byPeriod.get(0) ?? mapSupabaseTaxParamRow(companyId, ejercicio, 0, null);
+    if (periodo === 1) return { ...fallback0, periodo: 1 };
 
-    return {
-      companyId,
-      ejercicio,
-      periodo,
-      coeficienteUtilidad: Number(row?.coeficiente_utilidad ?? 0),
-      perdidasFiscalesPendientes: Number(row?.perdidas_fiscales_pendientes ?? 0),
-      pagosProvisionalesAnteriores: Number(row?.pagos_provisionales_anteriores ?? 0),
-      saldoFavorIvaAnterior: Number(row?.saldo_favor_iva_anterior ?? 0),
-      tipoCambioDofCierre: Number(row?.tipo_cambio_dof_cierre ?? 0),
-      ptuPagadaEjercicio: Number(row?.ptu_pagada_ejercicio ?? 0)
-    };
+    const priorSaved = Array.from(byPeriod.keys()).filter((p) => p > 0 && p < periodo);
+    const startPeriod = priorSaved.length > 0 ? Math.max(...priorSaved) : 1;
+    let carried: TaxParametersRecord = { ...(byPeriod.get(startPeriod) ?? fallback0), periodo: startPeriod };
+    const cutoff = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo - 1));
+    const companies = await supabaseCompaniesAndAccounts.getCompanies();
+    const company = companies.find((c) => c.id === companyId);
+    if (!company) return { ...carried, periodo };
+
+    const [cfdis, rules, thirdParties, fixedAssetsRes] = await Promise.all([
+      supabaseCfdi.getCfdis(company.id),
+      supabaseAccountingRules.listAccountingRules(company.id),
+      supabaseFiscalAndAssets.getThirdParties(company.id),
+      supabaseFiscalAndAssets.getFixedAssets(company.id, ejercicio, cutoff)
+    ]);
+    for (let m = startPeriod; m <= cutoff; m += 1) {
+      const [tb, pols] = await Promise.all([
+        supabaseCompaniesAndAccounts.getAccounts(company.id, ejercicio, m),
+        supabasePolizas.getPolizas(company.id, ejercicio, m)
+      ]);
+      const ytd = await fetchYtd113IsrCharges(company.id, ejercicio, m, tb);
+      const wpM = computeFiscalWorkpaperFromTrialBalance({
+        company,
+        ejercicio,
+        periodo: m,
+        parameters: carried,
+        trialBalance: tb,
+        cfdis,
+        rules,
+        thirdParties,
+        fixedAssets: fixedAssetsRes.assets,
+        ytdIsrRetenidoCharges: ytd,
+        periodPolizas: pols
+      });
+      carried = advanceCarryforwardTaxParameters(carried, wpM, m + 1);
+    }
+    return { ...carried, periodo };
   },
 
   async saveTaxParameters(payload: {
@@ -152,35 +203,23 @@ export const supabaseFiscalWorkpaper = {
     const ejercicio = year || company.currentYear || 2026;
     const periodo = period || company.currentPeriod || 10;
 
-    const [parameters, trialBalance, cfdis, thirdParties, rules, periodPolizas] = await Promise.all([
+    const [parameters, trialBalance, cfdis, thirdParties, rules, periodPolizas, fixedAssetsRes] = await Promise.all([
       this.getTaxParameters(company.id, ejercicio, periodo),
       supabaseCompaniesAndAccounts.getAccounts(company.id, ejercicio, periodo),
       supabaseCfdi.getCfdis(company.id),
       supabaseFiscalAndAssets.getThirdParties(company.id),
       supabaseAccountingRules.listAccountingRules(company.id),
-      supabasePolizas.getPolizas(company.id, ejercicio, periodo)
+      supabasePolizas.getPolizas(company.id, ejercicio, periodo),
+      supabaseFiscalAndAssets.getFixedAssets(company.id, ejercicio, periodo)
     ]);
 
     const cutoffPeriod = periodo === 13 ? 12 : Math.max(1, Math.min(12, periodo));
-    const isrFavorIds = trialBalance
-      .filter((a) => a.isAffectable && (a.code === '113-02-001' || a.satGroupCode === '113.02'))
-      .map((a) => a.id);
-    let ytdIsrRetenidoCharges = 0;
-    if (supabase && isrFavorIds.length > 0) {
-      const { data: ytdMovs } = await supabase
-        .from('poliza_movements')
-        .select('cargo, polizas!inner(company_id, ejercicio, periodo)')
-        .in('account_id', isrFavorIds)
-        .eq('polizas.company_id', company.id)
-        .eq('polizas.ejercicio', ejercicio)
-        .gte('polizas.periodo', 1)
-        .lte('polizas.periodo', cutoffPeriod);
-      const ytdCents = (ytdMovs ?? []).reduce(
-        (sum, r) => sum + Math.max(0, toCents(Number((r as { cargo?: number }).cargo ?? 0))),
-        0
-      );
-      ytdIsrRetenidoCharges = fromCents(ytdCents);
-    }
+    const ytdIsrRetenidoCharges = await fetchYtd113IsrCharges(
+      company.id,
+      ejercicio,
+      cutoffPeriod,
+      trialBalance
+    );
 
     return computeFiscalWorkpaperFromTrialBalance({
       company,
@@ -191,6 +230,7 @@ export const supabaseFiscalWorkpaper = {
       cfdis,
       rules,
       thirdParties,
+      fixedAssets: fixedAssetsRes.assets,
       ytdIsrRetenidoCharges,
       periodPolizas
     });
@@ -226,7 +266,9 @@ export const supabaseFiscalWorkpaper = {
 
     const wp = await this.getFiscalWorkpaper(companyId, ejercicio, periodo);
     const accounts = await supabaseCompaniesAndAccounts.getAccounts(companyId, ejercicio, periodo);
-    const movements = buildTaxProvisionMovements(wp, accounts, periodo, ejercicio);
+    const movements = buildTaxProvisionMovements(wp, accounts, periodo, ejercicio, {
+      roundArt20Cff: true
+    });
     const fecha = getDefaultDateForPeriod(ejercicio, periodo);
 
     return supabasePolizas.createPoliza({

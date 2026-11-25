@@ -36,6 +36,26 @@ export interface UsdMonetaryItemInput {
   tipoComprobante?: CfdiDocument['tipoComprobante'];
 }
 
+export function advanceCarryforwardTaxParameters(
+  currentParams: TaxParametersRecord,
+  priorWorkpaper: FiscalWorkpaperResponse,
+  nextPeriodo: number
+): TaxParametersRecord {
+  const isResicoPf =
+    priorWorkpaper.company.regimenFiscal.slice(0, 3) === '626' &&
+    priorWorkpaper.company.rfc.trim().length === 13;
+  const nextPagosCents = isResicoPf
+    ? 0
+    : toCents(currentParams.pagosProvisionalesAnteriores) +
+      toCents(priorWorkpaper.isrProvisional.isrNetoAPagar);
+  return {
+    ...currentParams,
+    periodo: nextPeriodo,
+    pagosProvisionalesAnteriores: fromCents(Math.max(0, nextPagosCents)),
+    saldoFavorIvaAnterior: fromCents(Math.max(0, toCents(priorWorkpaper.ivaDefinitivo.saldoFavorIvaRemanente)))
+  };
+}
+
 /**
  * Fase 5: Cálculo de Papel de Trabajo Fiscal Día 17 (Pago Provisional ISR + IVA Definitivo + Fluctuación USD).
  */

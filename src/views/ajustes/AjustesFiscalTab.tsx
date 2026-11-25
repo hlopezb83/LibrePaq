@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { ArrowRight, Coins, Loader2, RotateCcw, Save } from 'lucide-react';
 import { AlertBanner, Button, FormField, Input, StatusBadge, getButtonClasses } from '../../components/ui';
 import { formatCurrency } from '../../lib/formatters';
-import { sanitizeFiscalDecimalInput } from './useAjustesFiscalParams';
+import { sanitizeFiscalDecimalInput, useSharedPtuDraft } from './useAjustesFiscalParams';
 
 export interface AjustesFiscalTabProps {
   currentYear: number;
@@ -17,6 +17,10 @@ export interface AjustesFiscalTabProps {
   setPagosAnt: (v: string) => void;
   saldoIvaAnt: string;
   setSaldoIvaAnt: (v: string) => void;
+  ptuPagada?: string;
+  setPtuPagada?: (v: string) => void;
+  regimenFiscal?: string;
+  rfc?: string;
   isFiscalDirty: boolean;
   onResetFiscal: () => void;
   saveFiscalParamsMutation: {
@@ -24,7 +28,11 @@ export interface AjustesFiscalTabProps {
     isPending: boolean;
   };
   fiscalWp?: {
+    company?: { rfc: string; regimenFiscal: string };
+    parameters?: { ptuPagadaEjercicio?: number };
     isrProvisional: {
+      regimenClave?: string;
+      esResico?: boolean;
       ingresosAcumuladosEjercicio: number;
       utilidadFiscalEstimada: number;
       isrNetoAPagar: number;
@@ -56,6 +64,10 @@ export function AjustesFiscalTab({
   setPagosAnt,
   saldoIvaAnt,
   setSaldoIvaAnt,
+  ptuPagada: ptuPagadaProp,
+  setPtuPagada: setPtuPagadaProp,
+  regimenFiscal,
+  rfc,
   isFiscalDirty,
   onResetFiscal,
   saveFiscalParamsMutation,
@@ -63,6 +75,23 @@ export function AjustesFiscalTab({
   isLoadingFiscalWp = false,
   isReadOnly = false
 }: AjustesFiscalTabProps) {
+  const [sharedPtu, setSharedPtu] = useSharedPtuDraft(
+    currentYear,
+    currentPeriod,
+    fiscalWp?.parameters?.ptuPagadaEjercicio ?? 0
+  );
+  const ptuPagada = ptuPagadaProp ?? sharedPtu;
+  const setPtuPagada = setPtuPagadaProp ?? setSharedPtu;
+
+  const regimenClave =
+    (regimenFiscal ?? fiscalWp?.company?.regimenFiscal ?? '').slice(0, 3) ||
+    fiscalWp?.isrProvisional.regimenClave ||
+    '';
+  const isPersonaFisica = (rfc ?? fiscalWp?.company?.rfc ?? '').trim().length === 13;
+  const isResico = regimenClave === '626' || Boolean(fiscalWp?.isrProvisional.esResico);
+  const isResicoPf = isResico && isPersonaFisica;
+  const showCoefUtilidad = regimenClave ? regimenClave === '601' : !isResico;
+
   return (
     <section className="space-y-5">
       {isReadOnly && (
@@ -106,32 +135,27 @@ export function AjustesFiscalTab({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                htmlFor="p-cu"
-                label="Coeficiente de Utilidad (C.U. Art. 14 LISR)"
-                required
-                hint={
-                  <>
-                    Margen fiscal equivalente:{' '}
-                    <strong className="font-mono text-slate-800">
-                      {((Number(coefUtilidad) || 0) * 100).toFixed(2)}%
-                    </strong>
-                  </>
-                }
-              >
-                <Input
-                  id="p-cu"
-                  type="text"
-                  inputMode="decimal"
+              {showCoefUtilidad && (
+                <FormField
+                  htmlFor="p-cu"
+                  label="Coeficiente de Utilidad (C.U. Art. 14 LISR)"
                   required
-                  disabled={isReadOnly}
-                  value={coefUtilidad}
-                  onChange={(e) => setCoefUtilidad(sanitizeFiscalDecimalInput(e.target.value))}
-                  onBlur={() => setCoefUtilidad(normalizeDecimalDraft(coefUtilidad, 1))}
-                  rightAddon={<span className="font-mono font-bold">C.U.</span>}
-                  className="pr-12 font-mono font-bold"
-                />
-              </FormField>
+                  hint={
+                    <>
+                      Margen fiscal equivalente:{' '}
+                      <strong className="font-mono text-slate-800">{((Number(coefUtilidad) || 0) * 100).toFixed(2)}%</strong>
+                    </>
+                  }
+                >
+                  <Input
+                    id="p-cu" type="text" inputMode="decimal" required disabled={isReadOnly} value={coefUtilidad}
+                    onChange={(e) => setCoefUtilidad(sanitizeFiscalDecimalInput(e.target.value))}
+                    onBlur={() => setCoefUtilidad(normalizeDecimalDraft(coefUtilidad, 1))}
+                    rightAddon={<span className="font-mono font-bold">C.U.</span>}
+                    className="pr-12 font-mono font-bold"
+                  />
+                </FormField>
+              )}
 
               <FormField
                 htmlFor="p-tc"
@@ -140,12 +164,7 @@ export function AjustesFiscalTab({
                 hint="Para valuación de fluctuación cambiaria oficial (0 para empresas solo MXN)."
               >
                 <Input
-                  id="p-tc"
-                  type="text"
-                  inputMode="decimal"
-                  required
-                  disabled={isReadOnly}
-                  value={tcDof}
+                  id="p-tc" type="text" inputMode="decimal" required disabled={isReadOnly} value={tcDof}
                   onChange={(e) => setTcDof(sanitizeFiscalDecimalInput(e.target.value))}
                   onBlur={() => setTcDof(normalizeDecimalDraft(tcDof))}
                   rightAddon={<span className="font-mono font-bold">MXN/USD</span>}
@@ -153,56 +172,49 @@ export function AjustesFiscalTab({
                 />
               </FormField>
 
-              <FormField
-                htmlFor="p-perdidas"
-                label="Pérdidas Fiscales de Ejercicios Anteriores Pendientes"
-                hint="Amortizables contra la utilidad fiscal estimada."
-              >
-                <Input
-                  id="p-perdidas"
-                  type="text"
-                  inputMode="decimal"
-                  disabled={isReadOnly}
-                  value={perdidasAnt}
-                  onChange={(e) => setPerdidasAnt(sanitizeFiscalDecimalInput(e.target.value))}
-                  onBlur={() => setPerdidasAnt(normalizeDecimalDraft(perdidasAnt))}
-                  leftAddon={<span className="font-mono font-bold">$</span>}
-                  rightAddon={<span className="font-mono">MXN</span>}
-                  className="pr-12 font-mono font-bold"
-                />
-              </FormField>
-
-              <FormField
-                htmlFor="p-pagos-ant"
-                label="Pagos Provisionales de ISR Efectuados con Anterioridad"
-                hint="Suma de pagos de ISR realizados de enero al mes previo."
-              >
-                <Input
-                  id="p-pagos-ant"
-                  type="text"
-                  inputMode="decimal"
-                  disabled={isReadOnly}
-                  value={pagosAnt}
-                  onChange={(e) => setPagosAnt(sanitizeFiscalDecimalInput(e.target.value))}
-                  onBlur={() => setPagosAnt(normalizeDecimalDraft(pagosAnt))}
-                  leftAddon={<span className="font-mono font-bold">$</span>}
-                  rightAddon={<span className="font-mono">MXN</span>}
-                  className="pr-12 font-mono font-bold"
-                />
-              </FormField>
+              {!isResicoPf && (
+                <>
+                  <FormField htmlFor="p-perdidas" label="Pérdidas Fiscales de Ejercicios Anteriores Pendientes" hint="Amortizables contra la utilidad fiscal estimada.">
+                    <Input
+                      id="p-perdidas" type="text" inputMode="decimal" disabled={isReadOnly} value={perdidasAnt}
+                      onChange={(e) => setPerdidasAnt(sanitizeFiscalDecimalInput(e.target.value))}
+                      onBlur={() => setPerdidasAnt(normalizeDecimalDraft(perdidasAnt))}
+                      leftAddon={<span className="font-mono font-bold">$</span>}
+                      rightAddon={<span className="font-mono">MXN</span>}
+                      className="pr-12 font-mono font-bold"
+                    />
+                  </FormField>
+                  <FormField htmlFor="p-pagos-ant" label="Pagos Provisionales de ISR Efectuados con Anterioridad" hint="Suma de pagos de ISR realizados de enero al mes previo.">
+                    <Input
+                      id="p-pagos-ant" type="text" inputMode="decimal" disabled={isReadOnly} value={pagosAnt}
+                      onChange={(e) => setPagosAnt(sanitizeFiscalDecimalInput(e.target.value))}
+                      onBlur={() => setPagosAnt(normalizeDecimalDraft(pagosAnt))}
+                      leftAddon={<span className="font-mono font-bold">$</span>}
+                      rightAddon={<span className="font-mono">MXN</span>}
+                      className="pr-12 font-mono font-bold"
+                    />
+                  </FormField>
+                  <FormField htmlFor="p-ptu" label="PTU Pagada en el Ejercicio (Art. 14 / 106 LISR)" hint="Disminuible en pagos provisionales (mayo-diciembre en PM 601).">
+                    <Input
+                      id="p-ptu" type="text" inputMode="decimal" disabled={isReadOnly} value={ptuPagada}
+                      onChange={(e) => setPtuPagada(sanitizeFiscalDecimalInput(e.target.value))}
+                      onBlur={() => setPtuPagada(normalizeDecimalDraft(ptuPagada))}
+                      leftAddon={<span className="font-mono font-bold">$</span>}
+                      rightAddon={<span className="font-mono">MXN</span>}
+                      className="pr-12 font-mono font-bold"
+                    />
+                  </FormField>
+                </>
+              )}
 
               <FormField
                 htmlFor="p-iva-ant"
                 label="Saldo a Favor de IVA de Meses Anteriores por Acreditar"
                 hint="Acreditamiento directo contra el IVA a cargo del periodo."
-                className="sm:col-span-2"
+                className={isResicoPf ? 'sm:col-span-2' : undefined}
               >
                 <Input
-                  id="p-iva-ant"
-                  type="text"
-                  inputMode="decimal"
-                  disabled={isReadOnly}
-                  value={saldoIvaAnt}
+                  id="p-iva-ant" type="text" inputMode="decimal" disabled={isReadOnly} value={saldoIvaAnt}
                   onChange={(e) => setSaldoIvaAnt(sanitizeFiscalDecimalInput(e.target.value))}
                   onBlur={() => setSaldoIvaAnt(normalizeDecimalDraft(saldoIvaAnt))}
                   leftAddon={<span className="font-mono font-bold">$</span>}

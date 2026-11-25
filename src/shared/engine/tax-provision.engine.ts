@@ -12,7 +12,11 @@ import { roundArt20Cff } from './sat-dyp-formatter';
 import {
   appendIvaNoAcreditableMovements,
   buildExchangeFluctuationMovements,
-  push118WithCap
+  credit118Subaccounts,
+  push208Subaccounts,
+  resolveIvaCobradoAccounts,
+  resolveIvaPagadoAccounts,
+  type Iva118SubaccountSlot
 } from './tax-provision-helpers';
 
 export { buildExchangeFluctuationMovements };
@@ -77,24 +81,48 @@ export function buildTaxProvisionMovements(
 
   const accGastoFiscal = resolveFiscalAccount(accounts, 'GASTO_IMPUESTO_UTILIDAD');
   const accIsrPorPagar = resolveFiscalAccount(accounts, 'PROVISION_ISR_POR_PAGAR');
-  const accIvaCobrado = resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO');
-  const accIvaPagado = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO');
+  const ivaCobradoAccounts = resolveIvaCobradoAccounts(accounts);
+  const accIvaCobrado = ivaCobradoAccounts[0] ?? resolveFiscalAccount(accounts, 'IVA_TRASLADADO_COBRADO');
+  const ivaPagadoAccounts = resolveIvaPagadoAccounts(accounts);
+  const accIvaPagado = ivaPagadoAccounts[0] ?? resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_PAGADO');
   const accIvaPorPagar = resolveFiscalAccount(accounts, 'PROVISION_IVA_POR_PAGAR');
   const accIvaFavor = resolveFiscalAccount(accounts, 'IVA_A_FAVOR');
-  const accIvaPendienteRaw = accounts.find(
-    (a) => a.isAffectable && (a.code === '119-01-001' || a.satGroupCode === '119.01') && a.id !== accIvaPagado.id
-  ) ?? null;
+  const accIvaFavorBal = accIvaFavor as Account & Partial<AccountWithBalance>;
+  const max113FavorCents =
+    typeof accIvaFavorBal.finalBalance === 'number'
+      ? Math.max(0, toCents(accIvaFavorBal.finalBalance))
+      : Number.MAX_SAFE_INTEGER;
 
-  const accIvaPagadoBal = accIvaPagado as Account & Partial<AccountWithBalance>;
-  const has118Activity =
-    typeof accIvaPagadoBal.finalBalance === 'number' &&
-    (accIvaPagadoBal.finalBalance > 0 ||
-      (accIvaPagadoBal.periodCharges ?? 0) > 0 ||
-      (accIvaPagadoBal.periodCredits ?? 0) > 0);
+  const has118Activity = ivaPagadoAccounts.some((a) => {
+    const b = a as Account & Partial<AccountWithBalance>;
+    return (
+      typeof b.finalBalance === 'number' &&
+      (b.finalBalance > 0 || (b.periodCharges ?? 0) > 0 || (b.periodCredits ?? 0) > 0)
+    );
+  });
   const enforce118Cap = Boolean(options?.capIva118ToBookBalance) || has118Activity;
-  const remaining118Ref = {
-    cents: enforce118Cap ? Math.max(0, toCents(accIvaPagadoBal.finalBalance ?? 0)) : Number.MAX_SAFE_INTEGER
-  };
+  const slots118: Iva118SubaccountSlot[] = ivaPagadoAccounts.map((a) => {
+    const b = a as Account & Partial<AccountWithBalance>;
+    return {
+      account: a,
+      remainingCents: enforce118Cap ? Math.max(0, toCents(b.finalBalance ?? 0)) : Number.MAX_SAFE_INTEGER
+    };
+  });
+  const total118BookCents = enforce118Cap
+    ? slots118.reduce((sum, s) => sum + s.remainingCents, 0)
+    : Number.MAX_SAFE_INTEGER;
+  const isPm601 =
+    !wp.isrProvisional.esResico &&
+    wp.company.rfc.trim().length !== 13 &&
+    wp.company.regimenFiscal.slice(0, 3) === '601';
+  const effSinProrrateoCents =
+    isPm601 &&
+    enforce118Cap &&
+    (wp.ivaBreakdown?.prorationFactor ?? 1) < 1 &&
+    (ivaSinProrrateoCents === 0 || (total118BookCents >= ivaPagadoCents && ivaSinProrrateoCents < ivaPagadoCents))
+      ? total118BookCents
+      : ivaSinProrrateoCents;
+  const effIvaNoAcredCents = Math.max(0, effSinProrrateoCents - ivaPagadoCents);
   const applyArt20 = Boolean(options?.roundArt20Cff);
   const movements: AutoPolizaMovementDraft[] = [];
 
@@ -151,31 +179,19 @@ export function buildTaxProvisionMovements(
   }
 
   // 2. Liquidación y cancelación mensual de IVA Trasladado Cobrado y Acreditable Pagado
-  if (ivaCobradoCents > 0 || ivaPagadoCents > 0 || ivaNoAcreditableCents > 0) {
+  if (ivaCobradoCents > 0 || ivaPagadoCents > 0 || effIvaNoAcredCents > 0) {
     if (ivaCobradoCents >= ivaPagadoCents) {
-      // Caso A: IVA Neto por Pagar al SAT
-      if (ivaCobradoCents > 0) {
-        movements.push({
-          accountId: accIvaCobrado.id,
-          accountCode: accIvaCobrado.code,
-          accountName: accIvaCobrado.name,
-          referencia: `IVA-M${periodo}`,
-          concepto: 'Cancelación mensual de IVA Trasladado Cobrado',
-          cargo: fromCents(ivaCobradoCents),
-          abono: 0
-        });
-      }
+      push208Subaccounts(movements, ivaCobradoAccounts, accIvaCobrado, ivaCobradoCents, `IVA-M${periodo}`);
       const creditedIvaCents =
         ivaPagadoCents > 0
-          ? push118WithCap(
+          ? credit118Subaccounts(
               movements,
+              slots118,
               accIvaPagado,
-              accIvaPendienteRaw,
               ivaPagadoCents,
-              remaining118Ref,
+              enforce118Cap,
               `IVA-M${periodo}`,
-              'Acreditamiento de IVA Pagado del periodo',
-              'Acreditamiento complementario desde IVA Pendiente de Pago'
+              'Acreditamiento de IVA Pagado del periodo'
             )
           : 0;
       const ivaPorPagarCents = ivaCobradoCents - creditedIvaCents;
@@ -184,7 +200,7 @@ export function buildTaxProvisionMovements(
       const retAplicadaCents = Math.min(ivaPorPagarCents, retFavorCents);
       const retFavorExcedenteCents = retFavorCents - retAplicadaCents;
       const remanente1Cents = ivaPorPagarCents - retAplicadaCents;
-      const saldoFavorAntAplicadoCents = Math.min(remanente1Cents, saldoFavorAntCents);
+      const saldoFavorAntAplicadoCents = Math.min(remanente1Cents, saldoFavorAntCents, max113FavorCents);
       const ivaNetoCents = remanente1Cents - saldoFavorAntAplicadoCents;
 
       if (retFavorCents > 0) {
@@ -253,23 +269,9 @@ export function buildTaxProvisionMovements(
         }
       }
     } else {
-      // Caso B: IVA Saldo a Favor del Contribuyente (Art. 5-D LIVA)
-      if (ivaCobradoCents > 0) {
-        movements.push({
-          accountId: accIvaCobrado.id,
-          accountCode: accIvaCobrado.code,
-          accountName: accIvaCobrado.name,
-          referencia: `IVA-M${periodo}`,
-          concepto: 'Cancelación mensual de IVA Trasladado Cobrado',
-          cargo: fromCents(ivaCobradoCents),
-          abono: 0
-        });
-      }
+      push208Subaccounts(movements, ivaCobradoAccounts, accIvaCobrado, ivaCobradoCents, `IVA-M${periodo}`);
       const retFavorCents = toCents(wp.ivaDefinitivo.ivaRetenidoAcreditable ?? 0);
-      const effectiveCreditedCents = Math.min(
-        ivaPagadoCents,
-        remaining118Ref.cents + (accIvaPendienteRaw ? ivaPagadoCents : 0)
-      );
+      const effectiveCreditedCents = Math.min(ivaPagadoCents, total118BookCents);
       const saldoFavorCents = Math.max(0, effectiveCreditedCents - ivaCobradoCents + retFavorCents);
       if (saldoFavorCents > 0) {
         movements.push({
@@ -282,15 +284,14 @@ export function buildTaxProvisionMovements(
           abono: 0
         });
       }
-      push118WithCap(
+      credit118Subaccounts(
         movements,
+        slots118,
         accIvaPagado,
-        accIvaPendienteRaw,
         effectiveCreditedCents,
-        remaining118Ref,
+        enforce118Cap,
         `IVA-M${periodo}`,
-        'Cancelación de IVA Acreditable Pagado contra Saldo a Favor',
-        'Cancelación de IVA Pendiente contra Saldo a Favor'
+        'Cancelación de IVA Acreditable Pagado contra Saldo a Favor'
       );
       if (retFavorCents > 0) {
         const accRetFavor = resolveFiscalAccount(accounts, 'IVA_ACREDITABLE_RETENIDO');
@@ -320,10 +321,10 @@ export function buildTaxProvisionMovements(
     appendIvaNoAcreditableMovements(
       movements,
       accounts,
+      slots118,
       accIvaPagado,
-      accIvaPendienteRaw,
-      ivaNoAcreditableCents,
-      remaining118Ref,
+      enforce118Cap,
+      effIvaNoAcredCents,
       periodo
     );
   }

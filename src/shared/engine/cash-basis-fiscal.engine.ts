@@ -4,6 +4,7 @@ import { parseCalendarDate } from '../date-utils';
 import {
   buildResicoAlert,
   extractBreakdownCents,
+  extractNominaSubsidioCents,
   getCfdiExchangeRate,
   resolveNonFixedAssetBaseCents,
   resolveRecibidoDeductiblePct,
@@ -125,7 +126,9 @@ export function computeCashBasisFiscalSummary({
       const calN = parseCalendarDate(doc.fechaPago || doc.fecha, ejercicio, targetPeriod);
       if (calN.year !== ejercicio || calN.month > targetPeriod) continue;
       const tcN = getCfdiExchangeRate(doc);
-      const nominaCents = Math.max(0, toCents((doc.subtotal > 0 ? doc.subtotal : doc.total) * tcN));
+      const rawNominaCents = Math.max(0, toCents((doc.subtotal > 0 ? doc.subtotal : doc.total) * tcN));
+      const subsidioNominaCents = Math.min(rawNominaCents, extractNominaSubsidioCents(doc.xmlRaw, tcN));
+      const nominaCents = Math.max(0, rawNominaCents - subsidioNominaCents);
       const retIsrNCents = Math.max(0, toCents((doc.isrRetenido || 0) * tcN));
       if (nominaCents <= 0 && retIsrNCents <= 0) continue;
       hasPayrollCashActivity = true;
