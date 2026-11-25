@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import { AlertBanner, Button, FormField, ModalShell, Select } from '../../components/ui';
 import { formatCurrency, formatShortDate } from '../../lib/formatters';
+import type { BankCounterLineInput } from '../../shared/engine/bank-and-closing.engine';
 import { fromCents, toCents } from '../../shared/engine/invariants-and-math';
 import type { AccountWithBalance, BankStatementLine } from '../../shared/types';
+import { BankLinePolizaMultiLines, BankLineSinglePreviewTable, type MultiCounterRow } from './BankLinePolizaMultiLines';
 
 interface BankLinePolizaModalProps {
   line: BankStatementLine | null;
@@ -11,7 +13,10 @@ interface BankLinePolizaModalProps {
   currentBankAccountId: string;
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (lineId: string, options: { counterAccountCode: string; desglosarIva: boolean }) => void;
+  onSubmit: (
+    lineId: string,
+    options: { counterAccountCode: string; desglosarIva: boolean; counterLines?: ReadonlyArray<BankCounterLineInput> }
+  ) => void;
 }
 
 export function BankLinePolizaModal({
@@ -28,17 +33,14 @@ export function BankLinePolizaModal({
   const isWithdrawal = Boolean(line && line.cargoBanco > 0);
   const [counterCode, setCounterCode] = useState('');
   const [desglosarIva, setDesglosarIva] = useState(true);
+  const [multiMode, setMultiMode] = useState(false);
+  const [multiRows, setMultiRows] = useState<MultiCounterRow[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const findByHints = (prefixes: string[], keywords: string[]): string => {
-    const byKw = affectable.find(
-      (a) =>
-        prefixes.some((p) => a.code.startsWith(p)) &&
-        keywords.some((kw) => a.name.toLowerCase().includes(kw))
-    );
-    if (byKw) return byKw.code;
-    return affectable.find((a) => prefixes.some((p) => a.code.startsWith(p)))?.code ?? affectable[0]?.code ?? '';
+    const byKw = affectable.find((a) => prefixes.some((p) => a.code.startsWith(p)) && keywords.some((kw) => a.name.toLowerCase().includes(kw)));
+    return byKw?.code ?? affectable.find((a) => prefixes.some((p) => a.code.startsWith(p)))?.code ?? affectable[0]?.code ?? '';
   };
 
   useEffect(() => {
@@ -50,16 +52,15 @@ export function BankLinePolizaModal({
       return;
     }
     const withdrawal = line.cargoBanco > 0;
-    const defaultCode = withdrawal
-      ? findByHints(['601', '701'], ['comision', 'bancari', 'gasto'])
-      : findByHints(['401', '702'], ['venta', 'ingreso', 'interes']);
+    const defaultCode = withdrawal ? findByHints(['601', '701'], ['comision', 'bancari', 'gasto']) : findByHints(['401', '702'], ['venta', 'ingreso', 'interes']);
+    const lineAmt = withdrawal ? line.cargoBanco : line.abonoBanco;
     setCounterCode(defaultCode);
     setDesglosarIva(withdrawal);
+    setMultiMode(false);
+    setMultiRows([{ id: 'bcl_init', accountCode: defaultCode, side: withdrawal ? 'CARGO' : 'ABONO', amount: lineAmt, concepto: line.descripcion || '' }]);
     setIsDirty(false);
     setConfirmDiscard(false);
-    if (dialog && !dialog.open) {
-      dialog.showModal();
-    }
+    if (dialog && !dialog.open) dialog.showModal();
   }, [line?.id]);
 
   const handleSafeClose = useCallback(() => {
@@ -81,19 +82,58 @@ export function BankLinePolizaModal({
   const baseAmt = fromCents(baseCents);
   const ivaAmt = fromCents(ivaCents);
 
-  const applyPreset = (preset: 'COMISION' | 'INTERES' | 'TRASPASO' | 'IMPUESTOS') => {
+  const isMultiBalanced = (() => {
+    if (!multiMode) return true;
+    let c = isWithdrawal ? 0 : totalCents;
+    let a = isWithdrawal ? totalCents : 0;
+    for (const r of multiRows) {
+      const amtCents = toCents(r.amount);
+      const side = r.side ?? (isWithdrawal ? 'CARGO' : 'ABONO');
+      if (side === 'CARGO') c += amtCents;
+      else a += amtCents;
+    }
+    return c === a && multiRows.some((r) => toCents(r.amount) > 0);
+  })();
+
+  const applyPreset = (preset: 'COMISION' | 'INTERES' | 'TRASPASO' | 'IMPUESTOS' | 'PPD_IVA') => {
     if (preset === 'COMISION') {
+      setMultiMode(false);
       setCounterCode(findByHints(['601', '701'], ['comision', 'bancari']));
       setDesglosarIva(true);
     } else if (preset === 'INTERES') {
+      setMultiMode(false);
       setCounterCode(findByHints(['702', '401'], ['interes', 'financiero', 'producto']));
       setDesglosarIva(false);
     } else if (preset === 'TRASPASO') {
+      setMultiMode(false);
       setCounterCode(findByHints(['102'], ['banco']));
       setDesglosarIva(false);
+    } else if (preset === 'IMPUESTOS') {
+      const isrCode = findByHints(['213-01-002', '213'], ['isr', 'impuesto']);
+      const ivaCode = findByHints(['213-01-001', '213'], ['iva', 'impuesto']);
+      const half = fromCents(Math.floor(totalCents / 2));
+      const rem = fromCents(totalCents - Math.floor(totalCents / 2));
+      setMultiMode(true);
+      setMultiRows([
+        { id: 'dyp_isr', accountCode: isrCode, side: 'CARGO', amount: half, concepto: 'Pago ISR Provisional SAT DyP' },
+        { id: 'dyp_iva', accountCode: ivaCode, side: 'CARGO', amount: rem, concepto: 'Pago IVA Definitivo SAT DyP' }
+      ]);
     } else {
-      setCounterCode(findByHints(['213', '216', '208'], ['impuesto', 'isr', 'iva', 'retencion']));
-      setDesglosarIva(false);
+      const mainCode = isWithdrawal
+        ? findByHints(['201-01-001', '201'], ['proveedor'])
+        : findByHints(['105-01-001', '105'], ['cliente']);
+      const ivaPayCode = isWithdrawal
+        ? findByHints(['118-01-001', '118'], ['acreditable'])
+        : findByHints(['209-01-001', '209'], ['pendiente']);
+      const ivaPendCode = isWithdrawal
+        ? findByHints(['119-01-001', '119'], ['pendiente'])
+        : findByHints(['208-01-001', '208'], ['cobrado']);
+      setMultiMode(true);
+      setMultiRows([
+        { id: 'ppd_main', accountCode: mainCode, side: isWithdrawal ? 'CARGO' : 'ABONO', amount, concepto: isWithdrawal ? 'Pago a proveedor PPD' : 'Cobro a cliente PPD' },
+        { id: 'ppd_iva1', accountCode: ivaPayCode, side: 'CARGO', amount: fromCents(totalCents - Math.round(totalCents / 1.16)), concepto: 'Reclasificación IVA PPD' },
+        { id: 'ppd_iva2', accountCode: ivaPendCode, side: 'ABONO', amount: fromCents(totalCents - Math.round(totalCents / 1.16)), concepto: 'Reclasificación IVA PPD' }
+      ]);
     }
     setIsDirty(true);
     setConfirmDiscard(false);
@@ -131,7 +171,7 @@ export function BankLinePolizaModal({
               form="bank-line-poliza-form"
               variant="primary"
               loading={isSubmitting}
-              disabled={!counterCode}
+              disabled={multiMode ? !isMultiBalanced : !counterCode}
               leftIcon={
                 isSubmitting
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
@@ -150,7 +190,20 @@ export function BankLinePolizaModal({
           onSubmit={(e) => {
             e.preventDefault();
             setConfirmDiscard(false);
-            onSubmit(line.id, { counterAccountCode: counterCode, desglosarIva });
+            onSubmit(line.id, {
+              counterAccountCode: counterCode,
+              desglosarIva: multiMode ? false : desglosarIva,
+              ...(multiMode
+                ? {
+                    counterLines: multiRows.map(({ accountCode, side, amount: rowAmt, concepto }) => ({
+                      accountCode,
+                      side,
+                      amount: rowAmt,
+                      concepto
+                    }))
+                  }
+                : {})
+            });
           }}
           className="space-y-4 text-xs"
         >
@@ -171,121 +224,97 @@ export function BankLinePolizaModal({
                 Traspaso entre Cuentas
               </button>
               <button type="button" onClick={() => applyPreset('IMPUESTOS')} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 cursor-pointer">
-                Pago Impuestos SAT
+                Pago Impuestos SAT (DyP)
+              </button>
+              <button type="button" onClick={() => applyPreset('PPD_IVA')} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 cursor-pointer">
+                PPD con IVA
               </button>
             </div>
           </div>
 
-          <FormField label="Contracuenta Contable" htmlFor="bank-poliza-counter-account">
-            <Select
-              id="bank-poliza-counter-account"
-              value={counterCode}
-              onChange={(e) => {
-                setCounterCode(e.target.value);
-                setIsDirty(true);
-                setConfirmDiscard(false);
-              }}
-              className="font-mono"
-            >
-              {affectable.map((a) => (
-                <option key={a.id} value={a.code}>
-                  {a.code} — {a.name}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-
-          <label htmlFor="bank-poliza-iva-toggle" className="flex items-center gap-2 cursor-pointer select-none">
+          <label htmlFor="bank-poliza-multi-toggle" className="flex items-center gap-2 cursor-pointer select-none">
             <input
-              id="bank-poliza-iva-toggle"
+              id="bank-poliza-multi-toggle"
               type="checkbox"
-              checked={desglosarIva}
+              checked={multiMode}
               onChange={(e) => {
-                setDesglosarIva(e.target.checked);
+                setMultiMode(e.target.checked);
                 setIsDirty(true);
-                setConfirmDiscard(false);
               }}
               className="rounded border-slate-300 text-blue-600 focus:ring-blue-600"
             />
-            <span className="font-semibold text-slate-800">Desglosar IVA 16% automáticamente</span>
+            <span className="font-semibold text-slate-800">Dividir en múltiples contracuentas</span>
           </label>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-            <div className="px-3 py-1.5 bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-700">
-              Previsualización de Póliza (Partida Doble)
-            </div>
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-600">
-                  <th scope="col" className="py-1.5 px-3 text-left">Cuenta</th>
-                  <th scope="col" className="py-1.5 px-3 text-right">Debe</th>
-                  <th scope="col" className="py-1.5 px-3 text-right">Haber</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 font-mono tabular-nums">
-                {isWithdrawal ? (
-                  <>
-                    <tr>
-                      <td className="py-1.5 px-3 text-slate-800">{counterCode || 'Contracuenta'}</td>
-                      <td className="py-1.5 px-3 text-right text-slate-900">{formatCurrency(baseAmt)}</td>
-                      <td className="py-1.5 px-3 text-right text-slate-400">—</td>
-                    </tr>
-                    {desglosarIva && ivaAmt > 0 && (
-                      <tr>
-                        <td className="py-1.5 px-3 text-slate-800">118-01 IVA Acreditable Pagado (16%)</td>
-                        <td className="py-1.5 px-3 text-right text-slate-900">{formatCurrency(ivaAmt)}</td>
-                        <td className="py-1.5 px-3 text-right text-slate-400">—</td>
-                      </tr>
-                    )}
-                    <tr>
-                      <td className="py-1.5 px-3 text-slate-800">{bankAcc?.code ?? '102-01'} Bancos</td>
-                      <td className="py-1.5 px-3 text-right text-slate-400">—</td>
-                      <td className="py-1.5 px-3 text-right text-slate-900">{formatCurrency(amount)}</td>
-                    </tr>
-                  </>
-                ) : (
-                  <>
-                    <tr>
-                      <td className="py-1.5 px-3 text-slate-800">{bankAcc?.code ?? '102-01'} Bancos</td>
-                      <td className="py-1.5 px-3 text-right text-slate-900">{formatCurrency(amount)}</td>
-                      <td className="py-1.5 px-3 text-right text-slate-400">—</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 px-3 text-slate-800">{counterCode || 'Contracuenta'}</td>
-                      <td className="py-1.5 px-3 text-right text-slate-400">—</td>
-                      <td className="py-1.5 px-3 text-right text-slate-900">{formatCurrency(baseAmt)}</td>
-                    </tr>
-                    {desglosarIva && ivaAmt > 0 && (
-                      <tr>
-                        <td className="py-1.5 px-3 text-slate-800">208-01 IVA Trasladado Cobrado (16%)</td>
-                        <td className="py-1.5 px-3 text-right text-slate-400">—</td>
-                        <td className="py-1.5 px-3 text-right text-slate-900">{formatCurrency(ivaAmt)}</td>
-                      </tr>
-                    )}
-                  </>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {multiMode ? (
+            <BankLinePolizaMultiLines
+              rows={multiRows}
+              affectable={affectable}
+              bankAmount={amount}
+              isWithdrawal={isWithdrawal}
+              onChange={(next) => {
+                setMultiRows(next);
+                setIsDirty(true);
+                setConfirmDiscard(false);
+              }}
+            />
+          ) : (
+            <>
+              <FormField label="Contracuenta Contable" htmlFor="bank-poliza-counter-account">
+                <Select
+                  id="bank-poliza-counter-account"
+                  value={counterCode}
+                  onChange={(e) => {
+                    setCounterCode(e.target.value);
+                    setIsDirty(true);
+                    setConfirmDiscard(false);
+                  }}
+                  className="font-mono"
+                >
+                  {affectable.map((a) => (
+                    <option key={a.id} value={a.code}>
+                      {a.code} — {a.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+
+              <label htmlFor="bank-poliza-iva-toggle" className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  id="bank-poliza-iva-toggle"
+                  type="checkbox"
+                  checked={desglosarIva}
+                  onChange={(e) => {
+                    setDesglosarIva(e.target.checked);
+                    setIsDirty(true);
+                    setConfirmDiscard(false);
+                  }}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                />
+                <span className="font-semibold text-slate-800">Desglosar IVA 16% automáticamente</span>
+              </label>
+            </>
+          )}
+
+          {!multiMode && (
+            <BankLineSinglePreviewTable
+              isWithdrawal={isWithdrawal}
+              counterCode={counterCode}
+              bankCode={bankAcc?.code ?? '102-01'}
+              baseAmt={baseAmt}
+              ivaAmt={ivaAmt}
+              amount={amount}
+              desglosarIva={desglosarIva}
+            />
+          )}
 
           {confirmDiscard && (
             <AlertBanner
               tone="warning"
               action={
                 <div className="flex items-center gap-1.5">
-                  <Button size="sm" variant="secondary" onClick={() => setConfirmDiscard(false)}>
-                    Seguir editando
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => {
-                      setConfirmDiscard(false);
-                      setIsDirty(false);
-                      dialogRef.current?.close();
-                      onClose();
-                    }}
-                  >
+                  <Button size="sm" variant="secondary" onClick={() => setConfirmDiscard(false)}>Seguir editando</Button>
+                  <Button size="sm" variant="danger" onClick={() => { setConfirmDiscard(false); setIsDirty(false); dialogRef.current?.close(); onClose(); }}>
                     Descartar
                   </Button>
                 </div>

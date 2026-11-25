@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { bankN1Client } from '../../lib/bank-n1-client';
-import { isSupabaseConfigured } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
+import type { BankCounterLineInput } from '../../shared/engine/bank-and-closing.engine';
 import type { BankReconciliationResponse, BankStatementLine, ReconciliationFormulaData } from '../../shared/types';
 import type { BankN1MatchProposal } from '../../shared/types/bank-n1.types';
 import { exportBankReconciliationXlsx, printBankReconciliationPdf } from './BankReconciliationExport';
@@ -12,6 +12,10 @@ import { useBankClosureBalance } from './useBankClosureBalance';
 interface ExtendedBankApiClient {
   manualMatchBankLine?: (lineId: string, movementId: string) => Promise<unknown>;
   deleteBankStatementLine?: (lineId: string) => Promise<unknown>;
+  createPolizaFromBankLine: (
+    lineId: string,
+    options?: { counterAccountCode?: string; desglosarIva?: boolean; counterLines?: ReadonlyArray<BankCounterLineInput> }
+  ) => Promise<unknown>;
 }
 
 const RECON_INVALIDATION_SCOPES = [
@@ -43,11 +47,18 @@ export function useConciliacionTabActions(params: {
   const toast = useToast();
 
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
-  const [selectedBookMovId, setSelectedBookMovId] = useState<string | null>(null);
+  const [selectedBookMovIds, setSelectedBookMovIds] = useState<string[]>([]);
   const [polizaModalLine, setPolizaModalLine] = useState<BankStatementLine | null>(null);
   const [n1Proposals, setN1Proposals] = useState<BankN1MatchProposal[]>([]);
   const [isSearchingN1, setIsSearchingN1] = useState(false);
   const [isApplyingN1, setIsApplyingN1] = useState(false);
+
+  const toggleBookMovId = (movementId: string) => {
+    setSelectedBookMovIds((prev) =>
+      prev.includes(movementId) ? prev.filter((id) => id !== movementId) : [...prev, movementId]
+    );
+  };
+  const clearBookMovIds = () => setSelectedBookMovIds([]);
 
   const contextKey = `${companyId}::${effectiveBankId}::${year ?? ''}::${period ?? ''}`;
   const contextKeyRef = useRef(contextKey);
@@ -60,7 +71,7 @@ export function useConciliacionTabActions(params: {
     applyReqIdRef.current += 1;
     setN1Proposals([]);
     setSelectedLineId(null);
-    setSelectedBookMovId(null);
+    setSelectedBookMovIds([]);
     setPolizaModalLine(null);
     setIsSearchingN1(false);
     setIsApplyingN1(false);
@@ -82,19 +93,36 @@ export function useConciliacionTabActions(params: {
   });
 
   const manualMatchMutation = useMutation({
-    mutationFn: ({ lineId, movementId }: { lineId: string; movementId: string }) => {
+    mutationFn: async ({ lineId, movementIds }: { lineId: string; movementIds: string[] }) => {
       if (isWriteLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
-      const fn = (apiClient as unknown as ExtendedBankApiClient).manualMatchBankLine;
-      if (!isSupabaseConfigured || typeof fn !== 'function') {
-        throw new Error('El emparejamiento manual requiere conexión activa en la nube.');
+      if (movementIds.length >= 2) {
+        const res = await bankN1Client.applyBankN1Matches(
+          companyId,
+          effectiveBankId,
+          [{ bankLineId: lineId, movementIds }],
+          year,
+          period
+        );
+        if (res.appliedCount === 0) {
+          throw new Error('No se pudo conciliar N:1: verifica signos e igualdad de importes (±$0.05).');
+        }
+        return res;
       }
-      return fn(lineId, movementId);
+      const fn = (apiClient as unknown as ExtendedBankApiClient).manualMatchBankLine;
+      if (typeof fn !== 'function' || !movementIds[0]) {
+        throw new Error('El emparejamiento manual no está disponible.');
+      }
+      return fn(lineId, movementIds[0]);
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       setSelectedLineId(null);
-      setSelectedBookMovId(null);
+      setSelectedBookMovIds([]);
       invalidateAccountingQueries(queryClient, RECON_INVALIDATION_SCOPES, companyId);
-      toast.success('Partida bancaria y movimiento contable conciliados manualmente 1-a-1.');
+      toast.success(
+        vars.movementIds.length >= 2
+          ? `Partida bancaria conciliada manualmente N:1 con ${vars.movementIds.length} movimientos contables.`
+          : 'Partida bancaria y movimiento contable conciliados manualmente 1-a-1.'
+      );
     },
     onError: (err: Error) => toast.error(err.message)
   });
@@ -103,8 +131,8 @@ export function useConciliacionTabActions(params: {
     mutationFn: (lineId: string) => {
       if (isWriteLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
       const fn = (apiClient as unknown as ExtendedBankApiClient).deleteBankStatementLine;
-      if (!isSupabaseConfigured || typeof fn !== 'function') {
-        throw new Error('Eliminar líneas bancarias requiere conexión activa en la nube.');
+      if (typeof fn !== 'function') {
+        throw new Error('Eliminar líneas bancarias no está disponible.');
       }
       return fn(lineId);
     },
@@ -117,9 +145,16 @@ export function useConciliacionTabActions(params: {
   });
 
   const customCreatePolizaMutation = useMutation({
-    mutationFn: ({ lineId, options }: { lineId: string; options: { counterAccountCode: string; desglosarIva: boolean } }) => {
+    mutationFn: ({
+      lineId,
+      options
+    }: {
+      lineId: string;
+      options: { counterAccountCode: string; desglosarIva: boolean; counterLines?: ReadonlyArray<BankCounterLineInput> };
+    }) => {
       if (isWriteLocked) throw new Error('Periodo bloqueado o modo solo lectura.');
-      return apiClient.createPolizaFromBankLine(lineId, options);
+      const client = apiClient as unknown as ExtendedBankApiClient;
+      return client.createPolizaFromBankLine(lineId, options);
     },
     onSuccess: () => {
       setPolizaModalLine(null);
@@ -196,7 +231,7 @@ export function useConciliacionTabActions(params: {
   };
 
   return {
-    selectedLineId, setSelectedLineId, selectedBookMovId, setSelectedBookMovId,
+    selectedLineId, setSelectedLineId, selectedBookMovIds, toggleBookMovId, clearBookMovIds,
     polizaModalLine, setPolizaModalLine, n1Proposals, setN1Proposals,
     isSearchingN1, isApplyingN1, bankStatementBalance, bankBalanceDraft, hasCapturedBankBalance, closureSaveStatus, handleBankBalanceChange,
     manualMatchMutation, deleteBankLineMutation, customCreatePolizaMutation,

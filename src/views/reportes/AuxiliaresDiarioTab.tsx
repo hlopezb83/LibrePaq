@@ -45,6 +45,8 @@ export function AuxiliaresDiarioTab({
   const [mode, setMode] = useState<'DIARIO' | 'AUXILIAR'>('DIARIO');
   const [periodFrom, setPeriodFrom] = useState<number>(periodo || 1);
   const [periodTo, setPeriodTo] = useState<number>(periodo || 1);
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [codeFrom, setCodeFrom] = useState<string>(() => affectableAccounts[0]?.code ?? '101-01-001');
   const [codeTo, setCodeTo] = useState<string>(
     () => affectableAccounts[affectableAccounts.length - 1]?.code ?? '801-01-002'
@@ -56,6 +58,8 @@ export function AuxiliaresDiarioTab({
     const p = periodo || 1;
     setPeriodFrom(p);
     setPeriodTo(p);
+    setDateFrom('');
+    setDateTo('');
   }, [company.id, ejercicio, periodo]);
 
   useEffect(() => {
@@ -95,7 +99,16 @@ export function AuxiliaresDiarioTab({
     enabled: Boolean(company.id)
   });
 
-  const polizas = rangeData?.polizas ?? [];
+  const rawPolizas = rangeData?.polizas ?? [];
+  const polizas = useMemo(() => {
+    if (!dateFrom && !dateTo) return rawPolizas;
+    return rawPolizas.filter((p) => {
+      const f = p.fecha.slice(0, 10);
+      if (dateFrom && f < dateFrom) return false;
+      if (dateTo && f > dateTo) return false;
+      return true;
+    });
+  }, [rawPolizas, dateFrom, dateTo]);
   const startAccounts = rangeData?.startAccounts ?? trialBalance;
 
   const diarioTotals = useMemo(
@@ -213,35 +226,32 @@ export function AuxiliaresDiarioTab({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-200 items-end">
           <FormField label="Periodo Desde" htmlFor="aux-period-from">
-            <Select
-              id="aux-period-from"
-              size="sm"
-              value={periodFrom}
-              onChange={(e) => setPeriodFrom(Number(e.target.value))}
-              className="font-mono"
-            >
+            <Select id="aux-period-from" size="sm" value={periodFrom} onChange={(e) => setPeriodFrom(Number(e.target.value))} className="font-mono">
               {MESES_SAT.map((m) => (
-                <option key={m.periodo} value={m.periodo}>
-                  P{String(m.periodo).padStart(2, '0')} - {m.nombre}
-                </option>
+                <option key={m.periodo} value={m.periodo}>P{String(m.periodo).padStart(2, '0')} - {m.nombre}</option>
               ))}
             </Select>
           </FormField>
 
           <FormField label="Periodo Hasta" htmlFor="aux-period-to">
-            <Select
-              id="aux-period-to"
-              size="sm"
-              value={periodTo}
-              onChange={(e) => setPeriodTo(Number(e.target.value))}
-              className="font-mono"
-            >
+            <Select id="aux-period-to" size="sm" value={periodTo} onChange={(e) => setPeriodTo(Number(e.target.value))} className="font-mono">
               {MESES_SAT.map((m) => (
-                <option key={m.periodo} value={m.periodo}>
-                  P{String(m.periodo).padStart(2, '0')} - {m.nombre}
-                </option>
+                <option key={m.periodo} value={m.periodo}>P{String(m.periodo).padStart(2, '0')} - {m.nombre}</option>
               ))}
             </Select>
+          </FormField>
+
+          <FormField label="Fecha Desde (Opcional)" htmlFor="aux-date-from">
+            <input id="aux-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-mono text-slate-900" />
+          </FormField>
+
+          <FormField label="Fecha Hasta (Opcional)" htmlFor="aux-date-to">
+            <div className="flex items-center gap-1.5">
+              <input id="aux-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-mono text-slate-900" />
+              {(dateFrom || dateTo) && (
+                <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-[11px] font-semibold text-blue-700 hover:underline whitespace-nowrap cursor-pointer">Limpiar</button>
+              )}
+            </div>
           </FormField>
 
           {mode === 'AUXILIAR' && (
@@ -251,10 +261,7 @@ export function AuxiliaresDiarioTab({
                 <AccountPickerCombobox
                   accounts={affectableAccounts}
                   value={accountFromId}
-                  onChange={(accountId) => {
-                    const found = affectableAccounts.find((a) => a.id === accountId);
-                    if (found) setCodeFrom(found.code);
-                  }}
+                  onChange={(accountId) => { const f = affectableAccounts.find((a) => a.id === accountId); if (f) setCodeFrom(f.code); }}
                   ariaLabel="Cuenta Desde"
                   placeholder="Buscar cuenta inicial..."
                 />
@@ -264,25 +271,13 @@ export function AuxiliaresDiarioTab({
                 <AccountPickerCombobox
                   accounts={affectableAccounts}
                   value={accountToId}
-                  onChange={(accountId) => {
-                    const found = affectableAccounts.find((a) => a.id === accountId);
-                    if (found) setCodeTo(found.code);
-                  }}
+                  onChange={(accountId) => { const f = affectableAccounts.find((a) => a.id === accountId); if (f) setCodeTo(f.code); }}
                   ariaLabel="Cuenta Hasta"
                   placeholder="Buscar cuenta final..."
                 />
               </div>
-              <label
-                htmlFor="aux-only-activity"
-                className="flex items-center gap-2 pb-1.5 text-xs font-semibold text-slate-700 cursor-pointer"
-              >
-                <input
-                  id="aux-only-activity"
-                  type="checkbox"
-                  checked={onlyWithActivity}
-                  onChange={(e) => setOnlyWithActivity(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-700"
-                />
+              <label htmlFor="aux-only-activity" className="flex items-center gap-2 pb-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                <input id="aux-only-activity" type="checkbox" checked={onlyWithActivity} onChange={(e) => setOnlyWithActivity(e.target.checked)} className="rounded border-slate-300 text-blue-700" />
                 <span>Solo cuentas con saldo o movimiento</span>
               </label>
             </>
@@ -298,16 +293,7 @@ export function AuxiliaresDiarioTab({
             icon={<AlertCircle className="w-6 h-6" aria-hidden="true" />}
             title="Error al consultar Diario General y Auxiliares"
             description={error instanceof Error ? error.message : 'Error de conexión con el servidor contable.'}
-            actions={
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void refetch()}
-                leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
-              >
-                Reintentar
-              </Button>
-            }
+            actions={<Button variant="primary" size="sm" onClick={() => void refetch()} leftIcon={<RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}>Reintentar</Button>}
           />
         </div>
       ) : isLoading ? (

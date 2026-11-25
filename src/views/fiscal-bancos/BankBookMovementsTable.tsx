@@ -7,6 +7,8 @@ interface BankBookMovementsTableProps {
   reconData: BankReconciliationResponse;
   showOnlyPending?: boolean;
   highlightAmount?: number | null;
+  selectedBookMovementIds?: ReadonlySet<string>;
+  onToggleBookMovement?: (movementId: string) => void;
   selectedBookMovementId?: string | null;
   onSelectBookMovement?: (movementId: string) => void;
 }
@@ -15,9 +17,12 @@ export function BankBookMovementsTable({
   reconData,
   showOnlyPending = false,
   highlightAmount = null,
+  selectedBookMovementIds,
+  onToggleBookMovement,
   selectedBookMovementId = null,
   onSelectBookMovement
 }: BankBookMovementsTableProps) {
+  const toggleMov = onToggleBookMovement ?? onSelectBookMovement;
   const visibleMovements = showOnlyPending
     ? reconData.bookMovements.filter((bm) => !bm.isMatched)
     : reconData.bookMovements;
@@ -32,7 +37,7 @@ export function BankBookMovementsTable({
             2. Movimientos Contables Registrados en Libros ({reconData.account.code})
           </h2>
           <p className="text-xs text-slate-600">
-            Partidas contables en pólizas del periodo y su estatus de correspondencia con el banco
+            Marca una partida para cruce 1:1 o varias partidas con casilla para cruce manual N:1 sin tope
           </p>
         </div>
         <span className="text-[11px] font-mono text-slate-600">
@@ -52,6 +57,11 @@ export function BankBookMovementsTable({
           </caption>
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-50 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+              {toggleMov && (
+                <th scope="col" className="py-2.5 px-2.5 w-10 text-center">
+                  <span className="visually-hidden">Selección múltiple</span>
+                </th>
+              )}
               <th scope="col" className="py-2.5 px-4 w-[110px]">Fecha</th>
               <th scope="col" className="py-2.5 px-4 w-[130px]">Póliza Contable</th>
               <th scope="col" className="py-2.5 px-4 w-[130px]">Referencia</th>
@@ -64,7 +74,7 @@ export function BankBookMovementsTable({
           <tbody className="divide-y divide-slate-200 text-xs">
             {visibleMovements.length === 0 ? (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={toggleMov ? 8 : 7}>
                   <EmptyState
                     icon={<ReceiptText className="w-6 h-6" aria-hidden="true" />}
                     tone="blue"
@@ -84,27 +94,29 @@ export function BankBookMovementsTable({
             ) : (
               visibleMovements.map((bm) => {
                 const amount = bm.cargoContable > 0 ? bm.cargoContable : bm.abonoContable;
-                const isSelected = selectedBookMovementId === bm.movementId;
+                const isSelected = selectedBookMovementIds
+                  ? selectedBookMovementIds.has(bm.movementId)
+                  : selectedBookMovementId === bm.movementId;
                 const isCandidateMatch =
                   highlightAmount != null && !bm.isMatched && Math.abs(amount - highlightAmount) < 0.01;
                 return (
                   <tr
                     key={bm.movementId}
-                    tabIndex={!bm.isMatched && onSelectBookMovement ? 0 : undefined}
-                    aria-selected={!bm.isMatched && onSelectBookMovement ? isSelected : undefined}
+                    tabIndex={!bm.isMatched && toggleMov ? 0 : undefined}
+                    aria-selected={!bm.isMatched && toggleMov ? isSelected : undefined}
                     aria-label={
-                      !bm.isMatched && onSelectBookMovement
+                      !bm.isMatched && toggleMov
                         ? `${isSelected ? 'Deseleccionar' : 'Seleccionar'} partida contable ${bm.polizaFolio} por ${formatCurrency(amount)} para cruce manual`
                         : undefined
                     }
                     onClick={() => {
-                      if (!bm.isMatched && onSelectBookMovement) onSelectBookMovement(bm.movementId);
+                      if (!bm.isMatched && toggleMov) toggleMov(bm.movementId);
                     }}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
-                      if (!bm.isMatched && onSelectBookMovement && (e.key === 'Enter' || e.key === ' ')) {
+                      if (!bm.isMatched && toggleMov && (e.key === 'Enter' || e.key === ' ')) {
                         e.preventDefault();
-                        onSelectBookMovement(bm.movementId);
+                        toggleMov(bm.movementId);
                       }
                     }}
                     className={
@@ -112,11 +124,24 @@ export function BankBookMovementsTable({
                         ? 'bg-emerald-100/80 ring-1 ring-inset ring-emerald-500 cursor-pointer'
                         : isCandidateMatch
                           ? 'bg-blue-50 ring-1 ring-inset ring-blue-300 cursor-pointer'
-                          : !bm.isMatched && onSelectBookMovement
+                          : !bm.isMatched && toggleMov
                             ? 'hover:bg-blue-50/40 cursor-pointer'
                             : 'hover:bg-blue-50/30'
                     }
                   >
+                    {toggleMov && (
+                      <td className="py-2.5 px-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+                        {!bm.isMatched && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleMov(bm.movementId)}
+                            aria-label={`Marcar ${bm.polizaFolio} (${formatCurrency(amount)}) para cruce`}
+                            className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                          />
+                        )}
+                      </td>
+                    )}
                     <td className="py-2.5 px-4 font-mono text-slate-600 w-[110px] whitespace-nowrap">
                       {formatShortDate(bm.fecha)}
                     </td>
@@ -152,7 +177,7 @@ export function BankBookMovementsTable({
           {visibleMovements.length > 0 && (
             <tfoot className="sticky bottom-0 z-10 bg-slate-100 [&_td]:bg-slate-100">
               <tr className="border-t-2 border-slate-300 font-mono text-xs font-bold text-slate-900">
-                <td colSpan={4} className="py-2.5 px-4 font-sans text-right uppercase tracking-wider text-slate-700">
+                <td colSpan={toggleMov ? 5 : 4} className="py-2.5 px-4 font-sans text-right uppercase tracking-wider text-slate-700">
                   Totales Libros ({visibleMovements.length}):
                 </td>
                 <td className="py-2.5 px-4 text-right whitespace-nowrap tabular-nums">

@@ -178,7 +178,6 @@ export function useBankClosureBalance(params: {
     updateClosureQueryCache(targetCompanyId, targetBankId, targetYear, targetPeriod, numVal);
     const saveFn = extClient.saveBankClosureBalance;
     if (
-      isSupabaseConfigured &&
       !isWriteLocked &&
       typeof saveFn === 'function' &&
       targetCompanyId &&

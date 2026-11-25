@@ -114,10 +114,10 @@ export function useAccountLedger(
   const data = useMemo(() => {
     if (!rawData) return undefined;
     const sorted = [...rawData.entries].sort((a, b) => {
-      const dateCmp = String(a.fecha).localeCompare(String(b.fecha));
-      if (dateCmp !== 0) return dateCmp;
       const perCmp = Number(a.periodo ?? 0) - Number(b.periodo ?? 0);
       if (perCmp !== 0) return perCmp;
+      const dateCmp = String(a.fecha).localeCompare(String(b.fecha));
+      if (dateCmp !== 0) return dateCmp;
       const folioCmp = Number(a.folioPoliza) - Number(b.folioPoliza);
       return folioCmp !== 0 ? folioCmp : String(a.movementId).localeCompare(String(b.movementId));
     });

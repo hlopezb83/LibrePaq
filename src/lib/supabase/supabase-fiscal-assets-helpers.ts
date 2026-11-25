@@ -16,6 +16,7 @@ export type ThirdPartyWithBackupAliases = ThirdPartyRecord & {
 
 export function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyWithBackupAliases {
   const estatus = (t.estatus_69b || t.estatus69B || t.estatus69b || 'LIMPIO') as Efos69BStatus;
+  const rawRegion = String(t.region_fronteriza ?? t.regionFronteriza ?? 'NORTE').toUpperCase();
   return {
     id: String(t.id),
     companyId: String(t.company_id),
@@ -27,6 +28,7 @@ export function mapSupabaseThirdParty(t: Record<string, unknown>): ThirdPartyWit
     tipoTerceroDiot: ((t.tipo_tercero_diot as '04' | '05' | '15') || '04'),
     tipoOperacionDiot: (t.tipo_operacion_diot as '03' | '06' | '85') || '85',
     tasaIvaDefault: (t.tasa_iva_default === 8 ? 8 : t.tasa_iva_default === 0 ? 0 : 16) as 16 | 8 | 0,
+    regionFronteriza: rawRegion === 'SUR' ? 'SUR' : 'NORTE',
     deductiblePct: Number(t.deductible_pct ?? t.deductiblePct ?? 100),
     estatus69B: estatus,
     estatus69b: estatus,
@@ -55,6 +57,10 @@ export function mapSupabaseFixedAsset(f: Record<string, unknown>): FixedAssetRec
     cuentaDepAcumCode: String(f.cuenta_dep_acum_code || '171-01-001'),
     cuentaGastoDepCode: String(f.cuenta_gasto_dep_code || '601-01-006'),
     estatus: (f.estatus as 'ACTIVO' | 'BAJA' | 'TOTALMENTE_DEPRECIADO') || 'ACTIVO',
+    fechaBaja: f.fecha_baja ? String(f.fecha_baja).slice(0, 10) : null,
+    precioVenta: f.precio_venta !== undefined && f.precio_venta !== null ? Number(f.precio_venta) : null,
+    bajaPolizaId: f.baja_poliza_id ? String(f.baja_poliza_id) : null,
+    vehicleCapType: f.vehicle_cap_type ? String(f.vehicle_cap_type) : null,
     createdAt: String(f.created_at || new Date().toISOString())
   };
 }
@@ -64,47 +70,58 @@ export async function saveThirdPartyWithClient(
   payload: Omit<ThirdPartyWithBackupAliases, 'id' | 'updatedAt'>
 ): Promise<ThirdPartyWithBackupAliases> {
   const cleanRfc = payload.rfc.trim().toUpperCase();
-  const { data: existing, error: lookupErr } = await client
+  const cleanNombre = payload.nombre.trim();
+  const cleanIdFiscal = payload.idFiscal?.trim() || null;
+  const isForeign = payload.tipoTerceroDiot === '05';
+
+  let lookup = client
     .from('third_parties')
     .select('id')
     .eq('company_id', payload.companyId)
-    .eq('rfc', cleanRfc)
-    .maybeSingle();
+    .eq('rfc', cleanRfc);
+  lookup = isForeign
+    ? lookup.eq('tipo_tercero_diot', '05').eq('nombre', cleanNombre)
+    : lookup.neq('tipo_tercero_diot', '05');
+  const { data: existingRows, error: lookupErr } = await lookup.limit(1);
   if (lookupErr) throw new Error(lookupErr.message);
 
-  const id = existing?.id ? String(existing.id) : `tp_${payload.companyId}_${cleanRfc}`;
+  const existingId = (existingRows?.[0] as { id?: string } | undefined)?.id;
+  const id = existingId
+    ? String(existingId)
+    : isForeign
+      ? `tp_${payload.companyId}_${cleanRfc}_${crypto.randomUUID().slice(0, 6)}`
+      : `tp_${payload.companyId}_${cleanRfc}`;
   const now = new Date().toISOString();
   const resolvedEstatus69B = payload.estatus69B || payload.estatus69b || 'LIMPIO';
-  const resolvedDeductiblePct = Math.max(0, Math.min(100, Number(payload.deductiblePct ?? 100)));
+  const resolvedDeductiblePct = Math.max(0, Math.min(100, Math.round(Number(payload.deductiblePct ?? 100))));
+  const resolvedRegion = payload.regionFronteriza === 'SUR' ? 'SUR' : 'NORTE';
 
-  const { data, error } = await client
-    .from('third_parties')
-    .upsert(
-      {
-        id,
-        company_id: payload.companyId,
-        rfc: cleanRfc,
-        nombre: payload.nombre.trim(),
-        rol: payload.rol,
-        cuenta_operacion_code: payload.cuentaOperacionCode,
-        cuenta_contrapartida_code: payload.cuentaContrapartidaCode,
-        tipo_tercero_diot: payload.tipoTerceroDiot,
-        tipo_operacion_diot: payload.tipoOperacionDiot,
-        tasa_iva_default: payload.tasaIvaDefault,
-        deductible_pct: resolvedDeductiblePct,
-        estatus_69b: resolvedEstatus69B,
-        id_fiscal: payload.idFiscal?.trim() || null,
-        pais: payload.pais?.trim().toUpperCase() || null,
-        jurisdiccion_fiscal:
-          payload.pais?.trim().toUpperCase() === 'ZZZ'
-            ? (payload.jurisdiccionFiscal?.trim() || null)
-            : null,
-        updated_at: now
-      },
-      { onConflict: 'company_id,rfc' }
-    )
-    .select()
-    .single();
+  const rowPayload = {
+    id,
+    company_id: payload.companyId,
+    rfc: cleanRfc,
+    nombre: cleanNombre,
+    rol: payload.rol,
+    cuenta_operacion_code: payload.cuentaOperacionCode,
+    cuenta_contrapartida_code: payload.cuentaContrapartidaCode,
+    tipo_tercero_diot: payload.tipoTerceroDiot,
+    tipo_operacion_diot: payload.tipoOperacionDiot,
+    tasa_iva_default: payload.tasaIvaDefault,
+    region_fronteriza: resolvedRegion,
+    deductible_pct: resolvedDeductiblePct,
+    estatus_69b: resolvedEstatus69B,
+    id_fiscal: cleanIdFiscal,
+    pais: payload.pais?.trim().toUpperCase() || null,
+    jurisdiccion_fiscal:
+      payload.pais?.trim().toUpperCase() === 'ZZZ'
+        ? (payload.jurisdiccionFiscal?.trim() || null)
+        : null,
+    updated_at: now
+  };
+
+  const { data, error } = existingId
+    ? await client.from('third_parties').update(rowPayload).eq('id', id).select().single()
+    : await client.from('third_parties').insert(rowPayload).select().single();
 
   if (error) throw new Error(error.message);
   return mapSupabaseThirdParty(data as Record<string, unknown>);

@@ -16,62 +16,56 @@ const MONTH_MAP: Readonly<Record<string, number>> = {
 };
 
 function toValidIsoDate(year: number, month: number, day: number): string | null {
-  if (!Number.isInteger(year) || year < 1900 || year > 2100) return null;
-  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
-  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  if (!Number.isInteger(year) || year < 1900 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(day) || day < 1 || day > 31) return null;
   const dt = new Date(Date.UTC(year, month - 1, day));
-  if (
-    dt.getUTCFullYear() !== year ||
-    dt.getUTCMonth() !== month - 1 ||
-    dt.getUTCDate() !== day
-  ) {
-    return null;
-  }
+  if (dt.getUTCFullYear() !== year || dt.getUTCMonth() !== month - 1 || dt.getUTCDate() !== day) return null;
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/**
- * Normaliza fechas bancarias comunes en México:
- * `YYYY-MM-DD`, `YYYY/MM/DD`, `DD/MM/YYYY`, `DD-MM-YYYY`, `DD/MMM/YYYY`, `DD-MMM-YYYY`.
- */
 export function parseBankCsvDate(raw: string | undefined, fallbackDate: string): string {
   const clean = (raw ?? '').trim().replace(/^["']|["']$/g, '');
   if (!clean) return fallbackDate;
-
   const isoMatch = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s].*)?$/.exec(clean);
   if (isoMatch) {
     const parsed = toValidIsoDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
     if (parsed) return parsed;
   }
-
   const dmyMatch = /^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})(?:\s.*)?$/.exec(clean);
   if (dmyMatch) {
     const rawYear = dmyMatch[3] ?? '';
-    const year = rawYear.length === 2 ? 2000 + Number(rawYear) : Number(rawYear);
-    const parsed = toValidIsoDate(year, Number(dmyMatch[2]), Number(dmyMatch[1]));
+    const parsed = toValidIsoDate(rawYear.length === 2 ? 2000 + Number(rawYear) : Number(rawYear), Number(dmyMatch[2]), Number(dmyMatch[1]));
     if (parsed) return parsed;
   }
-
   const dMonYMatch = /^(\d{1,2})[-/\s]([a-zA-Z]{3,})[-/\s](\d{2}|\d{4})(?:\s.*)?$/.exec(clean);
   if (dMonYMatch) {
-    const monKey = (dMonYMatch[2] ?? '').slice(0, 3).toLowerCase();
-    const month = MONTH_MAP[monKey];
+    const month = MONTH_MAP[(dMonYMatch[2] ?? '').slice(0, 3).toLowerCase()];
     const rawYear = dMonYMatch[3] ?? '';
-    const year = rawYear.length === 2 ? 2000 + Number(rawYear) : Number(rawYear);
     if (month) {
-      const parsed = toValidIsoDate(year, month, Number(dMonYMatch[1]));
+      const parsed = toValidIsoDate(rawYear.length === 2 ? 2000 + Number(rawYear) : Number(rawYear), month, Number(dMonYMatch[1]));
       if (parsed) return parsed;
     }
   }
-
   return fallbackDate;
 }
+
+/**
+ * Decodifica bytes de archivos bancarios (.csv / .txt) en UTF-8 con respaldo Windows-1252.
+ */
+export function decodeBankCsvBytes(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
+}
+
+export type BankCsvDelimiter = ',' | ';' | '\t' | '|';
 
 /**
  * Divide una fila CSV respetando campos entrecomillados RFC-4180 (ej. `"SPEI, S.A.", "$1,250.00"`).
  * NASA Power of 10 - Regla 2 (H-07, H-10): Bucle acotado por longitud máxima de línea.
  */
-export function splitCsvLine(line: string, delimiter: ',' | ';' | '\t' = ','): string[] {
+export function splitCsvLine(line: string, delimiter: BankCsvDelimiter = ','): string[] {
   const cells: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -97,11 +91,8 @@ export function splitCsvLine(line: string, delimiter: ',' | ';' | '\t' = ','): s
   return cells;
 }
 
-function detectCsvDelimiter(sampleLine: string): ',' | ';' | '\t' {
-  let commas = 0;
-  let semicolons = 0;
-  let tabs = 0;
-  let inQuotes = false;
+function detectCsvDelimiter(sampleLine: string): BankCsvDelimiter {
+  let commas = 0; let semicolons = 0; let tabs = 0; let pipes = 0; let inQuotes = false;
   for (let i = 0; i < sampleLine.length; i += 1) {
     const ch = sampleLine[i];
     if (ch === '"') inQuotes = !inQuotes;
@@ -109,8 +100,10 @@ function detectCsvDelimiter(sampleLine: string): ',' | ';' | '\t' {
       if (ch === ',') commas += 1;
       else if (ch === ';') semicolons += 1;
       else if (ch === '\t') tabs += 1;
+      else if (ch === '|') pipes += 1;
     }
   }
+  if (pipes >= tabs && pipes >= commas && pipes >= semicolons && pipes > 0) return '|';
   if (tabs >= commas && tabs >= semicolons && tabs > 0) return '\t';
   return semicolons > commas ? ';' : ',';
 }
@@ -155,6 +148,19 @@ interface BankCsvColumnMap {
   cargoIdx: number;
   abonoIdx: number;
   montoIdx: number;
+  tipoIdx: number;
+}
+
+function parseCargoAbonoFlag(raw: string | undefined): 'CARGO' | 'ABONO' | null {
+  const norm = (raw ?? '').trim().toUpperCase().replace(/[^A-Z+-]/g, '');
+  if (!norm) return null;
+  if (norm === 'C' || norm === 'CARGO' || norm === 'D' || norm === 'DEBITO' || norm === 'DR' || norm === 'RETIRO' || norm === 'EGRESO' || norm === '-') {
+    return 'CARGO';
+  }
+  if (norm === 'A' || norm === 'ABONO' || norm === 'CR' || norm === 'CREDITO' || norm === 'DEPOSITO' || norm === 'INGRESO' || norm === '+') {
+    return 'ABONO';
+  }
+  return null;
 }
 
 function buildHeaderColumnMap(headerCols: string[]): BankCsvColumnMap | null {
@@ -167,6 +173,13 @@ function buildHeaderColumnMap(headerCols: string[]): BankCsvColumnMap | null {
   const cargoIdx = findIdx(/\b(cargo|cargos|retiro|retiros|debito|egreso|salida)\b/);
   const abonoIdx = findIdx(/\b(abono|abonos|deposito|depositos|credito|ingreso|entrada)\b/);
   const montoIdx = findIdx(/\b(monto|importe|cantidad|valor)\b/);
+  const tipoIdx = norm.findIndex(
+    (h, idx) =>
+      idx !== fechaIdx &&
+      idx !== descIdx &&
+      idx !== montoIdx &&
+      (h === 'c a' || h === 'ca' || h === 'd c' || /\b(tipo|naturaleza|signo|indicador|dr cr|cargo abono)\b/.test(h))
+  );
 
   const hasAmountOrDesc = cargoIdx >= 0 || abonoIdx >= 0 || montoIdx >= 0 || descIdx >= 0;
   if (fechaIdx < 0 || !hasAmountOrDesc) return null;
@@ -177,8 +190,27 @@ function buildHeaderColumnMap(headerCols: string[]): BankCsvColumnMap | null {
     descIdx: descIdx >= 0 ? descIdx : refIdx,
     cargoIdx,
     abonoIdx,
-    montoIdx
+    montoIdx,
+    tipoIdx
   };
+}
+
+function buildIndicatorOrSignedRow(
+  fecha: string,
+  referencia: string,
+  descripcion: string,
+  rawAmount: number,
+  indicatorRaw?: string
+): ParsedBankStatementRow | null {
+  if (rawAmount === 0) return null;
+  const flag = parseCargoAbonoFlag(indicatorRaw);
+  if (flag === 'CARGO') {
+    return { fecha, referencia, descripcion, cargoBanco: Math.abs(rawAmount), abonoBanco: 0 };
+  }
+  if (flag === 'ABONO') {
+    return { fecha, referencia, descripcion, cargoBanco: 0, abonoBanco: Math.abs(rawAmount) };
+  }
+  return buildSignedAmountRow(fecha, referencia, descripcion, rawAmount);
 }
 
 function buildSignedAmountRow(
@@ -199,8 +231,8 @@ function buildSignedAmountRow(
 
 /**
  * H-10 (Power of 10 Regla 2):
- * Parsea un estado de cuenta bancario CSV respetando comillas RFC-4180, punto y coma, signos negativos `(1,250.00)`
- * y encabezados bancarios mexicanos de 3 a 6 columnas (incluyendo `Fecha, Concepto, Cargo, Abono, Saldo`).
+ * Parsea un estado de cuenta bancario CSV/TXT respetando comillas RFC-4180, punto y coma, tab o pipe,
+ * signos negativos `(1,250.00)`, columna importe + `C`/`A` y encabezados bancarios mexicanos.
  */
 export function parseBankStatementCsv(
   csvText: string,
@@ -215,7 +247,7 @@ export function parseBankStatementCsv(
   if (rawLines.length === 0) return [];
 
   const scanLimit = Math.min(rawLines.length, 25);
-  let delimiter: ',' | ';' | '\t' = detectCsvDelimiter(rawLines[0] ?? '');
+  let delimiter: BankCsvDelimiter = detectCsvDelimiter(rawLines[0] ?? '');
   let colMap: BankCsvColumnMap | null = null;
   let startIdx = 0;
 
@@ -267,7 +299,8 @@ export function parseBankStatementCsv(
           parsed.push({ fecha, referencia, descripcion, cargoBanco, abonoBanco });
         }
       } else if (colMap.montoIdx >= 0) {
-        const item = buildSignedAmountRow(fecha, referencia, descripcion, parseCleanMoney(cols[colMap.montoIdx]));
+        const ind = colMap.tipoIdx >= 0 ? cols[colMap.tipoIdx] : undefined;
+        const item = buildIndicatorOrSignedRow(fecha, referencia, descripcion, parseCleanMoney(cols[colMap.montoIdx]), ind);
         if (item) parsed.push(item);
       }
       continue;
@@ -275,7 +308,17 @@ export function parseBankStatementCsv(
 
     const fecha = parseBankCsvDate(cols[0], '');
     if (!fecha) continue;
-    if (cols.length >= 5) {
+    const lastFlag = parseCargoAbonoFlag(cols[cols.length - 1]);
+    if (cols.length >= 5 && lastFlag) {
+      const item = buildIndicatorOrSignedRow(
+        fecha,
+        cols[1] || `CSV-${100 + i}`,
+        cols[2] || `Movimiento importado CSV #${i}`,
+        parseCleanMoney(cols[3]),
+        cols[cols.length - 1]
+      );
+      if (item) parsed.push(item);
+    } else if (cols.length >= 5) {
       const cargoBanco = Math.abs(parseCleanMoney(cols[3]));
       const abonoBanco = Math.abs(parseCleanMoney(cols[4]));
       if (cargoBanco > 0 || abonoBanco > 0) {
@@ -287,21 +330,14 @@ export function parseBankStatementCsv(
           abonoBanco
         });
       }
+    } else if (cols.length === 4 && lastFlag) {
+      const item = buildIndicatorOrSignedRow(fecha, `CSV-${100 + i}`, cols[1] || `Movimiento importado CSV #${i}`, parseCleanMoney(cols[2]), cols[3]);
+      if (item) parsed.push(item);
     } else if (cols.length === 4) {
-      const item = buildSignedAmountRow(
-        fecha,
-        cols[1] || `CSV-${100 + i}`,
-        cols[2] || `Movimiento importado CSV #${i}`,
-        parseCleanMoney(cols[3])
-      );
+      const item = buildSignedAmountRow(fecha, cols[1] || `CSV-${100 + i}`, cols[2] || `Movimiento importado CSV #${i}`, parseCleanMoney(cols[3]));
       if (item) parsed.push(item);
     } else {
-      const item = buildSignedAmountRow(
-        fecha,
-        `CSV-${100 + i}`,
-        cols[1] || `Movimiento importado CSV #${i}`,
-        parseCleanMoney(cols[2])
-      );
+      const item = buildSignedAmountRow(fecha, `CSV-${100 + i}`, cols[1] || `Movimiento importado CSV #${i}`, parseCleanMoney(cols[2]));
       if (item) parsed.push(item);
     }
   }

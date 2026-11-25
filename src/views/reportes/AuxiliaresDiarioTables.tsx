@@ -29,6 +29,7 @@ export function DiarioGeneralTable({
             <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Cuenta</th>
             <th scope="col" className="py-2.5 px-3 whitespace-nowrap">Nombre</th>
             <th scope="col" className="py-2.5 px-3">Concepto</th>
+            <th scope="col" className="py-2.5 px-3 whitespace-nowrap">UUID CFDI</th>
             <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Cargo</th>
             <th scope="col" className="py-2.5 px-3 text-right whitespace-nowrap">Abono</th>
           </tr>
@@ -36,12 +37,12 @@ export function DiarioGeneralTable({
         <tbody className="divide-y divide-slate-200">
           {polizas.length === 0 ? (
             <tr>
-              <td colSpan={7} className="py-6 px-4">
+              <td colSpan={8} className="py-6 px-4">
                 <EmptyState
                   icon={<BookText className="w-5 h-5" aria-hidden="true" />}
                   tone="slate"
                   title="Sin pólizas en el rango"
-                  description="Sin pólizas registradas en el rango de periodos seleccionado."
+                  description="Sin pólizas registradas en el rango de periodos o fechas seleccionado."
                 />
               </td>
             </tr>
@@ -58,6 +59,9 @@ export function DiarioGeneralTable({
                   </td>
                   <td className="py-2 px-3 text-slate-800">{m.accountName}</td>
                   <td className="py-2 px-3 text-slate-600">{m.concepto || p.concepto}</td>
+                  <td className="py-2 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap" title={m.cfdiUuid || p.cfdiUuid || undefined}>
+                    {(m.cfdiUuid || p.cfdiUuid) ? `${(m.cfdiUuid || p.cfdiUuid)!.slice(0, 8)}…` : '—'}
+                  </td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap">{m.cargo > 0 ? formatCurrency(m.cargo) : '—'}</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums whitespace-nowrap">{m.abono > 0 ? formatCurrency(m.abono) : '—'}</td>
                 </tr>
@@ -67,7 +71,7 @@ export function DiarioGeneralTable({
         </tbody>
         <tfoot className="sticky bottom-0 z-10 bg-[#0A1120] text-white font-mono font-bold tabular-nums shadow-2xl">
           <tr className="bg-[#0A1120] border-t-2 border-blue-500">
-            <td colSpan={5} className="py-2.5 px-3 text-right uppercase whitespace-nowrap">Sumas Iguales ({polizas.length} pólizas):</td>
+            <td colSpan={6} className="py-2.5 px-3 text-right uppercase whitespace-nowrap">Sumas Iguales ({polizas.length} pólizas):</td>
             <td className="py-2.5 px-3 text-right text-cyan-300 whitespace-nowrap">{formatCurrency(diarioTotals.cargos)}</td>
             <td className="py-2.5 px-3 text-right text-cyan-300 whitespace-nowrap">{formatCurrency(diarioTotals.abonos)}</td>
           </tr>
@@ -117,6 +121,7 @@ export function AuxiliaresAccountBlocks({
                     <th scope="col" className="py-1.5 px-3">Póliza</th>
                     <th scope="col" className="py-1.5 px-3">Referencia</th>
                     <th scope="col" className="py-1.5 px-3">Concepto</th>
+                    <th scope="col" className="py-1.5 px-3">UUID CFDI</th>
                     <th scope="col" className="py-1.5 px-3 text-right">Cargo</th>
                     <th scope="col" className="py-1.5 px-3 text-right">Abono</th>
                     <th scope="col" className="py-1.5 px-3 text-right">Saldo</th>
@@ -129,6 +134,7 @@ export function AuxiliaresAccountBlocks({
                       <td className="py-1.5 px-3 font-mono font-semibold text-blue-900 whitespace-nowrap">{e.tipoPoliza} #{e.folioPoliza}</td>
                       <td className="py-1.5 px-3 font-mono text-slate-600 whitespace-nowrap">{e.referencia}</td>
                       <td className="py-1.5 px-3 text-slate-700">{e.concepto}</td>
+                      <td className="py-1.5 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap" title={e.cfdiUuid || undefined}>{e.cfdiUuid ? `${e.cfdiUuid.slice(0, 8)}…` : '—'}</td>
                       <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">{e.cargo > 0 ? formatCurrency(e.cargo) : '—'}</td>
                       <td className="py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap">{e.abono > 0 ? formatCurrency(e.abono) : '—'}</td>
                       <td className="py-1.5 px-3 text-right font-mono tabular-nums font-bold whitespace-nowrap">{formatCurrency(e.runningBalance)}</td>

@@ -1,5 +1,6 @@
-import { Info, Pencil, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
-import { Button, ClearFiltersButton, EmptyState, StatusBadge } from '../../components/ui';
+import { useState } from 'react';
+import { Info, Pencil, ShieldAlert, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { Button, ClearFiltersButton, EmptyState, InlineConfirm, StatusBadge } from '../../components/ui';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import type { Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
 
@@ -21,7 +22,9 @@ export interface PadronProveedoresTableProps {
   totalCount: number;
   editingRfc?: string;
   isReadOnlyClient?: boolean;
+  isDeleting?: boolean;
   onEditThirdParty: (tp: ThirdPartyRecord) => void;
+  onDeleteThirdParty?: (tpId: string) => void;
   onClearSearch?: () => void;
 }
 
@@ -30,9 +33,12 @@ export function PadronProveedoresTable({
   totalCount,
   editingRfc,
   isReadOnlyClient = false,
+  isDeleting = false,
   onEditThirdParty,
+  onDeleteThirdParty,
   onClearSearch
 }: PadronProveedoresTableProps) {
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   return (
     <div
       tabIndex={0}
@@ -114,7 +120,10 @@ export function PadronProveedoresTable({
                     {tp.cuentaContrapartidaCode}
                   </td>
                   <td className="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">
-                    IVA {tp.tasaIvaDefault}% • Op {tp.tipoOperacionDiot}
+                    <div>IVA {tp.tasaIvaDefault}%{tp.tasaIvaDefault === 8 && tp.regionFronteriza ? ` (${tp.regionFronteriza})` : ''} • Op {tp.tipoOperacionDiot}</div>
+                    {tp.deductiblePct !== undefined && tp.deductiblePct < 100 && (
+                      <div className="text-[10px] font-bold text-amber-700">Ded. {tp.deductiblePct}%</div>
+                    )}
                   </td>
                   <td className="py-2.5 px-3 text-center">
                     {tp.estatus69B === 'LIMPIO' ? (
@@ -134,17 +143,42 @@ export function PadronProveedoresTable({
                     )}
                   </td>
                   <td className="py-2.5 px-3 text-right">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={isReadOnlyClient}
-                      onClick={() => { if (!isReadOnlyClient) onEditThirdParty(tp); }}
-                      aria-label={`Editar perfil fiscal de ${tp.rfc}`}
-                      title={isReadOnlyClient ? 'Modo solo lectura' : 'Cargar en formulario para editar'}
-                      leftIcon={<Pencil className="w-3 h-3" aria-hidden="true" />}
-                    >
-                      Editar
-                    </Button>
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={isReadOnlyClient}
+                        onClick={() => { if (!isReadOnlyClient) onEditThirdParty(tp); }}
+                        aria-label={`Editar perfil fiscal de ${tp.rfc}`}
+                        title={isReadOnlyClient ? 'Modo solo lectura' : 'Cargar en formulario para editar'}
+                        leftIcon={<Pencil className="w-3 h-3" aria-hidden="true" />}
+                      >
+                        Editar
+                      </Button>
+                      {onDeleteThirdParty && (
+                        pendingDeleteId === tp.id ? (
+                          <InlineConfirm
+                            message={`¿Eliminar ${tp.rfc}?`}
+                            busy={isDeleting}
+                            confirmLabel="Eliminar"
+                            onConfirm={() => { onDeleteThirdParty(tp.id); setPendingDeleteId(null); }}
+                            onCancel={() => setPendingDeleteId(null)}
+                          />
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="danger-outline"
+                            disabled={isReadOnlyClient || isDeleting}
+                            onClick={() => setPendingDeleteId(tp.id)}
+                            aria-label={`Eliminar tercero ${tp.rfc}`}
+                            title={isReadOnlyClient ? 'Modo solo lectura' : 'Eliminar tercero del padrón'}
+                            leftIcon={<Trash2 className="w-3 h-3" aria-hidden="true" />}
+                          >
+                            Eliminar
+                          </Button>
+                        )
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

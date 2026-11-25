@@ -1,3 +1,5 @@
+import type { CustomInpcEntry } from './types';
+
 /**
  * Catálogo Oficial Histórico del Índice Nacional de Precios al Consumidor (INPC)
  * Publicado por el INEGI en el Diario Oficial de la Federación (DOF).
@@ -59,6 +61,7 @@ export const OFFICIAL_INPC_TABLE: Record<number, Record<number, number>> = {
 
 /**
  * Tipos de cambio oficiales de cierre mensual publicados por el Banco de México en el DOF.
+ * Solo incluye cifras publicadas (sin proyecciones sintéticas).
  */
 export const OFFICIAL_DOF_EXCHANGE_RATES: Record<number, Record<number, number>> = {
   2023: {
@@ -70,35 +73,49 @@ export const OFFICIAL_DOF_EXCHANGE_RATES: Record<number, Record<number, number>>
     7: 18.6015, 8: 19.7212, 9: 19.6921, 10: 20.0315, 11: 20.4510, 12: 20.3540
   },
   2025: {
-    1: 20.4520, 2: 20.5210, 3: 20.6110, 4: 20.5840, 5: 20.6510, 6: 20.7200,
-    7: 20.7850, 8: 20.8400, 9: 20.8950, 10: 20.9500, 11: 21.0100, 12: 21.0800
-  },
-  2026: {
-    1: 21.1200, 2: 21.1800, 3: 21.2500, 4: 21.3100, 5: 21.3800, 6: 21.4400,
-    7: 21.5000, 8: 21.5600, 9: 21.6200, 10: 21.6800, 11: 21.7500, 12: 21.8200
+    1: 20.4520
   }
 };
 
+type CustomInpcLike = Pick<CustomInpcEntry, 'year' | 'month' | 'inpcValue'>;
+
 /**
- * Retorna el último INPC oficial publicado en el catálogo (Oct 2026 = 147.026).
+ * Retorna el último INPC oficial publicado en el catálogo (o el personalizado más reciente).
  */
-export function getLatestPublishedInpc(): number {
-  const years = Object.keys(OFFICIAL_INPC_TABLE).map(Number).sort((a, b) => b - a);
-  for (const yr of years) {
-    const months = Object.keys(OFFICIAL_INPC_TABLE[yr] ?? {}).map(Number).sort((a, b) => b - a);
-    for (const m of months) {
-      const val = OFFICIAL_INPC_TABLE[yr]?.[m];
-      if (val !== undefined) return val;
+export function getLatestPublishedInpc(customEntries?: ReadonlyArray<CustomInpcLike>): number {
+  let bestKey = -1;
+  let bestVal: number | null = null;
+  for (const [yStr, monthsObj] of Object.entries(OFFICIAL_INPC_TABLE)) {
+    const yr = Number(yStr);
+    for (const [mStr, val] of Object.entries(monthsObj ?? {})) {
+      const key = yr * 100 + Number(mStr);
+      if (key > bestKey && Number.isFinite(val)) {
+        bestKey = key;
+        bestVal = val;
+      }
     }
   }
-  return 143.042;
+  for (const ce of customEntries ?? []) {
+    const key = ce.year * 100 + ce.month;
+    if (key >= bestKey && ce.inpcValue > 0) {
+      bestKey = key;
+      bestVal = ce.inpcValue;
+    }
+  }
+  return bestVal ?? 143.042;
 }
 
 /**
- * Obtiene el INPC oficial para un año y mes específico.
+ * Obtiene el INPC oficial (o personalizado si existe captura manual) para un año y mes específico.
  */
-export function getOfficialInpc(year: number, month: number): number | null {
+export function getOfficialInpc(
+  year: number,
+  month: number,
+  customEntries?: ReadonlyArray<CustomInpcLike>
+): number | null {
   const m = Math.max(1, Math.min(12, month));
+  const custom = customEntries?.find((c) => c.year === year && c.month === m && c.inpcValue > 0);
+  if (custom) return custom.inpcValue;
   const yearData = OFFICIAL_INPC_TABLE[year];
   if (!yearData) return null;
   return yearData[m] ?? null;
@@ -106,33 +123,39 @@ export function getOfficialInpc(year: number, month: number): number | null {
 
 /**
  * Obtiene el INPC correspondiente a una fecha ISO (YYYY-MM-DD).
- * Soporta serie histórica oficial 2015–2026; fechas anteriores a 2015 anclan en Ene 2015
- * y fechas futuras sin publicación se acotan al último índice publicado.
+ * Soporta serie histórica oficial 2015–2026 y entradas manuales personalizadas.
  */
-export function getInpcForIsoDate(isoDate: string): number {
+export function getInpcForIsoDate(
+  isoDate: string,
+  customEntries?: ReadonlyArray<CustomInpcLike>
+): number {
   if (!isoDate || isoDate.length < 7) {
-    return getLatestPublishedInpc();
+    return getLatestPublishedInpc(customEntries);
   }
   const parts = isoDate.split('-');
   const year = parseInt(parts[0] ?? '2024', 10);
   const month = parseInt(parts[1] ?? '1', 10);
 
-  const found = getOfficialInpc(year, month);
+  const found = getOfficialInpc(year, month, customEntries);
   if (found !== null) return found;
 
   if (year < 2015) return OFFICIAL_INPC_TABLE[2015]?.[1] ?? 87.110;
-  return getLatestPublishedInpc();
+  return getLatestPublishedInpc(customEntries);
 }
 
 /**
  * Calcula el INPC del último mes de la primera mitad del periodo en que el bien
  * haya sido utilizado en el ejercicio (Art. 31 LISR).
  */
-export function getInpcMedioPeriodo(fiscalYear: number, fiscalMonth: number = 6): number {
-  const targetYear = Math.max(2015, Math.min(2026, fiscalYear));
+export function getInpcMedioPeriodo(
+  fiscalYear: number,
+  fiscalMonth: number = 6,
+  customEntries?: ReadonlyArray<CustomInpcLike>
+): number {
+  const targetYear = Math.max(2015, Math.min(2030, fiscalYear));
   const targetMonth = Math.max(1, Math.min(12, fiscalMonth));
-  const found = getOfficialInpc(targetYear, targetMonth);
-  return found ?? getLatestPublishedInpc();
+  const found = getOfficialInpc(targetYear, targetMonth, customEntries);
+  return found ?? getLatestPublishedInpc(customEntries);
 }
 
 /**
@@ -148,12 +171,11 @@ export function calculateInpcFactor(inpcAdquisicion: number, inpcMedioPeriodo: n
     return 1.0;
   }
   const rawFactor = inpcMedioPeriodo / inpcAdquisicion;
-  // Truncar a 4 decimales según criterio SAT
   return Math.floor(rawFactor * 10000) / 10000;
 }
 
 /**
- * Obtiene el tipo de cambio FIX / DOF oficial de cierre mensual
+ * Obtiene el tipo de cambio FIX / DOF oficial de cierre mensual publicado (sin proyecciones sintéticas).
  */
 export function getOfficialDofExchangeRate(year: number, month: number): number {
   const m = Math.max(1, Math.min(12, month));
@@ -162,5 +184,5 @@ export function getOfficialDofExchangeRate(year: number, month: number): number 
     return yearData[m];
   }
   if (year < 2023) return 18.0;
-  return 20.5;
+  return 20.4520;
 }

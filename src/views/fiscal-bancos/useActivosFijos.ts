@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCompany } from '../../context/CompanyContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
+import { getAuthHeaders, handleResponse } from '../../lib/api/api-helpers';
 import { isSupabaseConfigured } from '../../lib/supabase';
+import { listCustomInpcEntries } from '../../lib/supabase/supabase-custom-inpc';
+import { supabaseFiscalAndAssets } from '../../lib/supabase/supabase-fiscal-assets';
 import { hasExistingDepreciationPoliza } from '../../shared/engine/fixed-assets.engine';
 import { getInpcForIsoDate } from '../../shared/sat-inpc-catalog';
 import type {
   AccountWithBalance,
   FixedAssetCategory,
   FixedAssetRecord,
-  FixedAssetWithCalculation
+  FixedAssetWithCalculation,
+  VehicleCapType
 } from '../../shared/types';
 import {
   adjustLocalAssetsForPostedPeriod,
@@ -78,7 +82,14 @@ export function useActivosFijos({
       ? adjustLocalAssetsForPostedPeriod(rawFixedAssetsData, periodPolizas, year, activePeriod)
       : rawFixedAssetsData;
 
+  const { data: customInpcEntries = [] } = useQuery({
+    queryKey: ['custom-inpc', companyId],
+    queryFn: () => listCustomInpcEntries(companyId),
+    enabled: Boolean(companyId)
+  });
+
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
+  const [bajaModalAsset, setBajaModalAsset] = useState<FixedAssetWithCalculation | null>(null);
   const nextSuggestedCode = (() => {
     const list = rawFixedAssetsData?.assets ?? [];
     let maxNum = 0;
@@ -92,12 +103,13 @@ export function useActivosFijos({
   const [assetCode, setAssetCode] = useState('AF-001');
   const [assetName, setAssetName] = useState('');
   const [assetCat, setAssetCat] = useState<FixedAssetCategory>('COMPUTO_30');
+  const [vehicleCapType, setVehicleCapType] = useState<VehicleCapType>('AUTO_COMBUSTION');
   const [assetDate, setAssetDate] = useState(`${year}-01-15`);
   const [assetMoi, setAssetMoi] = useState<string>('');
   const [assetRate, setAssetRate] = useState(30);
   const [mesesDepreciadosPrevios, setMesesDepreciadosPrevios] = useState(0);
   const [assetStatus, setAssetStatus] = useState<FixedAssetRecord['estatus']>('ACTIVO');
-  const [assetInpcAdq, setAssetInpcAdq] = useState(() => getInpcForIsoDate(`${year}-01-15`));
+  const [assetInpcAdq, setAssetInpcAdq] = useState(() => getInpcForIsoDate(`${year}-01-15`, customInpcEntries));
   const [assetInpcUso, setAssetInpcUso] = useState(() =>
     resolveAssetInpcMedioForForm(`${year}-01-15`, year)
   );
@@ -109,12 +121,13 @@ export function useActivosFijos({
     setAssetCode(nextSuggestedCode);
     setAssetName('');
     setAssetCat('COMPUTO_30');
+    setVehicleCapType('AUTO_COMBUSTION');
     setAssetDate(nextDate);
     setAssetMoi('');
     setAssetRate(30);
     setMesesDepreciadosPrevios(0);
     setAssetStatus('ACTIVO');
-    setAssetInpcAdq(getInpcForIsoDate(nextDate));
+    setAssetInpcAdq(getInpcForIsoDate(nextDate, customInpcEntries));
     setAssetInpcUso(resolveAssetInpcMedioForForm(nextDate, year));
   };
 
@@ -130,7 +143,7 @@ export function useActivosFijos({
 
   const handleDateChange = (val: string) => {
     setAssetDate(val);
-    setAssetInpcAdq(getInpcForIsoDate(val));
+    setAssetInpcAdq(getInpcForIsoDate(val, customInpcEntries));
     setAssetInpcUso(resolveAssetInpcMedioForForm(val, year));
   };
 
@@ -139,6 +152,7 @@ export function useActivosFijos({
     setAssetCode(asset.codigo);
     setAssetName(asset.nombre);
     setAssetCat(asset.categoria);
+    setVehicleCapType((asset.vehicleCapType as VehicleCapType) || 'AUTO_COMBUSTION');
     setAssetDate(asset.fechaAdquisicion);
     setAssetMoi(String(asset.montoOriginalInversion));
     setAssetRate(asset.tasaAnualPct);
@@ -163,7 +177,7 @@ export function useActivosFijos({
       const { cuentaActivoCode, cuentaDepAcumCode, cuentaGastoDepCode } =
         resolveFixedAssetDefaultAccounts(assetCat, affectableAccounts);
 
-      return apiClient.createFixedAsset({
+      return (apiClient.createFixedAsset as (p: Record<string, unknown>) => ReturnType<typeof apiClient.createFixedAsset>)({
         companyId,
         codigo: assetCode,
         nombre: assetName,
@@ -176,7 +190,8 @@ export function useActivosFijos({
         inpcMedioPeriodo: sanitizeFinitePositive(assetInpcUso, 0),
         cuentaActivoCode,
         cuentaDepAcumCode,
-        cuentaGastoDepCode
+        cuentaGastoDepCode,
+        vehicleCapType: assetCat === 'TRANSPORTE_25' ? vehicleCapType : null
       });
     },
     onSuccess: () => {
@@ -193,7 +208,7 @@ export function useActivosFijos({
       if (!editingAssetId) throw new Error('No hay activo seleccionado para editar.');
       const cleanMoi = sanitizeFinitePositive(Number.parseFloat(assetMoi), 0);
       if (cleanMoi <= 0) throw new Error('El MOI debe ser un importe numérico mayor a cero.');
-      return apiClient.updateFixedAsset(
+      return (apiClient.updateFixedAsset as (id: string, p: Record<string, unknown>, y?: number, m?: number) => ReturnType<typeof apiClient.updateFixedAsset>)(
         editingAssetId,
         {
           codigo: assetCode,
@@ -205,7 +220,8 @@ export function useActivosFijos({
           mesesDepreciadosPrevios: Math.floor(sanitizeFinitePositive(mesesDepreciadosPrevios, 0)),
           inpcAdquisicion: sanitizeFinitePositive(assetInpcAdq, 0),
           inpcMedioPeriodo: sanitizeFinitePositive(assetInpcUso, 0),
-          estatus: assetStatus
+          estatus: assetStatus,
+          vehicleCapType: assetCat === 'TRANSPORTE_25' ? vehicleCapType : null
         },
         year,
         activePeriod
@@ -220,13 +236,23 @@ export function useActivosFijos({
   });
 
   const retireAssetMutation = useMutation({
-    mutationFn: (assetId: string) => {
+    mutationFn: async (payload: { assetId: string; fechaBaja: string; precioVenta: number; generatePoliza: boolean; cuentaCobroCode: string }) => {
       if (isWriteLocked) throw new Error(lockMsg);
-      return apiClient.updateFixedAsset(assetId, { estatus: 'BAJA' }, year, activePeriod);
+      if (usingCloud) {
+        return supabaseFiscalAndAssets.retireFixedAsset(payload.assetId, payload);
+      }
+      const res = await fetch(`/api/fixed-assets/${encodeURIComponent(payload.assetId)}/baja`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify(payload)
+      });
+      return handleResponse<{ assets: unknown; poliza: unknown }>(res);
     },
     onSuccess: () => {
-      invalidateAssetSideEffects(['fixed-assets', 'annual-tax', 'fiscal-workpaper']);
-      onFeedback('Activo fijo dado de baja (BAJA). Dejará de depreciarse en periodos posteriores.');
+      setBajaModalAsset(null);
+      invalidateAccountingQueries(queryClient, ['fixed-assets', 'polizas', 'accounts', 'account-ledger', 'reports', 'dashboard', 'annual-tax', 'auxiliares-diario', 'fiscal-workpaper'], companyId);
+      void queryClient.invalidateQueries({ queryKey: ['fixed-assets', companyId] });
+      onFeedback('Baja / enajenación de activo fijo registrada correctamente.');
     },
     onError: (err: Error) => onFeedback(`Error al dar de baja activo fijo: ${err.message}`, 'error')
   });
@@ -290,6 +316,11 @@ export function useActivosFijos({
     setAssetName,
     assetCat,
     setAssetCat,
+    vehicleCapType,
+    setVehicleCapType,
+    customInpcEntries,
+    bajaModalAsset,
+    setBajaModalAsset,
     assetDate,
     handleDateChange,
     assetMoi,

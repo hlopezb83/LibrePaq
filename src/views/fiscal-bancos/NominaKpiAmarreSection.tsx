@@ -3,24 +3,29 @@ import { AlertCircle, BookOpen, CheckCircle2, FileUp, Users } from 'lucide-react
 import { AlertBanner, Button, KpiCard, StatusBadge, type BadgeTone } from '../../components/ui';
 import { useUIModal } from '../../context/UIModalContext';
 import { formatCurrency } from '../../lib/formatters';
+import type { PayrollExtendedAmarre } from '../../shared/engine/payroll-summary.engine';
 import type { PayrollPeriodSummary } from '../../shared/types/payroll-summary.types';
+import { NominaReceiptsTable } from './NominaReceiptsTable';
 
 export interface NominaKpiAmarreSectionProps {
   summary: PayrollPeriodSummary;
+  extendedAmarre?: PayrollExtendedAmarre;
   periodLabel: string;
   isrAccountId?: string;
 }
 
-export function NominaKpiAmarreSection({ summary, periodLabel, isrAccountId }: NominaKpiAmarreSectionProps) {
+export function NominaKpiAmarreSection({ summary, extendedAmarre, periodLabel, isrAccountId }: NominaKpiAmarreSectionProps) {
   const navigate = useNavigate();
   const { openLedger } = useUIModal();
 
+  const rubros = extendedAmarre?.rubros ?? [];
+  const hasAnyDiff = rubros.length > 0 ? rubros.some((r) => r.status === 'DIFERENCIA') : summary.amarreStatus === 'DIFERENCIA';
   const amarreMeta: { tone: BadgeTone; label: string } =
-    summary.amarreStatus === 'CUADRADO'
-      ? { tone: 'emerald', label: 'CUADRADO vs Libros' }
-      : summary.amarreStatus === 'DIFERENCIA'
+    summary.amarreStatus === 'SIN_NOMINA' && !rubros.some((r) => r.librosAmount > 0)
+      ? { tone: 'slate', label: 'SIN NÓMINA EN PERIODO' }
+      : hasAnyDiff
         ? { tone: 'red', label: 'CON DIFERENCIA' }
-        : { tone: 'slate', label: 'SIN NÓMINA EN PERIODO' };
+        : { tone: 'emerald', label: 'CUADRADO vs Libros' };
 
   const amarreRows = [
     { label: 'ISR Retenido CFDIs (Nómina 1.2)', value: formatCurrency(summary.isrRetenidoCfdis), tone: 'text-slate-900' },
@@ -97,6 +102,43 @@ export function NominaKpiAmarreSection({ summary, periodLabel, isrAccountId }: N
             </div>
           ))}
         </div>
+
+        {rubros.length > 0 && (
+          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-100 text-[11px] uppercase text-slate-600">
+                <tr>
+                  <th className="px-3 py-2">Rubro Contable / SAT</th>
+                  <th className="px-3 py-2">Cuenta Ref</th>
+                  <th className="px-3 py-2 text-right">CFDI Nómina</th>
+                  <th className="px-3 py-2 text-right">Libros / Bancos</th>
+                  <th className="px-3 py-2 text-right">Diferencia</th>
+                  <th className="px-3 py-2 text-center">Estatus</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {rubros.map((r) => (
+                  <tr key={r.key}>
+                    <td className="px-3 py-2 font-semibold text-slate-900">{r.label}</td>
+                    <td className="px-3 py-2 font-mono text-slate-600">{r.cuentaRef}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{formatCurrency(r.cfdiAmount)}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{formatCurrency(r.librosAmount)}</td>
+                    <td className={`px-3 py-2 text-right font-mono tabular-nums font-bold ${r.diferencia === 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {formatCurrency(r.diferencia)}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <StatusBadge tone={r.status === 'CUADRADO' ? 'emerald' : r.status === 'DIFERENCIA' ? 'red' : 'slate'}>
+                        {r.status === 'CUADRADO' ? 'Cuadrado' : r.status === 'DIFERENCIA' ? 'Diferencia' : 'Sin nómina'}
+                      </StatusBadge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {extendedAmarre && <NominaReceiptsTable extended={extendedAmarre} />}
 
         {summary.amarreStatus === 'DIFERENCIA' && (
           <AlertBanner

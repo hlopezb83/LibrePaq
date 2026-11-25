@@ -24,14 +24,15 @@ export function mapBankStatementLine(
 
 /**
  * Consulta paginada a bank_statement_matches para marcar como conciliados TODOS los movement_id (1..N)
- * vinculados a líneas activas en cruces Varios-a-1.
+ * vinculados a líneas activas en cruces Varios-a-1, incluyendo su mapa por bank_line_id.
  */
-export async function fetchActiveN1MatchedMovementIds(
+export async function fetchActiveN1MatchedMap(
   companyId: string,
   activeStatementLineIds: ReadonlySet<string>
-): Promise<Set<string>> {
-  const result = new Set<string>();
-  if (activeStatementLineIds.size === 0) return result;
+): Promise<{ matchedIds: Set<string>; byLineId: Map<string, string[]> }> {
+  const matchedIds = new Set<string>();
+  const byLineId = new Map<string, string[]>();
+  if (activeStatementLineIds.size === 0) return { matchedIds, byLineId };
   const rows = await fetchAllRows(async (from, to) =>
     getRequiredSupabase()
       .from('bank_statement_matches')
@@ -43,10 +44,23 @@ export async function fetchActiveN1MatchedMovementIds(
 
   for (const row of rows as Array<{ bank_line_id?: string; movement_id?: string }>) {
     if (row.bank_line_id && row.movement_id && activeStatementLineIds.has(String(row.bank_line_id))) {
-      result.add(String(row.movement_id));
+      const lineId = String(row.bank_line_id);
+      const movId = String(row.movement_id);
+      matchedIds.add(movId);
+      const list = byLineId.get(lineId) ?? [];
+      list.push(movId);
+      byLineId.set(lineId, list);
     }
   }
-  return result;
+  return { matchedIds, byLineId };
+}
+
+export async function fetchActiveN1MatchedMovementIds(
+  companyId: string,
+  activeStatementLineIds: ReadonlySet<string>
+): Promise<Set<string>> {
+  const { matchedIds } = await fetchActiveN1MatchedMap(companyId, activeStatementLineIds);
+  return matchedIds;
 }
 
 /**
@@ -192,6 +206,7 @@ export function buildBankReconciliationViewRows(params: {
   allMappedLines: BankStatementLine[];
   allPolizas: Poliza[];
   n1MatchedIds: ReadonlySet<string>;
+  n1MovsByLineId?: ReadonlyMap<string, string[]>;
   accountId: string;
   accountCode: string;
   currentYear: number;
@@ -200,7 +215,7 @@ export function buildBankReconciliationViewRows(params: {
   statementLines: BankStatementLine[];
   bookMovements: BankReconciliationResponse['bookMovements'];
 } {
-  const { allMappedLines, allPolizas, n1MatchedIds, accountId, accountCode, currentYear, currentPeriod } = params;
+  const { allMappedLines, allPolizas, n1MatchedIds, n1MovsByLineId, accountId, accountCode, currentYear, currentPeriod } = params;
   const isPrior = (y: number, p: number) => y < currentYear || (y === currentYear && p < currentPeriod);
   const isCurrent = (y: number, p: number) => y === currentYear && p === currentPeriod;
 
@@ -224,11 +239,18 @@ export function buildBankReconciliationViewRows(params: {
   }
 
   const statementLines = allMappedLines.filter(
-    (l) => isCurrent(l.ejercicio, l.periodo) || !l.matchedMovementId || currentPeriodMovIds.has(l.matchedMovementId)
+    (l) =>
+      isCurrent(l.ejercicio, l.periodo) ||
+      !l.matchedMovementId ||
+      currentPeriodMovIds.has(l.matchedMovementId) ||
+      (n1MovsByLineId?.get(l.id) ?? []).some((mid) => currentPeriodMovIds.has(mid))
   );
-  const matchedInCurrentLineMovIds = new Set(
-    statementLines.filter((l) => isCurrent(l.ejercicio, l.periodo) && l.matchedMovementId).map((l) => l.matchedMovementId!)
-  );
+  const matchedInCurrentLineMovIds = new Set<string>();
+  for (const l of statementLines) {
+    if (!isCurrent(l.ejercicio, l.periodo) || !l.matchedMovementId) continue;
+    matchedInCurrentLineMovIds.add(l.matchedMovementId);
+    for (const mid of n1MovsByLineId?.get(l.id) ?? []) matchedInCurrentLineMovIds.add(mid);
+  }
 
   const bookMovements: BankReconciliationResponse['bookMovements'] = [];
   for (const p of polizasUpToPeriod) {

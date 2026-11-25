@@ -1,9 +1,12 @@
 import { db, type BankLineDbRow } from '../connection';
 import {
   assertAccountingInvariant,
-  buildBankLinePolizaPlan,
   validateDoubleEntryMovements
-} from '../../shared/accounting-engine';
+} from '../../shared/engine/invariants-and-math';
+import {
+  buildBankLinePolizaPlan,
+  type BankCounterLineInput
+} from '../../shared/engine/bank-and-closing.engine';
 import type { BankReconciliationResponse } from '../../shared/types';
 import { getAccounts } from './accounts.repo';
 import { getCompanyById } from './companies.repo';
@@ -13,7 +16,7 @@ import { assertPeriodOpen } from './period-locks.repo';
 
 export function createPolizaFromBankLineTransaction(
   lineId: string,
-  options?: { counterAccountCode?: string; desglosarIva?: boolean }
+  options?: { counterAccountCode?: string; desglosarIva?: boolean; counterLines?: ReadonlyArray<BankCounterLineInput> }
 ): {
   status: 'OK' | 'NOT_FOUND' | 'ALREADY_MATCHED';
   createdPolizaId?: string;
@@ -37,7 +40,8 @@ export function createPolizaFromBankLineTransaction(
     referencia: bLine.referencia,
     descripcion: bLine.descripcion,
     desglosarIva: options?.desglosarIva,
-    counterAccountCode: options?.counterAccountCode
+    counterAccountCode: options?.counterAccountCode,
+    counterLines: options?.counterLines
   });
 
   assertAccountingInvariant(

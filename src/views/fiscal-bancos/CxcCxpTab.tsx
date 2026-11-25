@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, Download, FileCheck2, RefreshCw } from 'lucide-react';
+import { AlertCircle, Download, FileCheck2, FileSpreadsheet, Printer, RefreshCw, Users } from 'lucide-react';
 import { Button, ClearFiltersButton, EmptyState, SearchInput } from '../../components/ui';
+import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../lib/api-client';
 import { downloadCsvFile } from '../../lib/formatters';
 import { getLastDateForPeriod, getTodayLocalIso } from '../../shared/date-utils';
-import type { CxcCxpAgingBucket, CxcCxpAgingResponse } from '../../shared/types';
+import { findPossibleBankPaymentsForCxcCxp, groupCxcCxpByCounterparty } from '../../shared/engine/cxc-cxp-helpers';
+import type { BankStatementLine, CxcCxpAgingBucket, CxcCxpAgingResponse } from '../../shared/types';
+import { computeCxcCxpAmarreSummary, CxcCxpAmarreCard } from './CxcCxpAmarreCard';
+import { exportCxcCxpStatementXlsx, printCxcCxpStatementPdf } from './CxcCxpExport';
 import { CxcCxpHeaderBuckets, type AgingMode } from './CxcCxpHeaderBuckets';
+import { CxcCxpStatementView } from './CxcCxpStatementView';
 import { CxcCxpTable, type BucketMeta } from './CxcCxpTable';
 
 export interface CxcCxpTabProps {
@@ -31,7 +36,9 @@ const BUCKET_META: readonly BucketMeta[] = [
 export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCxpTabProps) {
   const navigate = useNavigate();
   const toast = useToast();
+  const { activeCompany } = useCompany();
   const [mode, setMode] = useState<AgingMode>('CXC');
+  const [viewMode, setViewMode] = useState<'DOCUMENTS' | 'STATEMENT'>('DOCUMENTS');
   const [bucketFilter, setBucketFilter] = useState<CxcCxpAgingBucket | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -71,39 +78,46 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
     enabled: Boolean(activeCompanyId)
   });
 
+  const {
+    data: reportsData,
+    isLoading: loadingReports
+  } = useQuery({
+    queryKey: ['reports', activeCompanyId, currentYear, currentPeriod],
+    queryFn: () => apiClient.getReports(activeCompanyId, currentYear, currentPeriod),
+    enabled: Boolean(activeCompanyId)
+  });
+
+  const trialBalance = reportsData?.trialBalance ?? [];
+  const bankAccountIds = useMemo(() => trialBalance.filter((a) => a.isAffectable && a.code.startsWith('102')).slice(0, 3).map((a) => a.id), [trialBalance]);
+
+  const { data: bankLines = [] } = useQuery<BankStatementLine[]>({
+    queryKey: ['cxc-cxp-bank-lines', activeCompanyId, currentYear, currentPeriod, bankAccountIds.join(',')],
+    queryFn: async () => {
+      const targetIds = bankAccountIds.length > 0 ? bankAccountIds : [`${activeCompanyId}_102-01-001`];
+      const results = await Promise.all(targetIds.map((accId) => apiClient.getBankReconciliation(activeCompanyId, accId, currentYear, currentPeriod).catch(() => null)));
+      return results.flatMap((r) => r?.statementLines ?? []);
+    },
+    enabled: Boolean(activeCompanyId)
+  });
+
   const toggleExpanded = (cfdiId: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(cfdiId)) next.delete(cfdiId);
-      else next.add(cfdiId);
-      return next;
-    });
+    setExpandedIds((prev) => { const next = new Set(prev); if (next.has(cfdiId)) next.delete(cfdiId); else next.add(cfdiId); return next; });
   };
 
-  const items = useMemo(
-    () => (data ? (mode === 'CXC' ? data.cxcItems : data.cxpItems) : []),
-    [data, mode]
-  );
+  const items = useMemo(() => (data ? (mode === 'CXC' ? data.cxcItems : data.cxpItems) : []), [data, mode]);
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return items.filter((row) => {
       if (bucketFilter && row.bucket !== bucketFilter) return false;
       if (!q) return true;
-      return (
-        row.rfc.toLowerCase().includes(q) ||
-        row.nombre.toLowerCase().includes(q) ||
-        (row.serieFolio ?? '').toLowerCase().includes(q) ||
-        row.uuid.toLowerCase().includes(q)
-      );
+      return row.rfc.toLowerCase().includes(q) || row.nombre.toLowerCase().includes(q) || (row.serieFolio ?? '').toLowerCase().includes(q) || row.uuid.toLowerCase().includes(q);
     });
   }, [items, bucketFilter, searchQuery]);
 
   const bucketCounts = useMemo(() => {
     const counts: Record<CxcCxpAgingBucket, number> = { '0_30': 0, '31_60': 0, '61_90': 0, '90_PLUS': 0 };
-    for (const row of items) {
-      counts[row.bucket] = (counts[row.bucket] ?? 0) + 1;
-    }
+    for (const row of items) counts[row.bucket] = (counts[row.bucket] ?? 0) + 1;
     return counts;
   }, [items]);
 
@@ -162,6 +176,21 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
   const otherMode: AgingMode = mode === 'CXC' ? 'CXP' : 'CXC';
   const otherCount = mode === 'CXC' ? data.cxpItems.length : data.cxcItems.length;
   const hasFilters = bucketFilter !== null || searchQuery.trim() !== '';
+  const partyGroups = groupCxcCxpByCounterparty(filteredItems);
+  const bankMatchesByCfdiId = findPossibleBankPaymentsForCxcCxp(filteredItems, bankLines, mode);
+  const amarre = computeCxcCxpAmarreSummary(mode, totalInsoluto, trialBalance);
+  const compName = activeCompany?.name ?? 'Empresa';
+  const compRfc = activeCompany?.rfc ?? 'XAXX010101000';
+
+  const handleExportXlsx = (targetGroups = partyGroups, targetItems = filteredItems) => {
+    void exportCxcCxpStatementXlsx({ companyName: compName, companyRfc: compRfc, mode, asOfDate: data.asOfDate, groups: targetGroups, items: targetItems, amarre })
+      .then(() => toast.success(`Estado de Cuenta ${mode} exportado en Excel (.xlsx).`));
+  };
+
+  const handlePrintPdf = (targetGroups = partyGroups) => {
+    const ok = printCxcCxpStatementPdf({ companyName: compName, companyRfc: compRfc, mode, asOfDate: data.asOfDate, groups: targetGroups, amarre });
+    if (!ok) toast.error('Permite las ventanas emergentes para imprimir o guardar el PDF.');
+  };
 
   return (
     <div className="space-y-4">
@@ -183,6 +212,8 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
         totalInsoluto={totalInsoluto}
         itemsCount={items.length}
       />
+
+      <CxcCxpAmarreCard mode={mode} carteraTotal={totalInsoluto} trialBalance={trialBalance} isLoading={loadingReports} />
 
       <div id="cxc-cxp-panel" role="tabpanel" aria-labelledby={`cxc-cxp-mode-${mode}`} className="bg-white rounded-2xl border border-slate-300/90 shadow-2xs overflow-hidden">
         {items.length > 0 && (
@@ -207,21 +238,37 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant={viewMode === 'STATEMENT' ? 'primary' : 'secondary'}
+                onClick={() => setViewMode((v) => (v === 'DOCUMENTS' ? 'STATEMENT' : 'DOCUMENTS'))}
+                leftIcon={<Users className="w-3.5 h-3.5" aria-hidden="true" />}
+              >
+                {viewMode === 'STATEMENT'
+                  ? 'Ver por Documento'
+                  : `Estado de Cuenta por ${mode === 'CXC' ? 'Cliente' : 'Proveedor'} (${partyGroups.length})`}
+              </Button>
               {hasFilters && (
                 <ClearFiltersButton
                   onClick={() => { setBucketFilter(null); setSearchQuery(''); }}
                   label={`Limpiar filtros (${filteredItems.length}/${items.length})`}
                 />
               )}
+              <Button size="sm" variant="export-outline" onClick={() => handleExportXlsx()} disabled={filteredItems.length === 0} leftIcon={<FileSpreadsheet className="w-3.5 h-3.5" aria-hidden="true" />}>
+                Excel (.XLSX)
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => handlePrintPdf()} disabled={filteredItems.length === 0} leftIcon={<Printer className="w-3.5 h-3.5" aria-hidden="true" />}>
+                PDF
+              </Button>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={handleExportCsv}
                 disabled={filteredItems.length === 0}
-                title={filteredItems.length === 0 ? 'Sin registros filtrados para exportar' : 'Exportar cartera filtrada a CSV / Excel'}
+                title={filteredItems.length === 0 ? 'Sin registros filtrados para exportar' : 'Exportar cartera filtrada a CSV'}
                 leftIcon={<Download className="w-3.5 h-3.5" aria-hidden="true" />}
               >
-                Exportar CSV / Excel
+                CSV
               </Button>
             </div>
           </div>
@@ -261,6 +308,14 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
               </>
             }
           />
+        ) : viewMode === 'STATEMENT' ? (
+          <CxcCxpStatementView
+            mode={mode}
+            groups={partyGroups}
+            bankMatchesByCfdiId={bankMatchesByCfdiId}
+            onExportPartyXlsx={(g) => handleExportXlsx([g], g.documents)}
+            onPrintPartyPdf={(g) => handlePrintPdf([g])}
+          />
         ) : (
           <CxcCxpTable
             mode={mode}
@@ -268,6 +323,7 @@ export function CxcCxpTab({ activeCompanyId, currentYear, currentPeriod }: CxcCx
             bucketMeta={BUCKET_META}
             expandedIds={expandedIds}
             onToggleExpanded={toggleExpanded}
+            bankMatchesByCfdiId={bankMatchesByCfdiId}
           />
         )}
       </div>

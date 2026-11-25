@@ -1,14 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
-import { BookOpen, Calendar, DollarSign } from 'lucide-react';
-import { Button, ModalShell, StatusBadge, TabBar, type TabBarItem } from '../../components/ui';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BookOpen, Calendar, DollarSign, Plus, Trash2 } from 'lucide-react';
+import { Button, Input, ModalShell, Select, StatusBadge, TabBar, type TabBarItem } from '../../components/ui';
+import { useCompany } from '../../context/CompanyContext';
+import { useToast } from '../../context/ToastContext';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import {
+  deleteCustomInpcEntry,
+  listCustomInpcEntries,
+  upsertCustomInpcEntry
+} from '../../lib/supabase/supabase-custom-inpc';
 import {
   OFFICIAL_DOF_EXCHANGE_RATES,
   OFFICIAL_INPC_TABLE
 } from '../../shared/sat-inpc-catalog';
 
 const INPC_TABS: ReadonlyArray<TabBarItem<'INPC' | 'DOF'>> = [
-  { id: 'INPC', label: 'INPC Oficial INEGI (2020 - 2026)', icon: <Calendar className="w-3.5 h-3.5" aria-hidden="true" /> },
+  { id: 'INPC', label: 'INPC Oficial INEGI (2015 - 2026+)', icon: <Calendar className="w-3.5 h-3.5" aria-hidden="true" /> },
   { id: 'DOF', label: 'Tipo de Cambio USD Cierre DOF Banxico', icon: <DollarSign className="w-3.5 h-3.5" aria-hidden="true" /> }
 ];
 
@@ -16,6 +24,8 @@ export interface InpcCatalogModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeYear?: number;
+  companyId?: string;
+  isReadOnly?: boolean;
 }
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -23,11 +33,56 @@ const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', '
 export function InpcCatalogModal({
   isOpen,
   onClose,
-  activeYear = 2026
+  activeYear = 2026,
+  companyId: companyIdProp,
+  isReadOnly = false
 }: InpcCatalogModalProps) {
+  const { activeCompanyId } = useCompany();
+  const companyId = companyIdProp || activeCompanyId;
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<'INPC' | 'DOF'>('INPC');
+  const [editYear, setEditYear] = useState(activeYear);
+  const [editMonth, setEditMonth] = useState(11);
+  const [editValue, setEditValue] = useState('');
   const { copiedKey: copiedCell, copy: copyValue } = useCopyToClipboard<string>(1500);
   const dialogRef = useRef<HTMLDialogElement>(null);
+
+  const { data: customEntries = [] } = useQuery({
+    queryKey: ['custom-inpc', companyId],
+    queryFn: () => listCustomInpcEntries(companyId),
+    enabled: Boolean(isOpen && companyId)
+  });
+
+  const customMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of customEntries) m.set(`${e.year}-${e.month}`, e.inpcValue);
+    return m;
+  }, [customEntries]);
+
+  const saveInpcMut = useMutation({
+    mutationFn: () => upsertCustomInpcEntry({
+      companyId,
+      year: editYear,
+      month: editMonth,
+      inpcValue: Number.parseFloat(editValue)
+    }),
+    onSuccess: (saved) => {
+      void queryClient.invalidateQueries({ queryKey: ['custom-inpc', companyId] });
+      setEditValue('');
+      toast.success(`INPC ${MONTHS[saved.month - 1]} ${saved.year} guardado (${saved.inpcValue.toFixed(3)}).`);
+    },
+    onError: (err: Error) => toast.error(err.message)
+  });
+
+  const deleteInpcMut = useMutation({
+    mutationFn: ({ year, month }: { year: number; month: number }) => deleteCustomInpcEntry(companyId, year, month),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['custom-inpc', companyId] });
+      toast.info('INPC manual eliminado; se restaura valor oficial.');
+    },
+    onError: (err: Error) => toast.error(err.message)
+  });
 
   const handleCopyValue = (raw: string) => {
     void copyValue(raw, raw);
@@ -45,13 +100,8 @@ export function InpcCatalogModal({
 
   if (!isOpen) return null;
 
-  const inpcYears = Object.keys(OFFICIAL_INPC_TABLE)
-    .map(Number)
-    .sort((a, b) => b - a);
-
-  const dofYears = Object.keys(OFFICIAL_DOF_EXCHANGE_RATES)
-    .map(Number)
-    .sort((a, b) => b - a);
+  const inpcYears = Array.from(new Set([...Object.keys(OFFICIAL_INPC_TABLE).map(Number), ...customEntries.map((c) => c.year)])).sort((a, b) => b - a);
+  const dofYears = Object.keys(OFFICIAL_DOF_EXCHANGE_RATES).map(Number).sort((a, b) => b - a);
 
   return (
     <ModalShell
@@ -91,8 +141,8 @@ export function InpcCatalogModal({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-slate-600 text-[11px]">
             {tab === 'INPC'
-              ? 'Base: Segunda quincena de julio de 2018 = 100 puntos. Haz clic en un índice para copiarlo al portapapeles.'
-              : 'Tipo de cambio de cierre DOF Banxico (Art. 8 CFF). Haz clic en una cifra para copiarla.'}
+              ? 'Base: 2a quincena jul 2018 = 100. Haz clic para copiar o captura manualmente meses recientes/futuros abajo.'
+              : 'Solo cifras publicadas Banxico DOF (2023–Ene 2025, sin tasas sintéticas). Haz clic para copiar.'}
           </p>
           {copiedCell && (
             <span role="status">
@@ -102,6 +152,46 @@ export function InpcCatalogModal({
             </span>
           )}
         </div>
+
+        {tab === 'INPC' && !isReadOnly && companyId && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (Number.parseFloat(editValue) > 0) saveInpcMut.mutate();
+            }}
+            className="flex flex-wrap items-end gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200"
+          >
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-slate-600 uppercase">Año</span>
+              <Input size="sm" type="number" min={2015} max={2035} value={editYear} onChange={(e) => setEditYear(Number(e.target.value) || activeYear)} className="w-20 font-mono" />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-slate-600 uppercase">Mes</span>
+              <Select size="sm" value={editMonth} onChange={(e) => setEditMonth(Number(e.target.value))}>
+                {MONTHS.map((m, idx) => <option key={m} value={idx + 1}>{m}</option>)}
+              </Select>
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-slate-600 uppercase">INPC Manual</span>
+              <Input size="sm" type="number" step="0.001" min="0.001" required placeholder="147.850" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="w-28 font-mono" />
+            </label>
+            <Button type="submit" size="sm" variant="primary" loading={saveInpcMut.isPending} leftIcon={<Plus className="w-3.5 h-3.5" aria-hidden="true" />}>
+              Guardar INPC
+            </Button>
+            {customEntries.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1 ml-auto">
+                {customEntries.slice(0, 4).map((ce) => (
+                  <span key={`${ce.year}-${ce.month}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 font-mono text-[10px]">
+                    {MONTHS[ce.month - 1]} {ce.year}: {ce.inpcValue.toFixed(3)}
+                    <button type="button" onClick={() => deleteInpcMut.mutate({ year: ce.year, month: ce.month })} aria-label={`Eliminar INPC manual ${MONTHS[ce.month - 1]} ${ce.year}`} className="text-red-700 hover:text-red-900 cursor-pointer">
+                      <Trash2 className="w-3 h-3" aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </form>
+        )}
 
         <div
           tabIndex={0}
@@ -136,8 +226,9 @@ export function InpcCatalogModal({
                     {yr}
                   </th>
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                    const customVal = tab === 'INPC' ? customMap.get(`${yr}-${m}`) : undefined;
                     const val = tab === 'INPC'
-                      ? OFFICIAL_INPC_TABLE[yr]?.[m]
+                      ? (customVal ?? OFFICIAL_INPC_TABLE[yr]?.[m])
                       : OFFICIAL_DOF_EXCHANGE_RATES[yr]?.[m];
                     const formatted = val
                       ? (tab === 'INPC' ? val.toFixed(3) : val.toFixed(4))
@@ -147,10 +238,17 @@ export function InpcCatalogModal({
                         {formatted ? (
                           <button
                             type="button"
-                            onClick={() => handleCopyValue(formatted)}
+                            onClick={() => {
+                              handleCopyValue(formatted);
+                              if (tab === 'INPC' && !isReadOnly) {
+                                setEditYear(yr);
+                                setEditMonth(m);
+                                setEditValue(formatted);
+                              }
+                            }}
                             title={
                               tab === 'INPC'
-                                ? `Copiar INPC ${MONTHS[m - 1]} ${yr}: ${formatted}`
+                                ? `Copiar/editar INPC ${MONTHS[m - 1]} ${yr}: ${formatted}`
                                 : `Copiar TC DOF ${MONTHS[m - 1]} ${yr}: ${formatted}`
                             }
                             aria-label={
@@ -158,12 +256,21 @@ export function InpcCatalogModal({
                                 ? `Copiar INPC ${MONTHS[m - 1]} ${yr}: ${formatted}`
                                 : `Copiar Tipo de Cambio ${MONTHS[m - 1]} ${yr}: ${formatted}`
                             }
-                            className="px-1 py-0.5 rounded hover:bg-blue-100 hover:text-blue-900 cursor-pointer transition"
+                            className={`px-1 py-0.5 rounded hover:bg-blue-100 hover:text-blue-900 cursor-pointer transition ${customVal !== undefined ? 'bg-amber-100 text-amber-950 font-bold' : ''}`}
                           >
                             {tab === 'DOF' ? `$${formatted}` : formatted}
                           </button>
                         ) : (
-                          '-'
+                          tab === 'INPC' && !isReadOnly ? (
+                            <button
+                              type="button"
+                              onClick={() => { setEditYear(yr); setEditMonth(m); setEditValue(''); }}
+                              title={`Capturar INPC ${MONTHS[m - 1]} ${yr}`}
+                              className="px-1.5 py-0.5 rounded text-slate-400 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                            >
+                              +
+                            </button>
+                          ) : '-'
                         )}
                       </td>
                     );

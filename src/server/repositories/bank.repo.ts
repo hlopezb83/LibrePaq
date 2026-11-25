@@ -21,6 +21,7 @@ import {
   buildSqliteReconRows,
   collectAllMatchedMovementIdsSqlite,
   executeManualBankMatchSqlite,
+  getBankClosureBalanceSqlite,
   type SqliteBookRow
 } from './bank-reconciliation-helpers';
 
@@ -110,6 +111,7 @@ export function getBankReconciliation(
 
   const totalDepositosBanco = fromCents(sumCents(statementLines.map((l) => l.abonoBanco)));
   const totalRetirosBanco = fromCents(sumCents(statementLines.map((l) => l.cargoBanco)));
+  const saldoBancoCierre = getBankClosureBalanceSqlite(db, companyId, accountId, ejercicio, periodo);
 
   return {
     account,
@@ -124,7 +126,8 @@ export function getBankReconciliation(
       totalRetirosBanco,
       movimientosConciliados: statementLines.filter((s) => s.matchedMovementId).length,
       movimientosPendientesBanco: statementLines.filter((s) => !s.matchedMovementId).length,
-      movimientosPendientesLibros: bookMovements.filter((b) => !b.isMatched).length
+      movimientosPendientesLibros: bookMovements.filter((b) => !b.isMatched).length,
+      saldoBancoCierre
     }
   };
 }
@@ -312,5 +315,28 @@ export function unmatchBankLineTransaction(lineId: string): {
   return {
     found: true,
     reconciliation: getBankReconciliation(company.id, bLine.account_id, company.currentYear, company.currentPeriod)
+  };
+}
+
+export function deleteBankStatementLineTransaction(lineId: string): {
+  deleted: boolean;
+  reconciliation?: BankReconciliationResponse | null;
+} {
+  const bLine = db.query('SELECT * FROM bank_statement_lines WHERE id = ?').get(lineId) as BankLineDbRow | null;
+  if (!bLine) return { deleted: false };
+
+  const lineYear = Number(bLine.ejercicio);
+  const linePeriod = Number(bLine.periodo);
+  assertPeriodOpen(bLine.company_id, lineYear, linePeriod);
+  ensureBankN1MatchesTable(db);
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM bank_statement_matches WHERE bank_line_id = ?').run(lineId);
+    db.prepare('DELETE FROM bank_statement_lines WHERE id = ?').run(lineId);
+  });
+  tx();
+
+  return {
+    deleted: true,
+    reconciliation: getBankReconciliation(bLine.company_id, bLine.account_id, lineYear, linePeriod)
   };
 }

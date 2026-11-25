@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api-client';
+import { getAuthHeaders, handleResponse } from '../../lib/api/api-helpers';
+import { isSupabaseConfigured } from '../../lib/supabase';
+import { supabaseFiscalAndAssets } from '../../lib/supabase/supabase-fiscal-assets';
 import { validateRfcModulo11 } from '../../shared/accounting-engine';
 import { checkRfc69BStatus } from '../../shared/sat-69b';
 import type { AccountWithBalance, Efos69BStatus, ThirdPartyRecord } from '../../shared/types';
@@ -13,17 +16,20 @@ interface UsePadronProveedoresParams {
 }
 
 export function extractThirdPartyDraft(tp: ThirdPartyRecord) {
+  const rol = tp.rol || ('PROVEEDOR' as const);
   return {
     rfc: tp.rfc,
     nombre: tp.nombre,
-    rol: tp.rol || ('PROVEEDOR' as const),
+    rol,
     tipoTerceroDiot: (tp.tipoTerceroDiot as '04' | '05' | '15') || '04',
     idFiscal: tp.idFiscal || '',
     pais: tp.pais || '',
     jurisdiccionFiscal: tp.jurisdiccionFiscal || '',
-    cuentaContrapartidaCode: tp.cuentaContrapartidaCode || '201-01-001',
+    cuentaContrapartidaCode: tp.cuentaContrapartidaCode || (rol === 'CLIENTE' ? '105-01-001' : '201-01-001'),
     cuentaOperacionCode: tp.cuentaOperacionCode || '601-01-002',
     tasaIvaDefault: (tp.tasaIvaDefault as 16 | 8 | 0) ?? 16,
+    regionFronteriza: (tp.regionFronteriza as 'NORTE' | 'SUR' | undefined) ?? 'NORTE',
+    deductiblePct: tp.deductiblePct ?? 100,
     tipoOperacionDiot: (tp.tipoOperacionDiot as '03' | '06' | '85') || '03',
     estatus69B: tp.estatus69B || ('LIMPIO' as const)
   };
@@ -60,10 +66,26 @@ export function usePadronProveedores({
   const [tpOperacion, setTpOperacion] = useState<'03' | '06' | '85'>('03');
   const [tpExpenseAcc, setTpExpenseAcc] = useState('601-01-002');
   const [tpIvaRate, setTpIvaRate] = useState<16 | 8 | 0>(16);
+  const [tpRegionFronteriza, setTpRegionFronteriza] = useState<'NORTE' | 'SUR'>('NORTE');
+  const [tpDeductiblePct, setTpDeductiblePct] = useState<number>(100);
   const [tpEfos, setTpEfos] = useState<Efos69BStatus>('LIMPIO');
   const [editingRfc, setEditingRfc] = useState<string | null>(null);
   const [is69BModalOpen, setIs69BModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const usingCloud =
+    typeof window !== 'undefined' &&
+    isSupabaseConfigured &&
+    (window.location.hostname !== 'localhost' || window.location.search.includes('cloud=true'));
+
+  const handleRolChange = useCallback((nextRol: 'PROVEEDOR' | 'CLIENTE' | 'AMBOS') => {
+    setTpRol(nextRol);
+    setTpContrapartidaAcc((prev) =>
+      prev === '105-01-001' || prev === '201-01-001'
+        ? (nextRol === 'CLIENTE' ? '105-01-001' : '201-01-001')
+        : prev
+    );
+  }, []);
 
   const isEditing = useMemo(
     () => Boolean(editingRfc) || (tpRfc.trim().length >= 12 && thirdParties.some((tp) => tp.rfc === tpRfc.trim())),
@@ -94,6 +116,8 @@ export function usePadronProveedores({
     setTpContrapartidaAcc(draft.cuentaContrapartidaCode);
     setTpExpenseAcc(draft.cuentaOperacionCode);
     setTpIvaRate(draft.tasaIvaDefault);
+    setTpRegionFronteriza(draft.regionFronteriza);
+    setTpDeductiblePct(draft.deductiblePct);
     setTpOperacion(draft.tipoOperacionDiot);
     setTpEfos(draft.estatus69B);
     document.getElementById('tp-nombre')?.focus();
@@ -111,6 +135,8 @@ export function usePadronProveedores({
     setTpContrapartidaAcc('201-01-001');
     setTpExpenseAcc('601-01-002');
     setTpIvaRate(16);
+    setTpRegionFronteriza('NORTE');
+    setTpDeductiblePct(100);
     setTpOperacion('03');
     setTpEfos('LIMPIO');
   }, []);
@@ -141,12 +167,12 @@ export function usePadronProveedores({
   };
 
   const saveThirdPartyMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (isReadOnlyClient) {
         throw new Error('Modo solo lectura: no es posible modificar el padrón de terceros.');
       }
       const paisNorm = tpPais.trim().toUpperCase();
-      return apiClient.saveThirdParty({
+      const payload = {
         companyId,
         rfc: tpRfc,
         nombre: tpNombre,
@@ -156,12 +182,21 @@ export function usePadronProveedores({
         tipoTerceroDiot: tpTipoTercero,
         tipoOperacionDiot: tpOperacion,
         tasaIvaDefault: tpIvaRate,
+        regionFronteriza: tpIvaRate === 8 ? tpRegionFronteriza : undefined,
+        deductiblePct: tpDeductiblePct,
         estatus69B: tpEfos,
         idFiscal: tpTipoTercero === '05' ? tpIdFiscal.trim() || null : null,
         pais: tpTipoTercero === '05' ? paisNorm || null : null,
         jurisdiccionFiscal:
           tpTipoTercero === '05' && paisNorm === 'ZZZ' ? tpJurisdiccionFiscal.trim() || null : null
+      };
+      if (usingCloud) return supabaseFiscalAndAssets.saveThirdParty(payload);
+      const res = await fetch('/api/third-parties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify(payload)
       });
+      return handleResponse<ThirdPartyRecord>(res);
     },
     onSuccess: (saved) => {
       const targetCompanyId = saved.companyId || companyId;
@@ -178,6 +213,24 @@ export function usePadronProveedores({
     }
   });
 
+  const deleteThirdPartyMutation = useMutation({
+    mutationFn: async (thirdPartyId: string) => {
+      if (isReadOnlyClient) throw new Error('Modo solo lectura: no es posible eliminar terceros.');
+      if (usingCloud) return supabaseFiscalAndAssets.deleteThirdParty(companyId, thirdPartyId);
+      const res = await fetch(`/api/third-parties/${encodeURIComponent(thirdPartyId)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      return handleResponse<{ deleted: boolean }>(res);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['third-parties', companyId] });
+      void queryClient.invalidateQueries({ queryKey: ['diot', companyId] });
+      onFeedback('Tercero eliminado del Padrón Fiscal.');
+    },
+    onError: (err: Error) => onFeedback(`Error al eliminar tercero: ${err.message}`, 'error')
+  });
+
   const handle69BImportComplete = (count: number) => {
     if (isReadOnlyClient) return;
     void queryClient.invalidateQueries({ queryKey: ['third-parties', companyId] });
@@ -187,46 +240,15 @@ export function usePadronProveedores({
   };
 
   return {
-    affectableAccounts,
-    thirdParties,
-    filteredThirdParties,
-    searchQuery,
-    setSearchQuery,
-    selectThirdPartyForEdit,
-    resetForm,
-    isEditing,
-    loadingTp,
-    isErrorTp,
-    refetchTp,
-    tpRfc,
-    setTpRfc: handleRfcChange,
-    tpNombre,
-    setTpNombre,
-    tpRol,
-    setTpRol,
-    tpTipoTercero,
-    setTpTipoTercero,
-    tpIdFiscal,
-    setTpIdFiscal,
-    tpPais,
-    setTpPais,
-    tpJurisdiccionFiscal,
-    setTpJurisdiccionFiscal,
-    tpContrapartidaAcc,
-    setTpContrapartidaAcc,
-    tpOperacion,
-    setTpOperacion,
-    tpExpenseAcc,
-    setTpExpenseAcc,
-    tpIvaRate,
-    setTpIvaRate,
-    tpEfos,
-    setTpEfos,
-    is69BModalOpen,
-    setIs69BModalOpen,
-    tpRfcRes,
-    handleRfcChange,
-    handle69BImportComplete,
-    saveThirdPartyMutation
+    affectableAccounts, thirdParties, filteredThirdParties, searchQuery, setSearchQuery,
+    selectThirdPartyForEdit, resetForm, isEditing, loadingTp, isErrorTp, refetchTp,
+    tpRfc, setTpRfc: handleRfcChange, tpNombre, setTpNombre,
+    tpRol, setTpRol: handleRolChange, tpTipoTercero, setTpTipoTercero,
+    tpIdFiscal, setTpIdFiscal, tpPais, setTpPais, tpJurisdiccionFiscal, setTpJurisdiccionFiscal,
+    tpContrapartidaAcc, setTpContrapartidaAcc, tpOperacion, setTpOperacion,
+    tpExpenseAcc, setTpExpenseAcc, tpIvaRate, setTpIvaRate,
+    tpRegionFronteriza, setTpRegionFronteriza, tpDeductiblePct, setTpDeductiblePct,
+    tpEfos, setTpEfos, is69BModalOpen, setIs69BModalOpen, tpRfcRes,
+    handleRfcChange, handle69BImportComplete, saveThirdPartyMutation, deleteThirdPartyMutation
   };
 }

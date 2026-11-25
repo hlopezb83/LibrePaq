@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { getDefaultDateForPeriod, parseBankStatementCsv } from '../../lib/formatters';
+import { decodeBankCsvBytes } from '../../shared/csv-bank-parser';
 import { useToast } from '../../context/ToastContext';
 import type { AccountWithBalance } from '../../shared/types';
 
@@ -210,7 +211,8 @@ export function useBancosTabState(params: {
     }
     setIsCsvUploading(true);
     try {
-      const text = await file.text();
+      const buffer = await file.arrayBuffer();
+      const text = decodeBankCsvBytes(new Uint8Array(buffer));
       const parsedLines = parseBankStatementCsv(text, defaultPeriodDate);
 
       if (parsedLines.length > 0) {

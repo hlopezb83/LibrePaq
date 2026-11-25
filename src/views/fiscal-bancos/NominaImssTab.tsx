@@ -6,7 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient, invalidateAccountingQueries } from '../../lib/api-client';
 import { formatCurrency, formatShortDate, getLastDateForPeriod } from '../../lib/formatters';
-import { computePayrollPeriodSummary, computeSuaAndIsnProvision, MEXICO_ISN_RATES } from '../../shared/engine/payroll-summary.engine';
+import { computePayrollExtendedAmarre, computeSuaAndIsnProvision, MEXICO_ISN_RATES } from '../../shared/engine/payroll-summary.engine';
 import type { AccountWithBalance, Company } from '../../shared/types';
 import type { SuaAndIsnProvisionResult } from '../../shared/types/payroll-summary.types';
 import { NominaKpiAmarreSection } from './NominaKpiAmarreSection';
@@ -82,10 +82,11 @@ export function NominaImssTab({
   const accounts = accountsProp && accountsProp.length > 0 ? accountsProp : trialBalance;
   const isrAccountId = accounts.find((a) => a.code === '216-01-001')?.id;
 
-  const summary = useMemo(
-    () => computePayrollPeriodSummary({ cfdis, trialBalance, ejercicio: effectiveYear, periodo: effectivePeriod }),
-    [cfdis, trialBalance, effectiveYear, effectivePeriod]
+  const extendedAmarre = useMemo(
+    () => computePayrollExtendedAmarre({ cfdis, trialBalance, polizas: periodPolizas, ejercicio: effectiveYear, periodo: effectivePeriod }),
+    [cfdis, trialBalance, periodPolizas, effectiveYear, effectivePeriod]
   );
+  const summary = extendedAmarre.summary;
 
   const [confirmPoliza, setConfirmPoliza] = useState<boolean>(false);
   const {
@@ -193,7 +194,7 @@ export function NominaImssTab({
 
   return (
     <div className="space-y-5">
-      <NominaKpiAmarreSection summary={summary} periodLabel={periodLabel} isrAccountId={isrAccountId} />
+      <NominaKpiAmarreSection summary={summary} extendedAmarre={extendedAmarre} periodLabel={periodLabel} isrAccountId={isrAccountId} />
 
       <section aria-labelledby="nomina-sua-isn-heading" className="bg-white p-5 rounded-2xl border border-slate-300/90 shadow-2xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200 pb-3">
@@ -283,6 +284,7 @@ export function NominaImssTab({
           imssInput={imssInput}
           rcvInput={rcvInput}
           infonavitInput={infonavitInput}
+          infonavitEstimate={extendedAmarre.infonavitEstimate}
           onStateChange={(code) => { handleStateChange(code); setConfirmPoliza(false); }}
           onIsnRateChange={(val) => { setIsnRateInput(val); setConfirmPoliza(false); }}
           onBaseChange={(val) => { setBaseInput(val); setConfirmPoliza(false); }}

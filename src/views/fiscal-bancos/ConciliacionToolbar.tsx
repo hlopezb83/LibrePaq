@@ -104,7 +104,7 @@ export function ConciliacionToolbar({
                   ? 'Configura primero una cuenta bancaria 102-*'
                   : isCsvUploading
                     ? 'Subiendo movimientos bancarios...'
-                    : 'Importar CSV Banco'
+                    : 'Importar CSV o TXT Banco'
             }
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border shadow-2xs transition focus-within:outline-2 focus-within:outline-blue-600 focus-within:outline-offset-2 ${
               csvDisabled
@@ -116,7 +116,7 @@ export function ConciliacionToolbar({
               id="bank-csv-upload"
               ref={csvInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.txt,text/plain"
               disabled={csvDisabled}
               onChange={onCsvUpload}
               className="visually-hidden"
@@ -126,7 +126,7 @@ export function ConciliacionToolbar({
             ) : (
               <UploadCloud className="w-4 h-4 text-slate-500" aria-hidden="true" />
             )}
-            <span>{isCsvUploading ? 'Importando CSV...' : 'Importar CSV'}</span>
+            <span>{isCsvUploading ? 'Importando...' : 'Importar CSV / TXT'}</span>
           </label>
 
           <Button

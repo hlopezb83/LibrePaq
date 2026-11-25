@@ -29,10 +29,16 @@ export interface PadronProveedoresFormProps {
   setTpPais: (val: string) => void;
   tpJurisdiccionFiscal: string;
   setTpJurisdiccionFiscal: (val: string) => void;
+  tpContrapartidaAcc: string;
+  setTpContrapartidaAcc: (val: string) => void;
   tpExpenseAcc: string;
   setTpExpenseAcc: (val: string) => void;
   tpIvaRate: 16 | 8 | 0;
   setTpIvaRate: (val: 16 | 8 | 0) => void;
+  tpRegionFronteriza: 'NORTE' | 'SUR';
+  setTpRegionFronteriza: (val: 'NORTE' | 'SUR') => void;
+  tpDeductiblePct: number;
+  setTpDeductiblePct: (val: number) => void;
   tpOperacion: '03' | '06' | '85';
   setTpOperacion: (val: '03' | '06' | '85') => void;
   tpEfos: Efos69BStatus;
@@ -42,38 +48,16 @@ export interface PadronProveedoresFormProps {
 }
 
 export function PadronProveedoresForm({
-  isReadOnly,
-  isEditing,
-  isPending,
-  affectableAccounts,
-  tpRfc,
-  onRfcChange,
-  tpRfcRes,
-  tpNombre,
-  setTpNombre,
-  tpRol,
-  setTpRol,
-  tpTipoTercero,
-  setTpTipoTercero,
-  tpIdFiscal,
-  setTpIdFiscal,
-  tpPais,
-  setTpPais,
-  tpJurisdiccionFiscal,
-  setTpJurisdiccionFiscal,
-  tpExpenseAcc,
-  setTpExpenseAcc,
-  tpIvaRate,
-  setTpIvaRate,
-  tpOperacion,
-  setTpOperacion,
-  tpEfos,
-  setTpEfos,
-  onSubmit,
-  onReset
+  isReadOnly, isEditing, isPending, affectableAccounts, tpRfc, onRfcChange, tpRfcRes,
+  tpNombre, setTpNombre, tpRol, setTpRol, tpTipoTercero, setTpTipoTercero,
+  tpIdFiscal, setTpIdFiscal, tpPais, setTpPais, tpJurisdiccionFiscal, setTpJurisdiccionFiscal,
+  tpContrapartidaAcc, setTpContrapartidaAcc, tpExpenseAcc, setTpExpenseAcc,
+  tpIvaRate, setTpIvaRate, tpRegionFronteriza, setTpRegionFronteriza,
+  tpDeductiblePct, setTpDeductiblePct, tpOperacion, setTpOperacion, tpEfos, setTpEfos,
+  onSubmit, onReset
 }: PadronProveedoresFormProps) {
-  const selectedExpenseAccountId =
-    affectableAccounts.find((acc) => acc.code === tpExpenseAcc)?.id ?? '';
+  const selectedExpenseAccountId = affectableAccounts.find((acc) => acc.code === tpExpenseAcc)?.id ?? '';
+  const selectedContrapartidaId = affectableAccounts.find((acc) => acc.code === tpContrapartidaAcc)?.id ?? '';
 
   return (
     <form
@@ -211,10 +195,7 @@ export function PadronProveedoresForm({
 
         <div className="lg:col-span-2">
           <span className={LABEL_CLASS}>Cuenta Gasto / Operación</span>
-          <div
-            className={isReadOnly ? 'pointer-events-none opacity-60' : undefined}
-            aria-disabled={isReadOnly || undefined}
-          >
+          <div className={isReadOnly ? 'pointer-events-none opacity-60' : undefined} aria-disabled={isReadOnly || undefined}>
             <AccountPickerCombobox
               accounts={affectableAccounts}
               value={selectedExpenseAccountId}
@@ -229,44 +210,54 @@ export function PadronProveedoresForm({
           </div>
         </div>
 
+        <div className="lg:col-span-2">
+          <span className={LABEL_CLASS}>Contrapartida ({tpRol === 'CLIENTE' ? '105-01-001' : '201-01-001'})</span>
+          <div className={isReadOnly ? 'pointer-events-none opacity-60' : undefined} aria-disabled={isReadOnly || undefined}>
+            <AccountPickerCombobox
+              accounts={affectableAccounts}
+              value={selectedContrapartidaId}
+              onChange={(accountId) => {
+                if (isReadOnly) return;
+                const found = affectableAccounts.find((acc) => acc.id === accountId);
+                if (found) setTpContrapartidaAcc(found.code);
+              }}
+              ariaLabel="Cuenta Contrapartida CxC/CxP"
+              placeholder="105-01-001 / 201-01-001..."
+            />
+          </div>
+        </div>
+
         <FormField label="Tasa IVA" htmlFor="tp-iva-rate">
-          <Select
-            id="tp-iva-rate"
-            size="sm"
-            disabled={isReadOnly}
-            value={tpIvaRate}
-            onChange={(e) => setTpIvaRate(Number(e.target.value) as 16 | 8 | 0)}
-            className="font-mono"
-          >
+          <Select id="tp-iva-rate" size="sm" disabled={isReadOnly} value={tpIvaRate} onChange={(e) => setTpIvaRate(Number(e.target.value) as 16 | 8 | 0)} className="font-mono">
             <option value={16}>16%</option>
             <option value={8}>8% Frontera</option>
             <option value={0}>0%</option>
           </Select>
         </FormField>
 
+        {tpIvaRate === 8 && (
+          <FormField label="Región Fronteriza" htmlFor="tp-region-fronteriza">
+            <Select id="tp-region-fronteriza" size="sm" disabled={isReadOnly} value={tpRegionFronteriza} onChange={(e) => setTpRegionFronteriza(e.target.value as 'NORTE' | 'SUR')}>
+              <option value="NORTE">Norte (Decreto)</option>
+              <option value="SUR">Sur (Decreto)</option>
+            </Select>
+          </FormField>
+        )}
+
+        <FormField label="% Deducible" htmlFor="tp-deductible-pct">
+          <Input id="tp-deductible-pct" size="sm" type="number" min={0} max={100} step={0.5} disabled={isReadOnly} value={tpDeductiblePct} onChange={(e) => setTpDeductiblePct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))} className="font-mono tabular-nums" />
+        </FormField>
+
         <FormField label="Op. DIOT" htmlFor="tp-operacion-diot">
-          <Select
-            id="tp-operacion-diot"
-            size="sm"
-            disabled={isReadOnly}
-            value={tpOperacion}
-            onChange={(e) => setTpOperacion(e.target.value as '03' | '06' | '85')}
-            className="font-mono"
-          >
+          <Select id="tp-operacion-diot" size="sm" disabled={isReadOnly} value={tpOperacion} onChange={(e) => setTpOperacion(e.target.value as '03' | '06' | '85')} className="font-mono">
             <option value="03">03 Serv. Prof.</option>
             <option value="06">06 Arrend.</option>
             <option value="85">85 Otros</option>
           </Select>
         </FormField>
 
-        <FormField label="Lista 69-B" htmlFor="tp-efos" className="lg:col-span-2">
-          <Select
-            id="tp-efos"
-            size="sm"
-            disabled={isReadOnly}
-            value={tpEfos}
-            onChange={(e) => setTpEfos(e.target.value as Efos69BStatus)}
-          >
+        <FormField label="Lista 69-B" htmlFor="tp-efos">
+          <Select id="tp-efos" size="sm" disabled={isReadOnly} value={tpEfos} onChange={(e) => setTpEfos(e.target.value as Efos69BStatus)}>
             <option value="LIMPIO">Limpio</option>
             <option value="PRESUNTO_EFOS">Presunto</option>
             <option value="DEFINITIVO_EFOS">Definitivo</option>
@@ -274,7 +265,7 @@ export function PadronProveedoresForm({
           </Select>
         </FormField>
 
-        <div className="lg:col-span-4 flex items-end justify-end gap-2">
+        <div className="lg:col-span-2 flex items-end justify-end gap-2">
           {(tpRfc || tpNombre) && (
             <Button
               type="button"

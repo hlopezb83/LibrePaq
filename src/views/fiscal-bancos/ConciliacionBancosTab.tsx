@@ -100,20 +100,28 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
 
   const selectedLine =
     reconData?.statementLines.find((l) => l.id === actions.selectedLineId && !l.matchedMovementId) || null;
-  const selectedBookMov =
-    reconData?.bookMovements.find((b) => b.movementId === actions.selectedBookMovId && !b.isMatched) || null;
+  const selectedBookIdSet = new Set(actions.selectedBookMovIds);
+  const selectedBookMovs =
+    reconData?.bookMovements.filter((b) => selectedBookIdSet.has(b.movementId) && !b.isMatched) ?? [];
+  const selectedBookMov = selectedBookMovs[0] ?? null;
+  const isDepositLine = Boolean(selectedLine && selectedLine.abonoBanco > 0 && selectedLine.cargoBanco === 0);
+  const selectedBooksSum = selectedBookMovs.reduce(
+    (sum, b) => sum + (selectedLine ? (isDepositLine ? b.cargoContable : b.abonoContable) : (b.cargoContable || b.abonoContable)),
+    0
+  );
   const highlightAmount = selectedLine ? (selectedLine.cargoBanco > 0 ? selectedLine.cargoBanco : selectedLine.abonoBanco) : null;
+  const manualDiff = highlightAmount !== null ? Math.abs(selectedBooksSum - highlightAmount) : 0;
 
   useEffect(() => {
-    if (!selectedLine && !selectedBookMov) return;
+    if (!selectedLine && selectedBookMovs.length === 0) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
       actions.setSelectedLineId(null);
-      actions.setSelectedBookMovId(null);
+      actions.clearBookMovIds();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedLine, selectedBookMov, actions.setSelectedLineId, actions.setSelectedBookMovId]);
+  }, [selectedLine, selectedBookMovs.length, actions.setSelectedLineId, actions.clearBookMovIds]);
 
   return (
     <div className="space-y-5">
@@ -150,27 +158,35 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
         onApplyAll={() => void actions.handleApplyN1()}
       />
 
-      {(selectedLine || selectedBookMov) && !isWriteLocked && (
+      {(selectedLine || selectedBookMovs.length > 0) && !isWriteLocked && (
         <div
           role="region"
           aria-live="polite"
-          aria-label="Emparejamiento manual 1 a 1"
+          aria-label="Emparejamiento manual 1 a 1 y N a 1"
           className="bg-blue-50 border border-blue-300 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
         >
           <div className="text-blue-950">
-            {selectedLine && selectedBookMov ? (
+            {selectedLine && selectedBookMovs.length > 0 ? (
               <>
-                <strong>Paso 2 — Emparejamiento Manual 1-a-1:</strong> Banco{' '}
-                <span className="font-mono">{selectedLine.referencia}</span> ({formatCurrency(selectedLine.cargoBanco || selectedLine.abonoBanco)}) ↔ Libros{' '}
-                <span className="font-mono">{selectedBookMov.polizaFolio}</span> ({formatCurrency(selectedBookMov.cargoContable || selectedBookMov.abonoContable)})
+                <strong>Paso 2 — Cruce Manual {selectedBookMovs.length > 1 ? `N:1 (${selectedBookMovs.length} partidas)` : '1:1'}:</strong> Banco{' '}
+                <span className="font-mono">{selectedLine.referencia}</span> ({formatCurrency(highlightAmount ?? 0)}) ↔ Libros{' '}
+                <span className="font-mono">
+                  {selectedBookMovs.length === 1 ? selectedBookMov?.polizaFolio : `${selectedBookMovs.length} pólizas`}
+                </span>{' '}
+                ({formatCurrency(selectedBooksSum)})
+                {manualDiff > 0.05 && (
+                  <span className="ml-2 font-semibold text-red-700">
+                    · Diferencia: {formatCurrency(manualDiff)} (máx. ±$0.05)
+                  </span>
+                )}
               </>
             ) : selectedLine ? (
               <>
-                <strong>Paso 1 de 2:</strong> Partida bancaria <span className="font-mono">{selectedLine.referencia}</span> ({formatCurrency(selectedLine.cargoBanco || selectedLine.abonoBanco)}) seleccionada. Ahora haz clic en el movimiento correspondiente en <strong>2. Movimientos Contables en Libros</strong>.
+                <strong>Paso 1 de 2:</strong> Partida bancaria <span className="font-mono">{selectedLine.referencia}</span> ({formatCurrency(highlightAmount ?? 0)}) seleccionada. Ahora selecciona una o varias partidas en <strong>2. Movimientos Contables en Libros</strong>.
               </>
             ) : (
               <>
-                <strong>Paso 1 de 2:</strong> Movimiento en libros <span className="font-mono">{selectedBookMov?.polizaFolio}</span> ({formatCurrency((selectedBookMov?.cargoContable || selectedBookMov?.abonoContable) ?? 0)}) seleccionado. Ahora haz clic en la partida bancaria correspondiente en <strong>1. Estado de Cuenta Bancario</strong>.
+                <strong>Paso 1 de 2:</strong> {selectedBookMovs.length === 1 ? `Movimiento ${selectedBookMov?.polizaFolio}` : `${selectedBookMovs.length} movimientos en libros`} ({formatCurrency(selectedBooksSum)}) seleccionado(s). Ahora haz clic en la partida bancaria correspondiente en <strong>1. Estado de Cuenta Bancario</strong>.
               </>
             )}
           </div>
@@ -178,21 +194,31 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { actions.setSelectedLineId(null); actions.setSelectedBookMovId(null); }}
+              onClick={() => { actions.setSelectedLineId(null); actions.clearBookMovIds(); }}
               title="Cancelar selección actual (Esc)"
             >
               <span>Limpiar Selección</span>
               <kbd className="hidden sm:inline-block px-1 py-0.2 rounded border border-slate-300 bg-slate-100 text-[10px] font-mono text-slate-600">Esc</kbd>
             </Button>
-            {selectedLine && selectedBookMov && (
+            {selectedLine && selectedBookMovs.length > 0 && (
               <Button
                 variant="primary"
                 size="sm"
                 loading={actions.manualMatchMutation.isPending}
-                onClick={() => actions.manualMatchMutation.mutate({ lineId: selectedLine.id, movementId: selectedBookMov.movementId })}
+                disabled={manualDiff > 0.05}
+                onClick={() =>
+                  actions.manualMatchMutation.mutate({
+                    lineId: selectedLine.id,
+                    movementIds: selectedBookMovs.map((b) => b.movementId)
+                  })
+                }
                 leftIcon={<Link2 className="w-3.5 h-3.5" aria-hidden="true" />}
               >
-                {actions.manualMatchMutation.isPending ? 'Conciliando...' : 'Conciliar Seleccionados'}
+                {actions.manualMatchMutation.isPending
+                  ? 'Conciliando...'
+                  : selectedBookMovs.length > 1
+                    ? `Conciliar N:1 (${selectedBookMovs.length})`
+                    : 'Conciliar Seleccionados'}
               </Button>
             )}
           </div>
@@ -258,8 +284,8 @@ export function ConciliacionBancosTab(props: ConciliacionBancosTabProps) {
             reconData={reconData}
             showOnlyPending={showOnlyPending}
             highlightAmount={highlightAmount}
-            selectedBookMovementId={actions.selectedBookMovId}
-            onSelectBookMovement={(id) => actions.setSelectedBookMovId((prev) => (prev === id ? null : id))}
+            selectedBookMovementIds={selectedBookIdSet}
+            onToggleBookMovement={actions.toggleBookMovId}
           />
         </>
       )}
