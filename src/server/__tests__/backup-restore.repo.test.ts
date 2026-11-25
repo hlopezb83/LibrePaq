@@ -32,7 +32,7 @@ describe('repositories — Respaldos y Restauración de Empresas (Backup/Restore
 
   test('exportCompanyBackupBundle creates complete JSON snapshot', () => {
     const bundle = exportCompanyBackupBundle(testCompanyId);
-    expect(bundle.version).toBe('2.0');
+    expect(bundle.version).toBe('2.1');
     expect(bundle.company.rfc).toBe('RRR2001019K2');
     expect(Array.isArray(bundle.accounts)).toBe(true);
     expect(bundle.accounts.length).toBeGreaterThan(15);

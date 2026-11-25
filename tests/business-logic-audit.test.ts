@@ -257,7 +257,7 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
       expect(() => validateDoubleEntryMovements(plan.movements)).not.toThrow();
     });
 
-    test('splits Nómina 1.2 TotalOtrosPagos into Subsidio al Empleo / ISR Acreditable (113-02-001)', () => {
+    test('splits Nómina 1.2 TotalOtrosPagos into Subsidio al Empleo (110-01-001)', () => {
       const cfdiNominaSubsidio: CfdiDocument = {
         id: 'cfdi_nom_sub',
         companyId: demoCompany.id,
@@ -292,7 +292,7 @@ describe('Business Logic Audit Suite — Deep Fiscal, Accounting & Invariant Cov
       const plan = buildAutoPolizaPlan(cfdiNominaSubsidio, catalog);
       expect(plan.isBalanced).toBe(true);
       const sueldosLine = plan.movements.find((m) => m.accountCode === '601-01-001');
-      const subsidioLine = plan.movements.find((m) => m.accountCode === '113-02-001');
+      const subsidioLine = plan.movements.find((m) => m.accountCode === '110-01-001');
       expect(sueldosLine?.cargo).toBe(10000);
       expect(subsidioLine?.cargo).toBe(500);
     });

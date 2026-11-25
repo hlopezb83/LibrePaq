@@ -331,7 +331,7 @@ describe('Ronda 7 — Ola 1: Seguridad Multi-Tenant, RBAC Despacho, Edge Functio
     const annualTaxSrc = readRepoFile('src/lib/supabase/supabase-annual-tax.ts');
     expect(annualTaxSrc).toContain('CFDI_ANNUAL_PROJECTION');
     expect(annualTaxSrc).not.toContain("from('cfdi_documents').select('*')");
-    expect(annualTaxSrc).toContain(".order('fecha', { ascending: false })\n          .order('id', { ascending: true })");
+    expect(annualTaxSrc).toContain(".order('fecha', { ascending: false }).order('id', { ascending: true })");
 
     const mappersSrc = readRepoFile('src/lib/supabase/supabase-mappers.ts');
     expect(mappersSrc).toContain('fetchAllRows');

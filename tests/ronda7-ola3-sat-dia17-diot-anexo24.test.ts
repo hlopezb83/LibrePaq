@@ -440,8 +440,9 @@ describe('Ronda 7 Ola 3 — INPC Oficial INEGI, Día 17, DyP Art. 20 CFF, DIOT, 
     });
     const total118 = movs.filter((m) => m.accountCode === '118-01-001').reduce((s, m) => s + m.abono, 0);
     expect(total118).toBe(3_000);
-    expect(movs.some((m) => m.accountCode === '601-01-012')).toBe(true);
-    expect(movs.find((m) => m.accountCode === '213-01-001')?.abono).toBe(1_000);
+    expect(movs.some((m) => m.accountCode === '119-01-001')).toBe(false);
+    expect(movs.some((m) => m.accountCode === '601-01-012')).toBe(false);
+    expect(movs.find((m) => m.accountCode === '213-01-001')?.abono).toBe(2_000);
   });
 
   test('5. Carryforward SQLite tax_parameters desde periodo inmediato anterior', () => {

@@ -488,35 +488,38 @@ describe('Ronda 3 — BUG-06 Backup/Restore SQLite & Supabase Mappers', () => {
     ).rejects.toThrow('Periodo cerrado: 2026-01');
   });
 
-  test('BUG-47: saveThirdPartyWithClient reuses existing id for (company_id, rfc) and upserts with onConflict company_id,rfc', async () => {
-    const upsertCalls: Array<{ row: Record<string, unknown>; onConflict?: string }> = [];
+  test('BUG-47: saveThirdPartyWithClient reuses existing id for non-foreign (company_id, rfc) and updates by id', async () => {
+    const updateCalls: Array<{ row: Record<string, unknown>; id?: string }> = [];
 
     const mockClient = {
       from(table: string) {
         expect(table).toBe('third_parties');
         return {
           select() {
-            return {
+            const chain = {
               eq() {
-                return {
-                  eq() {
-                    return {
-                      async maybeSingle() {
-                        return { data: { id: 'existing_tp_uuid_99' }, error: null };
-                      }
-                    };
-                  }
-                };
+                return chain;
+              },
+              neq() {
+                return chain;
+              },
+              async limit() {
+                return { data: [{ id: 'existing_tp_uuid_99' }], error: null };
               }
             };
+            return chain;
           },
-          upsert(row: Record<string, unknown>, opts?: { onConflict?: string }) {
-            upsertCalls.push({ row, onConflict: opts?.onConflict });
+          update(row: Record<string, unknown>) {
             return {
-              select() {
+              eq(_col: string, id: string) {
+                updateCalls.push({ row, id });
                 return {
-                  async single() {
-                    return { data: row, error: null };
+                  select() {
+                    return {
+                      async single() {
+                        return { data: row, error: null };
+                      }
+                    };
                   }
                 };
               }
@@ -541,8 +544,8 @@ describe('Ronda 3 — BUG-06 Backup/Restore SQLite & Supabase Mappers', () => {
 
     expect(saved.id).toBe('existing_tp_uuid_99');
     expect(saved.rfc).toBe('PRO180214A99');
-    expect(upsertCalls.length).toBe(1);
-    expect(upsertCalls[0]?.onConflict).toBe('company_id,rfc');
-    expect(upsertCalls[0]?.row.id).toBe('existing_tp_uuid_99');
+    expect(updateCalls.length).toBe(1);
+    expect(updateCalls[0]?.id).toBe('existing_tp_uuid_99');
+    expect(updateCalls[0]?.row.id).toBe('existing_tp_uuid_99');
   });
 });
